@@ -1,0 +1,1 @@
+# cache — translation result caching
