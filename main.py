@@ -13,14 +13,16 @@ Ctrl+C in terminal   → quit.
 """
 
 import sys
+import time
 
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
+from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QIcon
 import keyboard
 
 import config
 from overlay.selector import RegionSelector
+from capture.screenshot import capture_region
+from ocr.engine import recognise
 
 
 # ── Bridge: keyboard thread → Qt main thread ─────────────
@@ -65,6 +67,25 @@ class TranslatorApp:
         w = x2 - x1
         h = y2 - y1
         print(f"Selected region: ({x1}, {y1}) → ({x2}, {y2})  [{w}×{h} px]")
+
+        # ── Capture → OCR pipeline ───────────────────────
+        t0 = time.perf_counter()
+
+        print("  Capturing…")
+        image = capture_region(x1, y1, x2, y2)
+
+        print("  Running OCR…")
+        text = recognise(image)
+
+        elapsed = time.perf_counter() - t0
+        print(f"  Done in {elapsed:.2f}s\n")
+
+        if text:
+            print("─" * 40)
+            print(text)
+            print("─" * 40 + "\n")
+        else:
+            print("  (no text recognised)\n")
 
     def _on_cancelled(self) -> None:
         print("Selection cancelled (Escape)")

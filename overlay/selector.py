@@ -1,15 +1,32 @@
 """
 overlay/selector.py — fullscreen transparent overlay for rectangular region selection.
 
-Shows a semi-transparent dark background over all monitors.  The user drags
-a rectangle with the mouse; on release the widget emits ``region_selected``
-with (x1, y1, x2, y2) in global screen coordinates and closes itself.
-Pressing Escape cancels the selection.
+Multi-monitor aware: computes the bounding rectangle of *all* connected
+screens (including those with negative coordinates) and stretches the
+overlay across the entire virtual desktop.  The returned coordinates
+are always in the global screen coordinate system.
 """
 
 from PyQt5.QtWidgets import QWidget, QApplication
 from PyQt5.QtCore import Qt, QRect, QPoint, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen, QFont
+
+
+def _virtual_desktop_geometry() -> QRect:
+    """Return the bounding QRect that covers every connected screen.
+
+    Works correctly when monitors have negative origins (e.g. a screen
+    placed to the left or above the primary monitor).
+    """
+    screens = QApplication.screens()
+    if not screens:
+        # Fallback — should never happen with a running QApplication.
+        return QRect(0, 0, 1920, 1080)
+
+    united = screens[0].geometry()
+    for screen in screens[1:]:
+        united = united.united(screen.geometry())
+    return united
 
 
 class RegionSelector(QWidget):
@@ -34,6 +51,11 @@ class RegionSelector(QWidget):
         self._current = QPoint()      # current mouse position
         self._selecting = False
 
+        # Origin of the virtual desktop in global coords.
+        # Needed to convert widget-local coords → global coords manually
+        # when the virtual desktop starts at a negative origin.
+        self._vd_origin = QPoint(0, 0)
+
         # ── Window flags ─────────────────────────────────
         self.setWindowFlags(
             Qt.FramelessWindowHint
@@ -48,12 +70,27 @@ class RegionSelector(QWidget):
     # ── Public API ───────────────────────────────────────
 
     def activate(self) -> None:
-        """Cover the entire virtual desktop and show the overlay."""
-        virtual_geo = QApplication.primaryScreen().virtualGeometry()
-        self.setGeometry(virtual_geo)
-        self.showFullScreen()
-        self.activateWindow()
+        """Cover the entire virtual desktop (all monitors) and show."""
+        vd = _virtual_desktop_geometry()
+        self._vd_origin = vd.topLeft()
+
+        # Position the window at the virtual desktop origin and stretch
+        # it to cover every pixel across all monitors.
+        self.setGeometry(vd)
+        self.show()           # show() instead of showFullScreen() so WM
+        self.activateWindow() # doesn't clamp us to one monitor.
         self.raise_()
+
+    # ── Coordinate helpers ───────────────────────────────
+
+    def _to_global(self, widget_pt: QPoint) -> QPoint:
+        """Convert a widget-local point to global screen coordinates.
+
+        Because the widget's geometry matches the virtual desktop, the
+        widget-local origin (0, 0) corresponds to ``self._vd_origin``
+        in global coords.
+        """
+        return widget_pt + self._vd_origin
 
     # ── Mouse events ─────────────────────────────────────
 
@@ -80,13 +117,13 @@ class RegionSelector(QWidget):
                 return
 
             # Convert widget-local coords → global screen coords.
-            top_left = self.mapToGlobal(rect.topLeft())
-            bottom_right = self.mapToGlobal(rect.bottomRight())
+            global_tl = self._to_global(rect.topLeft())
+            global_br = self._to_global(rect.bottomRight())
 
             self.close()
             self.region_selected.emit(
-                top_left.x(), top_left.y(),
-                bottom_right.x(), bottom_right.y(),
+                global_tl.x(), global_tl.y(),
+                global_br.x(), global_br.y(),
             )
 
     # ── Keyboard events ──────────────────────────────────
@@ -146,10 +183,10 @@ class RegionSelector(QWidget):
             painter.drawRect(sel)
 
             # Size label near the bottom-right corner of the selection.
-            global_tl = self.mapToGlobal(sel.topLeft())
-            global_br = self.mapToGlobal(sel.bottomRight())
-            w = global_br.x() - global_tl.x()
-            h = global_br.y() - global_tl.y()
+            g_tl = self._to_global(sel.topLeft())
+            g_br = self._to_global(sel.bottomRight())
+            w = g_br.x() - g_tl.x()
+            h = g_br.y() - g_tl.y()
             label = f"{w} × {h}"
             painter.setFont(QFont("Segoe UI", 10))
             painter.setPen(QColor(255, 255, 255, 210))
