@@ -9,7 +9,7 @@ are always in the global screen coordinate system.
 
 from PyQt5.QtWidgets import QWidget, QApplication
 from PyQt5.QtCore import Qt, QRect, QPoint, pyqtSignal
-from PyQt5.QtGui import QPainter, QColor, QPen, QFont
+from PyQt5.QtGui import QPainter, QColor, QPen, QFont, QCursor
 
 
 def _virtual_desktop_geometry() -> QRect:
@@ -56,6 +56,10 @@ class RegionSelector(QWidget):
         # when the virtual desktop starts at a negative origin.
         self._vd_origin = QPoint(0, 0)
 
+        # Rect (in widget-local coords) of the monitor where the hint
+        # text should be drawn — determined in activate().
+        self._hint_rect = QRect()
+
         # ── Window flags ─────────────────────────────────
         self.setWindowFlags(
             Qt.FramelessWindowHint
@@ -73,6 +77,25 @@ class RegionSelector(QWidget):
         """Cover the entire virtual desktop (all monitors) and show."""
         vd = _virtual_desktop_geometry()
         self._vd_origin = vd.topLeft()
+
+        # Determine which monitor currently holds the cursor so we can
+        # draw the hint text centered on that specific screen.
+        cursor_pos = QCursor.pos()  # global coords
+        target_screen = QApplication.primaryScreen()  # fallback
+        for screen in QApplication.screens():
+            if screen.geometry().contains(cursor_pos):
+                target_screen = screen
+                break
+
+        # Convert the target screen's global geometry to widget-local
+        # coordinates (widget origin == virtual desktop origin).
+        sg = target_screen.geometry()
+        self._hint_rect = QRect(
+            sg.x() - vd.x(),
+            sg.y() - vd.y(),
+            sg.width(),
+            sg.height(),
+        )
 
         # Position the window at the virtual desktop origin and stretch
         # it to cover every pixel across all monitors.
@@ -199,11 +222,40 @@ class RegionSelector(QWidget):
             painter.fillRect(bg, QColor(0, 0, 0, 160))
             painter.drawText(lx, ly, label)
         else:
-            # No active selection — draw full dark overlay + hint text.
+            # No active selection — draw full dark overlay + hint text
+            # centered on the monitor where the cursor was at activation.
             painter.fillRect(full, self._OVERLAY_COLOR)
-            painter.setFont(QFont("Segoe UI", 14))
+
+            hint_text = "Выделите область для перевода\nEsc — отмена"
+            hint_font = QFont("Segoe UI", 14)
+            painter.setFont(hint_font)
+            fm = painter.fontMetrics()
+
+            # Measure each line independently — boundingRect with a zero-
+            # sized rect and TextWordWrap is unreliable for multi-line text.
+            lines = hint_text.split("\n")
+            line_h = fm.ascent() + fm.descent()
+            line_spacing = fm.leading()
+            text_w = max(fm.horizontalAdvance(ln) for ln in lines)
+            text_h = len(lines) * line_h + max(0, len(lines) - 1) * line_spacing
+
+            pad_x, pad_y = 36, 22
+            tw = text_w + pad_x * 2
+            th = text_h + pad_y * 2
+
+            # Center the backdrop on the target monitor (widget-local).
+            hr = self._hint_rect
+            bx = hr.x() + (hr.width() - tw) // 2
+            by = hr.y() + (hr.height() - th) // 2
+            backdrop = QRect(bx, by, tw, th)
+
+            # Semi-transparent dark pill behind the text.
+            painter.setBrush(QColor(0, 0, 0, 170))
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(backdrop, 12, 12)
+
+            # Draw the hint text.
             painter.setPen(self._HINT_COLOR)
-            painter.drawText(full, Qt.AlignCenter,
-                             "Выделите область для перевода\nEsc — отмена")
+            painter.drawText(backdrop, Qt.AlignCenter, hint_text)
 
         painter.end()

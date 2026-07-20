@@ -23,6 +23,7 @@ import config
 from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
 from ocr.engine import recognise
+from translate.llm_client import translate
 
 
 # ── Bridge: keyboard thread → Qt main thread ─────────────
@@ -68,7 +69,7 @@ class TranslatorApp:
         h = y2 - y1
         print(f"Selected region: ({x1}, {y1}) → ({x2}, {y2})  [{w}×{h} px]")
 
-        # ── Capture → OCR pipeline ───────────────────────
+        # ── Capture → OCR → Translate pipeline ─────────────
         t0 = time.perf_counter()
 
         print("  Capturing…")
@@ -77,15 +78,26 @@ class TranslatorApp:
         print("  Running OCR…")
         text = recognise(image)
 
+        if not text:
+            print(f"  (no text recognised)  [{time.perf_counter() - t0:.2f}s]\n")
+            return
+
+        print(f"  OCR result: {text[:80]}{'...' if len(text) > 80 else ''}")
+
+        print("  Translating…")
+        try:
+            translated = translate(text)
+        except Exception as e:
+            print(f"  Translation error: {e}\n")
+            return
+
         elapsed = time.perf_counter() - t0
         print(f"  Done in {elapsed:.2f}s\n")
 
-        if text:
-            print("─" * 40)
-            print(text)
-            print("─" * 40 + "\n")
-        else:
-            print("  (no text recognised)\n")
+        print("─" * 40)
+        print(f"  SRC: {text}")
+        print(f"  →  : {translated}")
+        print("─" * 40 + "\n")
 
     def _on_cancelled(self) -> None:
         print("Selection cancelled (Escape)")
