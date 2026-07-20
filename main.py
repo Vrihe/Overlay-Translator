@@ -1,37 +1,95 @@
 """
 Translator Overlay — entry point.
 
-Registers a global hotkey (Ctrl+Shift+T) that works even when the
-application window is not focused.  Press the hotkey to trigger the
-translation pipeline (currently prints to console).
+Runs the PyQt5 event loop on the main thread and registers a global
+hotkey (Ctrl+Shift+T) via the *keyboard* library.  The hotkey callback
+fires from a background thread, so we bridge it into Qt with a
+cross-thread signal (``HotkeyBridge``).
 
-Press Ctrl+C in the terminal to quit.
+Press Ctrl+Shift+T  → fullscreen region-selector overlay appears.
+Drag a rectangle     → coordinates printed to console.
+Escape               → overlay dismissed, no action.
+Ctrl+C in terminal   → quit.
 """
 
+import sys
+
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtGui import QIcon
 import keyboard
+
 import config
+from overlay.selector import RegionSelector
 
 
-def on_hotkey_triggered() -> None:
-    """Callback executed every time the global hotkey is pressed."""
-    print("Hotkey triggered")
+# ── Bridge: keyboard thread → Qt main thread ─────────────
+
+class HotkeyBridge(QObject):
+    """Emits *triggered* from any thread; connected slot runs on the main thread."""
+    triggered = pyqtSignal()
+
+
+# ── Application ──────────────────────────────────────────
+
+class TranslatorApp:
+    """Thin wrapper that owns the QApplication, hotkey, and selector."""
+
+    def __init__(self):
+        self.app = QApplication(sys.argv)
+        self.app.setQuitOnLastWindowClosed(False)
+
+        self._bridge = HotkeyBridge()
+        self._bridge.triggered.connect(self._show_selector)
+
+        self._selector: RegionSelector | None = None
+
+        # Register the global hotkey (fires on a background thread).
+        keyboard.add_hotkey(config.HOTKEY, self._bridge.triggered.emit)
+
+    # ── Selector lifecycle ───────────────────────────────
+
+    def _show_selector(self) -> None:
+        """Create and show the region-selection overlay."""
+        # If one is already open, ignore.
+        if self._selector is not None:
+            return
+
+        self._selector = RegionSelector()
+        self._selector.region_selected.connect(self._on_region_selected)
+        self._selector.selection_cancelled.connect(self._on_cancelled)
+        self._selector.destroyed.connect(self._on_selector_destroyed)
+        self._selector.activate()
+
+    def _on_region_selected(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        w = x2 - x1
+        h = y2 - y1
+        print(f"Selected region: ({x1}, {y1}) → ({x2}, {y2})  [{w}×{h} px]")
+
+    def _on_cancelled(self) -> None:
+        print("Selection cancelled (Escape)")
+
+    def _on_selector_destroyed(self) -> None:
+        self._selector = None
+
+    # ── Run ──────────────────────────────────────────────
+
+    def run(self) -> int:
+        print(f"Translator Overlay started.")
+        print(f"Press  {config.HOTKEY.upper()}  to select a screen region.")
+        print("Press  Ctrl+C  in the terminal to exit.\n")
+        try:
+            return self.app.exec_()
+        except KeyboardInterrupt:
+            print("\nShutting down…")
+            return 0
+        finally:
+            keyboard.unhook_all()
 
 
 def main() -> None:
-    print(f"Translator Overlay started.")
-    print(f"Press  {config.HOTKEY.upper()}  to trigger translation.")
-    print("Press  Ctrl+C  in the terminal to exit.\n")
-
-    # Register the global hotkey — works system-wide, even without focus.
-    keyboard.add_hotkey(config.HOTKEY, on_hotkey_triggered)
-
-    # Block the main thread and keep the programme alive until Ctrl+C.
-    try:
-        keyboard.wait()          # waits forever
-    except KeyboardInterrupt:
-        print("\nShutting down…")
-    finally:
-        keyboard.unhook_all()
+    translator = TranslatorApp()
+    sys.exit(translator.run())
 
 
 if __name__ == "__main__":
