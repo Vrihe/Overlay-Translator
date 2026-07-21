@@ -22,7 +22,8 @@ load_dotenv(_PROJECT_DIR / '.env')
 
 # ─── Hotkey ──────────────────────────────────────────────
 # Combo string understood by the `keyboard` library.
-HOTKEY = os.environ.get("HOTKEY", "ctrl+shift+t")
+HOTKEY = os.environ.get("HOTKEY", "ctrl+shift+r")
+SETTINGS_HOTKEY = os.environ.get("SETTINGS_HOTKEY", "ctrl+shift+o")
 
 # ─── Tesseract OCR ──────────────────────────────────────
 # Path to the Tesseract executable on Windows.
@@ -35,10 +36,15 @@ TESSERACT_CMD = os.environ.get(
 # OCR language(s). Use '+' to combine, e.g. "eng+rus"
 OCR_LANG = os.environ.get("OCR_LANG", "eng")
 
+# Optional HSV-based pre-processing (helps with coloured / gradient backgrounds).
+# Set to "1" or "true" to enable.
+OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
+
 # ─── Translation ────────────────────────────────────────
 # Source / target languages (ISO 639-1 or full name)
 SOURCE_LANG = os.environ.get("SOURCE_LANG", "en")
 TARGET_LANG = os.environ.get("TARGET_LANG", "ru")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-oss-20b:free")
 
 # ─── Overlay UI ─────────────────────────────────────────
 OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))

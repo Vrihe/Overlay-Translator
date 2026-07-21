@@ -2,7 +2,7 @@
 Translator Overlay — entry point.
 
 Full pipeline:
-  Ctrl+Shift+T  →  region selector  →  screenshot (mss)
+  Ctrl+Shift+R  →  region selector  →  screenshot (mss)
                →  OCR (pytesseract) →  translate (LLM)
                →  result popup
 
@@ -11,6 +11,7 @@ No console window is shown (use pythonw.exe or the .pyw extension).
 """
 
 import ctypes
+import os
 import sys
 import time
 import traceback
@@ -20,6 +21,7 @@ from PyQt5.QtCore import QObject, QRect, pyqtSignal
 import keyboard
 
 import config
+import settings
 from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
 from ocr.engine import recognise
@@ -52,26 +54,32 @@ class HotkeyBridge(QObject):
 class TranslatorApp:
     """Owns the QApplication, tray icon, hotkey, selector, and result popups."""
 
-    def __init__(self):
-        self.app = QApplication(sys.argv)
+    def __init__(self, app: QApplication):
+        self.app = app
         self.app.setQuitOnLastWindowClosed(False)
         self.app.setApplicationName("Translator Overlay")
 
         # ── System tray ──────────────────────────────────
         self._tray = TrayIcon()
         self._tray.act_translate.triggered.connect(self._show_selector)
+        self._tray.act_settings.triggered.connect(self._show_settings)
         self._tray.act_exit.triggered.connect(self._quit)
         self._tray.show()
 
-        # ── Hotkey bridge ────────────────────────────────
+        # ── Hotkey bridges ───────────────────────────────
         self._bridge = HotkeyBridge()
         self._bridge.triggered.connect(self._show_selector)
 
+        self._settings_bridge = HotkeyBridge()
+        self._settings_bridge.triggered.connect(self._show_settings)
+
         self._selector: RegionSelector | None = None
         self._popup: ResultPopup | None = None
+        self._settings_dialog = None
 
-        # Register the global hotkey (fires on a background thread).
+        # Register global hotkeys (fire on a background thread).
         keyboard.add_hotkey(config.HOTKEY, self._bridge.triggered.emit)
+        keyboard.add_hotkey(config.SETTINGS_HOTKEY, self._settings_bridge.triggered.emit)
 
     # ── Selector lifecycle ───────────────────────────────
 
@@ -140,6 +148,8 @@ class TranslatorApp:
         self._popup = ResultPopup(source, translated, anchor)
         self._popup.destroyed.connect(self._on_popup_destroyed)
         self._popup.show()
+        # Also notify in tray
+        self._tray.showMessage("Перевод", translated, self._tray.Information, 4000)
 
     def _show_error(self, message: str, anchor: QRect) -> None:
         self._close_popup()
@@ -157,6 +167,23 @@ class TranslatorApp:
 
     def _on_popup_destroyed(self) -> None:
         self._popup = None
+
+    # ── Settings dialog ───────────────────────────────────
+
+    def _show_settings(self) -> None:
+        """Open the settings dialog (singleton — only one at a time)."""
+        if self._settings_dialog is not None:
+            self._settings_dialog.activateWindow()
+            self._settings_dialog.raise_()
+            return
+
+        from ui.settings_dialog import SettingsDialog
+        self._settings_dialog = SettingsDialog()
+        self._settings_dialog.finished.connect(self._on_settings_closed)
+        self._settings_dialog.show()
+
+    def _on_settings_closed(self) -> None:
+        self._settings_dialog = None
 
     # ── Quit ─────────────────────────────────────────────
 
@@ -177,9 +204,31 @@ class TranslatorApp:
             return 0
 
 
+# ── API key check ────────────────────────────────────────
+
+def _has_any_api_key() -> bool:
+    """Return True if an API key is available from keyring or env vars."""
+    return bool(
+        settings.get_api_key("openrouter")
+        or settings.get_api_key("anthropic")
+        or os.environ.get("OPENROUTER_API_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+    )
+
+
 def main() -> None:
     _hide_console()
-    translator = TranslatorApp()
+
+    app = QApplication(sys.argv)
+
+    # ── First-run: ask for API key if none is configured ─
+    if not _has_any_api_key():
+        from ui.first_run_dialog import FirstRunDialog
+        dlg = FirstRunDialog()
+        if dlg.exec_() != FirstRunDialog.Accepted:
+            sys.exit(0)
+
+    translator = TranslatorApp(app)
     sys.exit(translator.run())
 
 
