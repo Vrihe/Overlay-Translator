@@ -8,11 +8,12 @@ dist/
 build/
 *.whl
 
-# ─── Virtual environments ───────────────────────────────
+# ─── Virtual environments & Secrets ───────────────────
 venv/
 .venv/
 env/
 .env/
+.env
 
 # ─── IDE / Editors ──────────────────────────────────────
 .vscode/

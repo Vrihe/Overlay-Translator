@@ -3,6 +3,10 @@ Translator Overlay — global configuration.
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ─── Hotkey ──────────────────────────────────────────────
 HOTKEY = "ctrl+shift+t"
