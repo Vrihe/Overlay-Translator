@@ -32,6 +32,11 @@ def preprocess(img: Image.Image, scale: int = 2) -> Image.Image:
     PIL.Image.Image
         Grayscale, up-scaled, contrast-enhanced image.
     """
+    # 0. Optional HSV filter (for coloured / gradient backgrounds).
+    if config.OCR_USE_HSV_FILTER:
+        from ocr.hsv_filter import apply_hsv_filter
+        img = apply_hsv_filter(img)
+
     # 1. Grayscale
     img = img.convert("L")
 
