@@ -20,7 +20,7 @@ class ResultPopup(QWidget):
     """Floating popup displaying source text and its translation."""
 
     _MAX_WIDTH = 480
-    _AUTO_CLOSE_MS = 10_000       # auto-close after 10 seconds
+    _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
     _MARGIN = 12                  # gap between popup and selection edge
 
     def __init__(

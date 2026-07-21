@@ -42,4 +42,5 @@ screenshots/
 *.tif
 
 # Logs
+logs/
 *.log
