@@ -58,7 +58,7 @@ class ResultPopup(QWidget):
         self.setWindowFlags(
             Qt.FramelessWindowHint
             | Qt.WindowStaysOnTopHint
-            | Qt.Tool
+            | Qt.ToolTip
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_DeleteOnClose)
@@ -70,6 +70,7 @@ class ResultPopup(QWidget):
 
     def show(self) -> None:
         super().show()
+        self.raise_()
         self.activateWindow()
 
         # Fade in.
@@ -235,13 +236,7 @@ class ResultPopup(QWidget):
             self.setCursor(Qt.OpenHandCursor)
             event.accept()
 
-    # ── Close on outside click (deactivation) / Escape ───
-
-    def changeEvent(self, event):
-        """Close when the window loses focus (user clicked elsewhere)."""
-        super().changeEvent(event)
-        if event.type() == QEvent.WindowDeactivate:
-            self._fade_out_and_close()
+    # ── Keyboard ───
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:

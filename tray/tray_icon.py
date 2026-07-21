@@ -2,7 +2,7 @@
 tray/tray_icon.py — QSystemTrayIcon with context menu.
 
 Menu items:
-  • Перевести (Ctrl+Shift+T)  — triggers the selector overlay
+  • Перевести (Ctrl+Shift+R)  — triggers the selector overlay
   • Настройки                 — placeholder
   • История переводов         — placeholder
   • ──────────────────
@@ -65,10 +65,7 @@ class TrayIcon(QSystemTrayIcon):
         menu.addSeparator()
 
         # ── Settings ──
-        self.act_settings = QAction("Настройки")
-        self.act_settings.triggered.connect(
-            lambda: print("open settings")
-        )
+        self.act_settings = QAction(f"Настройки  ({config.SETTINGS_HOTKEY.upper()})")
         menu.addAction(self.act_settings)
 
         # ── History ──
