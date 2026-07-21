@@ -6,11 +6,11 @@ Full pipeline:
                →  OCR (pytesseract) →  translate (LLM)
                →  result popup
 
-Runs the PyQt5 event loop on the main thread and registers a global
-hotkey via the *keyboard* library.  The hotkey callback fires from a
-background thread and is bridged into Qt with ``HotkeyBridge``.
+Runs as a background application with a system-tray icon.
+No console window is shown (use pythonw.exe or the .pyw extension).
 """
 
+import ctypes
 import sys
 import time
 import traceback
@@ -25,6 +25,19 @@ from capture.screenshot import capture_region
 from ocr.engine import recognise
 from translate.llm_client import translate
 from ui.result_popup import ResultPopup
+from tray.tray_icon import TrayIcon
+
+
+# ── Hide console window on Windows ───────────────────────
+
+def _hide_console() -> None:
+    """Hide the console window (only works when launched with python.exe)."""
+    try:
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+    except Exception:
+        pass
 
 
 # ── Bridge: keyboard thread → Qt main thread ─────────────
@@ -37,12 +50,20 @@ class HotkeyBridge(QObject):
 # ── Application ──────────────────────────────────────────
 
 class TranslatorApp:
-    """Owns the QApplication, hotkey, selector, and result popups."""
+    """Owns the QApplication, tray icon, hotkey, selector, and result popups."""
 
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
+        self.app.setApplicationName("Translator Overlay")
 
+        # ── System tray ──────────────────────────────────
+        self._tray = TrayIcon()
+        self._tray.act_translate.triggered.connect(self._show_selector)
+        self._tray.act_exit.triggered.connect(self._quit)
+        self._tray.show()
+
+        # ── Hotkey bridge ────────────────────────────────
         self._bridge = HotkeyBridge()
         self._bridge.triggered.connect(self._show_selector)
 
@@ -58,7 +79,6 @@ class TranslatorApp:
         """Create and show the region-selection overlay."""
         if self._selector is not None:
             return
-        # Close any existing popup before a new selection.
         self._close_popup()
 
         self._selector = RegionSelector()
@@ -68,7 +88,7 @@ class TranslatorApp:
         self._selector.activate()
 
     def _on_cancelled(self) -> None:
-        print("Selection cancelled (Escape)")
+        pass  # silent cancel, no console
 
     def _on_selector_destroyed(self) -> None:
         self._selector = None
@@ -77,14 +97,10 @@ class TranslatorApp:
 
     def _on_region_selected(self, x1: int, y1: int, x2: int, y2: int) -> None:
         anchor = QRect(x1, y1, x2 - x1, y2 - y1)
-        w, h = anchor.width(), anchor.height()
-        print(f"Selected region: ({x1}, {y1}) → ({x2}, {y2})  [{w}×{h} px]")
-
         t0 = time.perf_counter()
 
         # ── Step 1: Capture ──────────────────────────────
         try:
-            print("  Capturing…")
             image = capture_region(x1, y1, x2, y2)
         except Exception as e:
             self._show_error(f"Ошибка захвата экрана:\n{e}", anchor)
@@ -93,7 +109,6 @@ class TranslatorApp:
 
         # ── Step 2: OCR ──────────────────────────────────
         try:
-            print("  Running OCR…")
             text = recognise(image)
         except Exception as e:
             self._show_error(f"Ошибка OCR:\n{e}", anchor)
@@ -101,32 +116,19 @@ class TranslatorApp:
             return
 
         if not text:
-            elapsed = time.perf_counter() - t0
-            print(f"  (no text recognised)  [{elapsed:.2f}s]")
             self._show_error("Текст не распознан.\nПопробуйте выделить область точнее.", anchor)
             return
 
-        print(f"  OCR result: {text[:80]}{'…' if len(text) > 80 else ''}")
-
         # ── Step 3: Translate ────────────────────────────
         try:
-            print("  Translating…")
             translated = translate(text)
         except Exception as e:
-            elapsed = time.perf_counter() - t0
-            print(f"  Translation error: {e}  [{elapsed:.2f}s]")
             traceback.print_exc()
-            # Show the OCR text even if translation failed.
             self._show_error(
                 f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}",
                 anchor,
             )
             return
-
-        elapsed = time.perf_counter() - t0
-        print(f"  Done in {elapsed:.2f}s")
-        print(f"  SRC: {text[:80]}")
-        print(f"  →  : {translated[:80]}\n")
 
         # ── Step 4: Show result popup ────────────────────
         self._show_result(text, translated, anchor)
@@ -150,28 +152,33 @@ class TranslatorApp:
             try:
                 self._popup.close()
             except RuntimeError:
-                pass  # already deleted
+                pass
             self._popup = None
 
     def _on_popup_destroyed(self) -> None:
         self._popup = None
 
+    # ── Quit ─────────────────────────────────────────────
+
+    def _quit(self) -> None:
+        """Full shutdown: unhook keyboard, hide tray, exit Qt loop."""
+        keyboard.unhook_all()
+        self._close_popup()
+        self._tray.hide()
+        self.app.quit()
+
     # ── Run ──────────────────────────────────────────────
 
     def run(self) -> int:
-        print("Translator Overlay started.")
-        print(f"Press  {config.HOTKEY.upper()}  to select a screen region.")
-        print("Press  Ctrl+C  in the terminal to exit.\n")
         try:
             return self.app.exec_()
         except KeyboardInterrupt:
-            print("\nShutting down…")
+            self._quit()
             return 0
-        finally:
-            keyboard.unhook_all()
 
 
 def main() -> None:
+    _hide_console()
     translator = TranslatorApp()
     sys.exit(translator.run())
 

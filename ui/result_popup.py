@@ -1,27 +1,34 @@
 """
-ui/result_popup.py — floating popup that shows OCR text + translation.
+ui/result_popup.py — lightweight floating popup for translation results.
 
-The popup appears near the selected region, stays on top of all windows,
-and auto-closes after a configurable timeout (default 10 s) or when the
-user clicks anywhere outside it.  Pressing Escape also dismisses it.
+Design goals:
+  • Non-intrusive — compact, semi-transparent, doesn't steal focus
+  • Floating — user can drag it anywhere
+  • Dismissable — click on it, press Escape, click outside, or wait for timeout
+  • Smooth — fade-in on appear, fade-out on dismiss
 """
 
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QApplication, QGraphicsDropShadowEffect,
+    QWidget, QLabel, QVBoxLayout,
+    QApplication, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
 )
-from PyQt5.QtCore import Qt, QTimer, QPoint, QRect, QEvent
+from PyQt5.QtCore import (
+    Qt, QTimer, QPoint, QRect, QEvent,
+    QPropertyAnimation, QEasingCurve,
+)
 from PyQt5.QtGui import QFont, QColor, QPainter, QPainterPath, QCursor
 
 import config
 
 
 class ResultPopup(QWidget):
-    """Floating popup displaying source text and its translation."""
+    """Compact floating popup showing source text and its translation."""
 
-    _MAX_WIDTH = 480
+    _MAX_WIDTH = 420
     _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
-    _MARGIN = 12                  # gap between popup and selection edge
+    _FADE_DURATION = 200          # ms for fade-in / fade-out
+    _MARGIN = 10                  # gap between popup and selection edge
+    _BG_OPACITY = 0.92            # card background opacity
 
     def __init__(
         self,
@@ -32,30 +39,18 @@ class ResultPopup(QWidget):
         is_error: bool = False,
         parent=None,
     ):
-        """
-        Parameters
-        ----------
-        source_text : str
-            Original (OCR) text.
-        translated_text : str
-            Translated text or error message.
-        anchor : QRect, optional
-            Selection rectangle in global screen coords — the popup
-            will be positioned near this rectangle.
-        is_error : bool
-            If True, the popup is styled as an error notification.
-        """
         super().__init__(parent)
 
         self._source = source_text
         self._translated = translated_text
         self._anchor = anchor
         self._is_error = is_error
+        self._drag_pos: QPoint | None = None
+        self._closing = False
 
         self._setup_window()
         self._build_ui()
         self._position_near_anchor()
-        self._start_auto_close()
 
     # ── Window setup ─────────────────────────────────────
 
@@ -63,178 +58,193 @@ class ResultPopup(QWidget):
         self.setWindowFlags(
             Qt.FramelessWindowHint
             | Qt.WindowStaysOnTopHint
-            | Qt.Tool                 # hide from taskbar
-            | Qt.BypassWindowManagerHint
+            | Qt.Tool
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_DeleteOnClose)
-        self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setMaximumWidth(self._MAX_WIDTH)
+        self.setCursor(Qt.OpenHandCursor)
+        self.setWindowOpacity(0.0)  # start invisible — fade in on show
 
-        # Install event filter to detect clicks outside the popup.
-        QApplication.instance().installEventFilter(self)
+    # ── Show with fade-in ────────────────────────────────
+
+    def show(self) -> None:
+        super().show()
+        self.activateWindow()
+
+        # Fade in.
+        self._fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_anim.setDuration(self._FADE_DURATION)
+        self._fade_anim.setStartValue(0.0)
+        self._fade_anim.setEndValue(1.0)
+        self._fade_anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._fade_anim.start()
+
+        # Start auto-close timer after fade-in.
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setSingleShot(True)
+        self._auto_timer.timeout.connect(self._fade_out_and_close)
+        self._auto_timer.start(self._AUTO_CLOSE_MS)
+
+    # ── Close with fade-out ──────────────────────────────
+
+    def _fade_out_and_close(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+
+        self._fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_anim.setDuration(self._FADE_DURATION)
+        self._fade_anim.setStartValue(self.windowOpacity())
+        self._fade_anim.setEndValue(0.0)
+        self._fade_anim.setEasingCurve(QEasingCurve.InCubic)
+        self._fade_anim.finished.connect(self.close)
+        self._fade_anim.start()
 
     # ── UI ────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(0)
 
-        # Container widget for the rounded card.
         self._card = QWidget(self)
-
         card_layout = QVBoxLayout(self._card)
-        card_layout.setContentsMargins(20, 16, 20, 16)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(14, 10, 14, 10)
+        card_layout.setSpacing(6)
 
         if self._is_error:
-            # Error mode — single label.
-            err_label = self._make_label(
-                self._translated,
-                size=12,
-                color="#ff6b6b",
-                bold=True,
-            )
-            card_layout.addWidget(err_label)
+            err = self._make_label(self._translated, size=11, color="#ff6b6b")
+            card_layout.addWidget(err)
         else:
-            # ── Source header + text ──
-            src_header = self._make_label("ORIGINAL", size=9, color="#888888", bold=True)
-            src_body = self._make_label(self._source, size=12, color="#cccccc")
-            card_layout.addWidget(src_header)
-            card_layout.addWidget(src_body)
+            # Source text (compact, dimmed).
+            if self._source:
+                src = self._make_label(self._source, size=10, color="#999999")
+                card_layout.addWidget(src)
 
-            # ── Separator line ──
-            sep = QWidget()
-            sep.setFixedHeight(1)
-            sep.setStyleSheet("background-color: #3a3a3a;")
-            card_layout.addWidget(sep)
+                sep = QWidget()
+                sep.setFixedHeight(1)
+                sep.setStyleSheet("background: rgba(255,255,255,0.08);")
+                card_layout.addWidget(sep)
 
-            # ── Translation header + text ──
-            tl_header = self._make_label("ПЕРЕВОД", size=9, color="#888888", bold=True)
-            tl_body = self._make_label(self._translated, size=13, color="#ffffff", bold=True)
-            card_layout.addWidget(tl_header)
-            card_layout.addWidget(tl_body)
+            # Translation (primary content).
+            tl = self._make_label(self._translated, size=12, color="#e8e8e8", bold=True)
+            card_layout.addWidget(tl)
 
         layout.addWidget(self._card)
-        self.setLayout(layout)
 
-        # Drop shadow for depth.
+        # Subtle shadow.
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(30)
-        shadow.setOffset(0, 4)
-        shadow.setColor(QColor(0, 0, 0, 120))
+        shadow.setBlurRadius(20)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(0, 0, 0, 80))
         self._card.setGraphicsEffect(shadow)
 
     @staticmethod
-    def _make_label(
-        text: str,
-        *,
-        size: int = 12,
-        color: str = "#ffffff",
-        bold: bool = False,
-    ) -> QLabel:
+    def _make_label(text: str, *, size: int = 12, color: str = "#fff", bold: bool = False) -> QLabel:
         label = QLabel(text)
         label.setWordWrap(True)
-        weight = "bold" if bold else "normal"
+        weight = "600" if bold else "normal"
         label.setStyleSheet(
             f"color: {color}; font-size: {size}pt; font-weight: {weight}; "
-            f"font-family: 'Segoe UI', sans-serif; background: transparent;"
+            f"font-family: 'Segoe UI', sans-serif; background: transparent; "
+            f"padding: 2px 0;"
         )
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
 
-    # ── Rounded card painting ────────────────────────────
+    # ── Rounded card background ──────────────────────────
 
     def paintEvent(self, _event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
         path = QPainterPath()
-        # Slightly inset so the shadow is visible.
-        r = self.rect().adjusted(6, 4, -6, -6)
-        path.addRoundedRect(r.x(), r.y(), r.width(), r.height(), 14, 14)
+        r = self.rect().adjusted(4, 3, -4, -4)
+        path.addRoundedRect(r.x(), r.y(), r.width(), r.height(), 10, 10)
 
-        bg = QColor("#1e1e2e") if not self._is_error else QColor("#2a1a1a")
+        if self._is_error:
+            bg = QColor(40, 20, 20, int(255 * self._BG_OPACITY))
+        else:
+            bg = QColor(28, 28, 36, int(255 * self._BG_OPACITY))
+
         painter.fillPath(path, bg)
+
+        # Thin subtle border.
+        painter.setPen(QColor(255, 255, 255, 15))
+        painter.drawPath(path)
         painter.end()
 
     # ── Positioning ──────────────────────────────────────
 
     def _position_near_anchor(self) -> None:
-        """Place the popup just below (or above) the selection rectangle."""
         self.adjustSize()
-        popup_size = self.size()
+        ps = self.size()
 
         if self._anchor is None:
-            # Fallback: centre of the screen with the cursor.
             cursor = QCursor.pos()
             screen = self._screen_at(cursor)
             sg = screen.availableGeometry()
-            x = sg.x() + (sg.width() - popup_size.width()) // 2
-            y = sg.y() + (sg.height() - popup_size.height()) // 2
-            self.move(x, y)
+            self.move(
+                sg.x() + (sg.width() - ps.width()) // 2,
+                sg.y() + (sg.height() - ps.height()) // 2,
+            )
             return
 
-        anchor = self._anchor
-        cursor = QCursor.pos()
-        screen = self._screen_at(cursor)
+        a = self._anchor
+        screen = self._screen_at(QPoint(a.center().x(), a.center().y()))
         sg = screen.availableGeometry()
 
-        # Prefer placing below the selection.
-        x = anchor.left() + (anchor.width() - popup_size.width()) // 2
-        y = anchor.bottom() + self._MARGIN
+        # Try below selection.
+        x = a.left() + (a.width() - ps.width()) // 2
+        y = a.bottom() + self._MARGIN
 
-        # If it doesn't fit below, place above.
-        if y + popup_size.height() > sg.bottom():
-            y = anchor.top() - popup_size.height() - self._MARGIN
+        # If it overflows bottom, try above.
+        if y + ps.height() > sg.bottom():
+            y = a.top() - ps.height() - self._MARGIN
 
-        # Clamp horizontally.
-        if x < sg.left():
-            x = sg.left() + self._MARGIN
-        if x + popup_size.width() > sg.right():
-            x = sg.right() - popup_size.width() - self._MARGIN
-
-        # Clamp vertically (final safety).
-        if y < sg.top():
-            y = sg.top() + self._MARGIN
+        # Clamp.
+        x = max(sg.left() + self._MARGIN, min(x, sg.right() - ps.width() - self._MARGIN))
+        y = max(sg.top() + self._MARGIN, y)
 
         self.move(x, y)
 
     @staticmethod
     def _screen_at(pos: QPoint):
-        for screen in QApplication.screens():
-            if screen.geometry().contains(pos):
-                return screen
+        for s in QApplication.screens():
+            if s.geometry().contains(pos):
+                return s
         return QApplication.primaryScreen()
 
-    # ── Auto-close timer ─────────────────────────────────
+    # ── Dragging ─────────────────────────────────────────
 
-    def _start_auto_close(self) -> None:
-        self._timer = QTimer(self)
-        self._timer.setSingleShot(True)
-        self._timer.timeout.connect(self._fade_close)
-        self._timer.start(self._AUTO_CLOSE_MS)
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
 
-    def _fade_close(self) -> None:
-        self.close()
+    def mouseMoveEvent(self, event):
+        if self._drag_pos is not None and event.buttons() & Qt.LeftButton:
+            self.move(event.globalPos() - self._drag_pos)
+            event.accept()
 
-    # ── Close on outside click / Escape ──────────────────
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = None
+            self.setCursor(Qt.OpenHandCursor)
+            event.accept()
 
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.MouseButtonPress:
-            # If the click is outside our geometry, close.
-            if not self.geometry().contains(event.globalPos()):
-                self.close()
-                return True
-        return super().eventFilter(obj, event)
+    # ── Close on outside click (deactivation) / Escape ───
+
+    def changeEvent(self, event):
+        """Close when the window loses focus (user clicked elsewhere)."""
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowDeactivate:
+            self._fade_out_and_close()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            self.close()
+            self._fade_out_and_close()
         else:
             super().keyPressEvent(event)
-
-    def closeEvent(self, event):
-        QApplication.instance().removeEventFilter(self)
-        super().closeEvent(event)

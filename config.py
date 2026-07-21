@@ -6,13 +6,19 @@ loaded from the ``.env`` file via python-dotenv.
 """
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# When frozen by PyInstaller, sys.executable is the .exe path.
+# We want .env, cache/, logs/ to live next to the executable.
+if getattr(sys, 'frozen', False):
+    _PROJECT_DIR = Path(sys.executable).resolve().parent
+else:
+    _PROJECT_DIR = Path(__file__).resolve().parent
 
-_PROJECT_DIR = Path(__file__).resolve().parent
+# Load environment variables from .env file next to the app.
+load_dotenv(_PROJECT_DIR / '.env')
 
 # ─── Hotkey ──────────────────────────────────────────────
 # Combo string understood by the `keyboard` library.

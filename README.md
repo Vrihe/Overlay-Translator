@@ -11,13 +11,14 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 ## ✨ Features
 
 - **Global hotkey** (`Ctrl+Shift+T` by default) — works from any application
+- **System Tray support** — runs quietly in the background without a cluttering console window
 - **Region selector** — fullscreen transparent overlay with mouse-drag selection
 - **Multi-monitor support** — works across all connected displays, including negative-coordinate layouts
 - **OCR** via Tesseract with preprocessing (2× upscale, contrast boost, sharpening)
 - **Translation** via OpenRouter (free models) or Anthropic Claude
 - **SQLite cache** — repeated texts are translated instantly without API calls
-- **Floating popup** — shows original + translation near the selected area; auto-closes after a timeout
-- **File logging** — every request is logged with timestamps and cache hit/miss info
+- **Floating popup** — shows original + translation near the selected area; draggable, auto-closes after a timeout
+- **Executable support** — can be compiled into a standalone `.exe` file via PyInstaller
 
 ---
 
@@ -25,11 +26,13 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 
 ```
 translator-overlay/
-├── main.py              # Entry point — hotkey, pipeline orchestration
+├── main.py              # Entry point — system tray, hotkey, pipeline orchestration
 ├── config.py            # All settings (loaded from .env)
 ├── .env                 # API keys and personal settings (git-ignored)
 ├── .env.example         # Template for .env
 ├── requirements.txt     # Python dependencies
+├── translator.spec      # PyInstaller build specification
+├── build.bat            # One-click Windows build script
 │
 ├── overlay/
 │   └── selector.py      # Fullscreen region-selection overlay (PyQt5)
@@ -43,6 +46,9 @@ translator-overlay/
 │   └── store.py         # SQLite translation cache
 ├── ui/
 │   └── result_popup.py  # Floating result popup (PyQt5)
+├── tray/
+│   ├── tray_icon.py     # System tray icon and context menu
+│   └── icon_gen.py      # Programmatic icon generator
 └── logs/
     └── translator.log   # Request log (auto-created)
 ```
@@ -105,22 +111,43 @@ OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
 ## ▶️ Usage
 
+### Running Python Script
+
 ```powershell
 python main.py
 ```
+*(or `pythonw main.py` to launch without any console window)*
 
-> **Note:** On Windows the `keyboard` library needs admin access for global
-> hotkeys. Run your terminal **as Administrator**.
+> **Note:** On Windows, the `keyboard` library requires Administrator privileges for global low-level hooks. Run your terminal **as Administrator**.
 
-### Workflow
+---
 
-1. Press **Ctrl+Shift+T** (or your custom hotkey).
-2. A dark transparent overlay covers all screens.
-3. **Drag** a rectangle around the text you want to translate.
-4. A popup appears near the selection with the original text and translation.
-5. The popup auto-closes after 10 seconds, or click outside / press **Escape** to dismiss.
+## 📦 Building Standalone Executable (.exe)
 
-### Configuration
+You can compile the application into a single standalone `.exe` file using PyInstaller:
+
+### Option 1: One-click Build Script
+Simply double-click `build.bat` or run:
+```powershell
+.\build.bat
+```
+
+### Option 2: PyInstaller Command
+```powershell
+pip install pyinstaller
+pyinstaller translator.spec --clean
+```
+
+The compiled binary will be saved in `dist\TranslatorOverlay.exe`.
+
+### Running the Executable
+1. Place a copy of your `.env` file in the **same directory** as `TranslatorOverlay.exe`.
+2. Run `TranslatorOverlay.exe` **as Administrator** (required for global hotkeys).
+3. The app will launch directly into the System Tray without opening any command prompt windows.
+
+---
+
+## ⚙️ Configuration
 
 All settings can be overridden in `.env`:
 
@@ -148,11 +175,6 @@ Every translation request is logged to `logs/translator.log`:
 2025-07-21 14:30:15 | INFO  | CACHE HIT | text='Hello world'
 ```
 
-You can use this log to see:
-- How many requests hit the cache vs. called the API
-- Average API response time
-- Most frequently translated texts
-
 Quick stats example (PowerShell):
 
 ```powershell
@@ -172,12 +194,14 @@ $total = (Select-String "CACHE" logs\translator.log).Count
 | Component | Technology |
 |---|---|
 | UI / Overlay | PyQt5 |
+| System Tray | QSystemTrayIcon (PyQt5) |
 | Screen capture | mss |
 | OCR | Tesseract + pytesseract + Pillow |
 | Translation | OpenRouter (free) / Anthropic API |
 | Cache | SQLite |
 | Hotkey | keyboard |
 | Config | python-dotenv |
+| Packaging | PyInstaller |
 
 ---
 

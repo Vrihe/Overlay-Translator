@@ -4,11 +4,18 @@ __pycache__/
 *.pyo
 *.egg-info/
 *.egg
-dist/
-build/
 *.whl
 
-# ─── Virtual environments & Secrets ───────────────────
+# ─── PyInstaller Build Artifacts ────────────────────────
+dist/
+build/
+*.manifest
+# Note: translator.spec is tracked in git for reproducible builds!
+
+# ─── Executables & Binary Artifacts ─────────────────────
+*.exe
+
+# ─── Virtual Environments & Secrets ─────────────────────
 venv/
 .venv/
 env/
@@ -30,11 +37,11 @@ Desktop.ini
 .DS_Store
 
 # ─── Project-specific ───────────────────────────────────
-# Translation / OCR cache (keep the folder, ignore contents)
+# Translation / OCR cache (keep folder, ignore DB & contents)
 cache/*
 !cache/__init__.py
 
-# Captured screenshots (if saved locally)
+# Captured screenshots
 screenshots/
 
 # Tesseract temp output
