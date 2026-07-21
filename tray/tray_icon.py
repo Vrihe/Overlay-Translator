@@ -70,9 +70,6 @@ class TrayIcon(QSystemTrayIcon):
 
         # ── History ──
         self.act_history = QAction("История переводов")
-        self.act_history.triggered.connect(
-            lambda: print("open history")
-        )
         menu.addAction(self.act_history)
 
         menu.addSeparator()

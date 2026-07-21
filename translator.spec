@@ -51,6 +51,8 @@ a = Analysis(
         'ui.result_popup',
         'ui.first_run_dialog',
         'ui.settings_dialog',
+        'history',
+        'history.history_window',
         'tray',
         'tray.tray_icon',
         'tray.icon_gen',

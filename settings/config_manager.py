@@ -29,11 +29,13 @@ _CONFIG_FILE = _APP_DIR / "settings.json"
 # ── Default values ───────────────────────────────────────
 
 DEFAULTS: dict[str, Any] = {
+    "source_language": "auto",
     "target_language": "ru",
     "translation_engine": "llm_text",     # "llm_text" | "llm_vision" | "api"
     "llm_model": "openai/gpt-oss-20b:free",
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
+    "notification_type": "popup",          # "popup" | "windows_toast"
 }
 
 # ── In-memory cache ──────────────────────────────────────

@@ -12,7 +12,7 @@ Opened via Ctrl+Shift+O (or the tray menu).  Allows the user to:
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QRadioButton, QButtonGroup, QComboBox,
-    QSpinBox, QWidget, QApplication, QGroupBox,
+    QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
 )
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QPainterPath, QColor
@@ -22,9 +22,25 @@ import settings
 from settings import config_manager
 from translate.llm_client import reset_client
 
-# ── Supported target languages ───────────────────────────
+_SOURCE_LANGUAGES = [
+    ("auto", "Автоопределение"),
+    ("en", "English"),
+    ("ru", "Русский"),
+    ("de", "Deutsch"),
+    ("fr", "Français"),
+    ("es", "Español"),
+    ("pt", "Português"),
+    ("it", "Italiano"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+    ("zh", "中文"),
+    ("ar", "العربية"),
+    ("tr", "Türkçe"),
+    ("pl", "Polski"),
+    ("uk", "Українська"),
+]
 
-_LANGUAGES = [
+_TARGET_LANGUAGES = [
     ("ru", "Русский"),
     ("en", "English"),
     ("de", "Deutsch"),
@@ -160,13 +176,25 @@ class SettingsDialog(QDialog):
         trans_layout = QVBoxLayout(grp_trans)
         trans_layout.setSpacing(8)
 
+        # Source language
+        src_lang_row = QHBoxLayout()
+        lbl_src_lang = QLabel("Исходный язык:")
+        lbl_src_lang.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
+        self._src_lang_combo = QComboBox()
+        self._src_lang_combo.setStyleSheet(self._INPUT_CSS)
+        for code, name in _SOURCE_LANGUAGES:
+            self._src_lang_combo.addItem(f"{name} ({code})", code)
+        src_lang_row.addWidget(lbl_src_lang)
+        src_lang_row.addWidget(self._src_lang_combo, 1)
+        trans_layout.addLayout(src_lang_row)
+
         # Target language
         lang_row = QHBoxLayout()
         lbl_lang = QLabel("Язык перевода:")
         lbl_lang.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
         self._lang_combo = QComboBox()
         self._lang_combo.setStyleSheet(self._INPUT_CSS)
-        for code, name in _LANGUAGES:
+        for code, name in _TARGET_LANGUAGES:
             self._lang_combo.addItem(f"{name} ({code})", code)
         lang_row.addWidget(lbl_lang)
         lang_row.addWidget(self._lang_combo, 1)
@@ -205,9 +233,25 @@ class SettingsDialog(QDialog):
         self._timeout_spin.setStyleSheet(self._INPUT_CSS)
         timeout_row.addWidget(lbl_timeout)
         timeout_row.addWidget(self._timeout_spin, 1)
-        trans_layout.addLayout(timeout_row)
-
         layout.addWidget(grp_trans)
+
+        # ── Notifications section ──
+        grp_notify = QGroupBox("Уведомления")
+        grp_notify.setStyleSheet(self._GROUP_CSS)
+        notify_layout = QVBoxLayout(grp_notify)
+        notify_layout.setSpacing(6)
+
+        self._radio_notify_group = QButtonGroup(self)
+        self._radio_popup = QRadioButton("Показывать результат в попап-окне")
+        self._radio_toast = QRadioButton("Показывать через системные уведомления Windows")
+        self._radio_notify_group.addButton(self._radio_popup, 0)
+        self._radio_notify_group.addButton(self._radio_toast, 1)
+        self._radio_popup.setStyleSheet(radio_css)
+        self._radio_toast.setStyleSheet(radio_css)
+        notify_layout.addWidget(self._radio_popup)
+        notify_layout.addWidget(self._radio_toast)
+
+        layout.addWidget(grp_notify)
 
         # ── Buttons ──
         btn_row = QHBoxLayout()
@@ -257,6 +301,11 @@ class SettingsDialog(QDialog):
             self._key_status.setText("Ключ не задан (используется .env)")
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
 
+        # Source language.
+        idx_src = self._src_lang_combo.findData(config.SOURCE_LANG)
+        if idx_src >= 0:
+            self._src_lang_combo.setCurrentIndex(idx_src)
+
         # Target language.
         idx = self._lang_combo.findData(config.TARGET_LANG)
         if idx >= 0:
@@ -272,6 +321,12 @@ class SettingsDialog(QDialog):
 
         # Popup timeout.
         self._timeout_spin.setValue(config.POPUP_TIMEOUT_SEC)
+
+        # Notification type.
+        if config.NOTIFICATION_TYPE == "windows_toast":
+            self._radio_toast.setChecked(True)
+        else:
+            self._radio_popup.setChecked(True)
 
     # ── Signals ──────────────────────────────────────────
 
@@ -314,21 +369,34 @@ class SettingsDialog(QDialog):
             self._btn_save.setEnabled(True)
 
         # ── Update config_manager values ─────────────────
-        new_lang = self._lang_combo.currentData()
-        new_engine = self._engine_combo.currentData()
-        new_model = self._model_input.text().strip()
-        new_timeout = self._timeout_spin.value()
+        try:
+            new_src_lang = self._src_lang_combo.currentData()
+            new_lang = self._lang_combo.currentData()
+            new_engine = self._engine_combo.currentData()
+            new_model = self._model_input.text().strip()
+            new_timeout = self._timeout_spin.value()
 
-        cfg = config_manager.load_config()
-        cfg["target_language"] = new_lang or cfg["target_language"]
-        cfg["translation_engine"] = new_engine or cfg["translation_engine"]
-        if new_model:
-            cfg["llm_model"] = new_model
-        cfg["popup_timeout_sec"] = new_timeout
-        config_manager.save_config(cfg)
+            cfg = config_manager.load_config()
+            cfg["source_language"] = new_src_lang or cfg.get("source_language", "auto")
+            cfg["target_language"] = new_lang or cfg["target_language"]
+            cfg["translation_engine"] = new_engine or cfg["translation_engine"]
+            if new_model:
+                cfg["llm_model"] = new_model
+            cfg["popup_timeout_sec"] = new_timeout
+            cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
+            config_manager.save_config(cfg)
 
-        # Reset the LLM client so new model is picked up.
-        reset_client()
+            # Reset the LLM client so new model is picked up.
+            reset_client()
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Ошибка сохранения",
+                f"Не удалось сохранить настройки:\n{e}"
+            )
+            return
+
+        self.accept()
 
     # ── Rounded dark background ──────────────────────────
 

@@ -79,6 +79,24 @@ class _LiveConfig:
         from settings.config_manager import set_value
         set_value("popup_timeout_sec", value)
 
+    @property
+    def SOURCE_LANG(self):
+        return _cfg("source_language")
+
+    @SOURCE_LANG.setter
+    def SOURCE_LANG(self, value):
+        from settings.config_manager import set_value
+        set_value("source_language", value)
+
+    @property
+    def NOTIFICATION_TYPE(self):
+        return _cfg("notification_type")
+
+    @NOTIFICATION_TYPE.setter
+    def NOTIFICATION_TYPE(self, value):
+        from settings.config_manager import set_value
+        set_value("notification_type", value)
+
     # ── Static (from .env / hardcoded) ───────────────────
 
     SETTINGS_HOTKEY = os.environ.get("SETTINGS_HOTKEY", "ctrl+shift+o")
@@ -90,8 +108,6 @@ class _LiveConfig:
 
     OCR_LANG = os.environ.get("OCR_LANG", "eng")
     OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
-
-    SOURCE_LANG = os.environ.get("SOURCE_LANG", "en")
 
     OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))
     OVERLAY_FONT_SIZE = int(os.environ.get("OVERLAY_FONT_SIZE", "14"))

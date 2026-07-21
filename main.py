@@ -17,7 +17,7 @@ import time
 import traceback
 
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QObject, QRect, pyqtSignal
+from PyQt5.QtCore import QObject, QRect, pyqtSignal, QThread
 import keyboard
 
 import config
@@ -49,6 +49,44 @@ class HotkeyBridge(QObject):
     triggered = pyqtSignal()
 
 
+# ── Worker: Capture → OCR → Translate on background thread ──
+
+class TranslationWorker(QThread):
+    finished = pyqtSignal(str, str, str)  # (source_text, translated_text, error_message)
+
+    def __init__(self, x1: int, y1: int, x2: int, y2: int):
+        super().__init__()
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+
+    def run(self):
+        try:
+            image = capture_region(self.x1, self.y1, self.x2, self.y2)
+        except Exception as e:
+            self.finished.emit("", "", f"Ошибка захвата экрана:\n{e}")
+            return
+
+        try:
+            text = recognise(image)
+        except Exception as e:
+            self.finished.emit("", "", f"Ошибка OCR:\n{e}")
+            return
+
+        if not text:
+            self.finished.emit("", "", "Текст не распознан.\nПопробуйте выделить область точнее.")
+            return
+
+        try:
+            translated = translate(text)
+        except Exception as e:
+            self.finished.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
+            return
+
+        self.finished.emit(text, translated, "")
+
+
 # ── Application ──────────────────────────────────────────
 
 class TranslatorApp:
@@ -63,6 +101,7 @@ class TranslatorApp:
         self._tray = TrayIcon()
         self._tray.act_translate.triggered.connect(self._show_selector)
         self._tray.act_settings.triggered.connect(self._show_settings)
+        self._tray.act_history.triggered.connect(self._show_history)
         self._tray.act_exit.triggered.connect(self._quit)
         self._tray.show()
 
@@ -76,6 +115,8 @@ class TranslatorApp:
         self._selector: RegionSelector | None = None
         self._popup: ResultPopup | None = None
         self._settings_dialog = None
+        self._history_window = None
+        self._worker: TranslationWorker | None = None
 
         # Register global hotkeys (fire on a background thread).
         keyboard.add_hotkey(config.HOTKEY, self._bridge.triggered.emit)
@@ -105,62 +146,67 @@ class TranslatorApp:
 
     def _on_region_selected(self, x1: int, y1: int, x2: int, y2: int) -> None:
         anchor = QRect(x1, y1, x2 - x1, y2 - y1)
-        t0 = time.perf_counter()
 
-        # ── Step 1: Capture ──────────────────────────────
-        try:
-            image = capture_region(x1, y1, x2, y2)
-        except Exception as e:
-            self._show_error(f"Ошибка захвата экрана:\n{e}", anchor)
-            traceback.print_exc()
-            return
+        # ── Step 0: Show loading popup immediately (only in popup mode) ──
+        if config.NOTIFICATION_TYPE == "popup":
+            self._close_popup()
+            self._popup = ResultPopup(anchor=anchor, is_loading=True)
+            self._popup.destroyed.connect(self._on_popup_destroyed)
+            self._popup.show()
+            QApplication.processEvents()
 
-        # ── Step 2: OCR ──────────────────────────────────
-        try:
-            text = recognise(image)
-        except Exception as e:
-            self._show_error(f"Ошибка OCR:\n{e}", anchor)
-            traceback.print_exc()
-            return
+        # Stop previous background worker if running
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait()
 
-        if not text:
-            self._show_error("Текст не распознан.\nПопробуйте выделить область точнее.", anchor)
-            return
+        # Start translation pipeline in background thread
+        self._worker = TranslationWorker(x1, y1, x2, y2)
+        self._worker.finished.connect(
+            lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor)
+        )
+        self._worker.start()
 
-        # ── Step 3: Translate ────────────────────────────
-        try:
-            translated = translate(text)
-        except Exception as e:
-            traceback.print_exc()
-            self._show_error(
-                f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}",
-                anchor,
-            )
-            return
-
-        # ── Step 4: Show result popup ────────────────────
-        self._show_result(text, translated, anchor)
+    def _on_translation_finished(self, source: str, translated: str, error_msg: str, anchor: QRect) -> None:
+        self._worker = None
+        if error_msg:
+            self._show_error(error_msg, anchor)
+        else:
+            self._show_result(source, translated, anchor)
 
     # ── Popup helpers ────────────────────────────────────
 
     def _show_result(self, source: str, translated: str, anchor: QRect) -> None:
-        self._close_popup()
-        self._popup = ResultPopup(source, translated, anchor)
-        self._popup.destroyed.connect(self._on_popup_destroyed)
-        self._popup.show()
-        # Also notify in tray
-        self._tray.showMessage("Перевод", translated, self._tray.Information, 4000)
+        from ui.result_popup import show_result
+        self._popup = show_result(
+            source,
+            translated,
+            anchor,
+            is_error=False,
+            tray_icon=self._tray,
+            existing_popup=self._popup,
+        )
+        if self._popup is not None:
+            self._popup.destroyed.connect(self._on_popup_destroyed)
 
     def _show_error(self, message: str, anchor: QRect) -> None:
-        self._close_popup()
-        self._popup = ResultPopup("", message, anchor, is_error=True)
-        self._popup.destroyed.connect(self._on_popup_destroyed)
-        self._popup.show()
+        from ui.result_popup import show_result
+        self._popup = show_result(
+            "",
+            message,
+            anchor,
+            is_error=True,
+            tray_icon=self._tray,
+            existing_popup=self._popup,
+        )
+        if self._popup is not None:
+            self._popup.destroyed.connect(self._on_popup_destroyed)
 
     def _close_popup(self) -> None:
         if self._popup is not None:
             try:
-                self._popup.close()
+                self._popup.hide()
+                self._popup.deleteLater()
             except RuntimeError:
                 pass
             self._popup = None
@@ -184,6 +230,23 @@ class TranslatorApp:
 
     def _on_settings_closed(self) -> None:
         self._settings_dialog = None
+
+    # ── History window ────────────────────────────────────
+
+    def _show_history(self) -> None:
+        """Open the translation history window (singleton — only one at a time)."""
+        if self._history_window is not None:
+            self._history_window.activateWindow()
+            self._history_window.raise_()
+            return
+
+        from history.history_window import HistoryWindow
+        self._history_window = HistoryWindow()
+        self._history_window.finished.connect(self._on_history_closed)
+        self._history_window.show()
+
+    def _on_history_closed(self) -> None:
+        self._history_window = None
 
     # ── Quit ─────────────────────────────────────────────
 
