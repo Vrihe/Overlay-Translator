@@ -18,6 +18,7 @@ import openai
 import anthropic
 
 import config
+import settings
 from cache.store import get_cached, save_to_cache
 
 # ── File logger ──────────────────────────────────────────
@@ -41,13 +42,19 @@ _provider = None
 
 
 def _get_client():
-    """Return a reusable LLM client, detecting which API key to use."""
+    """Return a reusable LLM client, detecting which API key to use.
+
+    Key resolution priority (per provider):
+      1. keyring  (set via UI dialogs)
+      2. environment variable  (for dev workflow with .env)
+    """
     global _client, _provider
     if _client is not None:
         return _client, _provider
 
-    or_key = os.environ.get("OPENROUTER_API_KEY")
-    ant_key = os.environ.get("ANTHROPIC_API_KEY")
+    # Priority: keyring → env var.  OpenRouter checked before Anthropic.
+    or_key = settings.get_api_key("openrouter") or os.environ.get("OPENROUTER_API_KEY")
+    ant_key = settings.get_api_key("anthropic") or os.environ.get("ANTHROPIC_API_KEY")
 
     if or_key:
         _client = openai.OpenAI(
@@ -62,9 +69,18 @@ def _get_client():
         _logger.info("LLM provider: Anthropic")
     else:
         raise RuntimeError(
-            "No API key found. Please set OPENROUTER_API_KEY or ANTHROPIC_API_KEY in .env."
+            "No API key found.\n"
+            "Set your key via the Settings dialog or place it in .env."
         )
     return _client, _provider
+
+
+def reset_client() -> None:
+    """Discard the cached LLM client so the next call picks up new keys."""
+    global _client, _provider
+    _client = None
+    _provider = None
+    _logger.info("LLM client reset — new key will be used on next request.")
 
 
 # ── Public API ───────────────────────────────────────────
@@ -106,7 +122,7 @@ def translate(text: str, target_lang: str | None = None) -> str:
     user_prompt = f"Translate to {target_lang}:\n\n{text}"
 
     if provider == "openrouter":
-        model = "google/gemma-4-26b-a4b-it:free"
+        model = config.OPENROUTER_MODEL
 
         response = client.chat.completions.create(
             model=model,
@@ -119,7 +135,14 @@ def translate(text: str, target_lang: str | None = None) -> str:
                 "X-Title": "Overlay Translator"
             }
         )
-        translation = response.choices[0].message.content.strip()
+        if not response or not getattr(response, "choices", None):
+            raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}). Проверьте ключ или модель.")
+        
+        choice = response.choices[0]
+        if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
+            raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
+
+        translation = choice.message.content.strip()
     else:
         model = "claude-haiku-4-20250414"
         message = client.messages.create(
@@ -130,6 +153,8 @@ def translate(text: str, target_lang: str | None = None) -> str:
                 {"role": "user", "content": user_prompt}
             ]
         )
+        if not message or not getattr(message, "content", None):
+            raise RuntimeError("Anthropic API не вернул текст ответа.")
         translation = message.content[0].text.strip()
 
     elapsed = time.perf_counter() - t0
