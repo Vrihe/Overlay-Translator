@@ -4,6 +4,8 @@ ui/settings_dialog.py — runtime settings dialog.
 Opened via Ctrl+Shift+O (or the tray menu).  Allows the user to:
   • Change the API key (with live validation)
   • Select the target translation language
+  • Select the translation engine (llm_text / llm_vision / api)
+  • Set the LLM model identifier
   • Adjust the result-popup auto-close timeout
 """
 
@@ -17,6 +19,7 @@ from PyQt5.QtGui import QPainter, QPainterPath, QColor
 
 import config
 import settings
+from settings import config_manager
 from translate.llm_client import reset_client
 
 # ── Supported target languages ───────────────────────────
@@ -36,6 +39,12 @@ _LANGUAGES = [
     ("tr", "Türkçe"),
     ("pl", "Polski"),
     ("uk", "Українська"),
+]
+
+_ENGINES = [
+    ("llm_text",   "OCR → LLM (текстовый)"),
+    ("llm_vision", "LLM Vision (картинка)"),
+    ("api",        "OCR → Google/DeepL API"),
 ]
 
 
@@ -119,7 +128,6 @@ class SettingsDialog(QDialog):
         key_layout = QVBoxLayout(grp_key)
         key_layout.setSpacing(8)
 
-        # Provider radio
         prov_row = QHBoxLayout()
         self._radio_group = QButtonGroup(self)
         self._radio_or = QRadioButton("OpenRouter")
@@ -133,14 +141,12 @@ class SettingsDialog(QDialog):
         prov_row.addWidget(self._radio_ant)
         key_layout.addLayout(prov_row)
 
-        # Key input
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.Password)
         self._key_input.setPlaceholderText("Новый ключ (оставьте пустым, чтобы не менять)")
         self._key_input.setStyleSheet(self._INPUT_CSS)
         key_layout.addWidget(self._key_input)
 
-        # Key status
         self._key_status = QLabel("")
         self._key_status.setWordWrap(True)
         self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
@@ -165,6 +171,29 @@ class SettingsDialog(QDialog):
         lang_row.addWidget(lbl_lang)
         lang_row.addWidget(self._lang_combo, 1)
         trans_layout.addLayout(lang_row)
+
+        # Translation engine
+        engine_row = QHBoxLayout()
+        lbl_engine = QLabel("Движок перевода:")
+        lbl_engine.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
+        self._engine_combo = QComboBox()
+        self._engine_combo.setStyleSheet(self._INPUT_CSS)
+        for eng_id, eng_label in _ENGINES:
+            self._engine_combo.addItem(eng_label, eng_id)
+        engine_row.addWidget(lbl_engine)
+        engine_row.addWidget(self._engine_combo, 1)
+        trans_layout.addLayout(engine_row)
+
+        # LLM model
+        model_row = QHBoxLayout()
+        lbl_model = QLabel("LLM-модель:")
+        lbl_model.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
+        self._model_input = QLineEdit()
+        self._model_input.setPlaceholderText("e.g. openai/gpt-oss-20b:free")
+        self._model_input.setStyleSheet(self._INPUT_CSS)
+        model_row.addWidget(lbl_model)
+        model_row.addWidget(self._model_input, 1)
+        trans_layout.addLayout(model_row)
 
         # Popup timeout
         timeout_row = QHBoxLayout()
@@ -214,7 +243,7 @@ class SettingsDialog(QDialog):
     # ── Load current values ──────────────────────────────
 
     def _load_current(self) -> None:
-        # Select the provider that currently has a key.
+        # Provider radio + status.
         if settings.get_api_key("openrouter"):
             self._radio_or.setChecked(True)
             self._key_status.setText("✓ Ключ OpenRouter сохранён")
@@ -228,10 +257,18 @@ class SettingsDialog(QDialog):
             self._key_status.setText("Ключ не задан (используется .env)")
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
 
-        # Target language combo.
+        # Target language.
         idx = self._lang_combo.findData(config.TARGET_LANG)
         if idx >= 0:
             self._lang_combo.setCurrentIndex(idx)
+
+        # Translation engine.
+        idx_eng = self._engine_combo.findData(config.TRANSLATION_ENGINE)
+        if idx_eng >= 0:
+            self._engine_combo.setCurrentIndex(idx_eng)
+
+        # LLM model.
+        self._model_input.setText(config.LLM_MODEL)
 
         # Popup timeout.
         self._timeout_spin.setValue(config.POPUP_TIMEOUT_SEC)
@@ -255,7 +292,6 @@ class SettingsDialog(QDialog):
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
             QApplication.processEvents()
 
-            # Temporarily store & validate.
             settings.set_api_key(provider, key_text)
             reset_client()
 
@@ -277,15 +313,22 @@ class SettingsDialog(QDialog):
             self._key_input.clear()
             self._btn_save.setEnabled(True)
 
-        # ── Update target language ───────────────────────
+        # ── Update config_manager values ─────────────────
         new_lang = self._lang_combo.currentData()
-        if new_lang and new_lang != config.TARGET_LANG:
-            config.TARGET_LANG = new_lang
-
-        # ── Update popup timeout ─────────────────────────
+        new_engine = self._engine_combo.currentData()
+        new_model = self._model_input.text().strip()
         new_timeout = self._timeout_spin.value()
-        if new_timeout != config.POPUP_TIMEOUT_SEC:
-            config.POPUP_TIMEOUT_SEC = new_timeout
+
+        cfg = config_manager.load_config()
+        cfg["target_language"] = new_lang or cfg["target_language"]
+        cfg["translation_engine"] = new_engine or cfg["translation_engine"]
+        if new_model:
+            cfg["llm_model"] = new_model
+        cfg["popup_timeout_sec"] = new_timeout
+        config_manager.save_config(cfg)
+
+        # Reset the LLM client so new model is picked up.
+        reset_client()
 
     # ── Rounded dark background ──────────────────────────
 

@@ -35,6 +35,7 @@ a = Analysis(
         'mss.windows',
         # Our own packages
         'settings',
+        'settings.config_manager',
         'overlay',
         'overlay.selector',
         'capture',

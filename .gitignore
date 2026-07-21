@@ -51,3 +51,6 @@ screenshots/
 # Logs
 logs/
 *.log
+
+# User settings (generated at runtime)
+settings.json

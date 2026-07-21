@@ -122,7 +122,7 @@ def translate(text: str, target_lang: str | None = None) -> str:
     user_prompt = f"Translate to {target_lang}:\n\n{text}"
 
     if provider == "openrouter":
-        model = config.OPENROUTER_MODEL
+        model = config.LLM_MODEL
 
         response = client.chat.completions.create(
             model=model,
@@ -144,7 +144,7 @@ def translate(text: str, target_lang: str | None = None) -> str:
 
         translation = choice.message.content.strip()
     else:
-        model = "claude-haiku-4-20250414"
+        model = config.LLM_MODEL
         message = client.messages.create(
             model=model,
             max_tokens=2048,
