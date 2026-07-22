@@ -16,6 +16,12 @@ import sys
 import time
 import traceback
 
+# Pre-load PyTorch DLLs before PyQt5 to avoid Windows WinError 1114 DLL initialization failure
+try:
+    import torch
+except Exception:
+    pass
+
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject, QRect, pyqtSignal, QThread
 import keyboard

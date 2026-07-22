@@ -1,7 +1,7 @@
 keyboard==0.13.5
 PyQt5==5.15.11
 mss==9.0.2
-pytesseract==0.3.13
+easyocr>=1.7.0
 Pillow==11.1.0
 anthropic>=0.42.0
 python-dotenv>=1.0.1

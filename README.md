@@ -71,29 +71,15 @@ git clone https://github.com/your-username/overlay-translator.git
 cd overlay-translator
 ```
 
-### 2. Install Tesseract OCR (Windows)
-
-Tesseract is a standalone program — the Python package `pytesseract` is just a wrapper.
-
-1. Download the installer from the **[UB Mannheim builds](https://github.com/UB-Mannheim/tesseract/wiki)** page
-   (e.g. `tesseract-ocr-w64-setup-5.x.x.exe`).
-2. Run the installer. During setup:
-   - Check **"Add to PATH"** if the option is available.
-   - Under **"Additional language data"**, check **Russian** (or any other languages you need).
-3. Default install path: `C:\Program Files\Tesseract-OCR\tesseract.exe`
-   — if different, update `TESSERACT_CMD` in your `.env`.
-4. Verify:
-   ```powershell
-   tesseract --version
-   ```
-
-### 3. Install Python dependencies
+### 2. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure API keys
+> **Note:** EasyOCR downloads its language neural network models automatically on the first run. The initial launch or first OCR request will take a bit longer while weights are being fetched.
+
+### 3. Configure API keys
 
 The app will ask for your API key on first launch. You can also set it
 manually in `.env` (useful for development):
@@ -233,7 +219,7 @@ $total = (Select-String "CACHE" logs\translator.log).Count
 | UI / Overlay | PyQt5 |
 | System Tray | QSystemTrayIcon (PyQt5) |
 | Screen capture | mss |
-| OCR | Tesseract + pytesseract + Pillow |
+| OCR | EasyOCR + PyTorch + Pillow |
 | Translation | OpenRouter (free) / Anthropic API |
 | Cache | SQLite |
 | Key storage | keyring (OS credential vault) |

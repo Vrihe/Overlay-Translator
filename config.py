@@ -97,16 +97,19 @@ class _LiveConfig:
         from settings.config_manager import set_value
         set_value("notification_type", value)
 
+    @property
+    def OCR_LANGUAGES(self):
+        return _cfg("ocr_languages")
+
+    @OCR_LANGUAGES.setter
+    def OCR_LANGUAGES(self, value):
+        from settings.config_manager import set_value
+        set_value("ocr_languages", value)
+
     # ── Static (from .env / hardcoded) ───────────────────
 
     SETTINGS_HOTKEY = os.environ.get("SETTINGS_HOTKEY", "ctrl+shift+o")
 
-    TESSERACT_CMD = os.environ.get(
-        "TESSERACT_CMD",
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-    )
-
-    OCR_LANG = os.environ.get("OCR_LANG", "eng")
     OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
 
     OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))

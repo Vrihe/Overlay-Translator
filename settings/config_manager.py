@@ -36,6 +36,7 @@ DEFAULTS: dict[str, Any] = {
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
     "notification_type": "popup",          # "popup" | "windows_toast"
+    "ocr_languages": ["en", "ru"],
 }
 
 # ── In-memory cache ──────────────────────────────────────
