@@ -2,11 +2,12 @@
 tray/tray_icon.py — QSystemTrayIcon with context menu.
 
 Menu items:
-  • Перевести (Ctrl+Shift+R)  — triggers the selector overlay
-  • Настройки                 — placeholder
-  • История переводов         — placeholder
+  • Показать окно              — toggle main window visibility
+  • Перевести (Ctrl+Shift+R)   — triggers the selector overlay
+  • Настройки                  — open main window on Settings tab
+  • История переводов          — open main window on History tab
   • ──────────────────
-  • Выход                     — full shutdown
+  • Выход                      — full shutdown
 """
 
 from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QAction, QApplication
@@ -27,7 +28,8 @@ class TrayIcon(QSystemTrayIcon):
 
         self._build_menu()
 
-        # Double-click on the tray icon → trigger translation.
+        # Single-click on the tray icon → toggle main window.
+        # Double-click → trigger translation.
         self.activated.connect(self._on_activated)
 
     # ── Menu ─────────────────────────────────────────────
@@ -58,6 +60,12 @@ class TrayIcon(QSystemTrayIcon):
             """
         )
 
+        # ── Show Window ──
+        self.act_show_window = QAction("Показать окно")
+        menu.addAction(self.act_show_window)
+
+        menu.addSeparator()
+
         # ── Translate ──
         self.act_translate = QAction(f"Перевести  ({config.HOTKEY.upper()})")
         menu.addAction(self.act_translate)
@@ -80,8 +88,12 @@ class TrayIcon(QSystemTrayIcon):
 
         self.setContextMenu(menu)
 
-    # ── Double-click handler ─────────────────────────────
+    # ── Activation handler ───────────────────────────────
 
     def _on_activated(self, reason):
-        if reason == QSystemTrayIcon.DoubleClick:
+        if reason == QSystemTrayIcon.Trigger:
+            # Single-click → toggle main window
+            self.act_show_window.trigger()
+        elif reason == QSystemTrayIcon.DoubleClick:
+            # Double-click → trigger translation
             self.act_translate.trigger()

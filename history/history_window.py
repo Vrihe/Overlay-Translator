@@ -1,11 +1,13 @@
 """
-history/history_window.py — Translation history viewer window.
+history/history_window.py — Translation history viewer widget and window.
 
 Features:
   • Displays all cached translation entries from SQLite (cache/store.py) in a QTableWidget.
   • Columns: Date/Time, Language, Original text (truncated to 50 chars with '...'), Translation.
   • Live search filter line edit for filtering original text or translation.
   • "Clear history" button with QMessageBox confirmation.
+  • HistoryWidget(QWidget): Reusable history viewer widget for dialogs or tabs.
+  • HistoryWindow(QDialog): Standalone non-modal history dialog wrapper.
 """
 
 from datetime import datetime
@@ -22,29 +24,16 @@ import config
 import cache.store as store
 
 
-class HistoryWindow(QDialog):
-    """Non-modal translation history window with dark theme."""
-
-    _WIDTH = 750
-    _HEIGHT = 500
+class HistoryWidget(QWidget):
+    """Reusable translation history viewer widget."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("Translator Overlay — История переводов")
-        self.resize(self._WIDTH, self._HEIGHT)
-        self.setWindowFlags(
-            Qt.Window
-            | Qt.WindowCloseButtonHint
-            | Qt.WindowMinMaxButtonsHint
-        )
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-
         self._all_records: list[dict] = []
 
         self._build_ui()
-        self._load_data()
+        self.reload()
         self._connect_signals()
 
     # ── Shared styles ────────────────────────────────────
@@ -84,21 +73,12 @@ class HistoryWindow(QDialog):
     # ── Build UI ─────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-
-        self._card = QWidget(self)
-        layout = QVBoxLayout(self._card)
-        layout.setContentsMargins(20, 18, 20, 18)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        # ── Header row (Title + Search) ──
+        # ── Header row (Search input) ──
         header_layout = QHBoxLayout()
-
-        title = QLabel("📜 История переводов")
-        title.setStyleSheet(self._css("color: #e8e8e8; font-size: 13pt; font-weight: 600;"))
-        header_layout.addWidget(title)
-
         header_layout.addStretch()
 
         self._search_input = QLineEdit()
@@ -129,7 +109,7 @@ class HistoryWindow(QDialog):
 
         layout.addWidget(self._table, 1)
 
-        # ── Bottom row (Count + Clear + Close buttons) ──
+        # ── Bottom row (Count + Clear button) ──
         bottom_layout = QHBoxLayout()
 
         self._count_label = QLabel("Всего записей: 0")
@@ -150,23 +130,11 @@ class HistoryWindow(QDialog):
         )
         bottom_layout.addWidget(self._btn_clear)
 
-        self._btn_close = QPushButton("Закрыть")
-        self._btn_close.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent; color: #999; border: 1px solid #444;"
-            "  border-radius: 6px; padding: 7px 18px;"
-            "  font-family: 'Segoe UI'; font-size: 9.5pt;"
-            "}"
-            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
-        )
-        bottom_layout.addWidget(self._btn_close)
-
         layout.addLayout(bottom_layout)
-        root.addWidget(self._card)
 
     # ── Load Data ────────────────────────────────────────
 
-    def _load_data(self) -> None:
+    def reload(self) -> None:
         """Fetch records from store and populate the table."""
         self._all_records = store.get_all_history()
         self._populate_table(self._all_records)
@@ -212,7 +180,6 @@ class HistoryWindow(QDialog):
     def _connect_signals(self) -> None:
         self._search_input.textChanged.connect(self._on_search_changed)
         self._btn_clear.clicked.connect(self._on_clear_clicked)
-        self._btn_close.clicked.connect(self.close)
 
     # ── Filter search ────────────────────────────────────
 
@@ -242,7 +209,70 @@ class HistoryWindow(QDialog):
         if reply == QMessageBox.Yes:
             store.clear_history()
             self._search_input.clear()
-            self._load_data()
+            self.reload()
+
+
+class HistoryWindow(QDialog):
+    """Non-modal translation history window with dark theme."""
+
+    _WIDTH = 750
+    _HEIGHT = 500
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Translator Overlay — История переводов")
+        self.resize(self._WIDTH, self._HEIGHT)
+        self.setWindowFlags(
+            Qt.Window
+            | Qt.WindowCloseButtonHint
+            | Qt.WindowMinMaxButtonsHint
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        self._card = QWidget(self)
+        layout = QVBoxLayout(self._card)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(12)
+
+        # ── Header row (Title) ──
+        header_layout = QHBoxLayout()
+        title = QLabel("📜 История переводов")
+        title.setStyleSheet(HistoryWidget._css("color: #e8e8e8; font-size: 13pt; font-weight: 600;"))
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+
+        # ── History Widget ──
+        self.history_widget = HistoryWidget(self._card)
+        layout.addWidget(self.history_widget, 1)
+
+        # ── Bottom row (Close button) ──
+        bottom_layout = QHBoxLayout()
+        bottom_layout.addStretch()
+
+        self._btn_close = QPushButton("Закрыть")
+        self._btn_close.setStyleSheet(
+            "QPushButton {"
+            "  background: transparent; color: #999; border: 1px solid #444;"
+            "  border-radius: 6px; padding: 7px 18px;"
+            "  font-family: 'Segoe UI'; font-size: 9.5pt;"
+            "}"
+            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
+        )
+        self._btn_close.clicked.connect(self.close)
+        bottom_layout.addWidget(self._btn_close)
+
+        layout.addLayout(bottom_layout)
+
+        root.addWidget(self._card)
 
     # ── Background painting ──────────────────────────────
 

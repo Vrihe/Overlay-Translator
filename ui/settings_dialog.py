@@ -1,12 +1,17 @@
 """
-ui/settings_dialog.py — runtime settings dialog.
+ui/settings_dialog.py — runtime settings widget and dialog.
 
-Opened via Ctrl+Shift+O (or the tray menu).  Allows the user to:
+Provides:
+  • SettingsWidget: reusable QWidget containing all settings controls.
+  • SettingsDialog: non-modal QDialog wrapper for SettingsWidget.
+
+Allows the user to:
   • Change the API key (with live validation)
-  • Select the target translation language
+  • Select the source and target translation language
   • Select the translation engine (llm_text / llm_vision / api)
   • Set the LLM model identifier
   • Adjust the result-popup auto-close timeout
+  • Choose notification display type (popup / windows toast)
 """
 
 from PyQt5.QtWidgets import (
@@ -14,7 +19,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QRadioButton, QButtonGroup, QComboBox,
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QPainter, QPainterPath, QColor
 
 import config
@@ -64,26 +69,21 @@ _ENGINES = [
 ]
 
 
-class SettingsDialog(QDialog):
-    """Non-modal settings dialog with dark theme."""
+class SettingsWidget(QWidget):
+    """Reusable settings form widget."""
 
-    _WIDTH = 500
+    settings_saved = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("Translator Overlay — Настройки")
-        self.setFixedWidth(self._WIDTH)
-        self.setWindowFlags(
-            Qt.Dialog
-            | Qt.WindowCloseButtonHint
-        )
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-
         self._build_ui()
         self._load_current()
         self._connect_signals()
+
+    def reload(self) -> None:
+        """Re-load current config values into the form."""
+        self._load_current()
 
     # ── Shared styles ────────────────────────────────────
 
@@ -124,19 +124,9 @@ class SettingsDialog(QDialog):
     # ── Build UI ─────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-
-        self._card = QWidget(self)
-        layout = QVBoxLayout(self._card)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-
-        # ── Title ──
-        title = QLabel("⚙️ Настройки")
-        title.setStyleSheet(self._css("color: #e8e8e8; font-size: 14pt; font-weight: 600;"))
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
 
         # ── API Key section ──
         grp_key = QGroupBox("API-ключ")
@@ -233,6 +223,8 @@ class SettingsDialog(QDialog):
         self._timeout_spin.setStyleSheet(self._INPUT_CSS)
         timeout_row.addWidget(lbl_timeout)
         timeout_row.addWidget(self._timeout_spin, 1)
+        trans_layout.addLayout(timeout_row)
+
         layout.addWidget(grp_trans)
 
         # ── Notifications section ──
@@ -267,22 +259,10 @@ class SettingsDialog(QDialog):
             "QPushButton:hover { background: #4a7de0; }"
             "QPushButton:disabled { background: #3a3a5c; color: #666; }"
         )
-        self._btn_close = QPushButton("Закрыть")
-        self._btn_close.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent; color: #999; border: 1px solid #444;"
-            "  border-radius: 6px; padding: 9px 24px;"
-            "  font-family: 'Segoe UI'; font-size: 10pt;"
-            "}"
-            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
-        )
 
         btn_row.addStretch()
-        btn_row.addWidget(self._btn_close)
         btn_row.addWidget(self._btn_save)
         layout.addLayout(btn_row)
-
-        root.addWidget(self._card)
 
     # ── Load current values ──────────────────────────────
 
@@ -332,7 +312,6 @@ class SettingsDialog(QDialog):
 
     def _connect_signals(self) -> None:
         self._btn_save.clicked.connect(self._on_save)
-        self._btn_close.clicked.connect(self.close)
 
     # ── Save ─────────────────────────────────────────────
 
@@ -396,9 +375,66 @@ class SettingsDialog(QDialog):
             )
             return
 
-        self.accept()
+        self.settings_saved.emit()
 
-    # ── Rounded dark background ──────────────────────────
+
+class SettingsDialog(QDialog):
+    """Non-modal settings dialog with dark theme."""
+
+    _WIDTH = 500
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Translator Overlay — Настройки")
+        self.setFixedWidth(self._WIDTH)
+        self.setWindowFlags(
+            Qt.Dialog
+            | Qt.WindowCloseButtonHint
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        self._card = QWidget(self)
+        layout = QVBoxLayout(self._card)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
+
+        # ── Title ──
+        title = QLabel("⚙️ Настройки")
+        title.setStyleSheet(SettingsWidget._css("color: #e8e8e8; font-size: 14pt; font-weight: 600;"))
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        # ── Settings widget ──
+        self.settings_widget = SettingsWidget(self)
+        self.settings_widget.settings_saved.connect(self.accept)
+        layout.addWidget(self.settings_widget)
+
+        # ── Close button row ──
+        btn_row = QHBoxLayout()
+        self._btn_close = QPushButton("Закрыть")
+        self._btn_close.setStyleSheet(
+            "QPushButton {"
+            "  background: transparent; color: #999; border: 1px solid #444;"
+            "  border-radius: 6px; padding: 9px 24px;"
+            "  font-family: 'Segoe UI'; font-size: 10pt;"
+            "}"
+            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
+        )
+        self._btn_close.clicked.connect(self.close)
+
+        btn_row.addStretch()
+        btn_row.addWidget(self._btn_close)
+        layout.addLayout(btn_row)
+
+        root.addWidget(self._card)
 
     def paintEvent(self, _event):
         painter = QPainter(self)

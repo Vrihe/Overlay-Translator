@@ -6,8 +6,8 @@ Full pipeline:
                →  OCR (pytesseract) →  translate (LLM)
                →  result popup
 
-Runs as a background application with a system-tray icon.
-No console window is shown (use pythonw.exe or the .pyw extension).
+Main window is shown on startup with sidebar navigation.
+System-tray icon runs in parallel for quick access.
 """
 
 import ctypes
@@ -28,6 +28,7 @@ from ocr.engine import recognise
 from translate.llm_client import translate
 from ui.result_popup import ResultPopup
 from tray.tray_icon import TrayIcon
+from ui.main_window import MainWindow
 
 
 # ── Hide console window on Windows ───────────────────────
@@ -90,37 +91,54 @@ class TranslationWorker(QThread):
 # ── Application ──────────────────────────────────────────
 
 class TranslatorApp:
-    """Owns the QApplication, tray icon, hotkey, selector, and result popups."""
+    """Owns the QApplication, main window, tray icon, hotkey, selector, and result popups."""
 
     def __init__(self, app: QApplication):
         self.app = app
         self.app.setQuitOnLastWindowClosed(False)
         self.app.setApplicationName("Translator Overlay")
 
+        # ── Main window ─────────────────────────────────
+        self._main_window = MainWindow()
+
         # ── System tray ──────────────────────────────────
         self._tray = TrayIcon()
+        self._tray.act_show_window.triggered.connect(self._toggle_main_window)
         self._tray.act_translate.triggered.connect(self._show_selector)
-        self._tray.act_settings.triggered.connect(self._show_settings)
-        self._tray.act_history.triggered.connect(self._show_history)
+        self._tray.act_settings.triggered.connect(
+            lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS)
+        )
+        self._tray.act_history.triggered.connect(
+            lambda: self._main_window.show_and_switch(MainWindow.PAGE_HISTORY)
+        )
         self._tray.act_exit.triggered.connect(self._quit)
         self._tray.show()
+
+        # ── Show main window on startup ──────────────────
+        self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
         self._bridge = HotkeyBridge()
         self._bridge.triggered.connect(self._show_selector)
 
         self._settings_bridge = HotkeyBridge()
-        self._settings_bridge.triggered.connect(self._show_settings)
+        self._settings_bridge.triggered.connect(
+            lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS)
+        )
 
         self._selector: RegionSelector | None = None
         self._popup: ResultPopup | None = None
-        self._settings_dialog = None
-        self._history_window = None
         self._worker: TranslationWorker | None = None
 
         # Register global hotkeys (fire on a background thread).
         keyboard.add_hotkey(config.HOTKEY, self._bridge.triggered.emit)
         keyboard.add_hotkey(config.SETTINGS_HOTKEY, self._settings_bridge.triggered.emit)
+
+    # ── Main window toggle ───────────────────────────────
+
+    def _toggle_main_window(self) -> None:
+        """Toggle main window visibility (for tray icon click)."""
+        self._main_window.toggle_visibility()
 
     # ── Selector lifecycle ───────────────────────────────
 
@@ -214,46 +232,15 @@ class TranslatorApp:
     def _on_popup_destroyed(self) -> None:
         self._popup = None
 
-    # ── Settings dialog ───────────────────────────────────
-
-    def _show_settings(self) -> None:
-        """Open the settings dialog (singleton — only one at a time)."""
-        if self._settings_dialog is not None:
-            self._settings_dialog.activateWindow()
-            self._settings_dialog.raise_()
-            return
-
-        from ui.settings_dialog import SettingsDialog
-        self._settings_dialog = SettingsDialog()
-        self._settings_dialog.finished.connect(self._on_settings_closed)
-        self._settings_dialog.show()
-
-    def _on_settings_closed(self) -> None:
-        self._settings_dialog = None
-
-    # ── History window ────────────────────────────────────
-
-    def _show_history(self) -> None:
-        """Open the translation history window (singleton — only one at a time)."""
-        if self._history_window is not None:
-            self._history_window.activateWindow()
-            self._history_window.raise_()
-            return
-
-        from history.history_window import HistoryWindow
-        self._history_window = HistoryWindow()
-        self._history_window.finished.connect(self._on_history_closed)
-        self._history_window.show()
-
-    def _on_history_closed(self) -> None:
-        self._history_window = None
-
     # ── Quit ─────────────────────────────────────────────
 
     def _quit(self) -> None:
-        """Full shutdown: unhook keyboard, hide tray, exit Qt loop."""
+        """Full shutdown: unhook keyboard, close main window, hide tray, exit Qt loop."""
         keyboard.unhook_all()
         self._close_popup()
+        # Force-close main window (bypass the hide-to-tray override)
+        self._main_window.closeEvent = lambda e: e.accept()
+        self._main_window.close()
         self._tray.hide()
         self.app.quit()
 
