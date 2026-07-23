@@ -1,0 +1,7 @@
+﻿python : Python 
+строка:1 знак:1
++ python tests/test_lang_detect.py 2>&1 | Out-File -FilePath tests/outp ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Python :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

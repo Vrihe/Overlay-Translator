@@ -17,10 +17,11 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 - **System Tray support** — runs quietly in the background without a cluttering console window
 - **Region selector** — fullscreen transparent overlay with mouse-drag selection
 - **Multi-monitor support** — works across all connected displays, including negative-coordinate layouts
-- **OCR** via Tesseract with preprocessing (2× upscale, contrast boost, sharpening, optional HSV filter)
+- **OCR** via EasyOCR (CRAFT + CRNN neural network) with multilingual support (`ru` + `en`), GPU acceleration, and optimised preprocessing
 - **Translation** via OpenRouter (free models) or Anthropic Claude
 - **SQLite cache** — repeated texts are translated instantly without API calls
 - **Floating popup** — shows original + translation near the selected area; draggable, auto-closes after a timeout
+- **Auto language detection** — automatically detects the source language before translation (offline via `langid` or via LLM); falls back to a fixed language for very short texts
 - **Executable support** — can be compiled into a standalone `.exe` file via PyInstaller
 
 ---
@@ -43,10 +44,11 @@ translator-overlay/
 ├── capture/
 │   └── screenshot.py    # Screen capture via mss
 ├── ocr/
-│   ├── engine.py        # Tesseract OCR with image preprocessing
+│   ├── engine.py        # EasyOCR engine with lazy model loading & Cyrillic optimisation
 │   └── hsv_filter.py    # Optional HSV-based preprocessing filter
 ├── translate/
-│   └── llm_client.py    # LLM translation (OpenRouter / Anthropic) + logging
+│   ├── llm_client.py    # LLM translation (OpenRouter / Anthropic) + logging
+│   └── lang_detect.py   # Auto source-language detection (langid / LLM)
 ├── cache/
 │   └── store.py         # SQLite translation cache
 ├── ui/
@@ -77,7 +79,11 @@ cd overlay-translator
 pip install -r requirements.txt
 ```
 
-> **Note:** EasyOCR downloads its language neural network models automatically on the first run. The initial launch or first OCR request will take a bit longer while weights are being fetched.
+> **Note:** EasyOCR will automatically download pre-trained model files (~100 MB)
+> to `~/.EasyOCR/model/` on first launch. No external binaries required.
+>
+> For GPU acceleration, install the CUDA-enabled version of PyTorch.
+> With CPU-only, EasyOCR still works but is slower (~0.5–2s per screenshot).
 
 ### 3. Configure API keys
 
@@ -177,16 +183,38 @@ All settings can be overridden in `.env`:
 | `HOTKEY` | `ctrl+shift+t` | Global hotkey combo for translation |
 | `SETTINGS_HOTKEY` | `ctrl+shift+o` | Global hotkey combo for settings |
 | `TARGET_LANG` | `ru` | Target translation language |
-| `SOURCE_LANG` | `en` | Source language hint |
-| `OCR_LANG` | `eng` | Tesseract language(s) |
+| `SOURCE_LANG` | `en` | Source language (fallback when auto-detect is off or text is too short) |
+| `LANG_DETECT_ENGINE` | `langid` | Source language detection engine: `langid` (offline ML), `llm` (via API), `off` (fixed) |
+| `MIN_CHARS_FOR_DETECTION` | `15` | Minimum character count for auto-detection; shorter texts use fixed `SOURCE_LANG` |
+| `EASYOCR_LANGS` | `ru,en` | Comma-separated list of OCR languages |
+| `EASYOCR_GPU` | `auto` | GPU mode: `auto` (detect CUDA), `true`, or `false` |
+| `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
 | `OCR_USE_HSV_FILTER` | `false` | Enable HSV preprocessing for coloured backgrounds |
-| `TESSERACT_CMD` | `C:\Program Files\Tesseract-OCR\tesseract.exe` | Path to Tesseract binary |
 | `POPUP_TIMEOUT_SEC` | `10` | Popup auto-close timeout (seconds) |
 | `OVERLAY_OPACITY` | `0.85` | Overlay background opacity |
 | `OPENROUTER_API_KEY` | — | OpenRouter API key (free) |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (paid) |
 
 ---
+
+## 🌍 Auto Language Detection
+
+The app can automatically detect the source language of recognised text before sending it for translation. This is especially useful when translating game chat where players write in different languages (English, German, Polish, Russian, etc.).
+
+### Detection Engines
+
+| Engine | `LANG_DETECT_ENGINE` | Description |
+|---|---|---|
+| **langid** (default) | `langid` | Offline ML model — fast, deterministic, no API cost |
+| **LLM** | `llm` | Uses the active LLM provider — more accurate on noisy/short texts, but adds latency and cost |
+| **Off** | `off` | Disabled — uses the fixed `SOURCE_LANG` value |
+
+You can switch engines in the Settings dialog (Ctrl+Shift+O) under "Перевод" → "Определение языка".
+
+### Limitations
+
+- **Short texts** (< 15 characters by default): Auto-detection is unreliable on very short messages (1–3 words, gamer tags, slang). The app falls back to the fixed `SOURCE_LANG` for texts below the `MIN_CHARS_FOR_DETECTION` threshold.
+- **Same-language skip**: If the detected source language matches the target language, translation is skipped and the original text is shown as-is — saving an unnecessary API call.
 
 ## 📊 Logging & Statistics
 
@@ -219,10 +247,11 @@ $total = (Select-String "CACHE" logs\translator.log).Count
 | UI / Overlay | PyQt5 |
 | System Tray | QSystemTrayIcon (PyQt5) |
 | Screen capture | mss |
-| OCR | EasyOCR + PyTorch + Pillow |
+| OCR | EasyOCR (CRAFT + CRNN) + PyTorch + Pillow |
 | Translation | OpenRouter (free) / Anthropic API |
 | Cache | SQLite |
 | Key storage | keyring (OS credential vault) |
+| Language detection | langid |
 | Hotkey | keyboard |
 | Config | python-dotenv |
 | Packaging | PyInstaller |

@@ -25,7 +25,7 @@ if exist "dist\TranslatorOverlay.exe" (
     echo.
     echo IMPORTANT:
     echo   1. Copy your .env file next to the .exe
-    echo   2. Make sure Tesseract OCR is installed
+    echo   2. EasyOCR models will be downloaded on first launch
     echo.
 ) else (
     echo BUILD FAILED — check the output above.

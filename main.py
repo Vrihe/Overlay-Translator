@@ -3,7 +3,7 @@ Translator Overlay — entry point.
 
 Full pipeline:
   Ctrl+Shift+R  →  region selector  →  screenshot (mss)
-               →  OCR (pytesseract) →  translate (LLM)
+               →  OCR (EasyOCR)     →  translate (LLM)
                →  result popup
 
 Main window is shown on startup with sidebar navigation.
@@ -31,7 +31,8 @@ import settings
 from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
 from ocr.engine import recognise
-from translate.llm_client import translate
+from translate.llm_client import translate, detect_and_translate
+from translate.lang_detect import get_detector
 from ui.result_popup import ResultPopup
 from tray.tray_icon import TrayIcon
 from ui.main_window import MainWindow

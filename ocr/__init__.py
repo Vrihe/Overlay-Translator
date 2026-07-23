@@ -1,1 +1,1 @@
-# ocr — text recognition via Tesseract
+# ocr — text recognition via EasyOCR

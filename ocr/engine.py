@@ -1,11 +1,14 @@
 """
-ocr/engine.py — EasyOCR engine with singleton Reader and coordinate-based sorting.
+ocr/engine.py — EasyOCR engine with lazy model loading & Cyrillic optimization.
 
-Pipeline:
-  1. Optional HSV filter (if configured).
-  2. Convert PIL Image to NumPy RGB array.
-  3. Pass to EasyOCR reader.
-  4. Sort bounding boxes top-to-bottom, left-to-right.
+Key features:
+  1. Lazy Singleton Reader: Model weights (CRAFT + CRNN) are loaded once into memory
+     and reused across all OCR requests.
+  2. Multilingual Support: Default language set is ['ru', 'en'], allowing combined
+     recognition of Cyrillic text, English UI elements, usernames, and game slang.
+  3. Neural Preprocessing: Optional HSV filter, converts PIL Image to NumPy RGB array.
+  4. Line-Ordering & Confidence Thresholding: Filters low-confidence noise and sorts
+     detected text blocks top-to-bottom, left-to-right.
 """
 
 from PIL import Image
@@ -21,8 +24,23 @@ def get_reader():
     global _reader
     if _reader is None:
         import easyocr
-        langs = getattr(config, "OCR_LANGUAGES", None) or ["en", "ru"]
-        _reader = easyocr.Reader(langs, gpu=True, verbose=False)
+        langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
+        # Resolve GPU mode
+        gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
+        if isinstance(gpu_setting, bool):
+            use_gpu = gpu_setting
+        elif str(gpu_setting).strip().lower() in ("true", "1"):
+            use_gpu = True
+        elif str(gpu_setting).strip().lower() in ("false", "0"):
+            use_gpu = False
+        else:
+            # "auto" — check torch CUDA availability
+            try:
+                import torch
+                use_gpu = torch.cuda.is_available()
+            except Exception:
+                use_gpu = False
+        _reader = easyocr.Reader(langs, gpu=use_gpu, verbose=False)
     return _reader
 
 
@@ -117,7 +135,12 @@ def extract_text(image: Image.Image) -> str:
     img_np = np.array(processed.convert("RGB"))
     reader = get_reader()
     results = reader.readtext(img_np)
-    return _sort_results(results)
+
+    # Filter low-confidence results
+    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)
+    filtered = [r for r in results if r[2] >= threshold]
+
+    return _sort_results(filtered)
 
 
 def recognise(img: Image.Image, lang: str | None = None) -> str:

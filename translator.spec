@@ -33,6 +33,11 @@ a = Analysis(
         # mss platform backends
         'mss',
         'mss.windows',
+        # EasyOCR & dependencies
+        'easyocr',
+        'torch',
+        'torchvision',
+        'numpy',
         # Our own packages
         'settings',
         'settings.config_manager',
@@ -45,6 +50,7 @@ a = Analysis(
         'ocr.hsv_filter',
         'translate',
         'translate.llm_client',
+        'translate.lang_detect',
         'cache',
         'cache.store',
         'ui',
@@ -60,13 +66,15 @@ a = Analysis(
         'dotenv',
         'keyring',
         'keyring.backends',
+        # Language detection
+        'langid',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
         'tkinter', '_tkinter',
-        'matplotlib', 'numpy',
+        'matplotlib',
         'scipy', 'pandas',
         'pytest', 'unittest',
     ],

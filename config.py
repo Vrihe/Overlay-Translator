@@ -112,6 +112,12 @@ class _LiveConfig:
 
     OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
 
+    # ─── EasyOCR Engine ─────────────────────────────────────
+    _LANGS_RAW = os.environ.get("EASYOCR_LANGS", "ru,en")
+    EASYOCR_LANGS = [lang.strip() for lang in _LANGS_RAW.split(",") if lang.strip()]
+    EASYOCR_GPU = os.environ.get("EASYOCR_GPU", "auto")
+    EASYOCR_CONFIDENCE_THRESHOLD = float(os.environ.get("EASYOCR_CONFIDENCE_THRESHOLD", "0.25"))
+
     OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))
     OVERLAY_FONT_SIZE = int(os.environ.get("OVERLAY_FONT_SIZE", "14"))
 
