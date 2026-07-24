@@ -146,31 +146,28 @@ python main.py
 | `Ctrl+Shift+T` | Start region selection → translate |
 | `Ctrl+Shift+O` | Open settings dialog |
 
----
-
 ## 📦 Building Standalone Executable (.exe)
 
 You can compile the application into a single standalone `.exe` file using PyInstaller:
 
-### Option 1: One-click Build Script
-Simply double-click `build.bat` or run:
+### Build Script
 ```powershell
-.\build.bat
+python build.py
 ```
+*(or `pyinstaller build.spec --clean`)*
 
-### Option 2: PyInstaller Command
-```powershell
-pip install pyinstaller
-pyinstaller translator.spec --clean
-```
+> **Note:** The initial build can take several minutes due to heavy PyTorch and EasyOCR dependencies. The output executable will be created at `dist\TranslatorOverlay.exe`.
 
-The compiled binary will be saved in `dist\TranslatorOverlay.exe`.
+### User Data & Persistence
+Settings (`settings.json`), translation history/cache database (`translations.db`), and logs are automatically stored in the user's roaming AppData directory:
+`%APPDATA%\translator-overlay\`
 
-### Running the Executable
-1. Run `TranslatorOverlay.exe` **as Administrator** (required for global hotkeys).
-2. On first launch, the app will prompt you to enter your API key.
-3. The app will launch directly into the System Tray without opening any command prompt windows.
-4. Optionally, place a `.env` file next to the exe for additional configuration overrides.
+This guarantees that:
+- User configuration and history are preserved when updating or replacing `TranslatorOverlay.exe`.
+- The application runs cleanly even when installed in write-restricted system folders like `C:\Program Files\`.
+
+### 🔄 Automatic Update Checking
+The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
 
 ---
 

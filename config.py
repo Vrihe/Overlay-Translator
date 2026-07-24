@@ -33,6 +33,18 @@ def _cfg(key: str):
     return get(key)
 
 
+def _get_user_data_dir() -> Path:
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            path = Path(appdata) / "translator-overlay"
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+    path = Path.home() / ".config" / "translator-overlay"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 class _LiveConfig:
     """Descriptor-based config so module-level reads always
     reflect the latest settings.json values."""
@@ -108,6 +120,10 @@ class _LiveConfig:
 
     # ── Static (from .env / hardcoded) ───────────────────
 
+    APP_VERSION = "1.0.0"
+    GITHUB_REPO = os.environ.get("GITHUB_REPO", "Vrihe/Overlay-Translator")
+    _PROJECT_DIR = _PROJECT_DIR
+
     SETTINGS_HOTKEY = os.environ.get("SETTINGS_HOTKEY", "ctrl+shift+o")
 
     OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
@@ -121,10 +137,11 @@ class _LiveConfig:
     OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))
     OVERLAY_FONT_SIZE = int(os.environ.get("OVERLAY_FONT_SIZE", "14"))
 
-    CACHE_DIR = os.environ.get("CACHE_DIR", str(_PROJECT_DIR / "cache"))
+    USER_DATA_DIR = _get_user_data_dir()
+    CACHE_DIR = os.environ.get("CACHE_DIR", str(USER_DATA_DIR / "cache"))
     CACHE_MAX_ITEMS = int(os.environ.get("CACHE_MAX_ITEMS", "500"))
 
-    LOG_DIR = os.environ.get("LOG_DIR", str(_PROJECT_DIR / "logs"))
+    LOG_DIR = os.environ.get("LOG_DIR", str(USER_DATA_DIR / "logs"))
     LOG_FILE = os.path.join(LOG_DIR, "translator.log")
 
 

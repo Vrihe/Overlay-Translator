@@ -245,6 +245,38 @@ class SettingsWidget(QWidget):
 
         layout.addWidget(grp_notify)
 
+        # ── About & Updates section ──
+        grp_about = QGroupBox("О программе и обновления")
+        grp_about.setStyleSheet(self._GROUP_CSS)
+        about_layout = QVBoxLayout(grp_about)
+        about_layout.setSpacing(8)
+
+        ver_row = QHBoxLayout()
+        self._lbl_ver = QLabel(f"Версия приложения: v{getattr(config, 'APP_VERSION', '1.0.0')}")
+        self._lbl_ver.setStyleSheet(self._css("color: #ccc; font-size: 10pt; font-weight: 600;"))
+        ver_row.addWidget(self._lbl_ver)
+        ver_row.addStretch()
+
+        self._btn_check_update = QPushButton("Проверить обновления")
+        self._btn_check_update.setStyleSheet(
+            "QPushButton {"
+            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
+            "  border-radius: 6px; padding: 6px 14px;"
+            "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
+            "QPushButton:disabled { background: #1f1f2e; color: #555; border-color: #333; }"
+        )
+        ver_row.addWidget(self._btn_check_update)
+        about_layout.addLayout(ver_row)
+
+        self._update_status_lbl = QLabel("")
+        self._update_status_lbl.setWordWrap(True)
+        self._update_status_lbl.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        about_layout.addWidget(self._update_status_lbl)
+
+        layout.addWidget(grp_about)
+
         # ── Buttons ──
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
@@ -312,6 +344,31 @@ class SettingsWidget(QWidget):
 
     def _connect_signals(self) -> None:
         self._btn_save.clicked.connect(self._on_save)
+        self._btn_check_update.clicked.connect(self._on_check_update)
+
+    def _on_check_update(self) -> None:
+        import webbrowser
+        from updater.check_update import check_for_update
+
+        self._btn_check_update.setEnabled(False)
+        self._update_status_lbl.setText("Проверка наличия обновлений…")
+        self._update_status_lbl.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        QApplication.processEvents()
+
+        has_update, version, url = check_for_update()
+        self._btn_check_update.setEnabled(True)
+
+        if has_update:
+            self._update_status_lbl.setText(
+                f"🚀 Доступна новая версия {version}! "
+                f'<a href="{url}" style="color:#5b8def; font-weight:600;">Скачать обновление →</a>'
+            )
+            self._update_status_lbl.setStyleSheet(self._css("color: #66cc99; font-size: 9.5pt;"))
+            self._update_status_lbl.setOpenExternalLinks(True)
+        else:
+            current = getattr(config, "APP_VERSION", "1.0.0")
+            self._update_status_lbl.setText(f"✓ У вас установлена актуальная версия (v{current}).")
+            self._update_status_lbl.setStyleSheet(self._css("color: #8888aa; font-size: 9pt;"))
 
     # ── Save ─────────────────────────────────────────────
 

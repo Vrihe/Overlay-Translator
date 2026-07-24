@@ -10,7 +10,7 @@ __pycache__/
 dist/
 build/
 *.manifest
-# Note: translator.spec is tracked in git for reproducible builds!
+# Note: build.spec and translator.spec are tracked in git for reproducible builds!
 
 # ─── Executables & Binary Artifacts ─────────────────────
 *.exe

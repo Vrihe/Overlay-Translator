@@ -13,18 +13,40 @@ Stored keys:
 """
 
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 # ── Resolve the directory where settings.json lives ──────
 
+def _get_user_data_dir() -> Path:
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            path = Path(appdata) / "translator-overlay"
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+    path = Path.home() / ".config" / "translator-overlay"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+_USER_DATA_DIR = _get_user_data_dir()
+_CONFIG_FILE = _USER_DATA_DIR / "settings.json"
+
+# Migrate legacy settings.json if present next to app
 if getattr(sys, "frozen", False):
     _APP_DIR = Path(sys.executable).resolve().parent
 else:
     _APP_DIR = Path(__file__).resolve().parent.parent   # project root
 
-_CONFIG_FILE = _APP_DIR / "settings.json"
+_OLD_CONFIG_FILE = _APP_DIR / "settings.json"
+if not _CONFIG_FILE.exists() and _OLD_CONFIG_FILE.exists():
+    try:
+        shutil.copy2(_OLD_CONFIG_FILE, _CONFIG_FILE)
+    except Exception:
+        pass
 
 # ── Default values ───────────────────────────────────────
 

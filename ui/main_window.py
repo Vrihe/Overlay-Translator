@@ -15,8 +15,24 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QColor, QFont, QIcon
 
+import webbrowser
 import config
 from tray.icon_gen import create_tray_icon
+
+
+# ── Background worker for update checking ────────────────
+
+class _UpdateCheckWorker(QThread):
+    """Worker to check for app updates in background."""
+    finished = pyqtSignal(bool, str, str)  # (has_update, version, url)
+
+    def run(self):
+        try:
+            from updater.check_update import check_for_update
+            has_update, version, url = check_for_update()
+            self.finished.emit(has_update, version, url)
+        except Exception:
+            self.finished.emit(False, "", "")
 
 
 # ── Background worker for text / image translation ───────
@@ -433,9 +449,49 @@ class MainWindow(QMainWindow):
             "}"
         )
 
+        self._tray_icon = None
+        self._update_worker = None
+
         self._build_ui()
         self._connect_signals()
         self.switch_to_page(self.PAGE_HOME)
+
+        # Check for updates in background on launch
+        self._start_update_check()
+
+    def set_tray_icon(self, tray_icon):
+        """Pass system tray icon reference to MainWindow for notifications."""
+        self._tray_icon = tray_icon
+
+    def _start_update_check(self):
+        """Launch background thread to check for updates."""
+        self._update_worker = _UpdateCheckWorker()
+        self._update_worker.finished.connect(self._on_update_check_finished)
+        self._update_worker.start()
+
+    def _on_update_check_finished(self, has_update: bool, version: str, url: str):
+        self._update_worker = None
+        if has_update and url:
+            self._update_label.setText(f"🚀 Доступно обновление {version}!")
+            self._update_banner.setVisible(True)
+            try:
+                self._btn_download_update.clicked.disconnect()
+            except Exception:
+                pass
+            self._btn_download_update.clicked.connect(lambda: webbrowser.open(url))
+
+            if hasattr(self, "_tray_icon") and self._tray_icon and hasattr(self._tray_icon, "showMessage"):
+                try:
+                    from PyQt5.QtWidgets import QSystemTrayIcon
+                    self._tray_icon.showMessage(
+                        "Доступно обновление",
+                        f"Вышла новая версия {version}. Нажмите, чтобы открыть страницу скачивания.",
+                        QSystemTrayIcon.Information,
+                        8000,
+                    )
+                    self._tray_icon.messageClicked.connect(lambda: webbrowser.open(url))
+                except Exception:
+                    pass
 
     # ── Build UI ─────────────────────────────────────────
 
@@ -470,7 +526,7 @@ class MainWindow(QMainWindow):
         )
         logo_layout.addWidget(app_name)
 
-        ver_label = QLabel("v1.0")
+        ver_label = QLabel(f"v{getattr(config, 'APP_VERSION', '1.0.0')}")
         ver_label.setStyleSheet(
             "font-family: 'Segoe UI'; font-size: 8.5pt; color: #555570;"
             " background: transparent;"
@@ -509,6 +565,42 @@ class MainWindow(QMainWindow):
 
         root.addWidget(sidebar)
 
+        # ── Right content container (Banner + Stack) ─────
+        right_container = QWidget()
+        right_container.setStyleSheet("background: #1c1c24;")
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # Update banner (hidden by default)
+        self._update_banner = QFrame()
+        self._update_banner.setStyleSheet(
+            "QFrame {"
+            "  background: #20203a; border-bottom: 1px solid #5b8def;"
+            "}"
+        )
+        ub_layout = QHBoxLayout(self._update_banner)
+        ub_layout.setContentsMargins(20, 8, 20, 8)
+
+        self._update_label = QLabel("")
+        self._update_label.setStyleSheet("color: #ffffff; font-family: 'Segoe UI'; font-size: 9.5pt;")
+        ub_layout.addWidget(self._update_label)
+        ub_layout.addStretch()
+
+        self._btn_download_update = QPushButton("Скачать обновление")
+        self._btn_download_update.setCursor(Qt.PointingHandCursor)
+        self._btn_download_update.setStyleSheet(
+            "QPushButton {"
+            "  background: #5b8def; color: #fff; border: none;"
+            "  border-radius: 6px; padding: 5px 14px;"
+            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #4a7de0; }"
+        )
+        ub_layout.addWidget(self._btn_download_update)
+        self._update_banner.setVisible(False)
+        right_layout.addWidget(self._update_banner)
+
         # ── Content area (QStackedWidget) ────────────────
         self._stack = QStackedWidget()
         self._stack.setStyleSheet("background: #1c1c24;")
@@ -536,7 +628,8 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._history_placeholder)
         self._history_widget = None
 
-        root.addWidget(self._stack, 1)
+        right_layout.addWidget(self._stack, 1)
+        root.addWidget(right_container, 1)
 
     # ── Signals ──────────────────────────────────────────
 

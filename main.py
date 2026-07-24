@@ -122,6 +122,7 @@ class TranslatorApp:
         self._tray.show()
 
         # ── Show main window on startup ──────────────────
+        self._main_window.set_tray_icon(self._tray)
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
