@@ -20,6 +20,7 @@ import anthropic
 import config
 import settings
 from cache.store import get_cached, save_to_cache
+from translate.domain_manager import load_domain_profile
 
 # ── File logger ──────────────────────────────────────────
 
@@ -42,69 +43,75 @@ _provider = None
 
 
 def _get_client():
-    """Return a reusable LLM client, detecting which API key to use.
-
-    Key resolution priority (per provider):
-      1. keyring  (set via UI dialogs)
-      2. environment variable  (for dev workflow with .env)
-    """
+    """Return a tuple of ``(client, provider_name)``."""
     global _client, _provider
+
     if _client is not None:
         return _client, _provider
 
-    # Priority: keyring → env var.  OpenRouter checked before Anthropic.
-    or_key = settings.get_api_key("openrouter") or os.environ.get("OPENROUTER_API_KEY")
-    ant_key = settings.get_api_key("anthropic") or os.environ.get("ANTHROPIC_API_KEY")
-
-    if or_key:
+    openrouter_key = settings.get_api_key("openrouter") or os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
         _client = openai.OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=or_key,
+            api_key=openrouter_key,
         )
         _provider = "openrouter"
-        _logger.info("LLM provider: OpenRouter")
-    elif ant_key:
-        _client = anthropic.Anthropic(api_key=ant_key)
+        _logger.info("Initialized OpenRouter client (model: %s)", config.LLM_MODEL)
+        return _client, _provider
+
+    anthropic_key = settings.get_api_key("anthropic") or os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        _client = anthropic.Anthropic(api_key=anthropic_key)
         _provider = "anthropic"
-        _logger.info("LLM provider: Anthropic")
-    else:
-        raise RuntimeError(
-            "No API key found.\n"
-            "Set your key via the Settings dialog or place it in .env."
-        )
-    return _client, _provider
+        _logger.info("Initialized Anthropic client (model: %s)", config.LLM_MODEL)
+        return _client, _provider
+
+    raise RuntimeError(
+        "API key missing! Please set OpenRouter or Anthropic API key in Settings or environment variables."
+    )
 
 
 def reset_client() -> None:
-    """Discard the cached LLM client so the next call picks up new keys."""
+    """Force re-creation of the LLM client on next request."""
     global _client, _provider
     _client = None
     _provider = None
     _logger.info("LLM client reset — new key will be used on next request.")
 
 
+def _build_system_prompt(domain_id: str, target_lang: str, source_lang: str | None = None) -> str:
+    """Build domain-aware system prompt including few-shot examples."""
+    profile = load_domain_profile(domain_id)
+    base_sys_prompt = profile.get("system_prompt", "Ты профессиональный переводчик.")
+    few_shots = profile.get("few_shot_examples", [])
+
+    parts = [base_sys_prompt]
+    if source_lang and source_lang != "auto":
+        parts.append(f"Переводи с {source_lang} на {target_lang}.")
+    else:
+        parts.append(f"Переводи на {target_lang}.")
+
+    if few_shots:
+        parts.append("\nПримеры перевода (Few-Shot Examples):")
+        for ex in few_shots:
+            s_ex = ex.get("source", "").strip()
+            t_ex = ex.get("translation", "").strip()
+            if s_ex and t_ex:
+                parts.append(f"• \"{s_ex}\" → \"{t_ex}\"")
+
+    parts.append("Отвечай ИСКЛЮЧИТЕЛЬНО готовым переводом, без вводных фраз, пояснений и без кавычек.")
+    return "\n".join(parts)
+
+
 # ── Public API ───────────────────────────────────────────
 
-def translate(text: str, *, source_lang: str | None = None,
-             target_lang: str | None = None) -> str:
-    """Translate *text* into *target_lang* using the active LLM provider.
-
-    Parameters
-    ----------
-    text : str
-        Source text (typically OCR output).
-    source_lang : str, optional
-        ISO 639-1 source language code (e.g. ``'en'``).  Used for the
-        cache key and for the LLM prompt.  Defaults to
-        ``config.SOURCE_LANG``.
-    target_lang : str, optional
-        Target language name or ISO code. Defaults to ``config.TARGET_LANG``.
-
-    Returns
-    -------
-    str
-        Translated text.
-    """
+def translate(
+    text: str,
+    target_lang: str | None = None,
+    source_lang: str | None = None,
+    domain_id: str | None = None,
+) -> str:
+    """Translate *text* into *target_lang* using active domain profile & LLM provider."""
     text = text.strip()
     if not text:
         return ""
@@ -113,19 +120,21 @@ def translate(text: str, *, source_lang: str | None = None,
         source_lang = config.SOURCE_LANG
     if target_lang is None:
         target_lang = config.TARGET_LANG
+    if domain_id is None:
+        domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
 
-    # 1. Cache lookup.
-    cached = get_cached(text, source_lang, target_lang)
+    # 1. Cache lookup with domain_id.
+    cached = get_cached(text, source_lang, target_lang, domain_id)
     if cached is not None:
-        _logger.info("CACHE HIT | text=%r", text[:120])
+        _logger.info("CACHE HIT | domain=%s | text=%r", domain_id, text[:120])
         return cached
 
-    _logger.info("CACHE MISS | text=%r | calling API…", text[:120])
+    _logger.info("CACHE MISS | domain=%s | text=%r | calling API…", domain_id, text[:120])
 
     # 2. Call the chosen LLM API.
     t0 = time.perf_counter()
     client, provider = _get_client()
-    system_prompt = "You are a translator. Reply with ONLY the translation, nothing else."
+    system_prompt = _build_system_prompt(domain_id, target_lang, source_lang)
     user_prompt = f"Translate from {source_lang} to {target_lang}:\n\n{text}"
 
     if provider == "openrouter":
@@ -166,70 +175,70 @@ def translate(text: str, *, source_lang: str | None = None,
 
     elapsed = time.perf_counter() - t0
     _logger.info(
-        "API OK | provider=%s model=%s | %.2fs | src=%r | result=%r",
-        provider, model, elapsed, text[:80], translation[:80],
+        "API OK | provider=%s domain=%s model=%s | %.2fs | src=%r | result=%r",
+        provider, domain_id, model, elapsed, text[:80], translation[:80],
     )
 
-    # 3. Cache the result.
-    save_to_cache(text, source_lang, target_lang, translation)
+    # 3. Cache the result with domain_id.
+    save_to_cache(text, source_lang, target_lang, domain_id, translation)
 
     return translation
 
 
 # ── Combined detect + translate (single LLM call) ───────
 
-def detect_and_translate(text: str, *,
-                         target_lang: str | None = None) -> tuple[str, str]:
-    """Detect the source language *and* translate in a single LLM call.
-
-    This is used when ``LANG_DETECT_ENGINE == "llm"`` to avoid two
-    separate API round-trips.  The LLM is asked to reply in the strict
-    format ``LANG: <code>\n<translation>`` so we can parse both the
-    detected ISO 639-1 code and the translated text from one response.
-
-    Parameters
-    ----------
-    text : str
-        Source text (typically OCR output — may contain noise, slang,
-        mixed scripts from game chat).
-    target_lang : str, optional
-        Target language ISO code.  Defaults to ``config.TARGET_LANG``.
-
-    Returns
-    -------
-    tuple[str, str]
-        ``(detected_source_lang, translated_text)``.
-    """
+def detect_and_translate(
+    text: str,
+    target_lang: str | None = None,
+    domain_id: str | None = None,
+) -> tuple[str, str]:
+    """Detect the source language *and* translate in a single LLM call with domain profile."""
     text = text.strip()
     if not text:
         return config.SOURCE_LANG, ""
 
     if target_lang is None:
         target_lang = config.TARGET_LANG
+    if domain_id is None:
+        domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
 
-    # Cache lookup uses SOURCE_LANG as a sentinel — we don't know the
-    # real source lang yet, so we use a special key prefix.
-    cached = get_cached(text, "_auto", target_lang)
+    cached = get_cached(text, "_auto", target_lang, domain_id)
     if cached is not None:
-        _logger.info("CACHE HIT (auto) | text=%r", text[:120])
-        # We don't know the original detected lang from cache, but the
-        # translation is valid.  Return SOURCE_LANG as a best guess.
+        _logger.info("CACHE HIT (auto) | domain=%s | text=%r", domain_id, text[:120])
         return config.SOURCE_LANG, cached
 
-    _logger.info("CACHE MISS (auto) | text=%r | calling API…", text[:120])
+    _logger.info("CACHE MISS (auto) | domain=%s | text=%r | calling API…", domain_id, text[:120])
 
     t0 = time.perf_counter()
     client, provider = _get_client()
 
-    system_prompt = (
-        "You are a translator.  The input text may be noisy OCR output "
-        "from a game screen (slang, typos, mixed scripts, garbled characters).  "
-        "First, determine the source language of the text.  "
-        "Then translate it into the target language.  "
+    profile = load_domain_profile(domain_id)
+    base_sys_prompt = profile.get("system_prompt", "")
+    few_shots = profile.get("few_shot_examples", [])
+
+    sys_parts = [
+        "You are a translator.",
+        "The input text may be noisy OCR output from a screen (slang, typos, mixed scripts, garbled characters).",
+        "First, determine the source language of the text.",
+        "Then translate it into the target language.",
+    ]
+    if base_sys_prompt:
+        sys_parts.append(f"Domain Guidelines: {base_sys_prompt}")
+
+    if few_shots:
+        sys_parts.append("Translation Examples:")
+        for ex in few_shots:
+            s_ex = ex.get("source", "").strip()
+            t_ex = ex.get("translation", "").strip()
+            if s_ex and t_ex:
+                sys_parts.append(f"• \"{s_ex}\" → \"{t_ex}\"")
+
+    sys_parts.append(
         "Reply in EXACTLY this format (two lines, nothing else):\n"
         "LANG: <ISO 639-1 two-letter code>\n"
         "<translated text>"
     )
+    system_prompt = "\n".join(sys_parts)
     user_prompt = f"Translate to {target_lang}:\n\n{text}"
 
     if provider == "openrouter":
@@ -278,11 +287,11 @@ def detect_and_translate(text: str, *,
         translation = lines[1].strip()
 
     _logger.info(
-        "API OK (auto) | provider=%s model=%s | %.2fs | lang=%s | src=%r | result=%r",
-        provider, model, elapsed, detected_lang, text[:80], translation[:80],
+        "API OK (auto) | provider=%s domain=%s model=%s | %.2fs | lang=%s | src=%r | result=%r",
+        provider, domain_id, model, elapsed, detected_lang, text[:80], translation[:80],
     )
 
     # Cache with the special "_auto" source key.
-    save_to_cache(text, "_auto", target_lang, translation)
+    save_to_cache(text, "_auto", target_lang, domain_id, translation)
 
     return detected_lang, translation

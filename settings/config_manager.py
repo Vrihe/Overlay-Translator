@@ -59,6 +59,7 @@ DEFAULTS: dict[str, Any] = {
     "popup_timeout_sec": 10,
     "notification_type": "popup",          # "popup" | "windows_toast"
     "ocr_languages": ["en", "ru"],
+    "active_domain": "general",
 }
 
 # ── In-memory cache ──────────────────────────────────────

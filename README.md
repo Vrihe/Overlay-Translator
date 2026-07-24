@@ -1,5 +1,5 @@
 # 🌐 Translator Overlay
-
+# DO NOT USE buid.py, IT'S BROKEN, WE'RE TRYING TO FIX IT.
 Screen region translator for Windows. Select any text on screen with a hotkey,
 and get an instant translation in a floating popup — powered by OCR and LLM.
 

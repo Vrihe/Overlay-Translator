@@ -16,7 +16,54 @@ import sys
 import time
 import traceback
 
-# Pre-load PyTorch DLLs before PyQt5 to avoid Windows WinError 1114 DLL initialization failure
+# Fix Windows DLL path resolution for PyTorch & C++ runtimes in PyInstaller frozen app
+def _preload_torch_dlls():
+    import ctypes
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    os.environ["OMP_NUM_THREADS"] = "1"
+
+    if getattr(sys, "frozen", False):
+        base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+        torch_lib = os.path.join(base_dir, "torch", "lib")
+        if os.path.exists(torch_lib):
+            try:
+                ctypes.windll.kernel32.SetDllDirectoryW(torch_lib)
+            except Exception:
+                pass
+            if hasattr(os, "add_dll_directory"):
+                try:
+                    os.add_dll_directory(torch_lib)
+                except Exception:
+                    pass
+            os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
+        if hasattr(os, "add_dll_directory"):
+            try:
+                os.add_dll_directory(base_dir)
+            except Exception:
+                pass
+
+        for dll_name in [
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "msvcp140.dll",
+            "vcomp140.dll",
+            "libiomp5md.dll",
+            "asmjit.dll",
+            "fbgemm.dll",
+            "uv.dll",
+            "torch_cpu.dll",
+            "c10.dll",
+            "torch.dll",
+        ]:
+            dll_path = os.path.join(torch_lib, dll_name)
+            if os.path.exists(dll_path):
+                try:
+                    ctypes.CDLL(dll_path)
+                except Exception:
+                    pass
+
+_preload_torch_dlls()
+
 try:
     import torch
 except Exception:
@@ -87,7 +134,7 @@ class TranslationWorker(QThread):
             return
 
         try:
-            translated = translate(text)
+            translated = translate(text, domain_id=config.ACTIVE_DOMAIN)
         except Exception as e:
             self.finished.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
             return

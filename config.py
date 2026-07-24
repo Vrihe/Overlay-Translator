@@ -118,6 +118,15 @@ class _LiveConfig:
         from settings.config_manager import set_value
         set_value("ocr_languages", value)
 
+    @property
+    def ACTIVE_DOMAIN(self):
+        return _cfg("active_domain")
+
+    @ACTIVE_DOMAIN.setter
+    def ACTIVE_DOMAIN(self, value):
+        from settings.config_manager import set_value
+        set_value("active_domain", value)
+
     # ── Static (from .env / hardcoded) ───────────────────
 
     APP_VERSION = "1.0.0"

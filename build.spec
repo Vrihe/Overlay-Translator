@@ -17,12 +17,17 @@ icon_path = ROOT / 'assets' / 'icon.ico'
 if not icon_path.exists():
     icon_path = ROOT / 'icon.ico'
 
+from PyInstaller.utils.hooks import collect_dynamic_libs
+
+torch_binaries = collect_dynamic_libs('torch')
+torchvision_binaries = collect_dynamic_libs('torchvision')
+
 a = Analysis(
     [str(ROOT / 'main.py')],
     pathex=[str(ROOT)],
-    binaries=[],
+    binaries=torch_binaries + torchvision_binaries,
     datas=[
-        # (str(ROOT / '.env'), '.'),
+        (str(ROOT / 'translate' / 'domain_profiles'), 'translate/domain_profiles'),
     ],
     hiddenimports=[
         # PyQt5 plugins
@@ -52,6 +57,7 @@ a = Analysis(
         'ocr.hsv_filter',
         'translate',
         'translate.llm_client',
+        'translate.domain_manager',
         'cache',
         'cache.store',
         'ui',
@@ -76,7 +82,7 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(ROOT / 'pyi_rth_torch_dll.py')],
     excludes=[
         'tensorflow',
         'keras',
