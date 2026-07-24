@@ -48,9 +48,9 @@ def main():
     result = subprocess.run(cmd)
 
     if result.returncode == 0:
-        print("\n✓ Build successful! Executable is located at dist/TranslatorOverlay.exe")
+        print("\n[OK] Build successful! Executable is located at dist/TranslatorOverlay.exe")
     else:
-        print(f"\n❌ Build failed with exit code {result.returncode}")
+        print(f"\n[ERROR] Build failed with exit code {result.returncode}")
         sys.exit(result.returncode)
 
 
