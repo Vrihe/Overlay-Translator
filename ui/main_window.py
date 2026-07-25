@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTextEdit, QFileDialog, QStackedWidget,
     QApplication, QFrame, QSizePolicy, QGraphicsDropShadowEffect,
+    QComboBox,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QColor, QFont, QIcon
@@ -241,6 +242,37 @@ class _HomePage(QWidget):
         txt_title.setStyleSheet(self._CSS_TITLE)
         layout.addWidget(txt_title)
 
+        # Domain selection row
+        domain_row = QHBoxLayout()
+        lbl_domain = QLabel("Контекст перевода:")
+        lbl_domain.setStyleSheet(self._CSS_LABEL)
+        self._domain_combo = QComboBox()
+        self._domain_combo.setStyleSheet(
+            "QComboBox {"
+            "  background: #232334; color: #e0e0e0; border: 1px solid #3a3a4e;"
+            "  border-radius: 6px; padding: 5px 10px;"
+            "  font-family: 'Segoe UI'; font-size: 10pt;"
+            "}"
+            "QComboBox:focus { border-color: #5b8def; }"
+            "QComboBox QAbstractItemView {"
+            "  background: #232334; color: #e0e0e0;"
+            "  selection-background-color: #3a3a5c;"
+            "  border: 1px solid #3a3a4e;"
+            "}"
+        )
+        from translate.domain_manager import list_available_domains
+        for d in list_available_domains():
+            self._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
+
+        idx_dom = self._domain_combo.findData(config.ACTIVE_DOMAIN)
+        if idx_dom >= 0:
+            self._domain_combo.setCurrentIndex(idx_dom)
+
+        self._domain_combo.currentIndexChanged.connect(self._on_domain_changed)
+        domain_row.addWidget(lbl_domain)
+        domain_row.addWidget(self._domain_combo, 1)
+        layout.addLayout(domain_row)
+
         self._text_input = QTextEdit()
         self._text_input.setPlaceholderText("Введите или вставьте текст для перевода…")
         self._text_input.setStyleSheet(self._INPUT_CSS)
@@ -313,6 +345,13 @@ class _HomePage(QWidget):
 
         layout.addStretch()
 
+    # ── Domain change ────────────────────────────────────
+
+    def _on_domain_changed(self):
+        new_domain = self._domain_combo.currentData()
+        if new_domain:
+            config.ACTIVE_DOMAIN = new_domain
+
     # ── Status refresh ───────────────────────────────────
 
     def refresh_status(self):
@@ -321,6 +360,11 @@ class _HomePage(QWidget):
         self._lang_lbl.setText(
             f"🌍 Перевод:  {config.SOURCE_LANG.upper()} → {config.TARGET_LANG.upper()}"
         )
+        idx = self._domain_combo.findData(config.ACTIVE_DOMAIN)
+        if idx >= 0 and self._domain_combo.currentIndex() != idx:
+            self._domain_combo.blockSignals(True)
+            self._domain_combo.setCurrentIndex(idx)
+            self._domain_combo.blockSignals(False)
 
     # ── Text translation ─────────────────────────────────
 

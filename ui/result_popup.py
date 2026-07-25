@@ -160,8 +160,12 @@ class ResultPopup(QWidget):
         header_row.setContentsMargins(0, 0, 0, 2)
         header_row.setSpacing(6)
 
+        from translate.domain_manager import load_domain_profile
+        domain_profile = load_domain_profile(config.ACTIVE_DOMAIN)
+        domain_display_name = domain_profile.get("display_name", "Общий")
+
         if self._is_loading:
-            self._loading_label = self._make_label("Переводим...", size=10, color="#a0a0c0", bold=True)
+            self._loading_label = self._make_label(f"Переводим ({domain_display_name})...", size=10, color="#a0a0c0", bold=True)
             header_row.addWidget(self._loading_label)
             self._start_dots_animation()
         else:
@@ -170,6 +174,10 @@ class ResultPopup(QWidget):
             header_lbl = QLabel(title_text)
             header_lbl.setStyleSheet(f"color: {title_color}; font-size: 9.5pt; font-weight: 600; background: transparent;")
             header_row.addWidget(header_lbl)
+
+            domain_badge = QLabel(f"•  Контекст: {domain_display_name}")
+            domain_badge.setStyleSheet("color: #777799; font-size: 8.5pt; font-family: 'Segoe UI'; background: transparent;")
+            header_row.addWidget(domain_badge)
 
         header_row.addStretch()
 
@@ -275,9 +283,12 @@ class ResultPopup(QWidget):
             if self._dots_timer is not None:
                 self._dots_timer.stop()
             return
+        from translate.domain_manager import load_domain_profile
+        domain_profile = load_domain_profile(config.ACTIVE_DOMAIN)
+        domain_display_name = domain_profile.get("display_name", "Общий")
         self._dots_count = (self._dots_count % 3) + 1
         dots = "." * self._dots_count
-        self._loading_label.setText(f"Переводим{dots}")
+        self._loading_label.setText(f"Переводим ({domain_display_name}){dots}")
 
     # ── In-place content update ──────────────────────────
 

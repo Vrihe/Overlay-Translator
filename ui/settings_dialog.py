@@ -166,6 +166,19 @@ class SettingsWidget(QWidget):
         trans_layout = QVBoxLayout(grp_trans)
         trans_layout.setSpacing(8)
 
+        # Context / Domain
+        domain_row = QHBoxLayout()
+        lbl_domain = QLabel("Контекст перевода:")
+        lbl_domain.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
+        self._domain_combo = QComboBox()
+        self._domain_combo.setStyleSheet(self._INPUT_CSS)
+        from translate.domain_manager import list_available_domains
+        for d in list_available_domains():
+            self._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
+        domain_row.addWidget(lbl_domain)
+        domain_row.addWidget(self._domain_combo, 1)
+        trans_layout.addLayout(domain_row)
+
         # Source language
         src_lang_row = QHBoxLayout()
         lbl_src_lang = QLabel("Исходный язык:")
@@ -313,6 +326,11 @@ class SettingsWidget(QWidget):
             self._key_status.setText("Ключ не задан (используется .env)")
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
 
+        # Domain.
+        idx_dom = self._domain_combo.findData(config.ACTIVE_DOMAIN)
+        if idx_dom >= 0:
+            self._domain_combo.setCurrentIndex(idx_dom)
+
         # Source language.
         idx_src = self._src_lang_combo.findData(config.SOURCE_LANG)
         if idx_src >= 0:
@@ -406,6 +424,7 @@ class SettingsWidget(QWidget):
 
         # ── Update config_manager values ─────────────────
         try:
+            new_domain = self._domain_combo.currentData()
             new_src_lang = self._src_lang_combo.currentData()
             new_lang = self._lang_combo.currentData()
             new_engine = self._engine_combo.currentData()
@@ -413,6 +432,7 @@ class SettingsWidget(QWidget):
             new_timeout = self._timeout_spin.value()
 
             cfg = config_manager.load_config()
+            cfg["active_domain"] = new_domain or cfg.get("active_domain", "general")
             cfg["source_language"] = new_src_lang or cfg.get("source_language", "auto")
             cfg["target_language"] = new_lang or cfg["target_language"]
             cfg["translation_engine"] = new_engine or cfg["translation_engine"]
