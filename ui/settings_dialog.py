@@ -4,24 +4,19 @@ ui/settings_dialog.py — runtime settings widget and dialog.
 Provides:
   • SettingsWidget: reusable QWidget containing all settings controls.
   • SettingsDialog: non-modal QDialog wrapper for SettingsWidget.
-
-Allows the user to:
-  • Change the API key (with live validation)
-  • Select the source and target translation language
-  • Select the translation engine (llm_text / llm_vision / api)
-  • Set the LLM model identifier
-  • Adjust the result-popup auto-close timeout
-  • Choose notification display type (popup / windows toast)
+  • ProfileEditorDialog: modal QDialog for creating and editing custom domain profiles.
 """
 
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QRadioButton, QButtonGroup, QComboBox,
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
+    QTextEdit, QScrollArea, QFrame,
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QPainter, QPainterPath, QColor
 
+from typing import Any
 import config
 import settings
 from settings import config_manager
@@ -67,6 +62,237 @@ _ENGINES = [
     ("llm_vision", "LLM Vision (картинка)"),
     ("api",        "OCR → Google/DeepL API"),
 ]
+
+
+class _ExampleRowWidget(QWidget):
+    """Row widget containing source text, translation text, and a remove button."""
+
+    def __init__(self, source: str = "", translation: str = "", parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self.src_input = QLineEdit(source)
+        self.src_input.setPlaceholderText("Оригинал (напр. HP)")
+        self.src_input.setStyleSheet(
+            "QLineEdit {"
+            "  background: #1e1e2d; color: #e0e0e0; border: 1px solid #444;"
+            "  border-radius: 4px; padding: 5px 8px; font-size: 9.5pt;"
+            "}"
+        )
+
+        lbl_arrow = QLabel("→")
+        lbl_arrow.setStyleSheet("color: #888; font-size: 10pt; background: transparent;")
+
+        self.trans_input = QLineEdit(translation)
+        self.trans_input.setPlaceholderText("Перевод (напр. ОЗ)")
+        self.trans_input.setStyleSheet(
+            "QLineEdit {"
+            "  background: #1e1e2d; color: #e0e0e0; border: 1px solid #444;"
+            "  border-radius: 4px; padding: 5px 8px; font-size: 9.5pt;"
+            "}"
+        )
+
+        self.btn_delete = QPushButton("✕")
+        self.btn_delete.setFixedSize(24, 24)
+        self.btn_delete.setCursor(Qt.PointingHandCursor)
+        self.btn_delete.setStyleSheet(
+            "QPushButton {"
+            "  background: transparent; color: #ff6b6b; border: none; font-weight: bold;"
+            "}"
+            "QPushButton:hover { background: rgba(255, 107, 107, 0.15); border-radius: 4px; }"
+        )
+        self.btn_delete.clicked.connect(self.deleteLater)
+
+        layout.addWidget(self.src_input, 1)
+        layout.addWidget(lbl_arrow)
+        layout.addWidget(self.trans_input, 1)
+        layout.addWidget(self.btn_delete)
+
+    def get_data(self) -> dict[str, str] | None:
+        s = self.src_input.text().strip()
+        t = self.trans_input.text().strip()
+        if s and t:
+            return {"source": s, "translation": t}
+        return None
+
+
+class ProfileEditorDialog(QDialog):
+    """Dialog for creating or editing a custom domain profile."""
+
+    def __init__(self, parent=None, profile_data: dict[str, Any] | None = None):
+        super().__init__(parent)
+        self._profile_data = profile_data or {}
+        self._existing_id = self._profile_data.get("id")
+
+        title_str = "Редактирование профиля" if self._existing_id else "Создание профиля контекста"
+        self.setWindowTitle(f"Translator Overlay — {title_str}")
+        self.resize(520, 520)
+        self.setMinimumSize(420, 420)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
+        self.setStyleSheet("QDialog { background: #1c1c24; }")
+
+        self._build_ui()
+        self._load_data()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        # Title
+        title_text = "✏️ Редактирование профиля" if self._existing_id else "✨ Новый профиль контекста"
+        lbl_title = QLabel(title_text)
+        lbl_title.setStyleSheet("font-family: 'Segoe UI'; font-size: 13pt; font-weight: 600; color: #e8e8e8;")
+        layout.addWidget(lbl_title)
+
+        # Display name
+        lbl_name = QLabel("Название профиля (display_name):")
+        lbl_name.setStyleSheet("font-family: 'Segoe UI'; color: #ccc; font-size: 9.5pt;")
+        layout.addWidget(lbl_name)
+
+        self._name_input = QLineEdit()
+        self._name_input.setPlaceholderText("Например: Фэнтези РПГ, Медицина, Юриспруденция...")
+        self._name_input.setStyleSheet(
+            "QLineEdit {"
+            "  background: #262636; color: #e0e0e0; border: 1px solid #444;"
+            "  border-radius: 6px; padding: 7px 10px; font-family: 'Segoe UI'; font-size: 10pt;"
+            "}"
+            "QLineEdit:focus { border-color: #5b8def; }"
+        )
+        layout.addWidget(self._name_input)
+
+        # System prompt
+        lbl_prompt = QLabel("Инструкция для ИИ (system_prompt):")
+        lbl_prompt.setStyleSheet("font-family: 'Segoe UI'; color: #ccc; font-size: 9.5pt;")
+        layout.addWidget(lbl_prompt)
+
+        self._prompt_input = QTextEdit()
+        self._prompt_input.setPlaceholderText(
+            "Опишите роль ИИ и правила перевода терминов, напр.:\n"
+            "Ты опытный переводчик фэнтези игр. Переводи игровые термины (HP -> ОЗ, Mana -> Мана). "
+            "Сохраняй геймерский сленг и атмосферу."
+        )
+        self._prompt_input.setStyleSheet(
+            "QTextEdit {"
+            "  background: #262636; color: #e0e0e0; border: 1px solid #444;"
+            "  border-radius: 6px; padding: 8px 10px; font-family: 'Segoe UI'; font-size: 9.5pt;"
+            "}"
+            "QTextEdit:focus { border-color: #5b8def; }"
+        )
+        self._prompt_input.setFixedHeight(120)
+        layout.addWidget(self._prompt_input)
+
+        # Few-Shot examples header row
+        ex_header = QHBoxLayout()
+        lbl_ex = QLabel("Примеры перевода (Few-Shot Examples):")
+        lbl_ex.setStyleSheet("font-family: 'Segoe UI'; color: #ccc; font-size: 9.5pt; font-weight: 600;")
+        ex_header.addWidget(lbl_ex)
+        ex_header.addStretch()
+
+        self._btn_add_ex = QPushButton("➕ Добавить пример")
+        self._btn_add_ex.setCursor(Qt.PointingHandCursor)
+        self._btn_add_ex.setStyleSheet(
+            "QPushButton {"
+            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
+            "  border-radius: 5px; padding: 4px 10px; font-family: 'Segoe UI'; font-size: 8.5pt; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #3a3a5c; }"
+        )
+        self._btn_add_ex.clicked.connect(self._add_example_row)
+        ex_header.addWidget(self._btn_add_ex)
+        layout.addLayout(ex_header)
+
+        # Scroll area for examples
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+        self._examples_container = QWidget()
+        self._examples_layout = QVBoxLayout(self._examples_container)
+        self._examples_layout.setContentsMargins(0, 0, 0, 0)
+        self._examples_layout.setSpacing(6)
+        self._examples_layout.addStretch()
+
+        scroll.setWidget(self._examples_container)
+        layout.addWidget(scroll, 1)
+
+        # Buttons row
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+
+        self._btn_cancel = QPushButton("Отмена")
+        self._btn_cancel.setStyleSheet(
+            "QPushButton {"
+            "  background: transparent; color: #aaa; border: 1px solid #444;"
+            "  border-radius: 6px; padding: 8px 18px; font-family: 'Segoe UI'; font-size: 9.5pt;"
+            "}"
+            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
+        )
+        self._btn_cancel.clicked.connect(self.reject)
+
+        self._btn_save = QPushButton("Сохранить профиль")
+        self._btn_save.setStyleSheet(
+            "QPushButton {"
+            "  background: #5b8def; color: #fff; border: none;"
+            "  border-radius: 6px; padding: 8px 20px;"
+            "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #4a7de0; }"
+        )
+        self._btn_save.clicked.connect(self._on_save)
+
+        btn_row.addStretch()
+        btn_row.addWidget(self._btn_cancel)
+        btn_row.addWidget(self._btn_save)
+        layout.addLayout(btn_row)
+
+    def _add_example_row(self, source: str = "", translation: str = ""):
+        row = _ExampleRowWidget(source, translation)
+        count = self._examples_layout.count()
+        self._examples_layout.insertWidget(count - 1, row)
+
+    def _load_data(self):
+        if not self._profile_data:
+            return
+        self._name_input.setText(self._profile_data.get("display_name", ""))
+        self._prompt_input.setPlainText(self._profile_data.get("system_prompt", ""))
+        examples = self._profile_data.get("few_shot_examples", [])
+        for ex in examples:
+            if isinstance(ex, dict):
+                self._add_example_row(ex.get("source", ""), ex.get("translation", ""))
+
+    def _on_save(self):
+        name = self._name_input.text().strip()
+        prompt = self._prompt_input.toPlainText().strip()
+        if not name:
+            QMessageBox.warning(self, "Ошибка ввода", "Введите название профиля.")
+            return
+        if not prompt:
+            QMessageBox.warning(self, "Ошибка ввода", "Заполните системный промпт для ИИ.")
+            return
+
+        examples = []
+        for i in range(self._examples_layout.count() - 1):
+            w = self._examples_layout.itemAt(i).widget()
+            if isinstance(w, _ExampleRowWidget):
+                data = w.get_data()
+                if data:
+                    examples.append(data)
+
+        try:
+            from translate.domain_manager import save_custom_profile
+            save_custom_profile(
+                display_name=name,
+                system_prompt=prompt,
+                few_shot_examples=examples,
+                existing_id=self._existing_id,
+            )
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка сохранения", f"Не удалось сохранить профиль:\n{e}")
 
 
 class SettingsWidget(QWidget):
@@ -240,6 +466,40 @@ class SettingsWidget(QWidget):
 
         layout.addWidget(grp_trans)
 
+        # ── Custom Profiles section ("Мои профили") ──
+        grp_custom = QGroupBox("Мои профили контекста")
+        grp_custom.setStyleSheet(self._GROUP_CSS)
+        custom_layout = QVBoxLayout(grp_custom)
+        custom_layout.setSpacing(8)
+
+        c_head = QHBoxLayout()
+        lbl_c_desc = QLabel("Кастомные промпты и словари для адаптивного перевода:")
+        lbl_c_desc.setStyleSheet(self._css("color: #aaa; font-size: 9pt;"))
+        c_head.addWidget(lbl_c_desc)
+        c_head.addStretch()
+
+        self._btn_create_profile = QPushButton("➕ Создать новый профиль")
+        self._btn_create_profile.setCursor(Qt.PointingHandCursor)
+        self._btn_create_profile.setStyleSheet(
+            "QPushButton {"
+            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
+            "  border-radius: 6px; padding: 6px 14px;"
+            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
+        )
+        self._btn_create_profile.clicked.connect(self._on_create_profile)
+        c_head.addWidget(self._btn_create_profile)
+        custom_layout.addLayout(c_head)
+
+        self._custom_profiles_container = QWidget()
+        self._custom_profiles_layout = QVBoxLayout(self._custom_profiles_container)
+        self._custom_profiles_layout.setContentsMargins(0, 4, 0, 0)
+        self._custom_profiles_layout.setSpacing(6)
+        custom_layout.addWidget(self._custom_profiles_container)
+
+        layout.addWidget(grp_custom)
+
         # ── Notifications section ──
         grp_notify = QGroupBox("Уведомления")
         grp_notify.setStyleSheet(self._GROUP_CSS)
@@ -309,6 +569,123 @@ class SettingsWidget(QWidget):
         btn_row.addWidget(self._btn_save)
         layout.addLayout(btn_row)
 
+    # ── Custom profiles list management ─────────────────
+
+    def _reload_custom_profiles_list(self):
+        while self._custom_profiles_layout.count():
+            item = self._custom_profiles_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        from translate.domain_manager import list_available_domains
+        all_domains = list_available_domains()
+        custom_domains = [d for d in all_domains if d.get("is_custom")]
+
+        if not custom_domains:
+            empty_lbl = QLabel("У вас пока нет пользовательских профилей.")
+            empty_lbl.setStyleSheet(self._css("color: #777799; font-size: 9pt; font-style: italic;"))
+            self._custom_profiles_layout.addWidget(empty_lbl)
+            return
+
+        for dom in custom_domains:
+            dom_id = dom["id"]
+            display_name = dom["display_name"]
+
+            row = QFrame()
+            row.setStyleSheet(
+                "QFrame {"
+                "  background: #232334; border: 1px solid #3a3a4e;"
+                "  border-radius: 6px; padding: 4px 8px;"
+                "}"
+            )
+            r_layout = QHBoxLayout(row)
+            r_layout.setContentsMargins(8, 6, 8, 6)
+
+            lbl = QLabel(f"<b>{display_name}</b> <span style='color:#777; font-size:8.5pt;'>({dom_id})</span>")
+            lbl.setStyleSheet(self._css("color: #e0e0e0; font-size: 9.5pt;"))
+            r_layout.addWidget(lbl)
+            r_layout.addStretch()
+
+            btn_edit = QPushButton("✏️ Редактировать")
+            btn_edit.setCursor(Qt.PointingHandCursor)
+            btn_edit.setStyleSheet(
+                "QPushButton {"
+                "  background: transparent; color: #aaa; border: 1px solid #444;"
+                "  border-radius: 4px; padding: 4px 10px; font-family: 'Segoe UI'; font-size: 8.5pt;"
+                "}"
+                "QPushButton:hover { background: #2a2a3e; color: #fff; }"
+            )
+            btn_edit.clicked.connect(lambda _, did=dom_id: self._on_edit_profile(did))
+            r_layout.addWidget(btn_edit)
+
+            btn_del = QPushButton("🗑️ Удалить")
+            btn_del.setCursor(Qt.PointingHandCursor)
+            btn_del.setStyleSheet(
+                "QPushButton {"
+                "  background: transparent; color: #ff6b6b; border: 1px solid #663333;"
+                "  border-radius: 4px; padding: 4px 10px; font-family: 'Segoe UI'; font-size: 8.5pt;"
+                "}"
+                "QPushButton:hover { background: rgba(255, 107, 107, 0.15); color: #ff8888; }"
+            )
+            btn_del.clicked.connect(lambda _, did=dom_id, dname=display_name: self._on_delete_profile(did, dname))
+            r_layout.addWidget(btn_del)
+
+            self._custom_profiles_layout.addWidget(row)
+
+    def _refresh_all_domain_combos(self):
+        """Re-populate domain combos in SettingsWidget and MainWindow."""
+        from translate.domain_manager import list_available_domains
+        self._domain_combo.blockSignals(True)
+        self._domain_combo.clear()
+        for d in list_available_domains():
+            self._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
+        idx = self._domain_combo.findData(config.ACTIVE_DOMAIN)
+        if idx >= 0:
+            self._domain_combo.setCurrentIndex(idx)
+        self._domain_combo.blockSignals(False)
+
+        for widget in QApplication.topLevelWidgets():
+            if hasattr(widget, "_home_page") and hasattr(widget._home_page, "_domain_combo"):
+                widget._home_page._domain_combo.blockSignals(True)
+                widget._home_page._domain_combo.clear()
+                for d in list_available_domains():
+                    widget._home_page._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
+                idx_h = widget._home_page._domain_combo.findData(config.ACTIVE_DOMAIN)
+                if idx_h >= 0:
+                    widget._home_page._domain_combo.setCurrentIndex(idx_h)
+                widget._home_page._domain_combo.blockSignals(False)
+
+    def _on_create_profile(self):
+        dlg = ProfileEditorDialog(self)
+        if dlg.exec_() == QDialog.Accepted:
+            self._reload_custom_profiles_list()
+            self._refresh_all_domain_combos()
+
+    def _on_edit_profile(self, domain_id: str):
+        from translate.domain_manager import load_domain_profile
+        data = load_domain_profile(domain_id)
+        dlg = ProfileEditorDialog(self, data)
+        if dlg.exec_() == QDialog.Accepted:
+            self._reload_custom_profiles_list()
+            self._refresh_all_domain_combos()
+
+    def _on_delete_profile(self, domain_id: str, display_name: str):
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            f"Вы действительно хотите удалить пользовательский профиль '{display_name}' ({domain_id})?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            from translate.domain_manager import delete_custom_profile
+            delete_custom_profile(domain_id)
+            if config.ACTIVE_DOMAIN == domain_id:
+                config.ACTIVE_DOMAIN = "general"
+            self._reload_custom_profiles_list()
+            self._refresh_all_domain_combos()
+
     # ── Load current values ──────────────────────────────
 
     def _load_current(self) -> None:
@@ -327,9 +704,10 @@ class SettingsWidget(QWidget):
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
 
         # Domain.
-        idx_dom = self._domain_combo.findData(config.ACTIVE_DOMAIN)
-        if idx_dom >= 0:
-            self._domain_combo.setCurrentIndex(idx_dom)
+        self._refresh_all_domain_combos()
+
+        # Custom profiles list.
+        self._reload_custom_profiles_list()
 
         # Source language.
         idx_src = self._src_lang_combo.findData(config.SOURCE_LANG)
@@ -458,7 +836,7 @@ class SettingsWidget(QWidget):
 class SettingsDialog(QDialog):
     """Non-modal settings dialog with dark theme."""
 
-    _WIDTH = 500
+    _WIDTH = 520
 
     def __init__(self, parent=None):
         super().__init__(parent)
