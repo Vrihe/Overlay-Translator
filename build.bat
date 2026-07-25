@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo   Building Translator Overlay .exe
+echo   Building Translator Overlay (onedir mode)
 echo ============================================
 echo.
 
@@ -14,18 +14,20 @@ if %errorlevel% neq 0 (
 
 :: Run the build
 echo Running PyInstaller...
-pyinstaller translator.spec --clean
+pyinstaller build.spec --noconfirm %*
 
 echo.
-if exist "dist\TranslatorOverlay.exe" (
+if exist "dist\TranslatorOverlay\TranslatorOverlay.exe" (
     echo ============================================
-    echo   BUILD OK
-    echo   Output: dist\TranslatorOverlay.exe
+    echo   BUILD OK (onedir mode)
+    echo   Output folder: dist\TranslatorOverlay
+    echo   Executable: dist\TranslatorOverlay\TranslatorOverlay.exe
     echo ============================================
     echo.
     echo IMPORTANT:
-    echo   1. Copy your .env file next to the .exe
-    echo   2. EasyOCR models will be downloaded on first launch
+    echo   1. Copy your .env file into dist\TranslatorOverlay\ (if using local .env)
+    echo   2. Package the entire dist\TranslatorOverlay\ folder into a zip archive for release
+    echo   3. EasyOCR models will be downloaded on first launch
     echo.
 ) else (
     echo BUILD FAILED — check the output above.

@@ -11,6 +11,9 @@ Key features:
      detected text blocks top-to-bottom, left-to-right.
 """
 
+import os
+import sys
+import logging
 from PIL import Image
 import numpy as np
 
@@ -23,9 +26,8 @@ def get_reader():
     """Return the singleton easyocr.Reader instance, initializing it on first use."""
     global _reader
     if _reader is None:
+        logging.info("Initializing EasyOCR reader instance...")
         import ctypes
-        import os
-        import sys
 
         os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -59,7 +61,13 @@ def get_reader():
                         except Exception:
                             pass
 
-        import easyocr
+        try:
+            import easyocr
+            logging.info("easyocr module imported successfully.")
+        except Exception:
+            logging.exception("Failed to import easyocr module!")
+            raise
+
         langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
         # Resolve GPU mode
         gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
@@ -76,7 +84,24 @@ def get_reader():
                 use_gpu = torch.cuda.is_available()
             except Exception:
                 use_gpu = False
-        _reader = easyocr.Reader(langs, gpu=use_gpu, verbose=False)
+
+        # Model storage directory: ensure it points to user home ~/.EasyOCR/model
+        user_home = os.path.expanduser("~")
+        model_storage_dir = os.path.join(user_home, ".EasyOCR", "model")
+        os.makedirs(model_storage_dir, exist_ok=True)
+        logging.info(f"EasyOCR model storage directory: {model_storage_dir} (GPU={use_gpu}, languages={langs})")
+
+        try:
+            _reader = easyocr.Reader(
+                langs,
+                gpu=use_gpu,
+                verbose=False,
+                model_storage_directory=model_storage_dir,
+            )
+            logging.info("EasyOCR reader initialized successfully.")
+        except Exception:
+            logging.exception("Failed to instantiate easyocr.Reader!")
+            raise
     return _reader
 
 
@@ -89,19 +114,7 @@ def preprocess(img: Image.Image) -> Image.Image:
 
 
 def _sort_results(results: list) -> str:
-    """Sort EasyOCR results top-to-bottom, left-to-right based on bounding box coordinates.
-
-    Parameters
-    ----------
-    results : list
-        Output from easyocr.readtext: [ (bbox, text, prob), ... ]
-        bbox format: [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]
-
-    Returns
-    -------
-    str
-        Extracted text with reading order preserved and lines separated by newline.
-    """
+    """Sort EasyOCR results top-to-bottom, left-to-right based on bounding box coordinates."""
     items = []
     for bbox, text, prob in results:
         text_str = text.strip() if isinstance(text, str) else ""
@@ -124,17 +137,14 @@ def _sort_results(results: list) -> str:
     if not items:
         return ""
 
-    # Sort items by min_y initially
     items.sort(key=lambda i: i["min_y"])
 
-    # Group items into lines based on vertical overlap
     lines = []
     for item in items:
         placed = False
         for line in lines:
             line_avg_center_y = sum(i["center_y"] for i in line) / len(line)
             line_avg_h = sum(i["height"] for i in line) / len(line)
-            # Boxes on the same line if vertical distance between centers is small
             if abs(item["center_y"] - line_avg_center_y) < max(8.0, line_avg_h * 0.5):
                 line.append(item)
                 placed = True
@@ -142,10 +152,8 @@ def _sort_results(results: list) -> str:
         if not placed:
             lines.append([item])
 
-    # Sort lines top-to-bottom
     lines.sort(key=lambda line: sum(i["center_y"] for i in line) / len(line))
 
-    # Sort items within each line left-to-right
     text_lines = []
     for line in lines:
         line.sort(key=lambda i: i["min_x"])
@@ -155,28 +163,23 @@ def _sort_results(results: list) -> str:
 
 
 def extract_text(image: Image.Image) -> str:
-    """Run EasyOCR on *image* (PIL Image) and return sorted recognized text.
-
-    Parameters
-    ----------
-    image : PIL.Image.Image
-        Source image.
-
-    Returns
-    -------
-    str
-        Extracted text formatted with newline separators.
-    """
+    """Run EasyOCR on *image* (PIL Image) and return sorted recognized text."""
+    logging.debug(f"extract_text called on image of mode {image.mode}, size {image.size}")
     processed = preprocess(image)
     img_np = np.array(processed.convert("RGB"))
     reader = get_reader()
+    
+    logging.debug("Calling reader.readtext...")
     results = reader.readtext(img_np)
+    logging.debug(f"reader.readtext returned {len(results)} raw detections.")
 
-    # Filter low-confidence results
     threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)
     filtered = [r for r in results if r[2] >= threshold]
+    logging.debug(f"{len(filtered)} detections met confidence threshold {threshold}.")
 
-    return _sort_results(filtered)
+    text = _sort_results(filtered)
+    logging.debug(f"Extracted OCR text result: '{text[:50]}...'" if len(text) > 50 else f"Extracted OCR text result: '{text}'")
+    return text
 
 
 def recognise(img: Image.Image, lang: str | None = None) -> str:

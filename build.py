@@ -1,8 +1,9 @@
 """
-build.py — Script to generate application icon and build standalone EXE via PyInstaller.
+build.py — Script to generate application icon and build standalone application (onedir) via PyInstaller.
 
 Usage:
     python build.py
+    python build.py --clean  (to force clean build cache)
 """
 
 import os
@@ -39,16 +40,19 @@ def main():
     spec_file = root / "build.spec"
 
     print("==================================================")
-    print("Building TranslatorOverlay.exe with PyInstaller...")
-    print("NOTE: The initial build may take a few minutes due")
-    print("to heavy dependencies (PyTorch / EasyOCR / PyQt5).")
+    print("Building TranslatorOverlay (onedir mode) with PyInstaller...")
     print("==================================================")
 
-    cmd = [sys.executable, "-m", "PyInstaller", str(spec_file), "--clean"]
+    cmd = [sys.executable, "-m", "PyInstaller", str(spec_file), "--noconfirm"]
+    if "--clean" in sys.argv:
+        cmd.append("--clean")
+
     result = subprocess.run(cmd)
 
-    if result.returncode == 0:
-        print("\n[OK] Build successful! Executable is located at dist/TranslatorOverlay.exe")
+    out_exe = root / "dist" / "TranslatorOverlay" / "TranslatorOverlay.exe"
+    if result.returncode == 0 and out_exe.exists():
+        print(f"\n[OK] Build successful! Application directory is located at: {out_exe.parent}")
+        print(f"Main executable: {out_exe}")
     else:
         print(f"\n[ERROR] Build failed with exit code {result.returncode}")
         sys.exit(result.returncode)

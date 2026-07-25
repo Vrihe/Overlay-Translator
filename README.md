@@ -1,5 +1,4 @@
 # 🌐 Translator Overlay
-# DO NOT USE buid.py, IT'S BROKEN, WE'RE TRYING TO FIX IT.
 Screen region translator for Windows. Select any text on screen with a hotkey,
 and get an instant translation in a floating popup — powered by OCR and LLM.
 
@@ -22,7 +21,7 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 - **SQLite cache** — repeated texts are translated instantly without API calls
 - **Floating popup** — shows original + translation near the selected area; draggable, auto-closes after a timeout
 - **Auto language detection** — automatically detects the source language before translation (offline via `langid` or via LLM); falls back to a fixed language for very short texts
-- **Executable support** — can be compiled into a standalone `.exe` file via PyInstaller
+- **Executable support** — can be compiled into a standalone application folder (`onedir` mode) via PyInstaller
 
 ---
 
@@ -36,7 +35,8 @@ translator-overlay/
 ├── .env                 # API keys and personal settings (git-ignored)
 ├── .env.example         # Template for .env
 ├── requirements.txt     # Python dependencies
-├── translator.spec      # PyInstaller build specification
+├── build.spec           # PyInstaller build specification (onedir mode)
+├── build.py             # Cross-platform build launcher script
 ├── build.bat            # One-click Windows build script
 │
 ├── overlay/
@@ -146,25 +146,28 @@ python main.py
 | `Ctrl+Shift+T` | Start region selection → translate |
 | `Ctrl+Shift+O` | Open settings dialog |
 
-## 📦 Building Standalone Executable (.exe)
+## 📦 Building Standalone Application (onedir mode)
 
-You can compile the application into a single standalone `.exe` file using PyInstaller:
+You can compile the application into a standalone folder via PyInstaller (`onedir` mode):
 
-### Build Script
+### Build Command
 ```powershell
 python build.py
 ```
-*(or `pyinstaller build.spec --clean`)*
+*(or run `build.bat` on Windows)*
 
-> **Note:** The initial build can take several minutes due to heavy PyTorch and EasyOCR dependencies. The output executable will be created at `dist\TranslatorOverlay.exe`.
+> **Important for Distribution:**
+> - The output is generated inside the `dist/TranslatorOverlay/` directory.
+> - To launch or distribute the application, **extract / copy the entire `TranslatorOverlay` folder** and run `dist/TranslatorOverlay/TranslatorOverlay.exe`.
+> - Do not copy `TranslatorOverlay.exe` alone out of the folder, as it relies on adjacent DLLs and bundled dependencies.
 
 ### User Data & Persistence
 Settings (`settings.json`), translation history/cache database (`translations.db`), and logs are automatically stored in the user's roaming AppData directory:
 `%APPDATA%\translator-overlay\`
 
 This guarantees that:
-- User configuration and history are preserved when updating or replacing `TranslatorOverlay.exe`.
-- The application runs cleanly even when installed in write-restricted system folders like `C:\Program Files\`.
+- User configuration and history are preserved when updating or replacing the application folder.
+- The application runs cleanly even when extracted into write-restricted folders.
 
 ### 🔄 Automatic Update Checking
 The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
