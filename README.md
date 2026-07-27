@@ -146,6 +146,25 @@ python main.py
 | `Ctrl+Shift+T` | Start region selection → translate |
 | `Ctrl+Shift+O` | Open settings dialog |
 
+---
+
+## 🧪 Running Tests
+
+To run the unit tests suite:
+
+```powershell
+py -m unittest discover -s tests -p "test_*.py" -v
+```
+
+Or using `pytest`:
+
+```powershell
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+---
+
 ## 📦 Building Standalone Application (onedir mode)
 
 You can compile the application into a standalone folder via PyInstaller (`onedir` mode):
