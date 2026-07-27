@@ -40,6 +40,7 @@ Desktop.ini
 # Translation / OCR cache (keep folder, ignore DB & contents)
 cache/*
 !cache/__init__.py
+!cache/store.py
 
 # Captured screenshots
 screenshots/
@@ -51,6 +52,10 @@ screenshots/
 # Logs
 logs/
 *.log
+
+# Test execution outputs
+tests/output.txt
+tests/*.txt
 
 # User settings (generated at runtime)
 settings.json
