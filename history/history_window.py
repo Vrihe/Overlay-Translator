@@ -155,8 +155,6 @@ class HistoryWidget(QWidget):
         self._table.setRowCount(0)
         self._table.setRowCount(len(records))
 
-        lang_pair = f"{config.SOURCE_LANG.upper()} → {config.TARGET_LANG.upper()}"
-
         for row_idx, rec in enumerate(records):
             # 1. DateTime
             ts = rec.get("timestamp", 0)
@@ -165,7 +163,9 @@ class HistoryWidget(QWidget):
             item_dt.setTextAlignment(Qt.AlignCenter)
 
             # 2. Language
-            item_lang = QTableWidgetItem(lang_pair)
+            src = rec.get("source_lang", config.SOURCE_LANG).upper()
+            tgt = rec.get("target_lang", config.TARGET_LANG).upper()
+            item_lang = QTableWidgetItem(f"{src} → {tgt}")
             item_lang.setTextAlignment(Qt.AlignCenter)
 
             # 3. Original text (truncated to 50 chars with ...)
