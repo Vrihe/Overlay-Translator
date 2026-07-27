@@ -69,23 +69,72 @@ def get_reader():
             raise
 
         langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
-        # Resolve GPU mode
-        gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
-        if isinstance(gpu_setting, bool):
-            use_gpu = gpu_setting
-        elif str(gpu_setting).strip().lower() in ("true", "1"):
-            use_gpu = True
-        elif str(gpu_setting).strip().lower() in ("false", "0"):
-            use_gpu = False
-        else:
-            # "auto" — check torch CUDA availability
-            try:
-                import torch
-                use_gpu = torch.cuda.is_available()
-            except Exception:
-                use_gpu = False
+def _resolve_gpu(gpu_setting) -> bool:
+    """Resolve GPU setting value into a boolean."""
+    if isinstance(gpu_setting, bool):
+        return gpu_setting
+    val = str(gpu_setting).strip().lower()
+    if val in ("true", "1"):
+        return True
+    if val in ("false", "0"):
+        return False
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
 
-        # Model storage directory: ensure it points to user home ~/.EasyOCR/model
+
+def get_reader():
+    """Return the singleton easyocr.Reader instance, initializing it on first use."""
+    global _reader
+    if _reader is None:
+        logging.info("Initializing EasyOCR reader instance...")
+        import ctypes
+
+        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+        if getattr(sys, "frozen", False):
+            base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+            torch_lib = os.path.join(base_dir, "torch", "lib")
+            if os.path.exists(torch_lib):
+                if hasattr(os, "add_dll_directory"):
+                    try:
+                        os.add_dll_directory(torch_lib)
+                    except Exception:
+                        pass
+                os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
+                for dll_name in [
+                    "vcruntime140.dll",
+                    "vcruntime140_1.dll",
+                    "msvcp140.dll",
+                    "vcomp140.dll",
+                    "libiomp5md.dll",
+                    "asmjit.dll",
+                    "fbgemm.dll",
+                    "uv.dll",
+                    "torch_cpu.dll",
+                    "c10.dll",
+                    "torch.dll",
+                ]:
+                    dll_path = os.path.join(torch_lib, dll_name)
+                    if os.path.exists(dll_path):
+                        try:
+                            ctypes.CDLL(dll_path)
+                        except Exception:
+                            pass
+
+        try:
+            import easyocr
+            logging.info("easyocr module imported successfully.")
+        except Exception:
+            logging.exception("Failed to import easyocr module!")
+            raise
+
+        langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
+        gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
+        use_gpu = _resolve_gpu(gpu_setting)
+
         user_home = os.path.expanduser("~")
         model_storage_dir = os.path.join(user_home, ".EasyOCR", "model")
         os.makedirs(model_storage_dir, exist_ok=True)
@@ -105,12 +154,15 @@ def get_reader():
     return _reader
 
 
-def preprocess(img: Image.Image) -> Image.Image:
+def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
     """Optional preprocessing step for EasyOCR."""
+    if scale > 1:
+        w, h = img.size
+        img = img.resize((w * scale, h * scale), Image.LANCZOS)
     if getattr(config, "OCR_USE_HSV_FILTER", False):
         from ocr.hsv_filter import apply_hsv_filter
         img = apply_hsv_filter(img)
-    return img
+    return np.array(img.convert("RGB"))
 
 
 def _sort_results(results: list) -> str:
@@ -162,11 +214,14 @@ def _sort_results(results: list) -> str:
     return "\n".join(text_lines)
 
 
+_sort_text_results = _sort_results
+
+
 def extract_text(image: Image.Image) -> str:
     """Run EasyOCR on *image* (PIL Image) and return sorted recognized text."""
     logging.debug(f"extract_text called on image of mode {image.mode}, size {image.size}")
     processed = preprocess(image)
-    img_np = np.array(processed.convert("RGB"))
+    img_np = processed if isinstance(processed, np.ndarray) else np.array(processed.convert("RGB"))
     reader = get_reader()
     
     logging.debug("Calling reader.readtext...")

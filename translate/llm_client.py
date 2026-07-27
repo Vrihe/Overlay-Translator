@@ -124,7 +124,7 @@ def translate(
         domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
 
     # 1. Cache lookup with domain_id.
-    cached = get_cached(text, source_lang, target_lang, domain_id)
+    cached = get_cached(text, source_lang, target_lang, domain_id=domain_id)
     if cached is not None:
         _logger.info("CACHE HIT | domain=%s | text=%r", domain_id, text[:120])
         return cached
@@ -180,7 +180,7 @@ def translate(
     )
 
     # 3. Cache the result with domain_id.
-    save_to_cache(text, source_lang, target_lang, domain_id, translation)
+    save_to_cache(text, source_lang, target_lang, translation, domain_id=domain_id)
 
     return translation
 
@@ -202,7 +202,7 @@ def detect_and_translate(
     if domain_id is None:
         domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
 
-    cached = get_cached(text, "_auto", target_lang, domain_id)
+    cached = get_cached(text, "_auto", target_lang, domain_id=domain_id)
     if cached is not None:
         _logger.info("CACHE HIT (auto) | domain=%s | text=%r", domain_id, text[:120])
         return config.SOURCE_LANG, cached
@@ -292,6 +292,6 @@ def detect_and_translate(
     )
 
     # Cache with the special "_auto" source key.
-    save_to_cache(text, "_auto", target_lang, domain_id, translation)
+    save_to_cache(text, "_auto", target_lang, translation, domain_id=domain_id)
 
     return detected_lang, translation

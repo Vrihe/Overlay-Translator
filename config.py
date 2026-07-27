@@ -142,6 +142,7 @@ class _LiveConfig:
     EASYOCR_LANGS = [lang.strip() for lang in _LANGS_RAW.split(",") if lang.strip()]
     EASYOCR_GPU = os.environ.get("EASYOCR_GPU", "auto")
     EASYOCR_CONFIDENCE_THRESHOLD = float(os.environ.get("EASYOCR_CONFIDENCE_THRESHOLD", "0.25"))
+    MIN_CHARS_FOR_DETECTION = int(os.environ.get("MIN_CHARS_FOR_DETECTION", "15"))
 
     OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))
     OVERLAY_FONT_SIZE = int(os.environ.get("OVERLAY_FONT_SIZE", "14"))

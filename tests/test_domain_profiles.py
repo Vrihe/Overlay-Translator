@@ -41,11 +41,11 @@ class TestDomainProfiles(unittest.TestCase):
 
     def test_domain_cache_separation(self):
         text = "Unique Domain Test String 123"
-        store.save_to_cache(text, "en", "ru", "game", "Игровой перевод 123")
-        store.save_to_cache(text, "en", "ru", "documentation", "Документационный перевод 123")
+        store.save_to_cache(text, "en", "ru", "Игровой перевод 123", domain_id="game")
+        store.save_to_cache(text, "en", "ru", "Документационный перевод 123", domain_id="documentation")
 
-        cached_game = store.get_cached(text, "en", "ru", "game")
-        cached_doc = store.get_cached(text, "en", "ru", "documentation")
+        cached_game = store.get_cached(text, "en", "ru", domain_id="game")
+        cached_doc = store.get_cached(text, "en", "ru", domain_id="documentation")
 
         self.assertEqual(cached_game, "Игровой перевод 123")
         self.assertEqual(cached_doc, "Документационный перевод 123")
