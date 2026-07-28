@@ -1,10 +1,10 @@
 """
-translate/llm_client.py — translation via OpenRouter (free models) or Anthropic.
+translate/llm_client.py — translation via OpenRouter (free models) or Anthropic with retry & fallback.
 
 Flow:
   1. Check the SQLite cache for a previous translation.
-  2. Detect API key. OpenRouter takes priority if OPENROUTER_API_KEY is set.
-  3. Send a compact prompt to the LLM.
+  2. Determine provider chain (Primary -> Fallback).
+  3. Send prompt using resilience orchestrator (_call_with_resilience).
   4. Cache and return the result.
 
 Every request is logged to the file specified by ``config.LOG_FILE``.
@@ -21,6 +21,7 @@ import config
 import settings
 from cache.store import get_cached, save_to_cache
 from translate.domain_manager import load_domain_profile
+from translate.error_classification import is_retryable
 
 # ── File logger ──────────────────────────────────────────
 
@@ -36,47 +37,165 @@ if not _logger.handlers:
     ))
     _logger.addHandler(_fh)
 
-# ── LLM client (lazy, created once) ─────────────────────
+# ── LLM clients & resilience ────────────────────────────
 
+_clients_cache: dict[str, object] = {}
 _client = None
 _provider = None
 
 
-def _get_client():
-    """Return a tuple of ``(client, provider_name)``."""
-    global _client, _provider
+def _get_client_for(provider_name: str):
+    """Return a client instance for *provider_name* or None if API key is not set."""
+    if provider_name in _clients_cache:
+        return _clients_cache[provider_name]
 
-    if _client is not None:
-        return _client, _provider
-
-    openrouter_key = settings.get_api_key("openrouter") or os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key:
-        _client = openai.OpenAI(
+    if provider_name == "openrouter":
+        key = settings.get_api_key("openrouter") or os.getenv("OPENROUTER_API_KEY")
+        if not key:
+            return None
+        client = openai.OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=openrouter_key,
+            api_key=key,
         )
-        _provider = "openrouter"
-        _logger.info("Initialized OpenRouter client (model: %s)", config.LLM_MODEL)
-        return _client, _provider
+        _clients_cache["openrouter"] = client
+        return client
 
-    anthropic_key = settings.get_api_key("anthropic") or os.getenv("ANTHROPIC_API_KEY")
-    if anthropic_key:
-        _client = anthropic.Anthropic(api_key=anthropic_key)
-        _provider = "anthropic"
-        _logger.info("Initialized Anthropic client (model: %s)", config.LLM_MODEL)
-        return _client, _provider
+    if provider_name == "anthropic":
+        key = settings.get_api_key("anthropic") or os.getenv("ANTHROPIC_API_KEY")
+        if not key:
+            return None
+        client = anthropic.Anthropic(api_key=key)
+        _clients_cache["anthropic"] = client
+        return client
 
-    raise RuntimeError(
-        "API key missing! Please set OpenRouter or Anthropic API key in Settings or environment variables."
-    )
+    return None
+
+
+def get_provider_chain() -> list[str]:
+    """Return an ordered list of configured providers (primary first, fallback second)."""
+    primary = settings.get_primary_provider() if hasattr(settings, "get_primary_provider") else "openrouter"
+    all_providers = ["openrouter", "anthropic"]
+    if primary in all_providers:
+        chain = [primary] + [p for p in all_providers if p != primary]
+    else:
+        chain = all_providers
+
+    if hasattr(settings, "is_fallback_enabled") and not settings.is_fallback_enabled():
+        chain = chain[:1]
+
+    return [p for p in chain if _get_client_for(p) is not None]
+
+
+def _get_client():
+    """Return a tuple of ``(client, provider_name)`` for the primary provider in chain."""
+    global _client, _provider
+    chain = get_provider_chain()
+    if not chain:
+        raise RuntimeError(
+            "API key missing! Please set OpenRouter or Anthropic API key in Settings or environment variables."
+        )
+    _provider = chain[0]
+    _client = _get_client_for(_provider)
+    return _client, _provider
 
 
 def reset_client() -> None:
-    """Force re-creation of the LLM client on next request."""
-    global _client, _provider
+    """Force re-creation of LLM clients on next request."""
+    global _clients_cache, _client, _provider
     _client = None
     _provider = None
-    _logger.info("LLM client reset — new key will be used on next request.")
+    _clients_cache.clear()
+    _logger.info("LLM clients cache reset — new keys/models will be used on next request.")
+
+
+def _call_provider(client, provider: str, model: str, system_prompt: str, user_prompt: str) -> str:
+    """Execute a single LLM API call for *provider*. Raise exception on error."""
+    if provider == "openrouter":
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            extra_headers={
+                "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                "X-Title": "Overlay Translator",
+            },
+        )
+        if not response or not getattr(response, "choices", None):
+            raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}).")
+        choice = response.choices[0]
+        if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
+            raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
+        return choice.message.content.strip()
+
+    if provider == "anthropic":
+        message = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        if not message or not getattr(message, "content", None):
+            raise RuntimeError("Anthropic API не вернул текст ответа.")
+        return message.content[0].text.strip()
+
+    raise ValueError(f"Unknown provider: {provider!r}")
+
+
+def _call_with_resilience(
+    system_prompt: str,
+    user_prompt: str,
+    model_for: dict[str, str],
+) -> tuple[str, str]:
+    """Execute request across available provider chain with retry on transient errors.
+
+    model_for: mapping of provider_name -> model_name
+    Returns: (raw_text, provider_used)
+    Raises RuntimeError if all providers in chain fail.
+    """
+    chain = get_provider_chain()
+    if not chain:
+        raise RuntimeError(
+            "Нет доступных провайдеров — проверьте, что задан хотя бы один API-ключ "
+            "(Anthropic или OpenRouter) в Настройках."
+        )
+
+    errors: dict[str, Exception] = {}
+    max_retries = getattr(config, "MAX_RETRIES_PER_PROVIDER", 2)
+    backoff_base = getattr(config, "RETRY_BACKOFF_BASE_SEC", 1.0)
+
+    for provider_name in chain:
+        client = _get_client_for(provider_name)
+        model = model_for.get(provider_name, config.LLM_MODEL)
+
+        for attempt in range(max_retries + 1):
+            try:
+                result = _call_provider(client, provider_name, model, system_prompt, user_prompt)
+                if attempt > 0 or provider_name != chain[0]:
+                    _logger.warning(
+                        "RESILIENCE | succeeded via provider=%s after %d attempt(s), chain=%s",
+                        provider_name, attempt + 1, chain,
+                    )
+                return result, provider_name
+            except Exception as e:
+                errors[f"{provider_name}#attempt_{attempt}"] = e
+                if is_retryable(e) and attempt < max_retries:
+                    wait = backoff_base * (2 ** attempt)
+                    _logger.warning(
+                        "RESILIENCE | provider=%s attempt=%d failed (%s: %s), retrying in %.1fs",
+                        provider_name, attempt, type(e).__name__, e, wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                _logger.warning(
+                    "RESILIENCE | provider=%s exhausted/non-retryable (%s: %s), moving to next in chain",
+                    provider_name, type(e).__name__, e,
+                )
+                break
+
+    summary = "; ".join(f"{k}: {type(v).__name__}: {v}" for k, v in errors.items())
+    raise RuntimeError(f"Все провайдеры недоступны. Детали: {summary}")
 
 
 def _build_system_prompt(domain_id: str, target_lang: str, source_lang: str | None = None) -> str:
@@ -131,47 +250,20 @@ def translate(
 
     _logger.info("CACHE MISS | domain=%s | text=%r | calling API…", domain_id, text[:120])
 
-    # 2. Call the chosen LLM API.
+    # 2. Call LLM API via resilience orchestrator.
     t0 = time.perf_counter()
-    client, provider = _get_client()
     system_prompt = _build_system_prompt(domain_id, target_lang, source_lang)
-    user_prompt = f"Translate from {source_lang} to {target_lang}:\n\n{text}"
-
-    if provider == "openrouter":
-        model = config.LLM_MODEL
-
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            extra_headers={
-                "HTTP-Referer": "https://github.com/your-username/overlay-translator",
-                "X-Title": "Overlay Translator"
-            }
-        )
-        if not response or not getattr(response, "choices", None):
-            raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}). Проверьте ключ или модель.")
-        
-        choice = response.choices[0]
-        if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
-            raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
-
-        translation = choice.message.content.strip()
+    if source_lang == "auto" or not source_lang:
+        user_prompt = f"Translate to {target_lang}:\n\n{text}"
     else:
-        model = config.LLM_MODEL
-        message = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            system=system_prompt,
-            messages=[
-                {"role": "user", "content": user_prompt}
-            ]
-        )
-        if not message or not getattr(message, "content", None):
-            raise RuntimeError("Anthropic API не вернул текст ответа.")
-        translation = message.content[0].text.strip()
+        user_prompt = f"Translate from {source_lang} to {target_lang}:\n\n{text}"
+    model_for = {
+        "openrouter": config.LLM_MODEL,
+        "anthropic": config.LLM_MODEL,
+    }
+
+    translation, provider = _call_with_resilience(system_prompt, user_prompt, model_for)
+    model = model_for.get(provider, config.LLM_MODEL)
 
     elapsed = time.perf_counter() - t0
     _logger.info(
@@ -210,17 +302,19 @@ def detect_and_translate(
     _logger.info("CACHE MISS (auto) | domain=%s | text=%r | calling API…", domain_id, text[:120])
 
     t0 = time.perf_counter()
-    client, provider = _get_client()
 
     profile = load_domain_profile(domain_id)
     base_sys_prompt = profile.get("system_prompt", "")
     few_shots = profile.get("few_shot_examples", [])
 
     sys_parts = [
-        "You are a translator.",
-        "The input text may be noisy OCR output from a screen (slang, typos, mixed scripts, garbled characters).",
-        "First, determine the source language of the text.",
-        "Then translate it into the target language.",
+        "You are an expert translator and OCR text restorer.",
+        "The input text is extracted via screen OCR and may contain garbled characters, typos (e.g., 'malnpy' -> 'main.py'), or mixed scripts.",
+        "Your task:",
+        "1. Determine the source language of the text.",
+        "2. Fix any OCR typos/garbled characters in the input.",
+        f"3. Translate the restored text into {target_lang}.",
+        "4. If the input contains code filenames, technical terms, or English words, translate them into Russian while fixing OCR errors.",
     ]
     if base_sys_prompt:
         sys_parts.append(f"Domain Guidelines: {base_sys_prompt}")
@@ -241,38 +335,13 @@ def detect_and_translate(
     system_prompt = "\n".join(sys_parts)
     user_prompt = f"Translate to {target_lang}:\n\n{text}"
 
-    if provider == "openrouter":
-        model = config.OPENROUTER_MODEL
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            extra_headers={
-                "HTTP-Referer": "https://github.com/your-username/overlay-translator",
-                "X-Title": "Overlay Translator",
-            },
-        )
-        if not response or not getattr(response, "choices", None):
-            raise RuntimeError(
-                f"OpenRouter API не вернул варианты ответа ({response=})."
-            )
-        choice = response.choices[0]
-        if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
-            raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
-        raw = choice.message.content.strip()
-    else:
-        model = "claude-haiku-4-20250414"
-        message = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-        if not message or not getattr(message, "content", None):
-            raise RuntimeError("Anthropic API не вернул текст ответа.")
-        raw = message.content[0].text.strip()
+    model_for = {
+        "openrouter": getattr(config, "OPENROUTER_MODEL", config.LLM_MODEL),
+        "anthropic": getattr(config, "ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414"),
+    }
+
+    raw, provider = _call_with_resilience(system_prompt, user_prompt, model_for)
+    model = model_for.get(provider, config.LLM_MODEL)
 
     elapsed = time.perf_counter() - t0
 
