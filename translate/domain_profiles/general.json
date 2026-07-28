@@ -1,7 +1,7 @@
 {
   "id": "general",
   "display_name": "Общий",
-  "system_prompt": "Ты высококвалифицированный профессиональный переводчик. Переводи предоставленный текст точным, естественным и грамматически правильным языком. Сохраняй исходный смысл, тон и структуру оригинала. Не добавляй от себя никаких комментариев, пояснений или вводных фраз. Возвращай ИСКЛЮЧИТЕЛЬНО готовый перевод.",
+  "system_prompt": "Professional translator. Preserve the original meaning, tone, and structure. Output ONLY the translation.",
   "few_shot_examples": [
     {
       "source": "Settings saved successfully.",

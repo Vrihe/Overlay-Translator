@@ -43,6 +43,10 @@ _clients_cache: dict[str, object] = {}
 _client = None
 _provider = None
 
+# ── System prompt cache (A1) ─────────────────────────────
+# Keyed by "domain_id:target_lang:source_lang" — cleared on reset_client().
+_prompt_cache: dict[str, str] = {}
+
 
 def _get_client_for(provider_name: str):
     """Return a client instance for *provider_name* or None if API key is not set."""
@@ -105,40 +109,108 @@ def reset_client() -> None:
     _client = None
     _provider = None
     _clients_cache.clear()
+    _prompt_cache.clear()  # A1: invalidate cached system prompts on settings change
     _logger.info("LLM clients cache reset — new keys/models will be used on next request.")
 
 
-def _call_provider(client, provider: str, model: str, system_prompt: str, user_prompt: str) -> str:
-    """Execute a single LLM API call for *provider*. Raise exception on error."""
+def _dynamic_max_tokens(text: str) -> int:
+    """A4: Estimate a reasonable max_tokens ceiling based on input length.
+
+    Translation output is rarely longer than the input × 2.
+    Clamp to [64, 1024] to avoid both truncation and over-reservation.
+    """
+    word_count = len(text.split())
+    return max(64, min(1024, word_count * 4))
+
+
+def _call_provider(
+    client,
+    provider: str,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    on_chunk=None,  # A5: optional callable(partial_text: str) for streaming
+) -> str:
+    """Execute a single LLM API call for *provider*. Raise exception on error.
+
+    If *on_chunk* is provided the response is streamed and *on_chunk* is called
+    with the accumulated partial translation after every received token.
+    Streaming is supported for OpenRouter (OpenAI-compatible) and Anthropic.
+    """
     if provider == "openrouter":
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            extra_headers={
-                "HTTP-Referer": "https://github.com/your-username/overlay-translator",
-                "X-Title": "Overlay Translator",
-            },
-        )
-        if not response or not getattr(response, "choices", None):
-            raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}).")
-        choice = response.choices[0]
-        if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
-            raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
-        return choice.message.content.strip()
+        if on_chunk is not None:
+            # A5: streaming path
+            stream = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                extra_headers={
+                    "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                    "X-Title": "Overlay Translator",
+                },
+                stream=True,
+            )
+            chunks: list[str] = []
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content if chunk.choices else None
+                if delta:
+                    chunks.append(delta)
+                    on_chunk("".join(chunks))
+            result = "".join(chunks).strip()
+            if not result:
+                raise RuntimeError("OpenRouter API (stream) вернул пустой текст ответа.")
+            return result
+        else:
+            # non-streaming path (fallback / retry uses this)
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                extra_headers={
+                    "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                    "X-Title": "Overlay Translator",
+                },
+            )
+            if not response or not getattr(response, "choices", None):
+                raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}).")
+            choice = response.choices[0]
+            if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
+                raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
+            return choice.message.content.strip()
 
     if provider == "anthropic":
-        message = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-        if not message or not getattr(message, "content", None):
-            raise RuntimeError("Anthropic API не вернул текст ответа.")
-        return message.content[0].text.strip()
+        # A4: use dynamic ceiling instead of hard-coded 2048
+        max_tok = _dynamic_max_tokens(user_prompt)
+        if on_chunk is not None:
+            # A5: Anthropic streaming via context manager
+            chunks: list[str] = []
+            with client.messages.stream(
+                model=model,
+                max_tokens=max_tok,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            ) as stream:
+                for text in stream.text_stream:
+                    chunks.append(text)
+                    on_chunk("".join(chunks))
+            result = "".join(chunks).strip()
+            if not result:
+                raise RuntimeError("Anthropic API (stream) вернул пустой текст ответа.")
+            return result
+        else:
+            message = client.messages.create(
+                model=model,
+                max_tokens=max_tok,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            if not message or not getattr(message, "content", None):
+                raise RuntimeError("Anthropic API не вернул текст ответа.")
+            return message.content[0].text.strip()
 
     raise ValueError(f"Unknown provider: {provider!r}")
 
@@ -147,10 +219,13 @@ def _call_with_resilience(
     system_prompt: str,
     user_prompt: str,
     model_for: dict[str, str],
+    on_chunk=None,  # A5: forwarded to _call_provider for streaming; None = non-streaming
 ) -> tuple[str, str]:
     """Execute request across available provider chain with retry on transient errors.
 
     model_for: mapping of provider_name -> model_name
+    on_chunk:  optional callable(partial_text: str) — enables streaming on first try only;
+               retries and fallback providers always use non-streaming to avoid double-emit.
     Returns: (raw_text, provider_used)
     Raises RuntimeError if all providers in chain fail.
     """
@@ -165,13 +240,16 @@ def _call_with_resilience(
     max_retries = getattr(config, "MAX_RETRIES_PER_PROVIDER", 2)
     backoff_base = getattr(config, "RETRY_BACKOFF_BASE_SEC", 1.0)
 
-    for provider_name in chain:
+    for provider_idx, provider_name in enumerate(chain):
         client = _get_client_for(provider_name)
         model = model_for.get(provider_name, config.LLM_MODEL)
 
         for attempt in range(max_retries + 1):
+            # A5: stream only on the very first attempt of the primary provider;
+            # retries and fallback providers use non-streaming to avoid partial emit issues.
+            chunk_cb = on_chunk if (provider_idx == 0 and attempt == 0) else None
             try:
-                result = _call_provider(client, provider_name, model, system_prompt, user_prompt)
+                result = _call_provider(client, provider_name, model, system_prompt, user_prompt, on_chunk=chunk_cb)
                 if attempt > 0 or provider_name != chain[0]:
                     _logger.warning(
                         "RESILIENCE | succeeded via provider=%s after %d attempt(s), chain=%s",
@@ -199,27 +277,38 @@ def _call_with_resilience(
 
 
 def _build_system_prompt(domain_id: str, target_lang: str, source_lang: str | None = None) -> str:
-    """Build domain-aware system prompt including few-shot examples."""
+    """Build domain-aware system prompt including few-shot examples.
+
+    A1: Result is cached in _prompt_cache keyed by (domain_id, target_lang, source_lang)
+    so repeated calls with the same arguments skip JSON file I/O and string concatenation.
+    Cache is invalidated by reset_client() whenever settings change.
+    """
+    cache_key = f"{domain_id}:{target_lang}:{source_lang}"
+    if cache_key in _prompt_cache:
+        return _prompt_cache[cache_key]
+
     profile = load_domain_profile(domain_id)
     base_sys_prompt = profile.get("system_prompt", "Ты профессиональный переводчик.")
     few_shots = profile.get("few_shot_examples", [])
 
     parts = [base_sys_prompt]
     if source_lang and source_lang != "auto":
-        parts.append(f"Переводи с {source_lang} на {target_lang}.")
+        parts.append(f"Translate from {source_lang} to {target_lang}.")
     else:
-        parts.append(f"Переводи на {target_lang}.")
+        parts.append(f"Translate to {target_lang}.")
 
     if few_shots:
-        parts.append("\nПримеры перевода (Few-Shot Examples):")
+        parts.append("\nExamples:")
         for ex in few_shots:
             s_ex = ex.get("source", "").strip()
             t_ex = ex.get("translation", "").strip()
             if s_ex and t_ex:
-                parts.append(f"• \"{s_ex}\" → \"{t_ex}\"")
+                parts.append(f"  {s_ex!r} → {t_ex!r}")
 
-    parts.append("Отвечай ИСКЛЮЧИТЕЛЬНО готовым переводом, без вводных фраз, пояснений и без кавычек.")
-    return "\n".join(parts)
+    parts.append("Output ONLY the translation. No explanations, no quotes, no preamble.")
+    result = "\n".join(parts)
+    _prompt_cache[cache_key] = result
+    return result
 
 
 # ── Public API ───────────────────────────────────────────
@@ -229,8 +318,17 @@ def translate(
     target_lang: str | None = None,
     source_lang: str | None = None,
     domain_id: str | None = None,
+    on_chunk=None,  # A5: optional callable(partial_text: str) — enables streaming UI updates
 ) -> str:
-    """Translate *text* into *target_lang* using active domain profile & LLM provider."""
+    """Translate *text* into *target_lang* using active domain profile & LLM provider.
+
+    Parameters
+    ----------
+    on_chunk : callable(str) | None
+        If provided, called incrementally with the accumulated partial translation
+        as tokens stream in. Enables live UI updates without waiting for full response.
+        When *on_chunk* is None the call is non-streaming (default).
+    """
     text = text.strip()
     if not text:
         return ""
@@ -242,7 +340,7 @@ def translate(
     if domain_id is None:
         domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
 
-    # 1. Cache lookup with domain_id.
+    # 1. Cache lookup — streaming skipped on cache hit (result is instant).
     cached = get_cached(text, source_lang, target_lang, domain_id=domain_id)
     if cached is not None:
         _logger.info("CACHE HIT | domain=%s | text=%r", domain_id, text[:120])
@@ -253,16 +351,15 @@ def translate(
     # 2. Call LLM API via resilience orchestrator.
     t0 = time.perf_counter()
     system_prompt = _build_system_prompt(domain_id, target_lang, source_lang)
-    if source_lang == "auto" or not source_lang:
-        user_prompt = f"Translate to {target_lang}:\n\n{text}"
-    else:
-        user_prompt = f"Translate from {source_lang} to {target_lang}:\n\n{text}"
+    # A3: user_prompt contains only the source text — language direction is already
+    # embedded in system_prompt, so repeating it here wastes input tokens.
+    user_prompt = text
     model_for = {
         "openrouter": config.LLM_MODEL,
         "anthropic": config.LLM_MODEL,
     }
 
-    translation, provider = _call_with_resilience(system_prompt, user_prompt, model_for)
+    translation, provider = _call_with_resilience(system_prompt, user_prompt, model_for, on_chunk=on_chunk)
     model = model_for.get(provider, config.LLM_MODEL)
 
     elapsed = time.perf_counter() - t0

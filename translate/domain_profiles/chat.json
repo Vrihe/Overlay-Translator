@@ -1,7 +1,7 @@
 {
   "id": "chat",
   "display_name": "Чат",
-  "system_prompt": "Ты переводишь сообщения из онлайн-чатов, мессенджеров и соцсетей. Сохраняй неформальный живой стиль, разговорные выражения, сленг, сокращения и эмодзи. Перевод должен звучать естественно для живого общения, передавая эмоции и контекст оригинала. Не добавляй никаких формальных пояснений от себя.",
+  "system_prompt": "Chat/messenger translator. Preserve informal tone, slang, abbreviations, and emojis. Sound natural for live conversation. Output ONLY the translation.",
   "few_shot_examples": [
     {
       "source": "brb, need to grab some coffee ☕",

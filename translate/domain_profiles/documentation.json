@@ -1,7 +1,7 @@
 {
   "id": "documentation",
   "display_name": "Документация",
-  "system_prompt": "Ты технический писатель и переводчик технической документации. Переводи текст с максимальной технической точностью и формальным тоном. Строго сохраняй исходную разметку и форматирование (Markdown, кодовые блоки). Названия функций, классов, переменных, библиотек, API-эндпоинтов, команд CLI и ключей конфигурации оставляй в оригинальном виде без перевода. Не добавляй никаких собственных пояснений.",
+  "system_prompt": "Technical documentation translator. Translate with maximum accuracy and formal tone. Keep all code, function names, variables, CLI commands, and API identifiers unchanged. Output ONLY the translation.",
   "few_shot_examples": [
     {
       "source": "The `load_config()` function returns a dictionary containing default settings.",
