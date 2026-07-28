@@ -732,8 +732,8 @@ class MainWindow(QMainWindow):
 
         self._settings_widget = SettingsWidget()
         # C2: keep tray language checkmarks in sync when settings are saved
-        if self._tray is not None and hasattr(self._tray, "rebuild_lang_menu"):
-            self._settings_widget.settings_saved.connect(self._tray.rebuild_lang_menu)
+        if getattr(self, "_tray_icon", None) is not None and hasattr(self._tray_icon, "rebuild_lang_menu"):
+            self._settings_widget.settings_saved.connect(self._tray_icon.rebuild_lang_menu)
         vbox.addWidget(self._settings_widget)
         vbox.addStretch()
 

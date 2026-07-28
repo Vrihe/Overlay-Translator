@@ -57,6 +57,7 @@ DEFAULTS: dict[str, Any] = {
     "llm_model": "openai/gpt-oss-20b:free",
     "primary_provider": "openrouter",      # "openrouter" | "anthropic"
     "enable_fallback": True,               # True | False
+    "enable_ocr_preview": False,           # True | False (D1: preview/edit OCR before translation)
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
     "notification_type": "popup",          # "popup" | "windows_toast"

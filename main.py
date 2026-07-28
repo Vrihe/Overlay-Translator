@@ -121,7 +121,7 @@ except Exception:
     logging.exception("PyTorch failed to load during entry point initialization")
 
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QObject, QRect, pyqtSignal, QThread
+from PyQt5.QtCore import QObject, QRect, pyqtSignal, QThread, Qt
 import keyboard
 
 import config
@@ -158,52 +158,64 @@ class HotkeyBridge(QObject):
 # ── Worker: Capture → OCR → Translate on background thread ──
 
 class TranslationWorker(QThread):
-    finished = pyqtSignal(str, str, str)  # (source_text, translated_text, error_message)
+    finished = pyqtSignal(str, str, str)      # (source_text, translated_text, error_message)
+    partial_result = pyqtSignal(str)           # A5: incremental translation chunk for streaming UI
+    ocr_done = pyqtSignal(str, QRect)          # D1: OCR finished, emits (recognized_text, anchor)
 
-    def __init__(self, x1: int, y1: int, x2: int, y2: int):
+    def __init__(self, x1: int, y1: int, x2: int, y2: int, text_override: str | None = None, ocr_only: bool = False):
         super().__init__()
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
+        self.text_override = text_override
+        self.ocr_only = ocr_only
 
     def run(self):
         logging.debug(f"TranslationWorker started for bbox ({self.x1}, {self.y1}, {self.x2}, {self.y2})")
+        anchor = QRect(self.x1, self.y1, self.x2 - self.x1, self.y2 - self.y1)
 
-        # Step 1: Capture Screenshot
-        try:
-            logging.debug("Step 1: Capturing screen region...")
-            image = capture_region(self.x1, self.y1, self.x2, self.y2)
-            logging.debug(f"Step 1 Complete: Image size {image.size if image else 'None'}")
-        except Exception as e:
-            logging.exception("Step 1 Failed: Screen capture error")
-            self.finished.emit("", "", f"Ошибка захвата экрана:\n{e}")
-            return
+        # Step 1 & 2: Capture & OCR (unless text_override is provided)
+        if self.text_override is not None:
+            text = self.text_override
+        else:
+            try:
+                logging.debug("Step 1: Capturing screen region...")
+                image = capture_region(self.x1, self.y1, self.x2, self.y2)
+            except Exception as e:
+                logging.exception("Step 1 Failed: Screen capture error")
+                self.finished.emit("", "", f"Ошибка захвата экрана:\n{e}")
+                return
 
-        # Step 2: OCR Recognition
-        try:
-            logging.debug("Step 2: Running OCR recognition...")
-            text = recognise(image)
-            logging.debug(f"Step 2 Complete: OCR recognized text length = {len(text) if text else 0}")
-        except Exception as e:
-            logging.exception("Step 2 Failed: OCR recognition error")
-            self.finished.emit("", "", f"Ошибка OCR:\n{e}")
-            return
+            try:
+                logging.debug("Step 2: Running OCR recognition...")
+                text = recognise(image)
+            except Exception as e:
+                logging.exception("Step 2 Failed: OCR recognition error")
+                self.finished.emit("", "", f"Ошибка OCR:\n{e}")
+                return
 
-        if not text:
-            logging.info("Step 2 Result: No text recognized in region.")
-            self.finished.emit("", "", "Текст не распознан.\nПопробуйте выделить область точнее.")
-            return
+            if not text:
+                logging.info("Step 2 Result: No text recognized in region.")
+                self.finished.emit("", "", "Текст не распознан.\nПопробуйте выделить область точнее.")
+                return
+
+            # D1: If ocr_only, emit ocr_done and stop here
+            if self.ocr_only:
+                self.ocr_done.emit(text, anchor)
+                return
 
         # Step 3: LLM Translation
         try:
             logging.debug(f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}'...")
             if getattr(config, "SOURCE_LANG", "auto") == "auto":
                 detected_lang, translated = detect_and_translate(text, domain_id=config.ACTIVE_DOMAIN)
-                logging.debug(f"Step 3 Complete: Detected lang '{detected_lang}', translation succeeded.")
             else:
-                translated = translate(text, domain_id=config.ACTIVE_DOMAIN)
-                logging.debug("Step 3 Complete: Translation succeeded.")
+                translated = translate(
+                    text,
+                    domain_id=config.ACTIVE_DOMAIN,
+                    on_chunk=lambda partial: self.partial_result.emit(partial),
+                )
         except Exception as e:
             logging.exception("Step 3 Failed: Translation error")
             self.finished.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
@@ -235,6 +247,7 @@ class TranslatorApp:
             self._tray = TrayIcon()
             self._tray.act_show_window.triggered.connect(self._toggle_main_window)
             self._tray.act_translate.triggered.connect(self._show_selector)
+            self._tray.act_live_monitor.triggered.connect(self._toggle_live_monitoring)
             self._tray.act_settings.triggered.connect(
                 lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS)
             )
@@ -313,28 +326,133 @@ class TranslatorApp:
             logging.info(f"Region selected: ({x1}, {y1}) to ({x2}, {y2})")
             anchor = QRect(x1, y1, x2 - x1, y2 - y1)
 
-            # ── Step 0: Show loading popup immediately (only in popup mode) ──
-            if config.NOTIFICATION_TYPE == "popup":
-                self._close_popup()
-                self._popup = ResultPopup(anchor=anchor, is_loading=True)
-                self._popup.destroyed.connect(self._on_popup_destroyed)
-                self._popup.show()
-                QApplication.processEvents()
+            # Check if this selection was triggered for Live Monitor mode (D2)
+            if getattr(self, "_live_selection_mode", False):
+                self._live_selection_mode = False
+                self._start_live_monitoring(x1, y1, x2, y2)
+                return
 
-            # Stop previous background worker if running
-            if self._worker is not None and self._worker.isRunning():
-                logging.debug("Terminating existing background translation worker...")
-                self._worker.terminate()
-                self._worker.wait()
+            # D1: Check if OCR Preview/Edit mode is enabled
+            if getattr(config, "ENABLE_OCR_PREVIEW", False):
+                self._worker = TranslationWorker(x1, y1, x2, y2, ocr_only=True)
+                self._worker.ocr_done.connect(
+                    lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc)
+                )
+                self._worker.start()
+                return
 
-            # Start translation pipeline in background thread
-            self._worker = TranslationWorker(x1, y1, x2, y2)
-            self._worker.finished.connect(
-                lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor)
-            )
-            self._worker.start()
+            # Normal path: direct translation
+            self._start_translation_pipeline(x1, y1, x2, y2, anchor=anchor)
         except Exception:
             logging.exception("Error handling region selection in main app thread")
+
+    def _start_translation_pipeline(self, x1: int, y1: int, x2: int, y2: int, anchor: QRect, text_override: str | None = None) -> None:
+        """Start background translation worker for (x1, y1, x2, y2) or with text_override."""
+        # ── Step 0: Show loading popup immediately (only in popup mode) ──
+        if config.NOTIFICATION_TYPE == "popup":
+            self._close_popup()
+            self._popup = ResultPopup(anchor=anchor, is_loading=True)
+            self._popup.destroyed.connect(self._on_popup_destroyed)
+            self._popup.show()
+            QApplication.processEvents()
+
+        # Stop previous background worker if running
+        if self._worker is not None and self._worker.isRunning():
+            logging.debug("Terminating existing background translation worker...")
+            self._worker.terminate()
+            self._worker.wait()
+
+        # Start translation pipeline in background thread
+        self._worker = TranslationWorker(x1, y1, x2, y2, text_override=text_override)
+        self._worker.finished.connect(
+            lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor)
+        )
+        self._worker.partial_result.connect(
+            lambda partial: self._on_partial_translation(partial),
+            Qt.QueuedConnection,
+        )
+        self._worker.start()
+
+    def _on_ocr_preview_requested(self, x1: int, y1: int, x2: int, y2: int, raw_text: str, anchor: QRect) -> None:
+        """D1: Display OCR preview popup allowing user to edit text before translating."""
+        from ui.ocr_preview_popup import OcrPreviewPopup
+        self._close_popup()
+        preview = OcrPreviewPopup(raw_text, anchor)
+        preview.confirmed.connect(
+            lambda edited: self._start_translation_pipeline(x1, y1, x2, y2, anchor, text_override=edited)
+        )
+        preview.show()
+
+    # ── D2: Live Monitor Mode ────────────────────────────
+
+    def _toggle_live_monitoring(self, checked: bool) -> None:
+        """D2: Toggle live monitoring on or off."""
+        if checked:
+            self._live_selection_mode = True
+            self._show_selector()
+        else:
+            self._stop_live_monitoring()
+
+    def _start_live_monitoring(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        """D2: Start live background monitor for specified screen region."""
+        from capture.live_monitor import LiveMonitor
+        if hasattr(self, "_live_monitor") and self._live_monitor is not None:
+            self._live_monitor.stop()
+
+        self._live_monitor = LiveMonitor(x1, y1, x2, y2, interval_sec=2.0)
+        self._live_monitor.region_changed.connect(
+            lambda lx1, ly1, lx2, ly2: self._on_region_selected(lx1, ly1, lx2, ly2)
+        )
+        self._live_monitor.start()
+
+        if self._tray is not None:
+            self._tray.showMessage(
+                "Живой мониторинг запущен",
+                "Область автоматически проверяется каждые 2 сек.",
+                TrayIcon.Information,
+                3000,
+            )
+
+    def _stop_live_monitoring(self) -> None:
+        """D2: Stop live monitor if active."""
+        if hasattr(self, "_live_monitor") and self._live_monitor is not None:
+            self._live_monitor.stop()
+            self._live_monitor = None
+            if self._tray is not None:
+                self._tray.showMessage(
+                    "Живой мониторинг остановлен",
+                    "Автоматическое отслеживание области отключено.",
+                    TrayIcon.Information,
+                    2000,
+                )
+
+    def _on_partial_translation(self, partial_text: str) -> None:
+        """A5: Update the loading popup with partial streaming translation text.
+
+        Called from the main thread (QueuedConnection) while the LLM is still
+        generating tokens.  We show the partial text in the popup so the user
+        sees the translation appear word-by-word instead of waiting for the
+        full response.
+        """
+        try:
+            popup = self._popup
+            if popup is None:
+                return
+            # Only update while still in loading state — once update_content()
+            # finalises the popup (is_loading=False) we stop overwriting it.
+            if not getattr(popup, "_is_loading", False):
+                return
+            if not partial_text.strip():
+                return
+            # Reuse the loading label to show the live translation preview.
+            lbl = getattr(popup, "_loading_label", None)
+            if lbl is not None:
+                try:
+                    lbl.setText(partial_text)
+                except RuntimeError:
+                    pass  # popup was deleted between the signal emit and the slot
+        except Exception:
+            logging.debug("Ignored error in _on_partial_translation", exc_info=True)
 
     def _on_translation_finished(self, source: str, translated: str, error_msg: str, anchor: QRect) -> None:
         try:

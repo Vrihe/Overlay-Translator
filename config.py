@@ -56,6 +56,10 @@ class _LiveConfig:
         return _cfg("hotkey")
 
     @property
+    def ENABLE_OCR_PREVIEW(self):
+        return _cfg("enable_ocr_preview")
+
+    @property
     def TARGET_LANG(self):
         return _cfg("target_language")
 
