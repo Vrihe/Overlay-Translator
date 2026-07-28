@@ -198,8 +198,12 @@ class TranslationWorker(QThread):
         # Step 3: LLM Translation
         try:
             logging.debug(f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}'...")
-            translated = translate(text, domain_id=config.ACTIVE_DOMAIN)
-            logging.debug("Step 3 Complete: Translation succeeded.")
+            if getattr(config, "SOURCE_LANG", "auto") == "auto":
+                detected_lang, translated = detect_and_translate(text, domain_id=config.ACTIVE_DOMAIN)
+                logging.debug(f"Step 3 Complete: Detected lang '{detected_lang}', translation succeeded.")
+            else:
+                translated = translate(text, domain_id=config.ACTIVE_DOMAIN)
+                logging.debug("Step 3 Complete: Translation succeeded.")
         except Exception as e:
             logging.exception("Step 3 Failed: Translation error")
             self.finished.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
