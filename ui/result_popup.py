@@ -181,6 +181,33 @@ class ResultPopup(QWidget):
 
         header_row.addStretch()
 
+        # C1 & D3: Copy and TTS buttons (visible only in final, non-error state)
+        if not self._is_loading and not self._is_error and self._translated:
+            # D3: Speech synthesis button (🔊)
+            self._btn_tts = QPushButton("🔊")
+            self._btn_tts.setFixedSize(22, 22)
+            self._btn_tts.setCursor(Qt.PointingHandCursor)
+            self._btn_tts.setToolTip("Озвучить перевод")
+            _action_btn_base = (
+                "QPushButton {"
+                "  color: #777799; background: transparent; border: none;"
+                "  font-size: 11pt; border-radius: 4px;"
+                "}"
+                "QPushButton:hover { color: #a0c4ff; background: rgba(255,255,255,0.10); }"
+            )
+            self._btn_tts.setStyleSheet(_action_btn_base)
+            self._btn_tts.clicked.connect(self._on_speak_translation)
+            header_row.addWidget(self._btn_tts)
+
+            # C1: Copy to clipboard button (📋)
+            self._btn_copy = QPushButton("📋")
+            self._btn_copy.setFixedSize(22, 22)
+            self._btn_copy.setCursor(Qt.PointingHandCursor)
+            self._btn_copy.setToolTip("Скопировать перевод")
+            self._btn_copy.setStyleSheet(_action_btn_base)
+            self._btn_copy.clicked.connect(self._on_copy_translation)
+            header_row.addWidget(self._btn_copy)
+
         self._btn_close = QPushButton("✕")
         self._btn_close.setFixedSize(20, 20)
         self._btn_close.setCursor(Qt.PointingHandCursor)
@@ -268,6 +295,51 @@ class ResultPopup(QWidget):
         )
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
+
+    # ── TTS Speech synthesis (D3) ────────────────────────
+
+    def _on_speak_translation(self) -> None:
+        """D3: Speak translated text via background TTS engine."""
+        if not self._translated:
+            return
+        try:
+            from tts.engine import speak
+            speak(self._translated)
+        except Exception:
+            pass
+
+    # ── Copy to clipboard (C1) ───────────────────────────
+
+    def _on_copy_translation(self) -> None:
+        """C1: Copy the translated text to clipboard with visual feedback."""
+        if not self._translated:
+            return
+        QApplication.clipboard().setText(self._translated)
+        btn = getattr(self, "_btn_copy", None)
+        if btn is None:
+            return
+        btn.setText("✓")
+        btn.setStyleSheet(
+            "QPushButton {"
+            "  color: #6fcf97; background: transparent; border: none;"
+            "  font-size: 10pt; font-weight: bold; border-radius: 4px;"
+            "}"
+        )
+        QTimer.singleShot(1500, lambda: self._reset_copy_btn(btn))
+
+    def _reset_copy_btn(self, btn: QPushButton) -> None:
+        """Restore copy button to default state after feedback delay."""
+        try:
+            btn.setText("📋")
+            btn.setStyleSheet(
+                "QPushButton {"
+                "  color: #777799; background: transparent; border: none;"
+                "  font-size: 11pt; border-radius: 4px;"
+                "}"
+                "QPushButton:hover { color: #a0c4ff; background: rgba(255,255,255,0.10); }"
+            )
+        except RuntimeError:
+            pass  # widget already deleted
 
     # ── Animated Dots ("Переводим..." -> "Переводим." -> ...) ──
 
