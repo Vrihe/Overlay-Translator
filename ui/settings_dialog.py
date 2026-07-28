@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QRadioButton, QButtonGroup, QComboBox,
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
-    QTextEdit, QScrollArea, QFrame,
+    QTextEdit, QScrollArea, QFrame, QCheckBox,
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QPainter, QPainterPath, QColor
@@ -354,11 +354,15 @@ class SettingsWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        # ── API Key section ──
-        grp_key = QGroupBox("API-ключ")
+        # ── API Key & Provider section ──
+        grp_key = QGroupBox("API-ключ и провайдеры")
         grp_key.setStyleSheet(self._GROUP_CSS)
         key_layout = QVBoxLayout(grp_key)
         key_layout.setSpacing(8)
+
+        lbl_prov = QLabel("Основной провайдер:")
+        lbl_prov.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
+        key_layout.addWidget(lbl_prov)
 
         prov_row = QHBoxLayout()
         self._radio_group = QButtonGroup(self)
@@ -373,9 +377,13 @@ class SettingsWidget(QWidget):
         prov_row.addWidget(self._radio_ant)
         key_layout.addLayout(prov_row)
 
+        self._chk_fallback = QCheckBox("Автоматически переключаться на резервный провайдер при сбое (Fallback)")
+        self._chk_fallback.setStyleSheet(self._css("color: #ccc; font-size: 9pt;"))
+        key_layout.addWidget(self._chk_fallback)
+
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.Password)
-        self._key_input.setPlaceholderText("Новый ключ (оставьте пустым, чтобы не менять)")
+        self._key_input.setPlaceholderText("Новый API-ключ для выбранного провайдера (оставьте пустым, если не меняется)")
         self._key_input.setStyleSheet(self._INPUT_CSS)
         key_layout.addWidget(self._key_input)
 
@@ -689,18 +697,29 @@ class SettingsWidget(QWidget):
     # ── Load current values ──────────────────────────────
 
     def _load_current(self) -> None:
-        # Provider radio + status.
-        if settings.get_api_key("openrouter"):
-            self._radio_or.setChecked(True)
-            self._key_status.setText("✓ Ключ OpenRouter сохранён")
-            self._key_status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
-        elif settings.get_api_key("anthropic"):
+        # Primary provider choice & Fallback setting.
+        primary = settings.get_primary_provider()
+        if primary == "anthropic":
             self._radio_ant.setChecked(True)
-            self._key_status.setText("✓ Ключ Anthropic сохранён")
-            self._key_status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
         else:
             self._radio_or.setChecked(True)
-            self._key_status.setText("Ключ не задан (используется .env)")
+
+        self._chk_fallback.setChecked(settings.is_fallback_enabled())
+
+        has_or = bool(settings.get_api_key("openrouter"))
+        has_ant = bool(settings.get_api_key("anthropic"))
+
+        status_parts = []
+        if has_or:
+            status_parts.append("OpenRouter ✓")
+        if has_ant:
+            status_parts.append("Anthropic ✓")
+
+        if status_parts:
+            self._key_status.setText("Сохранённые ключи: " + ", ".join(status_parts))
+            self._key_status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+        else:
+            self._key_status.setText("Ключи не заданы в Keyring (используются переменные из .env)")
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
 
         # Domain.
@@ -802,6 +821,10 @@ class SettingsWidget(QWidget):
 
         # ── Update config_manager values ─────────────────
         try:
+            primary_choice = "openrouter" if self._radio_or.isChecked() else "anthropic"
+            settings.save_primary_provider(primary_choice)
+            settings.set_fallback_enabled(self._chk_fallback.isChecked())
+
             new_domain = self._domain_combo.currentData()
             new_src_lang = self._src_lang_combo.currentData()
             new_lang = self._lang_combo.currentData()
@@ -810,6 +833,8 @@ class SettingsWidget(QWidget):
             new_timeout = self._timeout_spin.value()
 
             cfg = config_manager.load_config()
+            cfg["primary_provider"] = primary_choice
+            cfg["enable_fallback"] = self._chk_fallback.isChecked()
             cfg["active_domain"] = new_domain or cfg.get("active_domain", "general")
             cfg["source_language"] = new_src_lang or cfg.get("source_language", "auto")
             cfg["target_language"] = new_lang or cfg["target_language"]
@@ -820,7 +845,7 @@ class SettingsWidget(QWidget):
             cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
             config_manager.save_config(cfg)
 
-            # Reset the LLM client so new model is picked up.
+            # Reset the LLM client so new model/provider is picked up.
             reset_client()
         except Exception as e:
             QMessageBox.critical(
