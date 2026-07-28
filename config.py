@@ -127,7 +127,30 @@ class _LiveConfig:
         from settings.config_manager import set_value
         set_value("active_domain", value)
 
+    @property
+    def PRIMARY_PROVIDER(self):
+        return _cfg("primary_provider")
+
+    @PRIMARY_PROVIDER.setter
+    def PRIMARY_PROVIDER(self, value):
+        from settings.config_manager import set_value
+        set_value("primary_provider", value)
+
+    @property
+    def ENABLE_FALLBACK(self):
+        return _cfg("enable_fallback")
+
+    @ENABLE_FALLBACK.setter
+    def ENABLE_FALLBACK(self, value):
+        from settings.config_manager import set_value
+        set_value("enable_fallback", value)
+
     # ── Static (from .env / hardcoded) ───────────────────
+
+    MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))
+    RETRY_BACKOFF_BASE_SEC = float(os.environ.get("RETRY_BACKOFF_BASE_SEC", "1.0"))
+    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-oss-20b:free")
+    ANTHROPIC_DETECT_MODEL = os.environ.get("ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414")
 
     APP_VERSION = "1.0.0"
     GITHUB_REPO = os.environ.get("GITHUB_REPO", "Vrihe/Overlay-Translator")

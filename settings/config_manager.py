@@ -55,6 +55,8 @@ DEFAULTS: dict[str, Any] = {
     "target_language": "ru",
     "translation_engine": "llm_text",     # "llm_text" | "llm_vision" | "api"
     "llm_model": "openai/gpt-oss-20b:free",
+    "primary_provider": "openrouter",      # "openrouter" | "anthropic"
+    "enable_fallback": True,               # True | False
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
     "notification_type": "popup",          # "popup" | "windows_toast"

@@ -78,3 +78,29 @@ def delete_api_key(provider: str) -> None:
 def has_any_key() -> bool:
     """Return True if at least one API key is stored in keyring."""
     return any(get_api_key(p) for p in _PROVIDER_KEYS)
+
+
+def get_primary_provider() -> str:
+    """Return configured primary provider name ('openrouter' or 'anthropic')."""
+    val = config_manager.get("primary_provider")
+    if val in ("openrouter", "anthropic"):
+        return val
+    return "openrouter"
+
+
+def save_primary_provider(provider: str) -> None:
+    """Save primary provider choice."""
+    if provider in ("openrouter", "anthropic"):
+        config_manager.set_value("primary_provider", provider)
+
+
+def is_fallback_enabled() -> bool:
+    """Return whether automatic fallback to secondary provider is enabled."""
+    val = config_manager.get("enable_fallback")
+    return bool(val) if val is not None else True
+
+
+def set_fallback_enabled(enabled: bool) -> None:
+    """Save fallback enabled setting."""
+    config_manager.set_value("enable_fallback", bool(enabled))
+
