@@ -15,7 +15,7 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
-    QMessageBox, QWidget, QApplication,
+    QMessageBox, QWidget, QApplication, QFileDialog,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QPainterPath, QColor
@@ -130,6 +130,20 @@ class HistoryWidget(QWidget):
 
         bottom_layout.addStretch()
 
+        # C3: Export button
+        self._btn_export = QPushButton("💾 Экспорт .txt")
+        self._btn_export.setStyleSheet(
+            "QPushButton {"
+            "  background: #1e2f4a; color: #7ca5f5; border: 1px solid #3a5a9a;"
+            "  border-radius: 6px; padding: 7px 16px;"
+            "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 500;"
+            "}"
+            "QPushButton:hover { background: #253b5e; color: #a0c0ff; }"
+            "QPushButton:disabled { background: #1a1e2e; color: #445; border-color: #2a3a5a; }"
+        )
+        self._btn_export.clicked.connect(self._on_export_history)
+        bottom_layout.addWidget(self._btn_export)
+
         self._btn_clear = QPushButton("🗑 Очистить историю")
         self._btn_clear.setStyleSheet(
             "QPushButton {"
@@ -184,14 +198,60 @@ class HistoryWidget(QWidget):
             self._table.setItem(row_idx, 2, item_orig)
             self._table.setItem(row_idx, 3, item_trans)
 
+        self._displayed_records = records
         self._count_label.setText(f"Всего записей: {len(records)}")
-        self._btn_clear.setEnabled(len(records) > 0)
+        self._btn_clear.setEnabled(len(self._all_records) > 0)
+        self._btn_export.setEnabled(len(records) > 0)
 
     # ── Signals ──────────────────────────────────────────
 
     def _connect_signals(self) -> None:
         self._search_input.textChanged.connect(self._on_search_changed)
         self._btn_clear.clicked.connect(self._on_clear_clicked)
+
+    # ── Export history (C3) ──────────────────────────────
+
+    def _on_export_history(self) -> None:
+        """C3: Export currently filtered history entries to a formatted text file."""
+        records = getattr(self, "_displayed_records", [])
+        if not records:
+            QMessageBox.information(self, "Экспорт", "Нет записей для экспорта.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить историю переводов",
+            "history_export.txt",
+            "Текстовые файлы (*.txt);;Все файлы (*)",
+        )
+        if not file_path:
+            return
+
+        try:
+            lines = []
+            for rec in records:
+                ts = rec.get("timestamp", 0)
+                dt_str = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts else "—"
+                src = rec.get("source_lang", config.SOURCE_LANG).upper()
+                tgt = rec.get("target_lang", config.TARGET_LANG).upper()
+                orig = rec.get("source_text", "")
+                trans = rec.get("translated_text", "")
+
+                lines.append(f"[{dt_str}] {src} → {tgt}")
+                lines.append(f"Оригинал:   {orig}")
+                lines.append(f"Перевод:    {trans}")
+                lines.append("-" * 50)
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+
+            QMessageBox.information(
+                self,
+                "Экспорт завершён",
+                f"Успешно экспортировано записей: {len(records)}\nФайл: {file_path}",
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка экспорта", f"Не удалось сохранить файл:\n{e}")
 
     # ── Filter search ────────────────────────────────────
 

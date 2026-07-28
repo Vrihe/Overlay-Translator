@@ -16,6 +16,20 @@ from PyQt5.QtGui import QIcon
 from tray.icon_gen import create_tray_icon
 import config
 
+# C2: Quick language switch — same list as settings_dialog to stay in sync.
+_QUICK_LANGS = [
+    ("ru", "🇷🇺 Русский"),
+    ("en", "🇬🇧 English"),
+    ("de", "🇩🇪 Deutsch"),
+    ("fr", "🇫🇷 Français"),
+    ("es", "🇪🇸 Español"),
+    ("ja", "🇯🇵 日本語"),
+    ("zh", "🇨🇳 中文"),
+    ("uk", "🇺🇦 Українська"),
+    ("ko", "🇰🇷 한국어"),
+    ("pl", "🇵🇱 Polski"),
+]
+
 
 class TrayIcon(QSystemTrayIcon):
     """System-tray icon with a right-click context menu."""
@@ -52,6 +66,9 @@ class TrayIcon(QSystemTrayIcon):
             QMenu::item:selected {
                 background: #3a3a5c;
             }
+            QMenu::item:checked {
+                color: #6fcf97;
+            }
             QMenu::separator {
                 height: 1px;
                 background: #333;
@@ -70,6 +87,26 @@ class TrayIcon(QSystemTrayIcon):
         self.act_translate = QAction(f"Перевести  ({config.HOTKEY.upper()})")
         menu.addAction(self.act_translate)
 
+        # ── D2: Live Monitor ──
+        self.act_live_monitor = QAction("▶ Живой мониторинг области")
+        self.act_live_monitor.setCheckable(True)
+        menu.addAction(self.act_live_monitor)
+
+        menu.addSeparator()
+
+        # ── C2: Quick language submenu ──
+        self._lang_menu = QMenu("🌐 Язык перевода")
+        self._lang_menu.setStyleSheet(menu.styleSheet())
+        self._lang_actions: dict[str, QAction] = {}
+        for code, label in _QUICK_LANGS:
+            act = QAction(label)
+            act.setCheckable(True)
+            act.setChecked(code == config.TARGET_LANG)
+            act.triggered.connect(lambda checked, c=code: self._on_lang_selected(c))
+            self._lang_menu.addAction(act)
+            self._lang_actions[code] = act
+        menu.addMenu(self._lang_menu)
+
         menu.addSeparator()
 
         # ── Settings ──
@@ -87,6 +124,36 @@ class TrayIcon(QSystemTrayIcon):
         menu.addAction(self.act_exit)
 
         self.setContextMenu(menu)
+
+    # ── C2: Language switch handler ────────────────────────────────
+
+    def _on_lang_selected(self, lang_code: str) -> None:
+        """C2: Switch target language instantly, persist to config, invalidate LLM cache."""
+        from settings import config_manager
+        from translate.llm_client import reset_client
+
+        cfg = config_manager.load_config()
+        cfg["target_language"] = lang_code
+        config_manager.save_config(cfg)
+        reset_client()  # flushes _prompt_cache so new lang is used on next call
+
+        # Update checkmarks
+        for code, act in self._lang_actions.items():
+            act.setChecked(code == lang_code)
+
+        # Show brief notification
+        label = next((l for c, l in _QUICK_LANGS if c == lang_code), lang_code)
+        self.showMessage(
+            "Overlay Translator",
+            f"Язык перевода: {label}",
+            QSystemTrayIcon.Information,
+            2000,
+        )
+
+    def rebuild_lang_menu(self) -> None:
+        """Refresh checkmarks when target language is changed from settings dialog."""
+        for code, act in self._lang_actions.items():
+            act.setChecked(code == config.TARGET_LANG)
 
     # ── Activation handler ───────────────────────────────
 
