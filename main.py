@@ -114,9 +114,14 @@ def _preload_torch_dlls():
 
 _preload_torch_dlls()
 
-# torch импортируется лениво внутри ocr/engine.py → get_reader()
-# при первом OCR-запросе пользователя, а не при старте приложения.
-# Это сокращает время запуска на ~1–3 секунды.
+# torch must be imported at module level — BEFORE QApplication is created.
+# Qt DLL initialization (OpenMP, MSVC runtimes) modifies the DLL search path,
+# which causes c10.dll to fail if torch is loaded after QApplication.
+try:
+    import torch
+    logging.info(f"PyTorch loaded successfully. Version: {torch.__version__}")
+except Exception:
+    logging.exception("PyTorch failed to load during entry point initialization")
 
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtCore import QObject, QRect, pyqtSignal, QThread, Qt
@@ -583,20 +588,11 @@ def main() -> None:
 
         app = QApplication(sys.argv)
 
+        # Show splash immediately — torch is already loaded (module level above),
+        # splash covers the remaining init time: MainWindow, TrayIcon, hotkeys.
         splash = _create_splash()
         splash.show()
         app.processEvents()
-
-        # Import torch here — in the main thread, while splash is visible.
-        # IMPORTANT: c10.dll (PyTorch) must be DLL-initialized in the main thread on Windows.
-        # If torch is first imported inside a QThread (TranslationWorker), Windows raises
-        # WinError 1114 (DLL initialization routine failed) for c10.dll.
-        # Importing here ensures the DLL is ready before any worker thread starts.
-        try:
-            import torch  # noqa: F401 — side-effect: initializes c10.dll in main thread
-            logging.info(f"PyTorch loaded successfully. Version: {torch.__version__}")
-        except Exception:
-            logging.exception("PyTorch failed to load")
 
         # ── First-run: ask for API key if none is configured ─
         if not _has_any_api_key():
