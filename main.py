@@ -114,13 +114,11 @@ def _preload_torch_dlls():
 
 _preload_torch_dlls()
 
-try:
-    import torch
-    logging.info(f"PyTorch loaded successfully. Version: {torch.__version__}")
-except Exception:
-    logging.exception("PyTorch failed to load during entry point initialization")
+# torch импортируется лениво внутри ocr/engine.py → get_reader()
+# при первом OCR-запросе пользователя, а не при старте приложения.
+# Это сокращает время запуска на ~1–3 секунды.
 
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtCore import QObject, QRect, pyqtSignal, QThread, Qt
 import keyboard
 
@@ -129,8 +127,7 @@ import settings
 from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
 from ocr.engine import recognise
-from translate.llm_client import translate, detect_and_translate
-from translate.lang_detect import get_detector
+
 from ui.result_popup import ResultPopup
 from tray.tray_icon import TrayIcon
 from ui.main_window import MainWindow
@@ -146,6 +143,29 @@ def _hide_console() -> None:
             ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
     except Exception:
         pass
+
+
+def _create_splash() -> QSplashScreen:
+    """Create a branded splash screen shown during app initialization."""
+    from PyQt5.QtGui import QPixmap, QColor, QPainter, QFont
+
+    pix = QPixmap(440, 160)
+    pix.fill(QColor("#1c1c24"))
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    painter.setPen(QColor("#a78bfa"))
+    title_font = QFont("Segoe UI", 20, QFont.Bold)
+    painter.setFont(title_font)
+    painter.drawText(pix.rect().adjusted(0, -30, 0, 0), Qt.AlignCenter, "Translator Overlay")
+
+    painter.setPen(QColor("#6b7280"))
+    sub_font = QFont("Segoe UI", 10)
+    painter.setFont(sub_font)
+    painter.drawText(pix.rect().adjusted(0, 40, 0, 0), Qt.AlignCenter, "Loading...")
+    painter.end()
+
+    return QSplashScreen(pix, Qt.WindowStaysOnTopHint)
 
 
 # ── Bridge: keyboard thread → Qt main thread ─────────────
@@ -206,6 +226,8 @@ class TranslationWorker(QThread):
                 return
 
         # Step 3: LLM Translation
+        # Lazy import: openai/anthropic SDKs are loaded here, not at app startup.
+        from translate.llm_client import translate, detect_and_translate
         try:
             logging.debug(f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}'...")
             if getattr(config, "SOURCE_LANG", "auto") == "auto":
@@ -561,9 +583,14 @@ def main() -> None:
 
         app = QApplication(sys.argv)
 
+        splash = _create_splash()
+        splash.show()
+        app.processEvents()
+
         # ── First-run: ask for API key if none is configured ─
         if not _has_any_api_key():
             logging.info("No API keys found. Prompting first-run dialog.")
+            splash.close()  # hide splash before interactive dialog
             from ui.first_run_dialog import FirstRunDialog
             dlg = FirstRunDialog()
             if dlg.exec_() != FirstRunDialog.Accepted:
@@ -571,6 +598,7 @@ def main() -> None:
                 sys.exit(0)
 
         translator = TranslatorApp(app)
+        splash.finish(translator._main_window)  # fade out once main window is ready
         sys.exit(translator.run())
     except Exception:
         logging.exception("Unhandled exception in main()")

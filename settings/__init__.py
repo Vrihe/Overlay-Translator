@@ -16,12 +16,24 @@ everywhere:
   config_manager.set_value(key, value)
 """
 
-try:
-    import keyring
-    _HAS_KEYRING = True
-except ImportError:
-    keyring = None
-    _HAS_KEYRING = False
+# keyring is imported lazily inside _get_keyring() to avoid initializing
+# Windows Credential Manager at startup (~50-100ms overhead on cold start).
+_keyring = None
+_keyring_loaded = False
+
+
+def _get_keyring():
+    """Return the keyring module, or None if not installed. Lazy-loaded on first access."""
+    global _keyring, _keyring_loaded
+    if not _keyring_loaded:
+        _keyring_loaded = True
+        try:
+            import keyring as _kr
+            _keyring = _kr
+        except ImportError:
+            pass
+    return _keyring
+
 
 from settings import config_manager            # noqa: F401
 
@@ -40,13 +52,14 @@ _PROVIDER_KEYS = {
 
 def get_api_key(provider: str) -> str | None:
     """Retrieve the API key for *provider* from keyring."""
-    if not _HAS_KEYRING:
+    kr = _get_keyring()
+    if kr is None:
         return None
     keyname = _PROVIDER_KEYS.get(provider)
     if keyname is None:
         return None
     try:
-        value = keyring.get_password(_SERVICE, keyname)
+        value = kr.get_password(_SERVICE, keyname)
         return value if value else None
     except Exception:
         return None
@@ -54,23 +67,25 @@ def get_api_key(provider: str) -> str | None:
 
 def set_api_key(provider: str, key: str) -> None:
     """Store the API key for *provider* in keyring."""
-    if not _HAS_KEYRING:
+    kr = _get_keyring()
+    if kr is None:
         raise RuntimeError("keyring is not installed — cannot store API keys securely.")
     keyname = _PROVIDER_KEYS.get(provider)
     if keyname is None:
         raise ValueError(f"Unknown provider: {provider!r}")
-    keyring.set_password(_SERVICE, keyname, key)
+    kr.set_password(_SERVICE, keyname, key)
 
 
 def delete_api_key(provider: str) -> None:
     """Remove the stored API key for *provider* from keyring."""
-    if not _HAS_KEYRING:
+    kr = _get_keyring()
+    if kr is None:
         return
     keyname = _PROVIDER_KEYS.get(provider)
     if keyname is None:
         return
     try:
-        keyring.delete_password(_SERVICE, keyname)
+        kr.delete_password(_SERVICE, keyname)
     except Exception:
         pass
 
@@ -103,4 +118,3 @@ def is_fallback_enabled() -> bool:
 def set_fallback_enabled(enabled: bool) -> None:
     """Save fallback enabled setting."""
     config_manager.set_value("enable_fallback", bool(enabled))
-

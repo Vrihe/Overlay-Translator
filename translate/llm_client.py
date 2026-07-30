@@ -14,8 +14,8 @@ import logging
 import os
 import time
 
-import openai
-import anthropic
+# openai and anthropic are imported lazily inside _get_client_for()
+# to avoid ~200-500ms startup cost before the first translation request.
 
 import config
 import settings
@@ -57,6 +57,7 @@ def _get_client_for(provider_name: str):
         key = settings.get_api_key("openrouter") or os.getenv("OPENROUTER_API_KEY")
         if not key:
             return None
+        import openai  # lazy: loaded on first translation request
         client = openai.OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=key,
@@ -68,6 +69,7 @@ def _get_client_for(provider_name: str):
         key = settings.get_api_key("anthropic") or os.getenv("ANTHROPIC_API_KEY")
         if not key:
             return None
+        import anthropic  # lazy: loaded on first translation request
         client = anthropic.Anthropic(api_key=key)
         _clients_cache["anthropic"] = client
         return client
