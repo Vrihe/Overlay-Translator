@@ -1,15 +1,29 @@
 """
 cache/store.py — SQLite translation cache and history storage.
+
+Two-level cache:
+  L1 — in-memory OrderedDict (LRU, max 128 entries): ~0 ms hit latency.
+  L2 — SQLite on disk (WAL mode): ~1-5 ms hit latency.
+Save operations populate both levels.
 """
 
 import sqlite3
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 
 import config
 
 _DB_PATH = Path(config.CACHE_DIR) / "translations.db"
+
+# ── L1: in-memory LRU cache ───────────────────────────────
+# Key: (source_text, source_lang, target_lang, domain_id)
+# Evicts least-recently-used entry when size exceeds _MEM_CACHE_SIZE.
+
+_MEM_CACHE_SIZE = 128
+_mem_cache: OrderedDict[tuple, str] = OrderedDict()
+_mem_cache_lock = threading.Lock()
 
 # C4: Per-thread connection pool.
 # Each thread keeps its own connection open permanently.
@@ -87,7 +101,19 @@ def get_cached(
     *,
     domain_id: str = "general",
 ) -> str | None:
-    """Retrieve cached translation if present."""
+    """Retrieve cached translation if present.
+
+    Checks L1 in-memory LRU cache first (~0 ms), then falls back to L2 SQLite (~1-5 ms).
+    """
+    key = (text, source_lang, target_lang, domain_id)
+
+    # L1 hit
+    with _mem_cache_lock:
+        if key in _mem_cache:
+            _mem_cache.move_to_end(key)  # mark as recently used
+            return _mem_cache[key]
+
+    # L2 hit
     conn = _get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -98,7 +124,14 @@ def get_cached(
         (text, source_lang, target_lang, domain_id),
     )
     row = cursor.fetchone()
-    return row["translated_text"] if row else None
+    if row:
+        result = row["translated_text"]
+        with _mem_cache_lock:
+            _mem_cache[key] = result
+            if len(_mem_cache) > _MEM_CACHE_SIZE:
+                _mem_cache.popitem(last=False)  # evict LRU
+        return result
+    return None
 
 
 def save_to_cache(
@@ -109,7 +142,17 @@ def save_to_cache(
     *,
     domain_id: str = "general",
 ) -> None:
-    """Save translation entry to SQLite cache."""
+    """Save translation entry to both L1 in-memory and L2 SQLite cache."""
+    key = (text, source_lang, target_lang, domain_id)
+
+    # Populate L1
+    with _mem_cache_lock:
+        _mem_cache[key] = translation
+        _mem_cache.move_to_end(key)
+        if len(_mem_cache) > _MEM_CACHE_SIZE:
+            _mem_cache.popitem(last=False)  # evict LRU
+
+    # Persist to L2
     now = time.time()
     conn = _get_connection()
     with conn:
