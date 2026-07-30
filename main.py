@@ -587,6 +587,17 @@ def main() -> None:
         splash.show()
         app.processEvents()
 
+        # Import torch here — in the main thread, while splash is visible.
+        # IMPORTANT: c10.dll (PyTorch) must be DLL-initialized in the main thread on Windows.
+        # If torch is first imported inside a QThread (TranslationWorker), Windows raises
+        # WinError 1114 (DLL initialization routine failed) for c10.dll.
+        # Importing here ensures the DLL is ready before any worker thread starts.
+        try:
+            import torch  # noqa: F401 — side-effect: initializes c10.dll in main thread
+            logging.info(f"PyTorch loaded successfully. Version: {torch.__version__}")
+        except Exception:
+            logging.exception("PyTorch failed to load")
+
         # ── First-run: ask for API key if none is configured ─
         if not _has_any_api_key():
             logging.info("No API keys found. Prompting first-run dialog.")

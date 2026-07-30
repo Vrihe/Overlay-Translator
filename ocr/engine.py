@@ -131,6 +131,8 @@ def get_reader():
             logging.exception("Failed to import easyocr module!")
             raise
 
+
+
         langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
         gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
         use_gpu = _resolve_gpu(gpu_setting)
