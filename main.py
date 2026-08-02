@@ -124,7 +124,7 @@ except Exception:
     logging.exception("PyTorch failed to load during entry point initialization")
 
 from PyQt5.QtWidgets import QApplication, QSplashScreen
-from PyQt5.QtCore import QObject, QRect, pyqtSignal, QThread, Qt
+from PyQt5.QtCore import QObject, QRect, QTimer, pyqtSignal, QThread, Qt
 import keyboard
 
 import config
@@ -251,6 +251,26 @@ class TranslationWorker(QThread):
         self.finished.emit(text, translated, "")
 
 
+# ── Background OCR engine warm-up ───────────────────────
+
+class OcrWarmupWorker(QThread):
+    """Pre-loads the EasyOCR singleton in a background thread.
+
+    Scheduled 3 s after app start so the heavy model load (CRAFT + CRNN, ~2-4 s)
+    happens silently while the user reads the UI — not on their first hotkey press.
+    torch is already imported at module level so c10.dll is safe to use here.
+    """
+
+    def run(self) -> None:
+        try:
+            logging.info("OcrWarmupWorker: pre-loading EasyOCR engine...")
+            from ocr.engine import get_reader
+            get_reader()
+            logging.info("OcrWarmupWorker: EasyOCR engine ready.")
+        except Exception:
+            logging.exception("OcrWarmupWorker: pre-load failed (non-fatal, will retry on first use)")
+
+
 # ── Application ──────────────────────────────────────────
 
 class TranslatorApp:
@@ -311,6 +331,16 @@ class TranslatorApp:
             logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
         except Exception:
             logging.exception("Failed to register global hotkeys")
+
+        # Schedule OCR engine warm-up 3 s after app start.
+        # This ensures the heavy EasyOCR models are loaded before the first user request.
+        self._ocr_warmup: OcrWarmupWorker | None = None
+        QTimer.singleShot(3000, self._warm_up_ocr)
+
+    def _warm_up_ocr(self) -> None:
+        """Launch the OCR warm-up worker (called once via QTimer)."""
+        self._ocr_warmup = OcrWarmupWorker()
+        self._ocr_warmup.start()
 
     # ── Main window toggle ───────────────────────────────
 

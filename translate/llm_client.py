@@ -12,6 +12,7 @@ Every request is logged to the file specified by ``config.LOG_FILE``.
 
 import logging
 import os
+import threading
 import time
 
 # openai and anthropic are imported lazily inside _get_client_for()
@@ -46,6 +47,22 @@ _provider = None
 # ── System prompt cache (A1) ─────────────────────────────
 # Keyed by "domain_id:target_lang:source_lang" — cleared on reset_client().
 _prompt_cache: dict[str, str] = {}
+
+# ── Request coalescing (1.2) ──────────────────────────
+# When two threads request the same (text, src, tgt, domain) simultaneously,
+# the second one waits for the first and reuses its result without an extra API call.
+
+class _InflightRequest:
+    """Shared state between an in-flight owner thread and any waiting threads."""
+    __slots__ = ("event", "result")
+
+    def __init__(self):
+        self.event: threading.Event = threading.Event()
+        self.result: str | Exception | None = None
+
+
+_in_flight: dict[tuple, _InflightRequest] = {}
+_in_flight_lock = threading.Lock()
 
 
 def _get_client_for(provider_name: str):
@@ -350,30 +367,61 @@ def translate(
 
     _logger.info("CACHE MISS | domain=%s | text=%r | calling API…", domain_id, text[:120])
 
-    # 2. Call LLM API via resilience orchestrator.
-    t0 = time.perf_counter()
-    system_prompt = _build_system_prompt(domain_id, target_lang, source_lang)
-    # A3: user_prompt contains only the source text — language direction is already
-    # embedded in system_prompt, so repeating it here wastes input tokens.
-    user_prompt = text
-    model_for = {
-        "openrouter": config.LLM_MODEL,
-        "anthropic": config.LLM_MODEL,
-    }
+    # 2. Request coalescing — deduplicate concurrent requests for the same text.
+    coal_key = (text, source_lang, target_lang, domain_id)
+    with _in_flight_lock:
+        if coal_key in _in_flight:
+            req = _in_flight[coal_key]
+            is_owner = False
+        else:
+            req = _InflightRequest()
+            _in_flight[coal_key] = req
+            is_owner = True
 
-    translation, provider = _call_with_resilience(system_prompt, user_prompt, model_for, on_chunk=on_chunk)
-    model = model_for.get(provider, config.LLM_MODEL)
+    if not is_owner:
+        # Another thread is already translating this exact text — wait and reuse.
+        _logger.info("COALESCE | waiting for in-flight request | text=%r", text[:80])
+        req.event.wait(timeout=120.0)  # generous timeout; owner raises on failure
+        if isinstance(req.result, Exception):
+            raise req.result
+        return req.result or ""
 
-    elapsed = time.perf_counter() - t0
-    _logger.info(
-        "API OK | provider=%s domain=%s model=%s | %.2fs | src=%r | result=%r",
-        provider, domain_id, model, elapsed, text[:80], translation[:80],
-    )
+    # 3. Call LLM API via resilience orchestrator (we are the owner).
+    try:
+        t0 = time.perf_counter()
+        system_prompt = _build_system_prompt(domain_id, target_lang, source_lang)
+        # A3: user_prompt contains only the source text — language direction is already
+        # embedded in system_prompt, so repeating it here wastes input tokens.
+        user_prompt = text
+        model_for = {
+            "openrouter": config.LLM_MODEL,
+            "anthropic": config.LLM_MODEL,
+        }
 
-    # 3. Cache the result with domain_id.
-    save_to_cache(text, source_lang, target_lang, translation, domain_id=domain_id)
+        translation, provider = _call_with_resilience(system_prompt, user_prompt, model_for, on_chunk=on_chunk)
+        model = model_for.get(provider, config.LLM_MODEL)
 
-    return translation
+        elapsed = time.perf_counter() - t0
+        _logger.info(
+            "API OK | provider=%s domain=%s model=%s | %.2fs | src=%r | result=%r",
+            provider, domain_id, model, elapsed, text[:80], translation[:80],
+        )
+
+        # 4. Cache the result with domain_id.
+        save_to_cache(text, source_lang, target_lang, translation, domain_id=domain_id)
+
+        req.result = translation
+        return translation
+
+    except Exception as exc:
+        req.result = exc
+        raise
+
+    finally:
+        # Release waiting threads and remove from in-flight registry.
+        req.event.set()
+        with _in_flight_lock:
+            _in_flight.pop(coal_key, None)
 
 
 # ── Combined detect + translate (single LLM call) ───────
