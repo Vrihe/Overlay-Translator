@@ -4,71 +4,28 @@ ocr/engine.py — EasyOCR engine with lazy model loading & Cyrillic optimization
 Key features:
   1. Lazy Singleton Reader: Model weights (CRAFT + CRNN) are loaded once into memory
      and reused across all OCR requests.
-  2. Multilingual Support: Default language set is ['ru', 'en'], allowing combined
+  2. Thread-safe initialization: double-checked locking prevents concurrent init from
+     OcrWarmupWorker and TranslationWorker causing a PyTorch segfault.
+  3. Multilingual Support: Default language set is ['ru', 'en'], allowing combined
      recognition of Cyrillic text, English UI elements, usernames, and game slang.
-  3. Neural Preprocessing: Optional HSV filter, converts PIL Image to NumPy RGB array.
-  4. Line-Ordering & Confidence Thresholding: Filters low-confidence noise and sorts
+  4. Neural Preprocessing: Optional HSV filter, converts PIL Image to NumPy RGB array.
+  5. Line-Ordering & Confidence Thresholding: Filters low-confidence noise and sorts
      detected text blocks top-to-bottom, left-to-right.
 """
 
 import os
 import sys
 import logging
+import threading
 from PIL import Image
 import numpy as np
 
 import config
 
 _reader = None
+_reader_lock = threading.Lock()  # guards singleton initialization across QThreads
 
 
-def get_reader():
-    """Return the singleton easyocr.Reader instance, initializing it on first use."""
-    global _reader
-    if _reader is None:
-        logging.info("Initializing EasyOCR reader instance...")
-        import ctypes
-
-        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-        if getattr(sys, "frozen", False):
-            base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-            torch_lib = os.path.join(base_dir, "torch", "lib")
-            if os.path.exists(torch_lib):
-                if hasattr(os, "add_dll_directory"):
-                    try:
-                        os.add_dll_directory(torch_lib)
-                    except Exception:
-                        pass
-                os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
-                for dll_name in [
-                    "vcruntime140.dll",
-                    "vcruntime140_1.dll",
-                    "msvcp140.dll",
-                    "vcomp140.dll",
-                    "libiomp5md.dll",
-                    "asmjit.dll",
-                    "fbgemm.dll",
-                    "uv.dll",
-                    "torch_cpu.dll",
-                    "c10.dll",
-                    "torch.dll",
-                ]:
-                    dll_path = os.path.join(torch_lib, dll_name)
-                    if os.path.exists(dll_path):
-                        try:
-                            ctypes.CDLL(dll_path)
-                        except Exception:
-                            pass
-
-        try:
-            import easyocr
-            logging.info("easyocr module imported successfully.")
-        except Exception:
-            logging.exception("Failed to import easyocr module!")
-            raise
-
-        langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
 def _resolve_gpu(gpu_setting) -> bool:
     """Resolve GPU setting value into a boolean."""
     if isinstance(gpu_setting, bool):
@@ -86,73 +43,81 @@ def _resolve_gpu(gpu_setting) -> bool:
 
 
 def get_reader():
-    """Return the singleton easyocr.Reader instance, initializing it on first use."""
+    """Return the singleton easyocr.Reader instance, initializing it on first use.
+
+    Thread-safe: uses double-checked locking so that OcrWarmupWorker and
+    TranslationWorker cannot both initialize easyocr.Reader() simultaneously,
+    which would cause a segfault in PyTorch's C++ internals.
+    """
     global _reader
     if _reader is None:
-        logging.info("Initializing EasyOCR reader instance...")
-        import ctypes
+        with _reader_lock:       # only one thread enters initialization at a time
+            if _reader is None:  # re-check under lock (double-checked locking)
+                logging.info("Initializing EasyOCR reader instance...")
+                import ctypes
 
-        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+                os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-        if getattr(sys, "frozen", False):
-            base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-            torch_lib = os.path.join(base_dir, "torch", "lib")
-            if os.path.exists(torch_lib):
-                if hasattr(os, "add_dll_directory"):
-                    try:
-                        os.add_dll_directory(torch_lib)
-                    except Exception:
-                        pass
-                os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
-                for dll_name in [
-                    "vcruntime140.dll",
-                    "vcruntime140_1.dll",
-                    "msvcp140.dll",
-                    "vcomp140.dll",
-                    "libiomp5md.dll",
-                    "asmjit.dll",
-                    "fbgemm.dll",
-                    "uv.dll",
-                    "torch_cpu.dll",
-                    "c10.dll",
-                    "torch.dll",
-                ]:
-                    dll_path = os.path.join(torch_lib, dll_name)
-                    if os.path.exists(dll_path):
-                        try:
-                            ctypes.CDLL(dll_path)
-                        except Exception:
-                            pass
+                if getattr(sys, "frozen", False):
+                    base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+                    torch_lib = os.path.join(base_dir, "torch", "lib")
+                    if os.path.exists(torch_lib):
+                        if hasattr(os, "add_dll_directory"):
+                            try:
+                                os.add_dll_directory(torch_lib)
+                            except Exception:
+                                pass
+                        os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
+                        for dll_name in [
+                            "vcruntime140.dll",
+                            "vcruntime140_1.dll",
+                            "msvcp140.dll",
+                            "vcomp140.dll",
+                            "libiomp5md.dll",
+                            "asmjit.dll",
+                            "fbgemm.dll",
+                            "uv.dll",
+                            "torch_cpu.dll",
+                            "c10.dll",
+                            "torch.dll",
+                        ]:
+                            dll_path = os.path.join(torch_lib, dll_name)
+                            if os.path.exists(dll_path):
+                                try:
+                                    ctypes.CDLL(dll_path)
+                                except Exception:
+                                    pass
 
-        try:
-            import easyocr
-            logging.info("easyocr module imported successfully.")
-        except Exception:
-            logging.exception("Failed to import easyocr module!")
-            raise
+                try:
+                    import easyocr
+                    logging.info("easyocr module imported successfully.")
+                except Exception:
+                    logging.exception("Failed to import easyocr module!")
+                    raise
 
+                langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
+                gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
+                use_gpu = _resolve_gpu(gpu_setting)
 
+                user_home = os.path.expanduser("~")
+                model_storage_dir = os.path.join(user_home, ".EasyOCR", "model")
+                os.makedirs(model_storage_dir, exist_ok=True)
+                logging.info(
+                    f"EasyOCR model storage directory: {model_storage_dir} "
+                    f"(GPU={use_gpu}, languages={langs})"
+                )
 
-        langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
-        gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
-        use_gpu = _resolve_gpu(gpu_setting)
-
-        user_home = os.path.expanduser("~")
-        model_storage_dir = os.path.join(user_home, ".EasyOCR", "model")
-        os.makedirs(model_storage_dir, exist_ok=True)
-        logging.info(f"EasyOCR model storage directory: {model_storage_dir} (GPU={use_gpu}, languages={langs})")
-
-        try:
-            _reader = easyocr.Reader(
-                langs,
-                gpu=use_gpu,
-                verbose=False,
-                model_storage_directory=model_storage_dir,
-            )
-            logging.info("EasyOCR reader initialized successfully.")
-        except Exception:
-            logging.exception("Failed to instantiate easyocr.Reader!")
-            raise
+                try:
+                    _reader = easyocr.Reader(
+                        langs,
+                        gpu=use_gpu,
+                        verbose=False,
+                        model_storage_directory=model_storage_dir,
+                    )
+                    logging.info("EasyOCR reader initialized successfully.")
+                except Exception:
+                    logging.exception("Failed to instantiate easyocr.Reader!")
+                    raise
     return _reader
 
 
@@ -225,7 +190,7 @@ def extract_text(image: Image.Image) -> str:
     processed = preprocess(image)
     img_np = processed if isinstance(processed, np.ndarray) else np.array(processed.convert("RGB"))
     reader = get_reader()
-    
+
     logging.debug("Calling reader.readtext...")
     results = reader.readtext(img_np)
     logging.debug(f"reader.readtext returned {len(results)} raw detections.")
@@ -235,7 +200,10 @@ def extract_text(image: Image.Image) -> str:
     logging.debug(f"{len(filtered)} detections met confidence threshold {threshold}.")
 
     text = _sort_results(filtered)
-    logging.debug(f"Extracted OCR text result: '{text[:50]}...'" if len(text) > 50 else f"Extracted OCR text result: '{text}'")
+    logging.debug(
+        f"Extracted OCR text result: '{text[:50]}...'" if len(text) > 50
+        else f"Extracted OCR text result: '{text}'"
+    )
     return text
 
 
