@@ -89,10 +89,15 @@ def post_build_cleanup(dist_dir: Path) -> None:
     removed_bytes = 0
 
     patterns = [
-        "**/*.pyi",              # type stubs
         "**/*.pyx",              # Cython sources
         "**/test_*.py",          # test scripts shipped in packages
         "**/tests/__init__.py",  # marks test packages (prunes discovery)
+        # NOTE: **/*.pyi is intentionally excluded here.
+        # In noarchive=True builds, PyInstaller creates internal .pyi stubs
+        # for C extensions (e.g. skimage\_init_.pyi for skimage/__init__.pyd).
+        # Deleting them causes "Cannot load imports from non-existent stub" crash.
+        # Type annotation stubs are already filtered out during collection
+        # (see torch_datas / easyocr_datas filtering in build_deps.spec).
     ]
 
     dirs_to_remove = [
