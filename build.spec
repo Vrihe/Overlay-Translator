@@ -187,13 +187,12 @@ a = Analysis(
         'PyQt5.QtPrintSupport',
         'PyQt5.QtHelp',
         'PyQt5.QtDesigner',
-        # Heavy optional scipy/skimage components not used by easyocr core
+        # Heavy optional scipy components not used by easyocr core
         'scipy.optimize',
         'scipy.stats',
         'scipy.signal',
         'scipy.io.matlab',
-        'skimage.io',
-        'skimage.viewer',
+        # skimage.io / skimage.viewer: NOT excluded — easyocr imports them at init
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,

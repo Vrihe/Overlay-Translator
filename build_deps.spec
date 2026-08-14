@@ -80,7 +80,8 @@ a = Analysis(
         'tensorflow', 'keras', 'openvino', 'jax', 'sklearn', 'h5py', 'grpc',
         'matplotlib', 'pandas', 'IPython', 'jupyter', 'notebook',
         'scipy.optimize', 'scipy.stats', 'scipy.signal', 'scipy.io.matlab',
-        'skimage.io', 'skimage.viewer',
+        # skimage.io and skimage.viewer are NOT excluded — EasyOCR imports them
+        # at init time and noarchive=True makes their absence a hard error.
     ],
     hookspath=[],
     hooksconfig={},
