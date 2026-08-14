@@ -197,13 +197,11 @@ def restore_deps_cache(root: Path, fingerprint: str) -> None:
 
 # ── PyInstaller runner ────────────────────────────────────────────────────────
 
-def run_pyinstaller(spec: str, *, clean: bool = False, noarchive: bool = False) -> None:
+def run_pyinstaller(spec: str, *, clean: bool = False) -> None:
     """Run PyInstaller for the given spec, raising RuntimeError on failure."""
     cmd = [sys.executable, '-m', 'PyInstaller', spec, '--noconfirm']
     if clean:
         cmd.append('--clean')
-    if noarchive:
-        cmd.extend(['-d', 'noarchive'])  # noarchive is a debug mode, not a standalone flag
     print(f"  > {' '.join(cmd)}")
     result = subprocess.run(cmd)
     if result.returncode != 0:
@@ -277,9 +275,9 @@ def main() -> None:
     try:
         if force_full or not cache_exists:
             # ── FULL BUILD ────────────────────────────────────────────────────
-            print("[Phase 1/2] Building heavy deps layer  (build_deps.spec --noarchive)…")
+            print("[Phase 1/2] Building heavy deps layer  (build_deps.spec)…")
             print("            This takes 10–15 min and only needs to run when deps change.")
-            run_pyinstaller('build_deps.spec', clean=force_full, noarchive=True)
+            run_pyinstaller('build_deps.spec', clean=force_full)
             save_deps_cache(root, fingerprint)
             print()
 
