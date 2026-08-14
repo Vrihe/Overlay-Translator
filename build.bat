@@ -37,7 +37,7 @@ if exist "dist\TranslatorOverlay\TranslatorOverlay.exe" (
     echo ============================================================
     echo.
     echo NOTES:
-    echo   1. Copy your .env file into dist\TranslatorOverlay\ (if using local .env)
+    echo   1. Copy your .env file into dist\TranslatorOverlay\ ^(if using local .env^)
     echo   2. Package the entire dist\TranslatorOverlay\ folder for release
     echo   3. EasyOCR models are downloaded on first launch
     echo   4. Deps cache lives in _build_cache\  (gitignored, rebuild with --clean)
