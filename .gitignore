@@ -59,3 +59,7 @@ tests/*.txt
 
 # User settings (generated at runtime)
 settings.json
+
+# Layered build deps cache (2.1)
+_build_cache/
+dist/TranslatorOverlay_deps/

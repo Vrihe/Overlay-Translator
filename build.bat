@@ -1,7 +1,16 @@
 @echo off
-echo ============================================
-echo   Building Translator Overlay (onedir mode)
-echo ============================================
+echo ============================================================
+echo   Translator Overlay ^| Layered Build  (optimization 2.1)
+echo ============================================================
+echo.
+echo   FIRST BUILD (or after --clean):
+echo     Phase 1 - Heavy deps  : 10-15 min  (cached afterwards)
+echo     Phase 2 - App code    :  1-3  min
+echo.
+echo   SUBSEQUENT BUILDS (deps unchanged):
+echo     Phase 1 - Restore cache : seconds
+echo     Phase 2 - App code      : 1-3 min
+echo     TOTAL: ~2-3 min instead of 15-20 min
 echo.
 
 :: Install PyInstaller if not present
@@ -12,25 +21,29 @@ if %errorlevel% neq 0 (
     echo.
 )
 
-:: Run the build
-echo Running PyInstaller...
-pyinstaller build.spec --noconfirm %*
+:: Run the layered build orchestrator, forwarding all arguments (%*)
+:: Examples:
+::   build.bat           — smart build (fast if cache exists)
+::   build.bat --clean   — force full rebuild, refresh cache
+::   build.bat --cache-info — print fingerprint and exit
+python build.py %*
 
 echo.
 if exist "dist\TranslatorOverlay\TranslatorOverlay.exe" (
-    echo ============================================
-    echo   BUILD OK (onedir mode)
-    echo   Output folder: dist\TranslatorOverlay
-    echo   Executable: dist\TranslatorOverlay\TranslatorOverlay.exe
-    echo ============================================
+    echo ============================================================
+    echo   BUILD OK
+    echo   Output  : dist\TranslatorOverlay\
+    echo   EXE     : dist\TranslatorOverlay\TranslatorOverlay.exe
+    echo ============================================================
     echo.
-    echo IMPORTANT:
+    echo NOTES:
     echo   1. Copy your .env file into dist\TranslatorOverlay\ (if using local .env)
-    echo   2. Package the entire dist\TranslatorOverlay\ folder into a zip archive for release
-    echo   3. EasyOCR models will be downloaded on first launch
+    echo   2. Package the entire dist\TranslatorOverlay\ folder for release
+    echo   3. EasyOCR models are downloaded on first launch
+    echo   4. Deps cache lives in _build_cache\  (gitignored, rebuild with --clean)
     echo.
 ) else (
-    echo BUILD FAILED — check the output above.
+    echo BUILD FAILED - check the output above.
 )
 
 pause
