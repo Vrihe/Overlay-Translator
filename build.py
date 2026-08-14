@@ -203,7 +203,7 @@ def run_pyinstaller(spec: str, *, clean: bool = False, noarchive: bool = False) 
     if clean:
         cmd.append('--clean')
     if noarchive:
-        cmd.append('--noarchive')
+        cmd.extend(['-d', 'noarchive'])  # noarchive is a debug mode, not a standalone flag
     print(f"  > {' '.join(cmd)}")
     result = subprocess.run(cmd)
     if result.returncode != 0:
