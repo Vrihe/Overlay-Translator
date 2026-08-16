@@ -1,10 +1,10 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 keyboard==0.13.5
 PyQt5==5.15.11
 mss==9.0.2
-# For slim CPU-only build (-150 to -300 MB), use: pip install -r requirements-cpu.txt
 easyocr>=1.7.0
-torch>=2.0.0
-torchvision>=0.15.0
+torch>=2.0.0+cpu
+torchvision>=0.15.0+cpu
 optree>=0.11.0
 numpy>=1.24.0
 Pillow==11.1.0
