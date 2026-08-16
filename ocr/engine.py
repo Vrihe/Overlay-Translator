@@ -148,14 +148,34 @@ def get_reader():
 # ── Preprocessing ─────────────────────────────────────────────────────────────
 
 def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
-    """Optional preprocessing step for EasyOCR."""
-    if scale > 1:
-        w, h = img.size
-        img = img.resize((w * scale, h * scale), Image.LANCZOS)
+    """Enhanced preprocessing for screen OCR: handles thin, small, and low-contrast UI fonts."""
+    from PIL import ImageEnhance, ImageFilter
+
+    w, h = img.size
+    effective_scale = scale
+    # Auto-upscale small or thin-font crops (height < 220px or width < 450px)
+    if effective_scale == 1 and (h < 220 or w < 450):
+        effective_scale = 2
+
+    if effective_scale > 1:
+        img = img.resize((w * effective_scale, h * effective_scale), Image.LANCZOS)
+
+    img = img.convert("RGB")
+
+    # Boost contrast for faint/placeholder/dark-theme text
+    try:
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.4)
+        # Subtle sharpening to make thin stroke edges crisp for CRAFT detector
+        img = img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=130, threshold=2))
+    except Exception:
+        pass
+
     if getattr(config, "OCR_USE_HSV_FILTER", False):
         from ocr.hsv_filter import apply_hsv_filter
         img = apply_hsv_filter(img)
-    return np.array(img.convert("RGB"))
+
+    return np.array(img)
 
 
 # ── Result sorting ────────────────────────────────────────────────────────────
@@ -243,10 +263,18 @@ def _extract_single(image: Image.Image) -> str:
     )
     reader = get_reader()
     logging.debug("Calling reader.readtext (single)...")
-    results = reader.readtext(img_np)
+    results = reader.readtext(
+        img_np,
+        contrast_ths=0.05,
+        adjust_contrast=0.7,
+        text_threshold=0.5,
+        link_threshold=0.3,
+        mag_ratio=1.4,
+        add_margin=0.15,
+    )
     logging.debug(f"reader.readtext returned {len(results)} raw detections.")
 
-    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)
+    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.20)
     filtered = [r for r in results if r[2] >= threshold]
     logging.debug(f"{len(filtered)} detections met confidence threshold {threshold}.")
     return _sort_results(filtered)
@@ -299,14 +327,21 @@ def _extract_strips(image: Image.Image) -> str:
     if not active:
         return ""
 
-    # ── Step 3–4: Sequential OCR + coordinate adjustment ─────────────────────
     reader    = get_reader()
-    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)
+    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.20)
     all_results: list = []
 
     for img_np, y_offset in active:
         logging.debug(f"Calling reader.readtext on strip at y={y_offset}...")
-        strip_results = reader.readtext(img_np)
+        strip_results = reader.readtext(
+            img_np,
+            contrast_ths=0.05,
+            adjust_contrast=0.7,
+            text_threshold=0.5,
+            link_threshold=0.3,
+            mag_ratio=1.4,
+            add_margin=0.15,
+        )
         logging.debug(f"  → {len(strip_results)} detections in strip y={y_offset}")
 
         for bbox, text, conf in strip_results:

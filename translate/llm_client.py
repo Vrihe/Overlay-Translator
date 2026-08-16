@@ -133,11 +133,9 @@ def reset_client() -> None:
 
 
 def _dynamic_max_tokens(text: str) -> int:
-    """Estimate a reasonable max_tokens ceiling based on input length & user config."""
+    """Return max completion tokens ceiling from user config (default 350+)."""
     config_max = int(getattr(config, "LLM_MAX_TOKENS", 350))
-    word_count = len(text.split())
-    dynamic = max(64, word_count * 4)
-    return min(config_max, dynamic) if config_max > 0 else dynamic
+    return max(250, config_max)
 
 
 def _call_provider(
