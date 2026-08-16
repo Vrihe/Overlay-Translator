@@ -149,25 +149,43 @@ def get_reader():
 
 def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
     """Enhanced preprocessing for screen OCR: handles thin, small, and low-contrast UI fonts."""
-    from PIL import ImageEnhance, ImageFilter
+    from PIL import ImageEnhance, ImageFilter, ImageOps
+
+    # 1. Dark theme check & auto-inversion:
+    # EasyOCR neural models are trained on dark-on-light text. Inverting dark backgrounds
+    # drastically boosts recognition of thin, light UI glyphs like '@', '/', ',', etc.
+    gray = img.convert("L")
+    is_dark = np.mean(gray) < 128
+    if is_dark:
+        img = ImageOps.invert(img.convert("RGB"))
+
+    w, h = img.size
+
+    # 2. Add border padding so edge characters/punctuation are not clipped by detector
+    pad_px = max(8, min(24, int(min(w, h) * 0.1)))
+    fill_color = (255, 255, 255) if is_dark else (0, 0, 0)
+    try:
+        img = ImageOps.expand(img, border=pad_px, fill=fill_color)
+    except Exception:
+        img = ImageOps.expand(img, border=pad_px, fill=0)
 
     w, h = img.size
     effective_scale = scale
-    # Auto-upscale small or thin-font crops (height < 220px or width < 450px)
-    if effective_scale == 1 and (h < 220 or w < 450):
-        effective_scale = 2
+    # Auto-upscale small or thin-font crops (height < 250px or width < 500px)
+    if effective_scale == 1 and (h < 250 or w < 500):
+        effective_scale = 3 if h < 100 else 2
 
     if effective_scale > 1:
         img = img.resize((w * effective_scale, h * effective_scale), Image.LANCZOS)
 
     img = img.convert("RGB")
 
-    # Boost contrast for faint/placeholder/dark-theme text
+    # 3. Boost contrast for faint/placeholder text
     try:
         enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(1.4)
+        img = enhancer.enhance(1.8)
         # Subtle sharpening to make thin stroke edges crisp for CRAFT detector
-        img = img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=130, threshold=2))
+        img = img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=140, threshold=2))
     except Exception:
         pass
 
@@ -266,11 +284,11 @@ def _extract_single(image: Image.Image) -> str:
     results = reader.readtext(
         img_np,
         contrast_ths=0.05,
-        adjust_contrast=0.7,
-        text_threshold=0.5,
-        link_threshold=0.3,
-        mag_ratio=1.4,
-        add_margin=0.15,
+        adjust_contrast=0.8,
+        text_threshold=0.4,
+        link_threshold=0.2,
+        mag_ratio=1.5,
+        add_margin=0.2,
     )
     logging.debug(f"reader.readtext returned {len(results)} raw detections.")
 

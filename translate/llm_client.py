@@ -511,7 +511,7 @@ def detect_and_translate(
     user_prompt = f"Translate to {target_lang}:\n\n{text}"
 
     model_for = {
-        "openrouter": getattr(config, "OPENROUTER_MODEL", config.LLM_MODEL),
+        "openrouter": config.LLM_MODEL or "openai/gpt-oss-20b:free",
         "anthropic": getattr(config, "ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414"),
     }
 

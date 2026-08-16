@@ -862,7 +862,7 @@ class SettingsWidget(QWidget):
             self._engine_combo.setCurrentIndex(idx_eng)
 
         # LLM model — select preset or enable custom model field
-        current_model = config.OPENROUTER_MODEL or config.LLM_MODEL or "openai/gpt-oss-20b:free"
+        current_model = config.LLM_MODEL or "openai/gpt-oss-20b:free"
         found_idx = self._model_combo.findData(current_model)
         if found_idx >= 0 and current_model != "__custom__":
             self._model_combo.setCurrentIndex(found_idx)
