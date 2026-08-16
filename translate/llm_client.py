@@ -151,49 +151,61 @@ def _call_provider(
     if provider == "openrouter":
         if on_chunk is not None:
             # A5: streaming path
-            stream = client.chat.completions.create(
-                model=model,
-                max_tokens=max_tok,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                extra_headers={
-                    "HTTP-Referer": "https://github.com/your-username/overlay-translator",
-                    "X-Title": "Overlay Translator",
-                },
-                stream=True,
-            )
-            chunks: list[str] = []
-            for chunk in stream:
-                delta = chunk.choices[0].delta.content if chunk.choices else None
-                if delta:
-                    chunks.append(delta)
-                    on_chunk("".join(chunks))
-            result = "".join(chunks).strip()
-            if not result:
-                raise RuntimeError("OpenRouter API (stream) вернул пустой текст ответа.")
-            return result
-        else:
-            # non-streaming path (fallback / retry uses this)
-            response = client.chat.completions.create(
-                model=model,
-                max_tokens=max_tok,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                extra_headers={
-                    "HTTP-Referer": "https://github.com/your-username/overlay-translator",
-                    "X-Title": "Overlay Translator",
-                },
-            )
-            if not response or not getattr(response, "choices", None):
-                raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}).")
-            choice = response.choices[0]
-            if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
-                raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
-            return choice.message.content.strip()
+            try:
+                stream = client.chat.completions.create(
+                    model=model,
+                    max_tokens=max_tok,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    extra_headers={
+                        "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                        "X-Title": "Overlay Translator",
+                    },
+                    extra_body={"include_reasoning": False},
+                    stream=True,
+                )
+                chunks: list[str] = []
+                for chunk in stream:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+                    text = (
+                        getattr(delta, "content", None)
+                        or getattr(delta, "reasoning", None)
+                        or getattr(delta, "reasoning_content", None)
+                    )
+                    if text:
+                        chunks.append(text)
+                        on_chunk("".join(chunks))
+                result = "".join(chunks).strip()
+                if result:
+                    return result
+            except Exception as stream_err:
+                _logger.warning("Streaming error on %s: %s (falling back to standard call)", model, stream_err)
+
+            _logger.info("Stream yielded empty text, falling back to non-streaming call for %s...", model)
+
+        # non-streaming path (fallback / retry / standard mode)
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=max_tok,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            extra_headers={
+                "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                "X-Title": "Overlay Translator",
+            },
+        )
+        if not response or not getattr(response, "choices", None):
+            raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}).")
+        choice = response.choices[0]
+        if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
+            raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
+        return choice.message.content.strip()
 
     if provider == "anthropic":
         # A4: use dynamic ceiling instead of hard-coded 2048
