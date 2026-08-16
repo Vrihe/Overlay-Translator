@@ -158,6 +158,24 @@ class _LiveConfig:
         from settings.config_manager import set_value
         set_value("enable_streaming", value)
 
+    @property
+    def COMPACT_PROMPT(self):
+        return _cfg("compact_prompt")
+
+    @COMPACT_PROMPT.setter
+    def COMPACT_PROMPT(self, value):
+        from settings.config_manager import set_value
+        set_value("compact_prompt", value)
+
+    @property
+    def LLM_MAX_TOKENS(self):
+        return _cfg("llm_max_tokens")
+
+    @LLM_MAX_TOKENS.setter
+    def LLM_MAX_TOKENS(self, value):
+        from settings.config_manager import set_value
+        set_value("llm_max_tokens", value)
+
     # ── Static (from .env / hardcoded) ───────────────────
 
     MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))

@@ -526,10 +526,29 @@ class SettingsWidget(QWidget):
         self._chk_streaming.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 4px;"))
         trans_layout.addWidget(self._chk_streaming)
 
+        # Compact prompt checkbox
+        self._chk_compact_prompt = QCheckBox("Компактный системный промпт (ускорение отклика)")
+        self._chk_compact_prompt.setToolTip("Сокращает служебные инструкции запроса, ускоряя начало ответа модели на ~30–50%")
+        self._chk_compact_prompt.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 2px;"))
+        trans_layout.addWidget(self._chk_compact_prompt)
+
         # D1: OCR preview checkbox
         self._chk_ocr_preview = QCheckBox("Предпросмотр и правка OCR-текста перед переводом")
         self._chk_ocr_preview.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 2px;"))
         trans_layout.addWidget(self._chk_ocr_preview)
+
+        # Max tokens row
+        tokens_row = QHBoxLayout()
+        lbl_tokens = QLabel("Макс. токенов ответа:")
+        lbl_tokens.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
+        self._tokens_spin = QSpinBox()
+        self._tokens_spin.setRange(50, 2000)
+        self._tokens_spin.setSingleStep(50)
+        self._tokens_spin.setSuffix(" токенов")
+        self._tokens_spin.setStyleSheet(self._INPUT_CSS)
+        tokens_row.addWidget(lbl_tokens)
+        tokens_row.addWidget(self._tokens_spin, 1)
+        trans_layout.addLayout(tokens_row)
 
         # Popup timeout
         timeout_row = QHBoxLayout()
@@ -859,9 +878,11 @@ class SettingsWidget(QWidget):
                 self._custom_model_row_widget.setVisible(True)
         self._on_model_changed(self._model_combo.currentIndex())  # update hint
 
-        # Streaming & OCR Preview
+        # Translation options
         self._chk_streaming.setChecked(bool(getattr(config, "ENABLE_STREAMING", True)))
+        self._chk_compact_prompt.setChecked(bool(getattr(config, "COMPACT_PROMPT", True)))
         self._chk_ocr_preview.setChecked(bool(getattr(config, "ENABLE_OCR_PREVIEW", False)))
+        self._tokens_spin.setValue(int(getattr(config, "LLM_MAX_TOKENS", 350)))
 
         # Popup timeout.
         self._timeout_spin.setValue(config.POPUP_TIMEOUT_SEC)
@@ -958,7 +979,9 @@ class SettingsWidget(QWidget):
             cfg["primary_provider"] = primary_choice
             cfg["enable_fallback"] = self._chk_fallback.isChecked()
             cfg["enable_streaming"] = self._chk_streaming.isChecked()
+            cfg["compact_prompt"] = self._chk_compact_prompt.isChecked()
             cfg["enable_ocr_preview"] = self._chk_ocr_preview.isChecked()
+            cfg["llm_max_tokens"] = self._tokens_spin.value()
             cfg["active_domain"] = new_domain or cfg.get("active_domain", "general")
             cfg["source_language"] = new_src_lang or cfg.get("source_language", "auto")
             cfg["target_language"] = new_lang or cfg["target_language"]

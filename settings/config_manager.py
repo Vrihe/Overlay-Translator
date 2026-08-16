@@ -59,6 +59,8 @@ DEFAULTS: dict[str, Any] = {
     "enable_fallback": True,               # True | False
     "enable_streaming": True,              # True | False (A5: live token streaming in UI)
     "enable_ocr_preview": False,           # True | False (D1: preview/edit OCR before translation)
+    "compact_prompt": True,                # True | False (concise system prompt for ~40% faster TTFT)
+    "llm_max_tokens": 350,                 # int: max completion tokens (50 - 2000)
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
     "notification_type": "popup",          # "popup" | "windows_toast"

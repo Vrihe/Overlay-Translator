@@ -133,13 +133,11 @@ def reset_client() -> None:
 
 
 def _dynamic_max_tokens(text: str) -> int:
-    """A4: Estimate a reasonable max_tokens ceiling based on input length.
-
-    Translation output is rarely longer than the input × 2.
-    Clamp to [64, 1024] to avoid both truncation and over-reservation.
-    """
+    """Estimate a reasonable max_tokens ceiling based on input length & user config."""
+    config_max = int(getattr(config, "LLM_MAX_TOKENS", 350))
     word_count = len(text.split())
-    return max(64, min(1024, word_count * 4))
+    dynamic = max(64, word_count * 4)
+    return min(config_max, dynamic) if config_max > 0 else dynamic
 
 
 def _call_provider(
@@ -150,17 +148,14 @@ def _call_provider(
     user_prompt: str,
     on_chunk=None,  # A5: optional callable(partial_text: str) for streaming
 ) -> str:
-    """Execute a single LLM API call for *provider*. Raise exception on error.
-
-    If *on_chunk* is provided the response is streamed and *on_chunk* is called
-    with the accumulated partial translation after every received token.
-    Streaming is supported for OpenRouter (OpenAI-compatible) and Anthropic.
-    """
+    """Execute a single LLM API call for *provider*. Raise exception on error."""
+    max_tok = _dynamic_max_tokens(user_prompt)
     if provider == "openrouter":
         if on_chunk is not None:
             # A5: streaming path
             stream = client.chat.completions.create(
                 model=model,
+                max_tokens=max_tok,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -185,6 +180,7 @@ def _call_provider(
             # non-streaming path (fallback / retry uses this)
             response = client.chat.completions.create(
                 model=model,
+                max_tokens=max_tok,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -469,31 +465,50 @@ def detect_and_translate(
     base_sys_prompt = profile.get("system_prompt", "")
     few_shots = profile.get("few_shot_examples", [])
 
-    sys_parts = [
-        "You are an expert translator and OCR text restorer.",
-        "The input text is extracted via screen OCR and may contain garbled characters, typos (e.g., 'malnpy' -> 'main.py'), or mixed scripts.",
-        "Your task:",
-        "1. Determine the source language of the text.",
-        "2. Fix any OCR typos/garbled characters in the input.",
-        f"3. Translate the restored text into {target_lang}.",
-        "4. If the input contains code filenames, technical terms, or English words, translate them into Russian while fixing OCR errors.",
-    ]
-    if base_sys_prompt:
-        sys_parts.append(f"Domain Guidelines: {base_sys_prompt}")
+    compact = getattr(config, "COMPACT_PROMPT", True)
+    if compact:
+        sys_parts = [
+            f"Fix OCR typos and translate accurately to {target_lang}.",
+        ]
+        if base_sys_prompt:
+            sys_parts.append(base_sys_prompt)
+        if few_shots:
+            for ex in few_shots[:3]:
+                s_ex = ex.get("source", "").strip()
+                t_ex = ex.get("translation", "").strip()
+                if s_ex and t_ex:
+                    sys_parts.append(f"\"{s_ex}\" -> \"{t_ex}\"")
+        sys_parts.append(
+            "Reply in EXACTLY this format (two lines, nothing else):\n"
+            "LANG: <ISO 639-1 code>\n"
+            "<translation>"
+        )
+    else:
+        sys_parts = [
+            "You are an expert translator and OCR text restorer.",
+            "The input text is extracted via screen OCR and may contain garbled characters, typos (e.g., 'malnpy' -> 'main.py'), or mixed scripts.",
+            "Your task:",
+            "1. Determine the source language of the text.",
+            "2. Fix any OCR typos/garbled characters in the input.",
+            f"3. Translate the restored text into {target_lang}.",
+            "4. If the input contains code filenames, technical terms, or English words, translate them into Russian while fixing OCR errors.",
+        ]
+        if base_sys_prompt:
+            sys_parts.append(f"Domain Guidelines: {base_sys_prompt}")
 
-    if few_shots:
-        sys_parts.append("Translation Examples:")
-        for ex in few_shots:
-            s_ex = ex.get("source", "").strip()
-            t_ex = ex.get("translation", "").strip()
-            if s_ex and t_ex:
-                sys_parts.append(f"• \"{s_ex}\" → \"{t_ex}\"")
+        if few_shots:
+            sys_parts.append("Translation Examples:")
+            for ex in few_shots:
+                s_ex = ex.get("source", "").strip()
+                t_ex = ex.get("translation", "").strip()
+                if s_ex and t_ex:
+                    sys_parts.append(f"• \"{s_ex}\" → \"{t_ex}\"")
 
-    sys_parts.append(
-        "Reply in EXACTLY this format (two lines, nothing else):\n"
-        "LANG: <ISO 639-1 two-letter code>\n"
-        "<translated text>"
-    )
+        sys_parts.append(
+            "Reply in EXACTLY this format (two lines, nothing else):\n"
+            "LANG: <ISO 639-1 two-letter code>\n"
+            "<translated text>"
+        )
     system_prompt = "\n".join(sys_parts)
     user_prompt = f"Translate to {target_lang}:\n\n{text}"
 
