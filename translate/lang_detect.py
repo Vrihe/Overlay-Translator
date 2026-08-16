@@ -69,6 +69,52 @@ def detect_source_lang(text: str, detector: 'LangDetector',
     return detector.detect(text)
 
 
+def is_same_language(
+    text: str,
+    target_lang: str,
+    source_lang: str | None = None,
+) -> tuple[bool, str]:
+    """Check if *text* is already in *target_lang*, skipping redundant translation.
+
+    Uses a fast multi-tier check (0 ms):
+      1. Explicit source_lang setting (if not 'auto')
+      2. Unicode script matching (Cyrillic script -> Russian/Cyrillic target)
+      3. Offline ML classifier (langid, if installed & confident)
+
+    Returns
+    -------
+    tuple[bool, str]
+        (is_same, detected_or_known_language_code)
+    """
+    if not text or not text.strip():
+        return False, ""
+
+    tgt = target_lang.strip().lower()
+
+    # 1. Explicit source_lang check
+    if source_lang and source_lang.strip().lower() != "auto":
+        src = source_lang.strip().lower()
+        if src == tgt:
+            return True, src
+
+    # 2. Fast Unicode Script Check (instant, 0 ms)
+    # If target is Russian (or other Cyrillic language) and text is Cyrillic:
+    script = detect_script(text)
+    if script == "cyrillic" and tgt in ("ru", "uk", "bg", "be", "mk", "sr", "kk"):
+        return True, "ru"
+
+    # 3. Offline ML classification via langid
+    try:
+        detector = get_detector("langid")
+        detected = detect_source_lang(text, detector)
+        if detected and detected.strip().lower() == tgt:
+            return True, detected
+    except Exception:
+        pass
+
+    return False, ""
+
+
 class LangDetector(ABC):
     """Abstract base for language detectors."""
 

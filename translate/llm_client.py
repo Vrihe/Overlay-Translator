@@ -359,6 +359,14 @@ def translate(
     if domain_id is None:
         domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
 
+    # 0. Fast-path: Same language check (instant, 0 ms)
+    from translate.lang_detect import is_same_language
+    is_same, detected_or_known = is_same_language(text, target_lang, source_lang=source_lang)
+    if is_same:
+        _logger.info("FAST PATH (same language) | src=%s == target=%s | skipping API call", detected_or_known, target_lang)
+        save_to_cache(text, source_lang, target_lang, text, domain_id=domain_id)
+        return text
+
     # 1. Cache lookup — streaming skipped on cache hit (result is instant).
     cached = get_cached(text, source_lang, target_lang, domain_id=domain_id)
     if cached is not None:
@@ -440,6 +448,14 @@ def detect_and_translate(
         target_lang = config.TARGET_LANG
     if domain_id is None:
         domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
+
+    # 0. Fast-path: Same language check (instant, 0 ms)
+    from translate.lang_detect import is_same_language
+    is_same, detected_or_known = is_same_language(text, target_lang, source_lang=getattr(config, "SOURCE_LANG", "auto"))
+    if is_same:
+        _logger.info("FAST PATH (same language) | detected=%s == target=%s | skipping API call", detected_or_known, target_lang)
+        save_to_cache(text, "_auto", target_lang, text, domain_id=domain_id)
+        return detected_or_known, text
 
     cached = get_cached(text, "_auto", target_lang, domain_id=domain_id)
     if cached is not None:
