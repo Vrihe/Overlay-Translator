@@ -69,6 +69,7 @@ _OPENROUTER_MODELS: list[tuple[str, str]] = [
     ("openai/gpt-oss-20b:free",      "GPT OSS 20B (free)"),
     ("google/gemma-4-31b-it:free",  "Google Gemma 4 31B (free)"),
     ("poolside/laguna-s-2.1:free",  "Poolside Laguna S 2.1 (free)"),
+    ("__custom__",                  "Другая модель..."),
 ]
 
 # B3: Short hints shown below the model combo for preset models.
@@ -76,6 +77,7 @@ _MODEL_HINTS: dict[str, str] = {
     "openai/gpt-oss-20b:free":      "✶ Бесплатно · Базовая открытая модель",
     "google/gemma-4-31b-it:free":  "✶ Бесплатно · Новая мощная открытая модель Google",
     "poolside/laguna-s-2.1:free":  "✶ Бесплатно · Быстрая компактная модель для перевода",
+    "__custom__":                  "Впишите точный ID модели с сайта openrouter.ai",
 }
 
 
@@ -464,38 +466,35 @@ class SettingsWidget(QWidget):
         engine_row.addWidget(self._engine_combo, 1)
         trans_layout.addLayout(engine_row)
 
-        # LLM model — B1: editable QComboBox with preset groups + refresh button
+        # LLM model — Standard clean dropdown matching other settings + custom model field
         model_row = QHBoxLayout()
         lbl_model = QLabel("LLM-модель:")
         lbl_model.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
 
         self._model_combo = QComboBox()
-        self._model_combo.setEditable(True)
-        self._model_combo.setInsertPolicy(QComboBox.NoInsert)
+        self._model_combo.setEditable(False)
         self._model_combo.setMaxVisibleItems(10)
         self._model_combo.setStyleSheet(self._INPUT_CSS)
-        self._model_combo.lineEdit().setPlaceholderText("Введите ID модели или выберите из списка...")
         self._populate_model_combo()
-        self._model_combo.currentIndexChanged.connect(self._on_model_changed)  # B3
-
-        self._btn_refresh_models = QPushButton("↻")
-        self._btn_refresh_models.setFixedSize(30, 30)
-        self._btn_refresh_models.setCursor(Qt.PointingHandCursor)
-        self._btn_refresh_models.setToolTip("Загрузить актуальный список моделей с OpenRouter")
-        self._btn_refresh_models.setStyleSheet(
-            "QPushButton {"
-            "  background: #2a2a3e; color: #7ca5f5; border: 1px solid #5b8def;"
-            "  border-radius: 6px; font-size: 12pt; font-weight: bold;"
-            "}"
-            "QPushButton:hover { background: #3a3a5c; }"
-            "QPushButton:disabled { color: #555; border-color: #444; }"
-        )
-        self._btn_refresh_models.clicked.connect(self._on_refresh_models)  # B2
+        self._model_combo.currentIndexChanged.connect(self._on_model_changed)
 
         model_row.addWidget(lbl_model)
         model_row.addWidget(self._model_combo, 1)
-        model_row.addWidget(self._btn_refresh_models)
         trans_layout.addLayout(model_row)
+
+        # Custom model input (visible only when "Другая модель..." is selected)
+        self._custom_model_row_widget = QWidget()
+        custom_row_layout = QHBoxLayout(self._custom_model_row_widget)
+        custom_row_layout.setContentsMargins(0, 2, 0, 2)
+        lbl_custom_model = QLabel("ID модели:")
+        lbl_custom_model.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._custom_model_edit = QLineEdit()
+        self._custom_model_edit.setPlaceholderText("например: meta-llama/llama-3.3-70b-instruct")
+        self._custom_model_edit.setStyleSheet(self._INPUT_CSS)
+        custom_row_layout.addWidget(lbl_custom_model)
+        custom_row_layout.addWidget(self._custom_model_edit, 1)
+        self._custom_model_row_widget.setVisible(False)
+        trans_layout.addWidget(self._custom_model_row_widget)
 
         # B3: hint label
         self._model_hint = QLabel("")
@@ -745,117 +744,29 @@ class SettingsWidget(QWidget):
     # ── Model combo helpers (B1/B2/B3) ───────────────────
 
     def _populate_model_combo(self, models: list[tuple[str, str]] | None = None) -> None:
-        """Fill the model QComboBox from *models* (or the default _OPENROUTER_MODELS).
-
-        Group-separator entries (id starts with ``__sep_``) are rendered as
-        disabled, non-selectable headers to visually divide free vs paid models.
-        """
+        """Fill the model QComboBox from *models* (or the default _OPENROUTER_MODELS)."""
         source = models if models is not None else _OPENROUTER_MODELS
-        saved_text = self._model_combo.currentText() if self._model_combo.count() > 0 else ""
+        saved_data = self._model_combo.currentData() if self._model_combo.count() > 0 else None
         self._model_combo.blockSignals(True)
         self._model_combo.clear()
         for model_id, display in source:
             self._model_combo.addItem(display, model_id)
-            if model_id.startswith("__sep_"):
-                idx = self._model_combo.count() - 1
-                item = self._model_combo.model().item(idx)
-                if item is not None:
-                    item.setFlags(item.flags() & ~Qt.ItemIsEnabled & ~Qt.ItemIsSelectable)
-                    item.setData(
-                        self._css("color: #555; font-size: 8.5pt; font-style: italic;"),
-                        Qt.UserRole + 1,
-                    )
         self._model_combo.blockSignals(False)
 
-        # Restore previously selected/typed value
-        if saved_text:
-            found = self._model_combo.findData(saved_text)
+        # Restore previously selected value
+        if saved_data:
+            found = self._model_combo.findData(saved_data)
             if found >= 0:
                 self._model_combo.setCurrentIndex(found)
-            else:
-                self._model_combo.setCurrentText(saved_text)
 
     def _on_model_changed(self, index: int) -> None:
-        """B3: Show a short hint below the combo for known preset models."""
+        """Show a short hint below the combo and toggle the custom model field."""
         model_id = self._model_combo.itemData(index)
-        if model_id and not str(model_id).startswith("__sep_"):
-            hint = _MODEL_HINTS.get(str(model_id), "")
-        else:
-            # Separator or custom text — try the raw text
-            raw = self._model_combo.currentText().strip()
-            hint = _MODEL_HINTS.get(raw, "")
+        is_custom = (model_id == "__custom__")
+        if hasattr(self, "_custom_model_row_widget"):
+            self._custom_model_row_widget.setVisible(is_custom)
+        hint = _MODEL_HINTS.get(str(model_id), "")
         self._model_hint.setText(hint)
-
-    def _on_refresh_models(self) -> None:
-        """B2: Fetch the live model list from OpenRouter API in a daemon thread."""
-        self._btn_refresh_models.setEnabled(False)
-        self._btn_refresh_models.setText("…")
-        import threading
-        threading.Thread(target=self._fetch_models_thread, daemon=True).start()
-
-    def _fetch_models_thread(self) -> None:
-        """Background thread: download model list and signal the UI to update."""
-        import urllib.request
-        import json
-        try:
-            req = urllib.request.Request(
-                "https://openrouter.ai/api/v1/models",
-                headers={"User-Agent": "OverlayTranslator/1.0"},
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read())
-            raw_models: list[dict] = data.get("data", [])
-
-            free = [
-                (m["id"], m.get("name") or m["id"])
-                for m in raw_models
-                if m.get("id", "").endswith(":free")
-            ]
-            paid = [
-                (m["id"], m.get("name") or m["id"])
-                for m in raw_models
-                if not m.get("id", "").endswith(":free")
-            ]
-            # Sort alphabetically within each group
-            free.sort(key=lambda x: x[1].lower())
-            paid.sort(key=lambda x: x[1].lower())
-
-            combined: list[tuple[str, str]] = (
-                [("__sep_free__", "―― Бесплатные ――")]
-                + free
-                + [("__sep_paid__", "―― Платные ――")]
-                + paid
-            )
-            # Update UI from the main thread (thread-safe)
-            QMetaObject.invokeMethod(
-                self,
-                "_apply_fetched_models",
-                Qt.QueuedConnection,
-                Q_ARG("PyQt_PyObject", combined),
-            )
-        except Exception as exc:
-            import logging
-            logging.warning("Failed to fetch OpenRouter models: %s", exc)
-            QMetaObject.invokeMethod(
-                self,
-                "_apply_fetched_models",
-                Qt.QueuedConnection,
-                Q_ARG("PyQt_PyObject", None),
-            )
-
-    def _apply_fetched_models(self, models) -> None:
-        """Slot called on main thread after background fetch completes."""
-        self._btn_refresh_models.setEnabled(True)
-        self._btn_refresh_models.setText("↻")
-        if models is not None:
-            self._populate_model_combo(models)
-            self._model_hint.setText("✓ Список моделей обновлён")
-            QTimer.singleShot(3000, lambda: self._model_hint.setText(
-                _MODEL_HINTS.get(self._model_combo.currentData() or "", "")
-            ))
-        else:
-            self._model_hint.setText("⚠ Не удалось загрузить список. Проверьте подключение к интернету.")
-            QTimer.singleShot(4000, lambda: self._model_hint.setText(""))
 
     # ── Load current values ──────────────────────────────
 
@@ -907,15 +818,21 @@ class SettingsWidget(QWidget):
         if idx_eng >= 0:
             self._engine_combo.setCurrentIndex(idx_eng)
 
-        # LLM model — B1: select or type the current model
-        current_model = config.LLM_MODEL
-        # Try to find it in preset list first
+        # LLM model — select preset or enable custom model field
+        current_model = config.OPENROUTER_MODEL or config.LLM_MODEL or "openai/gpt-oss-20b:free"
         found_idx = self._model_combo.findData(current_model)
-        if found_idx >= 0:
+        if found_idx >= 0 and current_model != "__custom__":
             self._model_combo.setCurrentIndex(found_idx)
+            if hasattr(self, "_custom_model_row_widget"):
+                self._custom_model_row_widget.setVisible(False)
         else:
-            # Not in presets — just put it in the editable field
-            self._model_combo.setCurrentText(current_model)
+            custom_idx = self._model_combo.findData("__custom__")
+            if custom_idx >= 0:
+                self._model_combo.setCurrentIndex(custom_idx)
+            if hasattr(self, "_custom_model_edit"):
+                self._custom_model_edit.setText(current_model)
+            if hasattr(self, "_custom_model_row_widget"):
+                self._custom_model_row_widget.setVisible(True)
         self._on_model_changed(self._model_combo.currentIndex())  # update hint
 
         # OCR Preview (D1)
@@ -1004,12 +921,12 @@ class SettingsWidget(QWidget):
             new_src_lang = self._src_lang_combo.currentData()
             new_lang = self._lang_combo.currentData()
             new_engine = self._engine_combo.currentData()
-            # LLM model — read from editable combo (typed text or selected item)
+            # LLM model
             combo_data = self._model_combo.currentData()
-            if combo_data and not str(combo_data).startswith("__sep_"):
-                new_model = combo_data
+            if combo_data == "__custom__":
+                new_model = self._custom_model_edit.text().strip() or "openai/gpt-oss-20b:free"
             else:
-                new_model = self._model_combo.currentText().strip()
+                new_model = combo_data or "openai/gpt-oss-20b:free"
             new_timeout = self._timeout_spin.value()
 
             cfg = config_manager.load_config()
