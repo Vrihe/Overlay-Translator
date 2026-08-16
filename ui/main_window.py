@@ -25,22 +25,22 @@ from tray.icon_gen import create_tray_icon
 
 class _UpdateCheckWorker(QThread):
     """Worker to check for app updates in background."""
-    finished = pyqtSignal(bool, str, str)  # (has_update, version, url)
+    update_done = pyqtSignal(bool, str, str)  # (has_update, version, url)
 
     def run(self):
         try:
             from updater.check_update import check_for_update
             has_update, version, url = check_for_update()
-            self.finished.emit(has_update, version, url)
+            self.update_done.emit(has_update, version, url)
         except Exception:
-            self.finished.emit(False, "", "")
+            self.update_done.emit(False, "", "")
 
 
 # ── Background worker for text / image translation ───────
 
 class _TextTranslateWorker(QThread):
     """Translate plain text on a background thread."""
-    finished = pyqtSignal(str, str)  # (translated_text, error_message)
+    text_done = pyqtSignal(str, str)  # (translated_text, error_message)
 
     def __init__(self, text: str):
         super().__init__()
@@ -50,14 +50,14 @@ class _TextTranslateWorker(QThread):
         try:
             from translate.llm_client import translate
             result = translate(self._text, domain_id=config.ACTIVE_DOMAIN)
-            self.finished.emit(result, "")
+            self.text_done.emit(result, "")
         except Exception as e:
-            self.finished.emit("", str(e))
+            self.text_done.emit("", str(e))
 
 
 class _ImageTranslateWorker(QThread):
     """OCR + translate an image file on a background thread."""
-    finished = pyqtSignal(str, str, str)  # (source_text, translated_text, error)
+    image_done = pyqtSignal(str, str, str)  # (source_text, translated_text, error)
 
     def __init__(self, filepath: str):
         super().__init__()
@@ -68,28 +68,28 @@ class _ImageTranslateWorker(QThread):
             from PIL import Image
             img = Image.open(self._path)
         except Exception as e:
-            self.finished.emit("", "", f"Ошибка загрузки изображения:\n{e}")
+            self.image_done.emit("", "", f"Ошибка загрузки изображения:\n{e}")
             return
 
         try:
             from ocr.engine import recognise
             text = recognise(img)
         except Exception as e:
-            self.finished.emit("", "", f"Ошибка OCR:\n{e}")
+            self.image_done.emit("", "", f"Ошибка OCR:\n{e}")
             return
 
         if not text:
-            self.finished.emit("", "", "Текст не распознан на изображении.")
+            self.image_done.emit("", "", "Текст не распознан на изображении.")
             return
 
         try:
             from translate.llm_client import translate
             translated = translate(text, domain_id=config.ACTIVE_DOMAIN)
         except Exception as e:
-            self.finished.emit(text, "", f"Ошибка перевода:\n{e}")
+            self.image_done.emit(text, "", f"Ошибка перевода:\n{e}")
             return
 
-        self.finished.emit(text, translated, "")
+        self.image_done.emit(text, translated, "")
 
 
 # ── Sidebar button ───────────────────────────────────────
@@ -380,7 +380,7 @@ class _HomePage(QWidget):
         self._result_text.setVisible(False)
 
         self._text_worker = _TextTranslateWorker(text)
-        self._text_worker.finished.connect(self._on_text_translated)
+        self._text_worker.text_done.connect(self._on_text_translated)
         self._text_worker.start()
 
     def _on_text_translated(self, translated: str, error: str):
@@ -423,7 +423,7 @@ class _HomePage(QWidget):
         self._img_result_text.setVisible(False)
 
         self._image_worker = _ImageTranslateWorker(path)
-        self._image_worker.finished.connect(self._on_image_translated)
+        self._image_worker.image_done.connect(self._on_image_translated)
         self._image_worker.start()
 
     def _on_image_translated(self, source: str, translated: str, error: str):
@@ -510,7 +510,7 @@ class MainWindow(QMainWindow):
     def _start_update_check(self):
         """Launch background thread to check for updates."""
         self._update_worker = _UpdateCheckWorker()
-        self._update_worker.finished.connect(self._on_update_check_finished)
+        self._update_worker.update_done.connect(self._on_update_check_finished)
         self._update_worker.start()
 
     def _on_update_check_finished(self, has_update: bool, version: str, url: str):

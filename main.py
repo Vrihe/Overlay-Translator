@@ -183,9 +183,9 @@ class HotkeyBridge(QObject):
 # ── Worker: Capture → OCR → Translate on background thread ──
 
 class TranslationWorker(QThread):
-    finished = pyqtSignal(str, str, str)      # (source_text, translated_text, error_message)
-    partial_result = pyqtSignal(str)           # A5: incremental translation chunk for streaming UI
-    ocr_done = pyqtSignal(str, QRect)          # D1: OCR finished, emits (recognized_text, anchor)
+    translation_done = pyqtSignal(str, str, str)  # (source_text, translated_text, error_message)
+    partial_result = pyqtSignal(str)              # A5: incremental translation chunk for streaming UI
+    ocr_done = pyqtSignal(str, QRect)             # D1: OCR finished, emits (recognized_text, anchor)
 
     def __init__(self, x1: int, y1: int, x2: int, y2: int, text_override: str | None = None, ocr_only: bool = False):
         super().__init__()
@@ -209,7 +209,7 @@ class TranslationWorker(QThread):
                 image = capture_region(self.x1, self.y1, self.x2, self.y2)
             except Exception as e:
                 logging.exception("Step 1 Failed: Screen capture error")
-                self.finished.emit("", "", f"Ошибка захвата экрана:\n{e}")
+                self.translation_done.emit("", "", f"Ошибка захвата экрана:\n{e}")
                 return
 
             try:
@@ -217,12 +217,12 @@ class TranslationWorker(QThread):
                 text = recognise(image)
             except Exception as e:
                 logging.exception("Step 2 Failed: OCR recognition error")
-                self.finished.emit("", "", f"Ошибка OCR:\n{e}")
+                self.translation_done.emit("", "", f"Ошибка OCR:\n{e}")
                 return
 
             if not text:
                 logging.info("Step 2 Result: No text recognized in region.")
-                self.finished.emit("", "", "Текст не распознан.\nПопробуйте выделить область точнее.")
+                self.translation_done.emit("", "", "Текст не распознан.\nПопробуйте выделить область точнее.")
                 return
 
             # D1: If ocr_only, emit ocr_done and stop here
@@ -245,10 +245,10 @@ class TranslationWorker(QThread):
                 )
         except Exception as e:
             logging.exception("Step 3 Failed: Translation error")
-            self.finished.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
+            self.translation_done.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
             return
 
-        self.finished.emit(text, translated, "")
+        self.translation_done.emit(text, translated, "")
 
 
 # ── Background OCR engine warm-up ───────────────────────
@@ -430,7 +430,7 @@ class TranslatorApp:
 
         # Start translation pipeline in background thread
         self._worker = TranslationWorker(x1, y1, x2, y2, text_override=text_override)
-        self._worker.finished.connect(
+        self._worker.translation_done.connect(
             lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor)
         )
         self._worker.partial_result.connect(
@@ -522,7 +522,6 @@ class TranslatorApp:
 
     def _on_translation_finished(self, source: str, translated: str, error_msg: str, anchor: QRect) -> None:
         try:
-            self._worker = None
             if error_msg:
                 logging.warning(f"Translation finished with error: {error_msg}")
                 self._show_error(error_msg, anchor)
