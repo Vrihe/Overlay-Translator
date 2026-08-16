@@ -63,47 +63,19 @@ _ENGINES = [
     ("api",        "OCR → Google/DeepL API"),
 ]
 
-# B1: Preset list of popular OpenRouter models, grouped by cost.
+# B1: Preset list of OpenRouter models requested by user.
 # (model_id, display_name) — model_id is used as QComboBox itemData.
 _OPENROUTER_MODELS: list[tuple[str, str]] = [
-    # (”― Free models ” group separator — data=None marks disabled header items)
-    ("__sep_free__", "―― Бесплатные ――"),
-    ("google/gemini-2.0-flash-lite-preview-02-05:free", "Gemini 2.0 Flash Lite (free) ⚡"),
-    ("google/gemini-2.0-flash-exp:free",                "Gemini 2.0 Flash Exp (free)"),
-    ("google/gemma-4-31b-it:free",                     "Google Gemma 4 31B (free)"),
-    ("poolside/laguna-s-2.1:free",                     "Poolside Laguna S 2.1 (free)"),
-    ("meta-llama/llama-3.1-8b-instruct:free",           "Llama 3.1 8B (free)"),
-    ("mistralai/mistral-7b-instruct:free",             "Mistral 7B Instruct (free)"),
-    ("openai/gpt-oss-20b:free",                         "GPT OSS 20B (free)"),
-    ("qwen/qwen-2.5-7b-instruct:free",                  "Qwen 2.5 7B (free)"),
-    ("microsoft/phi-3-mini-128k-instruct:free",         "Phi-3 Mini 128K (free)"),
-    # (”― Paid models ” group separator)
-    ("__sep_paid__", "―― Платные ――"),
-    ("openai/gpt-4o-mini",                              "GPT-4o Mini"),
-    ("openai/gpt-4o",                                   "GPT-4o"),
-    ("anthropic/claude-3-5-haiku",                      "Claude 3.5 Haiku"),
-    ("anthropic/claude-3-5-sonnet",                     "Claude 3.5 Sonnet"),
-    ("google/gemini-flash-1.5",                         "Gemini 1.5 Flash"),
-    ("meta-llama/llama-3.3-70b-instruct",               "Llama 3.3 70B"),
+    ("openai/gpt-oss-20b:free",      "GPT OSS 20B (free)"),
+    ("google/gemma-4-31b-it:free",  "Google Gemma 4 31B (free)"),
+    ("poolside/laguna-s-2.1:free",  "Poolside Laguna S 2.1 (free)"),
 ]
 
 # B3: Short hints shown below the model combo for preset models.
 _MODEL_HINTS: dict[str, str] = {
-    "google/gemini-2.0-flash-lite-preview-02-05:free": "✶ Бесплатно · ~0.3–0.8 сек · Ультрабыстрая модель Google (рекомендуется)",
-    "google/gemini-2.0-flash-exp:free":                "✶ Бесплатно · ~0.5–1 сек · Очень быстрая",
-    "google/gemma-4-31b-it:free":                     "✶ Бесплатно · ~1–3 сек · Новая мощная открытая модель Google",
-    "poolside/laguna-s-2.1:free":                     "✶ Бесплатно · ~0.5–1.5 сек · Быстрая компактная модель для генерации и перевода",
-    "meta-llama/llama-3.1-8b-instruct:free":           "✶ Бесплатно · ~0.8–1.5 сек · Быстрый и лёгкий",
-    "mistralai/mistral-7b-instruct:free":             "✶ Бесплатно · ~0.8–1.5 сек · Быстрая европейская модель",
-    "openai/gpt-oss-20b:free":                         "✶ Бесплатно · ~5–25 сек · Хорошее качество, но возможны очереди",
-    "qwen/qwen-2.5-7b-instruct:free":                  "✶ Бесплатно · ~1–2 сек · Хорош для азиатских языков",
-    "microsoft/phi-3-mini-128k-instruct:free":         "✶ Бесплатно · ~1–2 сек · Компактная модель",
-    "openai/gpt-4o-mini":                              "$ Платно · ~0.5–2 сек · Лучший баланс цена/качество",
-    "openai/gpt-4o":                                   "$$ Платно · ~1–4 сек · Высокое качество",
-    "anthropic/claude-3-5-haiku":                      "$ Платно · ~0.5–1.5 сек · Самая быстрая платная",
-    "anthropic/claude-3-5-sonnet":                     "$$ Платно · ~1–3 сек · Очень высокое качество",
-    "google/gemini-flash-1.5":                         "$ Платно · ~0.5–1 сек · Быстрый Google",
-    "meta-llama/llama-3.3-70b-instruct":               "$ Платно · ~1–3 сек · Мощная открытая модель",
+    "openai/gpt-oss-20b:free":      "✶ Бесплатно · Базовая открытая модель",
+    "google/gemma-4-31b-it:free":  "✶ Бесплатно · Новая мощная открытая модель Google",
+    "poolside/laguna-s-2.1:free":  "✶ Бесплатно · Быстрая компактная модель для перевода",
 }
 
 
@@ -500,6 +472,7 @@ class SettingsWidget(QWidget):
         self._model_combo = QComboBox()
         self._model_combo.setEditable(True)
         self._model_combo.setInsertPolicy(QComboBox.NoInsert)
+        self._model_combo.setMaxVisibleItems(10)
         self._model_combo.setStyleSheet(self._INPUT_CSS)
         self._model_combo.lineEdit().setPlaceholderText("Введите ID модели или выберите из списка...")
         self._populate_model_combo()
