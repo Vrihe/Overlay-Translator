@@ -167,6 +167,46 @@ def save_to_cache(
         _evict_old_records(conn)  # C4: keep cache bounded
 
 
+def warm_cache(limit: int = 50) -> int:
+    """Pre-populate the in-memory L1 cache with recent translations from SQLite.
+
+    Returns the number of entries loaded.
+    """
+    try:
+        conn = _get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT source_text, source_lang, target_lang, domain_id, translated_text
+            FROM translations
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+        loaded = 0
+        with _mem_cache_lock:
+            # Insert in reverse order so the newest items are marked most recently used
+            for row in reversed(rows):
+                key = (
+                    row["source_text"],
+                    row["source_lang"],
+                    row["target_lang"],
+                    row["domain_id"],
+                )
+                _mem_cache[key] = row["translated_text"]
+                _mem_cache.move_to_end(key)
+                if len(_mem_cache) > _MEM_CACHE_SIZE:
+                    _mem_cache.popitem(last=False)
+                loaded += 1
+        return loaded
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to warm cache from history: {e}")
+        return 0
+
+
 def get_all_history(limit: int = 200) -> list[dict]:
     """Retrieve history records sorted by timestamp descending."""
     conn = _get_connection()

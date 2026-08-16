@@ -332,10 +332,19 @@ class TranslatorApp:
         except Exception:
             logging.exception("Failed to register global hotkeys")
 
-        # Schedule OCR engine warm-up 3 s after app start.
-        # This ensures the heavy EasyOCR models are loaded before the first user request.
+        # Schedule cache warm-up (100 ms) and OCR engine warm-up (3 s) after app start.
+        QTimer.singleShot(100, self._warm_up_cache)
         self._ocr_warmup: OcrWarmupWorker | None = None
         QTimer.singleShot(3000, self._warm_up_ocr)
+
+    def _warm_up_cache(self) -> None:
+        """Pre-load recent translations into L1 in-memory cache."""
+        try:
+            from cache.store import warm_cache
+            count = warm_cache(limit=50)
+            logging.info(f"Cache warmed with {count} recent translations from history.")
+        except Exception:
+            logging.exception("Failed to warm translation cache")
 
     def _warm_up_ocr(self) -> None:
         """Launch the OCR warm-up worker (called once via QTimer)."""
