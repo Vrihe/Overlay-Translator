@@ -432,12 +432,11 @@ def translate(
             _in_flight.pop(coal_key, None)
 
 
-# ── Combined detect + translate (single LLM call) ───────
-
 def detect_and_translate(
     text: str,
     target_lang: str | None = None,
     domain_id: str | None = None,
+    on_chunk=None,
 ) -> tuple[str, str]:
     """Detect the source language *and* translate in a single LLM call with domain profile."""
     text = text.strip()
@@ -503,7 +502,23 @@ def detect_and_translate(
         "anthropic": getattr(config, "ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414"),
     }
 
-    raw, provider = _call_with_resilience(system_prompt, user_prompt, model_for)
+    def _streaming_filter(accumulated: str) -> None:
+        if on_chunk is None:
+            return
+        lines = accumulated.split("\n", 1)
+        if len(lines) >= 2:
+            clean_partial = lines[1].lstrip()
+            if clean_partial:
+                on_chunk(clean_partial)
+        elif not accumulated.upper().startswith("LANG:"):
+            on_chunk(accumulated)
+
+    raw, provider = _call_with_resilience(
+        system_prompt,
+        user_prompt,
+        model_for,
+        on_chunk=_streaming_filter if on_chunk is not None else None,
+    )
     model = model_for.get(provider, config.LLM_MODEL)
 
     elapsed = time.perf_counter() - t0

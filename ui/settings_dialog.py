@@ -343,8 +343,26 @@ class SettingsWidget(QWidget):
         "QLineEdit:focus, QComboBox:focus, QSpinBox:focus {"
         "  border-color: #5b8def;"
         "}"
+        "QComboBox {"
+        "  padding-right: 24px;"
+        "}"
         "QComboBox::drop-down {"
-        "  border: none; padding-right: 8px;"
+        "  subcontrol-origin: padding;"
+        "  subcontrol-position: top right;"
+        "  width: 22px;"
+        "  border: none;"
+        "}"
+        "QComboBox::down-arrow {"
+        "  image: none;"
+        "  width: 0px;"
+        "  height: 0px;"
+        "  border-left: 4px solid transparent;"
+        "  border-right: 4px solid transparent;"
+        "  border-top: 5px solid #8888aa;"
+        "  margin-right: 6px;"
+        "}"
+        "QComboBox::down-arrow:hover {"
+        "  border-top: 5px solid #5b8def;"
         "}"
         "QComboBox QAbstractItemView {"
         "  background: #2a2a3e; color: #e0e0e0;"
@@ -502,9 +520,15 @@ class SettingsWidget(QWidget):
         self._model_hint.setWordWrap(True)
         trans_layout.addWidget(self._model_hint)
 
+        # Streaming checkbox
+        self._chk_streaming = QCheckBox("Потоковый вывод перевода (Streaming)")
+        self._chk_streaming.setToolTip("Выводить перевод слово за словом сразу по мере генерации ответа моделью")
+        self._chk_streaming.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 4px;"))
+        trans_layout.addWidget(self._chk_streaming)
+
         # D1: OCR preview checkbox
         self._chk_ocr_preview = QCheckBox("Предпросмотр и правка OCR-текста перед переводом")
-        self._chk_ocr_preview.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 4px;"))
+        self._chk_ocr_preview.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 2px;"))
         trans_layout.addWidget(self._chk_ocr_preview)
 
         # Popup timeout
@@ -835,7 +859,8 @@ class SettingsWidget(QWidget):
                 self._custom_model_row_widget.setVisible(True)
         self._on_model_changed(self._model_combo.currentIndex())  # update hint
 
-        # OCR Preview (D1)
+        # Streaming & OCR Preview
+        self._chk_streaming.setChecked(bool(getattr(config, "ENABLE_STREAMING", True)))
         self._chk_ocr_preview.setChecked(bool(getattr(config, "ENABLE_OCR_PREVIEW", False)))
 
         # Popup timeout.
@@ -932,6 +957,7 @@ class SettingsWidget(QWidget):
             cfg = config_manager.load_config()
             cfg["primary_provider"] = primary_choice
             cfg["enable_fallback"] = self._chk_fallback.isChecked()
+            cfg["enable_streaming"] = self._chk_streaming.isChecked()
             cfg["enable_ocr_preview"] = self._chk_ocr_preview.isChecked()
             cfg["active_domain"] = new_domain or cfg.get("active_domain", "general")
             cfg["source_language"] = new_src_lang or cfg.get("source_language", "auto")

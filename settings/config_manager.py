@@ -57,6 +57,7 @@ DEFAULTS: dict[str, Any] = {
     "llm_model": "openai/gpt-oss-20b:free",
     "primary_provider": "openrouter",      # "openrouter" | "anthropic"
     "enable_fallback": True,               # True | False
+    "enable_streaming": True,              # True | False (A5: live token streaming in UI)
     "enable_ocr_preview": False,           # True | False (D1: preview/edit OCR before translation)
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,

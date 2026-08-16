@@ -149,6 +149,15 @@ class _LiveConfig:
         from settings.config_manager import set_value
         set_value("enable_fallback", value)
 
+    @property
+    def ENABLE_STREAMING(self):
+        return _cfg("enable_streaming")
+
+    @ENABLE_STREAMING.setter
+    def ENABLE_STREAMING(self, value):
+        from settings.config_manager import set_value
+        set_value("enable_streaming", value)
+
     # ── Static (from .env / hardcoded) ───────────────────
 
     MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))

@@ -233,15 +233,20 @@ class TranslationWorker(QThread):
         # Step 3: LLM Translation
         # Lazy import: openai/anthropic SDKs are loaded here, not at app startup.
         from translate.llm_client import translate, detect_and_translate
+        stream_cb = (lambda partial: self.partial_result.emit(partial)) if getattr(config, "ENABLE_STREAMING", True) else None
         try:
-            logging.debug(f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}'...")
+            logging.debug(f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}' (streaming={stream_cb is not None})...")
             if getattr(config, "SOURCE_LANG", "auto") == "auto":
-                detected_lang, translated = detect_and_translate(text, domain_id=config.ACTIVE_DOMAIN)
+                detected_lang, translated = detect_and_translate(
+                    text,
+                    domain_id=config.ACTIVE_DOMAIN,
+                    on_chunk=stream_cb,
+                )
             else:
                 translated = translate(
                     text,
                     domain_id=config.ACTIVE_DOMAIN,
-                    on_chunk=lambda partial: self.partial_result.emit(partial),
+                    on_chunk=stream_cb,
                 )
         except Exception as e:
             logging.exception("Step 3 Failed: Translation error")
