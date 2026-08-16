@@ -54,7 +54,7 @@ DEFAULTS: dict[str, Any] = {
     "source_language": "auto",
     "target_language": "ru",
     "translation_engine": "llm_text",     # "llm_text" | "llm_vision" | "api"
-    "llm_model": "openai/gpt-oss-20b:free",
+    "llm_model": "poolside/laguna-s-2.1:free",
     "primary_provider": "openrouter",      # "openrouter" | "anthropic"
     "enable_fallback": True,               # True | False
     "enable_streaming": True,              # True | False (A5: live token streaming in UI)

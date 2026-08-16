@@ -203,9 +203,16 @@ def _call_provider(
         if not response or not getattr(response, "choices", None):
             raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}).")
         choice = response.choices[0]
-        if not hasattr(choice, "message") or choice.message is None or choice.message.content is None:
-            raise RuntimeError("OpenRouter API вернул пустой текст ответа.")
-        return choice.message.content.strip()
+        msg = getattr(choice, "message", None)
+        content = getattr(msg, "content", None)
+        if not content and hasattr(msg, "reasoning"):
+            content = getattr(msg, "reasoning", None)
+        if not content:
+            raise RuntimeError(
+                f"Модель '{model}' вернула пустой текст ответа на OpenRouter. "
+                "Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках."
+            )
+        return content.strip()
 
     if provider == "anthropic":
         # A4: use dynamic ceiling instead of hard-coded 2048

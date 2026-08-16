@@ -180,7 +180,7 @@ class _LiveConfig:
 
     MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))
     RETRY_BACKOFF_BASE_SEC = float(os.environ.get("RETRY_BACKOFF_BASE_SEC", "1.0"))
-    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-oss-20b:free")
+    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "poolside/laguna-s-2.1:free")
     ANTHROPIC_DETECT_MODEL = os.environ.get("ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414")
 
     APP_VERSION = "1.0.0"
