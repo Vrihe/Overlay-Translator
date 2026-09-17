@@ -307,6 +307,8 @@ class TranslatorApp:
                 lambda: self._main_window.show_and_switch(MainWindow.PAGE_HISTORY)
             )
             self._tray.act_exit.triggered.connect(self._quit)
+            self._tray.act_presets.triggered.connect(self._show_presets_dialog)
+            self._tray.preset_quick_start.connect(self._on_preset_translate)
             self._tray.show()
         except Exception:
             logging.exception("Failed to initialize TrayIcon")
@@ -328,6 +330,9 @@ class TranslatorApp:
         self._selector: RegionSelector | None = None
         self._popup: ResultPopup | None = None
         self._worker: TranslationWorker | None = None
+        self._presets_dialog = None  # RegionPresetsDialog instance (if open)
+        self._preset_hotkeys: list[str] = []
+        self._preset_bridges: list[HotkeyBridge] = []
 
         # Register global hotkeys (fire on a background thread).
         try:
@@ -336,6 +341,9 @@ class TranslatorApp:
             logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
         except Exception:
             logging.exception("Failed to register global hotkeys")
+
+        # Register individual preset hotkeys
+        self._register_preset_hotkeys()
 
         # Schedule cache warm-up (100 ms) and OCR engine warm-up (3 s) after app start.
         QTimer.singleShot(100, self._warm_up_cache)
@@ -401,6 +409,12 @@ class TranslatorApp:
             if getattr(self, "_live_selection_mode", False):
                 self._live_selection_mode = False
                 self._start_live_monitoring(x1, y1, x2, y2)
+                return
+
+            # Check if this selection was triggered for Preset creation
+            if getattr(self, "_preset_creation_mode", False):
+                self._preset_creation_mode = False
+                self._on_preset_region_selected(x1, y1, x2, y2)
                 return
 
             # D1: Check if OCR Preview/Edit mode is enabled
@@ -470,7 +484,7 @@ class TranslatorApp:
         if hasattr(self, "_live_monitor") and self._live_monitor is not None:
             self._live_monitor.stop()
 
-        self._live_monitor = LiveMonitor(x1, y1, x2, y2, interval_sec=2.0)
+        self._live_monitor = LiveMonitor(x1, y1, x2, y2, interval_sec=10.0)
         self._live_monitor.region_changed.connect(
             lambda lx1, ly1, lx2, ly2: self._on_region_selected(lx1, ly1, lx2, ly2)
         )
@@ -478,8 +492,8 @@ class TranslatorApp:
 
         if self._tray is not None:
             self._tray.showMessage(
-                "Живой мониторинг запущен",
-                "Область автоматически проверяется каждые 2 сек.",
+                "Живой автомониторинг запущен",
+                "Область автоматически проверяется каждые 10 сек.",
                 TrayIcon.Information,
                 3000,
             )
@@ -496,6 +510,113 @@ class TranslatorApp:
                     TrayIcon.Information,
                     2000,
                 )
+
+    # ── Region Presets ─────────────────────────────────
+
+    def _register_preset_hotkeys(self) -> None:
+        """Register global keyboard shortcuts for all presets that have a hotkey defined."""
+        # Unregister existing preset hotkeys
+        for hk in self._preset_hotkeys:
+            try:
+                keyboard.remove_hotkey(hk)
+            except Exception:
+                pass
+        self._preset_hotkeys.clear()
+        self._preset_bridges.clear()
+
+        try:
+            from settings.region_presets import load_presets
+            presets = load_presets()
+        except Exception:
+            logging.exception("Failed to load presets for hotkey registration")
+            return
+
+        for p in presets:
+            hk = p.get("hotkey")
+            if not hk:
+                continue
+            x1, y1 = p.get("x1", 0), p.get("y1", 0)
+            x2, y2 = p.get("x2", 0), p.get("y2", 0)
+            bridge = HotkeyBridge()
+            bridge.triggered.connect(
+                lambda _x1=x1, _y1=y1, _x2=x2, _y2=y2: self._on_preset_translate(_x1, _y1, _x2, _y2)
+            )
+            try:
+                keyboard.add_hotkey(hk, bridge.triggered.emit)
+                self._preset_hotkeys.append(hk)
+                self._preset_bridges.append(bridge)
+                logging.info("Registered preset hotkey '%s' for '%s' (%d,%d)→(%d,%d)", hk, p.get("name"), x1, y1, x2, y2)
+            except Exception:
+                logging.warning("Failed to register preset hotkey '%s'", hk, exc_info=True)
+
+    def _show_presets_dialog(self) -> None:
+        """Открыть диалог управления пресетами регионов."""
+        try:
+            from ui.region_presets_dialog import RegionPresetsDialog
+            dlg = RegionPresetsDialog()
+            dlg.preset_translate.connect(self._on_preset_translate)
+            dlg.preset_monitor.connect(self._on_preset_monitor)
+            dlg.request_new_preset.connect(lambda: self._on_new_preset_requested(dlg))
+            dlg.presets_updated.connect(self._on_presets_updated)
+            self._presets_dialog = dlg
+            dlg.exec_()
+            self._presets_dialog = None
+            self._on_presets_updated()
+        except Exception:
+            logging.exception("Error showing presets dialog")
+
+    def _on_preset_translate(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        """Разовый перевод области выбранного пресета (по бинду или кнопке 'Перевести')."""
+        anchor = QRect(x1, y1, x2 - x1, y2 - y1)
+        if getattr(config, "ENABLE_OCR_PREVIEW", False):
+            self._worker = TranslationWorker(x1, y1, x2, y2, ocr_only=True)
+            self._worker.ocr_done.connect(
+                lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc)
+            )
+            self._worker.start()
+        else:
+            self._start_translation_pipeline(x1, y1, x2, y2, anchor=anchor)
+
+    def _on_preset_monitor(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        """Запустить опциональный автомониторинг для выбранного пресета региона."""
+        self._start_live_monitoring(x1, y1, x2, y2)
+        if self._tray is not None:
+            self._tray.act_live_monitor.setChecked(True)
+
+    def _on_presets_updated(self) -> None:
+        """Обновить зарегистрированные хоткеи и контекстное меню трея."""
+        self._register_preset_hotkeys()
+        if self._tray is not None:
+            self._tray.rebuild_presets_menu()
+
+    def _on_new_preset_requested(self, dialog) -> None:
+        """Пользователь нажал 'Новый' в диалоге пресетов — запускаем выделение региона."""
+        self._preset_creation_mode = True
+        dialog.hide()  # hide dialog while selecting region
+        self._show_selector()
+
+    def _on_preset_region_selected(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        """Обработка выделенного региона в режиме создания пресета."""
+        dlg = self._presets_dialog
+        if dlg is not None:
+            dlg.show()
+            dlg.add_new_preset(x1, y1, x2, y2)
+        else:
+            # Fallback: no dialog reference — open a fresh one
+            from PyQt5.QtWidgets import QInputDialog
+            from settings.region_presets import save_preset
+            name, ok = QInputDialog.getText(
+                None,
+                "Имя пресета",
+                "Введите имя для нового пресета региона:",
+            )
+            if ok and name.strip():
+                try:
+                    save_preset(name, x1, y1, x2, y2)
+                    logging.info("Preset '%s' saved (no dialog).", name.strip())
+                except ValueError as e:
+                    logging.warning("Preset save failed: %s", e)
+        self._on_presets_updated()
 
     def _on_partial_translation(self, partial_text: str) -> None:
         """A5: Update the loading popup with partial streaming translation text.
