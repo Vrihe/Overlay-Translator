@@ -4,13 +4,18 @@ tray/tray_icon.py — QSystemTrayIcon with context menu.
 Menu items:
   • Показать окно              — toggle main window visibility
   • Перевести (Ctrl+Shift+R)   — triggers the selector overlay
+  • Живой мониторинг области   — toggle live region monitoring
+  • Пресеты регионов           — quick-launch saved region presets
   • Настройки                  — open main window on Settings tab
   • История переводов          — open main window on History tab
   • ──────────────────
   • Выход                      — full shutdown
 """
 
+import logging
+
 from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QAction, QApplication
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QIcon
 
 from tray.icon_gen import create_tray_icon
@@ -31,8 +36,14 @@ _QUICK_LANGS = [
 ]
 
 
+logger = logging.getLogger("translator")
+
+
 class TrayIcon(QSystemTrayIcon):
     """System-tray icon with a right-click context menu."""
+
+    # Emitted when a preset is chosen from the quick-launch submenu.
+    preset_quick_start = pyqtSignal(int, int, int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -91,6 +102,16 @@ class TrayIcon(QSystemTrayIcon):
         self.act_live_monitor = QAction("▶ Живой мониторинг области")
         self.act_live_monitor.setCheckable(True)
         menu.addAction(self.act_live_monitor)
+
+        # ── Region Presets submenu ──
+        self._presets_menu = QMenu("📋 Пресеты регионов")
+        self._presets_menu.setStyleSheet(menu.styleSheet())
+        self.act_presets = QAction("Управление пресетами…")
+        self._presets_menu.addAction(self.act_presets)
+        self._presets_menu.addSeparator()
+        self._preset_quick_actions: list[QAction] = []
+        menu.addMenu(self._presets_menu)
+        self.rebuild_presets_menu()
 
         menu.addSeparator()
 
@@ -154,6 +175,36 @@ class TrayIcon(QSystemTrayIcon):
         """Refresh checkmarks when target language is changed from settings dialog."""
         for code, act in self._lang_actions.items():
             act.setChecked(code == config.TARGET_LANG)
+
+    def rebuild_presets_menu(self) -> None:
+        """Refresh the quick-launch preset entries in the tray submenu."""
+        # Remove old quick-launch actions
+        for act in self._preset_quick_actions:
+            self._presets_menu.removeAction(act)
+        self._preset_quick_actions.clear()
+
+        try:
+            from settings.region_presets import load_presets
+            presets = load_presets()
+        except Exception:
+            logger.debug("Failed to load presets for tray menu", exc_info=True)
+            return
+
+        # Show up to 5 most recent presets
+        for p in presets[-5:]:
+            name = p.get("name", "???")
+            x1, y1 = p.get("x1", 0), p.get("y1", 0)
+            x2, y2 = p.get("x2", 0), p.get("y2", 0)
+            w, h = x2 - x1, y2 - y1
+            hk = p.get("hotkey")
+            hk_label = f" ({hk.upper()})" if hk else ""
+            act = QAction(f"▶ {name}{hk_label}  [{w}×{h}]")
+            act.triggered.connect(
+                lambda checked, _x1=x1, _y1=y1, _x2=x2, _y2=y2:
+                    self.preset_quick_start.emit(_x1, _y1, _x2, _y2)
+            )
+            self._presets_menu.addAction(act)
+            self._preset_quick_actions.append(act)
 
     # ── Activation handler ───────────────────────────────
 
