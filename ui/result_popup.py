@@ -260,15 +260,6 @@ class ResultPopup(QWidget):
                 err = self._make_label(self._translated, size=11, color="#ff6b6b")
                 content_layout.addWidget(err)
             else:
-                if self._source:
-                    src = self._make_label(self._source, size=10, color="#999999")
-                    content_layout.addWidget(src)
-
-                    sep = QWidget()
-                    sep.setFixedHeight(1)
-                    sep.setStyleSheet("background: rgba(255,255,255,0.08);")
-                    content_layout.addWidget(sep)
-
                 tl = self._make_label(self._translated, size=12, color="#e8e8e8", bold=True)
                 content_layout.addWidget(tl)
 
