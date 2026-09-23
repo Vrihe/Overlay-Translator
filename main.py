@@ -57,6 +57,14 @@ sys.excepthook = _global_excepthook
 if hasattr(threading, "excepthook"):
     threading.excepthook = _thread_excepthook
 
+# Native crashes (segfault, abort() from qFatal or a C++ extension) bypass both
+# hooks above and kill the process without a trace; faulthandler still dumps
+# the Python stack of every thread. The file stays open for the process lifetime.
+import faulthandler
+
+_crash_log = open(os.path.join(os.path.dirname(_log_file_path), "crash.log"), "a", encoding="utf-8")
+faulthandler.enable(file=_crash_log, all_threads=True)
+
 import ctypes
 import time
 import traceback
@@ -124,8 +132,27 @@ except Exception:
     logging.exception("PyTorch failed to load during entry point initialization")
 
 from PyQt5.QtWidgets import QApplication, QSplashScreen
-from PyQt5.QtCore import QObject, QRect, QTimer, pyqtSignal, QThread, Qt
+from PyQt5.QtCore import QObject, QRect, QTimer, pyqtSignal, QThread, Qt, QtMsgType, qInstallMessageHandler
 import keyboard
+
+
+def _qt_message_handler(mode, context, message):
+    """Route Qt's own diagnostics (normally stderr only) into app.log.
+
+    A qFatal (e.g. "QThread: Destroyed while thread is still running") still
+    aborts the process after this returns, but the reason is now on disk.
+    """
+    level = {
+        QtMsgType.QtDebugMsg: logging.DEBUG,
+        QtMsgType.QtInfoMsg: logging.INFO,
+        QtMsgType.QtWarningMsg: logging.WARNING,
+        QtMsgType.QtCriticalMsg: logging.ERROR,
+        QtMsgType.QtFatalMsg: logging.CRITICAL,
+    }.get(mode, logging.WARNING)
+    logging.log(level, "Qt: %s", message)
+
+
+qInstallMessageHandler(_qt_message_handler)
 
 import config
 import settings

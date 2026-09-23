@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QColor, QFont, QIcon
 
+import logging
 import webbrowser
 import config
 from tray.icon_gen import create_tray_icon
@@ -47,12 +48,15 @@ class _TextTranslateWorker(QThread):
         self._text = text
 
     def run(self):
+        logging.debug("TextTranslateWorker %#x: run() started", id(self))
         try:
             from translate.backend import translate
             result = translate(self._text, domain_id=config.ACTIVE_DOMAIN)
             self.text_done.emit(result, "")
         except Exception as e:
+            logging.exception("TextTranslateWorker %#x: translation failed", id(self))
             self.text_done.emit("", str(e))
+        logging.debug("TextTranslateWorker %#x: run() returning", id(self))
 
 
 class _ImageTranslateWorker(QThread):
@@ -384,6 +388,20 @@ class _HomePage(QWidget):
         self._text_worker.start()
 
     def _on_text_translated(self, translated: str, error: str):
+        try:
+            self._show_text_translation(translated, error)
+        except Exception:
+            logging.exception("Failed to show text translation result")
+
+    def _show_text_translation(self, translated: str, error: str):
+        worker = self._text_worker
+        # Diagnostic: dropping the last reference to a QThread that is still
+        # running makes Qt abort the whole process (qFatal).
+        logging.debug(
+            "Text translation result received | worker=%s | still running=%s",
+            f"{id(worker):#x}" if worker is not None else None,
+            worker.isRunning() if worker is not None else None,
+        )
         self._text_worker = None
         self._btn_translate.setEnabled(True)
         self._btn_translate.setText("Перевести")

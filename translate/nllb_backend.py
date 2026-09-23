@@ -244,6 +244,8 @@ class NllbBackend:
         self._cuda_fallback_reason: str = ""
         self._pending_notice: str = ""
         self._load_lock = threading.Lock()
+        self._inflight = 0
+        self._inflight_lock = threading.Lock()
 
     # ── State ────────────────────────────────────────────
 
@@ -417,12 +419,25 @@ class NllbBackend:
         pieces = self._sp.encode(text, out_type=str)
         source = [src_code] + pieces + ["</s>"]
 
-        results = self._translator.translate_batch(
-            [source],
-            target_prefix=[[tgt_code]],
-            beam_size=self._beam_size,
-            max_decoding_length=512,
+        # Diagnostic: which thread calls, which Translator object, how many at once.
+        with self._inflight_lock:
+            self._inflight += 1
+            inflight = self._inflight
+        _logger.debug(
+            "NLLB inference start | thread=%s | translator=%#x | device=%s | in-flight=%d",
+            threading.current_thread().name, id(self._translator), self._active_device, inflight,
         )
+        try:
+            results = self._translator.translate_batch(
+                [source],
+                target_prefix=[[tgt_code]],
+                beam_size=self._beam_size,
+                max_decoding_length=512,
+            )
+        finally:
+            with self._inflight_lock:
+                self._inflight -= 1
+        _logger.debug("NLLB inference done | thread=%s", threading.current_thread().name)
         hypothesis = results[0].hypotheses[0]
         if hypothesis and hypothesis[0] == tgt_code:
             hypothesis = hypothesis[1:]
@@ -607,17 +622,25 @@ def get_backend() -> NllbBackend:
 
 def translate(text: str, target_lang: str | None = None, source_lang: str | None = None,
               domain_id: str | None = None, on_chunk=None) -> str:
-    return get_backend().translate(
-        text, target_lang=target_lang, source_lang=source_lang,
-        domain_id=domain_id, on_chunk=on_chunk,
-    )
+    try:
+        return get_backend().translate(
+            text, target_lang=target_lang, source_lang=source_lang,
+            domain_id=domain_id, on_chunk=on_chunk,
+        )
+    except Exception:
+        _logger.exception("NLLB translate() failed | text=%r", text[:120])
+        raise
 
 
 def detect_and_translate(text: str, target_lang: str | None = None,
                          domain_id: str | None = None, on_chunk=None) -> tuple[str, str]:
-    return get_backend().detect_and_translate(
-        text, target_lang=target_lang, domain_id=domain_id, on_chunk=on_chunk,
-    )
+    try:
+        return get_backend().detect_and_translate(
+            text, target_lang=target_lang, domain_id=domain_id, on_chunk=on_chunk,
+        )
+    except Exception:
+        _logger.exception("NLLB detect_and_translate() failed | text=%r", text[:120])
+        raise
 
 
 def reset_client() -> None:
