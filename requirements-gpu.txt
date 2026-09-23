@@ -1,0 +1,8 @@
+# Optional: GPU acceleration for the local NLLB backend (NVIDIA GPUs only).
+# Install on top of requirements.txt:  pip install -r requirements-gpu.txt
+#
+# CTranslate2 4.x is built against CUDA 12 and, for NLLB, only needs cuBLAS.
+# This wheel ships cublas64_12.dll / cublasLt64_12.dll (~740 MB), so no CUDA
+# Toolkit install is required. translate/cuda_support.py finds it automatically;
+# without it the app keeps working on the CPU.
+nvidia-cublas-cu12>=12.1,<13
