@@ -1,2 +1,9 @@
 -r requirements.txt
 pytest>=7.0.0
+
+# Needed only to convert the HF NLLB checkpoint to CTranslate2
+# (scripts/test_nllb_translation.py and the app runtime do NOT need these):
+transformers>=4.40.0
+
+# Baseline evaluation (scripts/baseline_eval_nllb.py):
+sacrebleu>=2.4.0

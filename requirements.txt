@@ -14,3 +14,7 @@ openai>=1.0.0
 keyring>=24.0.0
 langid>=1.1.6
 pyinstaller>=6.0
+
+# ─── Local NLLB backend (CTranslate2 int8) ──────────────
+ctranslate2>=4.5.0
+sentencepiece>=0.2.0

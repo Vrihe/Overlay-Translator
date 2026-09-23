@@ -63,3 +63,19 @@ settings.json
 # Layered build deps cache (2.1)
 _build_cache/
 dist/TranslatorOverlay_deps/
+
+# Claude Code workspace (local notes, project map, rtk instructions)
+.claude/
+
+# RTK (Rust Token Killer) local config
+.rtk/
+
+# Local ML models (NLLB checkpoints, CTranslate2 builds) — never committed
+models/
+*.ct2/
+
+# Hugging Face download cache (used when converting the NLLB checkpoint)
+.hf-cache/
+
+# Exported datasets (contain captured screen text — user data)
+data/
