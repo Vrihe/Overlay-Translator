@@ -18,6 +18,7 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 - **Multi-monitor support** — works across all connected displays, including negative-coordinate layouts
 - **OCR** via EasyOCR (CRAFT + CRNN neural network) with multilingual support (`ru` + `en`), GPU acceleration, and optimised preprocessing
 - **Translation** via OpenRouter (free models) or Anthropic Claude
+- **Offline translation** (optional) with a local, quantized NLLB-200 model (CTranslate2 int8), with no API key or internet needed. It runs on the CPU and can use an NVIDIA GPU for extra speed
 - **SQLite cache** — repeated texts are translated instantly without API calls
 - **Floating popup** — shows original + translation near the selected area; draggable, auto-closes after a timeout
 - **Auto language detection** — automatically detects the source language before translation (offline via `langid` or via LLM); falls back to a fixed language for very short texts
@@ -47,7 +48,10 @@ translator-overlay/
 │   ├── engine.py        # EasyOCR engine with lazy model loading & Cyrillic optimisation
 │   └── hsv_filter.py    # Optional HSV-based preprocessing filter
 ├── translate/
+│   ├── backend.py       # Picks the active backend (API or local NLLB) on every call
 │   ├── llm_client.py    # LLM translation (OpenRouter / Anthropic) + logging
+│   ├── nllb_backend.py  # Offline translation with the local NLLB CTranslate2 model
+│   ├── cuda_support.py  # Finds cuBLAS for optional GPU inference
 │   └── lang_detect.py   # Auto source-language detection (langid / LLM)
 ├── cache/
 │   └── store.py         # SQLite translation cache
@@ -213,6 +217,99 @@ All settings can be overridden in `.env`:
 | `OVERLAY_OPACITY` | `0.85` | Overlay background opacity |
 | `OPENROUTER_API_KEY` | — | OpenRouter API key (free) |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (paid) |
+| `NLLB_MODEL_DIR` | — | Path to the CTranslate2 NLLB model directory (overridden by the path set in Settings) |
+| `NLLB_DEVICE` | `auto` | Local NLLB device: `auto` (GPU if usable, else CPU), `cuda`, or `cpu` |
+
+---
+
+## 🧠 Local Offline Translation (NLLB)
+
+Instead of a cloud LLM, the app can translate with
+[NLLB-200-distilled-600M](https://huggingface.co/facebook/nllb-200-distilled-600M),
+converted to an int8 [CTranslate2](https://github.com/OpenNMT/CTranslate2) model (~600 MB).
+It works offline, needs no API key, and covers the 29 languages mapped in `translate/nllb_backend.py`.
+Domain profiles (prompts, few-shot examples) do not apply to it, because it is a plain seq2seq translation model.
+
+The runtime needs only `ctranslate2` and `sentencepiece`, both already in `requirements.txt`.
+The model weights are **not** part of the repository (`models/` is git-ignored), so you have to build them once.
+
+### 1. Get and convert the model
+
+The conversion needs `transformers` and `torch`, but only for this one step (they are in `requirements-dev.txt`):
+
+```bash
+pip install -r requirements-dev.txt
+
+ct2-transformers-converter --model facebook/nllb-200-distilled-600M \
+    --output_dir models/nllb-200-ct2-int8 --quantization int8 \
+    --copy_files sentencepiece.bpe.model tokenizer.json tokenizer_config.json \
+                 special_tokens_map.json generation_config.json
+```
+
+The first run downloads the original checkpoint (~2.5 GB) from Hugging Face. To keep that
+download inside the project, set `HF_HOME=.hf-cache`; that folder is git-ignored.
+The output directory must contain `model.bin`, `config.json`, `shared_vocabulary.json` and `sentencepiece.bpe.model`.
+
+Check that the model works:
+
+```bash
+python scripts/test_nllb_translation.py --model models/nllb-200-ct2-int8
+```
+
+### 2. Where the app looks for the model
+
+1. The path entered in **Settings → Бэкенд перевода → Путь к модели** (if set, it is the only place checked).
+2. The `NLLB_MODEL_DIR` environment variable.
+3. Auto-discovery: `<project>/models/nllb-200-ct2-int8`, then `%APPDATA%\translator-overlay\models\nllb-200-ct2-int8`.
+
+### 3. Switch the backend in the UI
+
+1. Open Settings (`Ctrl+Shift+O`).
+2. Under **Бэкенд перевода**, select **Локальная модель (NLLB)**. The status line shows whether the model was found.
+3. Optional: press **Загрузить модель** to load it into memory right away (1–3 s).
+   This button only loads the model; it does **not** switch the backend.
+4. Press **Сохранить**. Only this persists the backend choice (`translation_backend` in `settings.json`).
+
+If the local model is selected but cannot be loaded (missing files, broken install), the request
+goes through the API backend instead, and the result popup says why. An error during a translation
+itself is shown as an error and does not silently fall back to the API.
+
+### ⚡ Optional GPU acceleration
+
+The local NLLB backend runs on the CPU out of the box. GPU inference is an
+**optional speed-up**: nothing breaks without it.
+
+Measured on a Ryzen (Zen 3) + RTX 3060 Ti, one 18-token English sentence → Russian, beam size 4:
+
+| Device | Time per sentence |
+|---|---|
+| CPU, int8, 4 threads | ~1050 ms |
+| GPU, `int8_float16` | ~310 ms |
+
+**GPU requirements**
+
+- An NVIDIA GPU with a recent driver (any driver that supports CUDA 12).
+- cuBLAS for **CUDA 12.x** (`cublas64_12.dll`). CTranslate2 4.x is built against
+  CUDA 12, so CUDA 11 or 13 libraries will not work. Pick one of the following:
+  - **Recommended:** the pip wheel. No toolkit install and no `PATH` editing:
+    ```bash
+    pip install -r requirements-gpu.txt   # installs nvidia-cublas-cu12 (~740 MB)
+    ```
+  - Or [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-12-9-0-download-archive)
+    from NVIDIA. It is found through `CUDA_PATH` / `CUDA_PATH_V12_*`, or in the default
+    `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.*` location.
+
+**How it is picked up**
+
+With `NLLB_DEVICE=auto` (the default), the app checks for an NVIDIA GPU when the
+model is loaded, looks for cuBLAS in the places above, and runs a short test
+translation on the GPU. If any step fails, the model loads on the CPU instead.
+The reason is written to the log. It is also shown once in the result popup and
+in the Settings status (for example
+`CUDA unavailable, using CPU inference (cublas64_12.dll not found …)`).
+On a machine with no NVIDIA GPU, the app switches to the CPU silently.
+
+Standalone builds do not bundle cuBLAS. They use the GPU only when CUDA Toolkit 12.x is installed.
 
 ---
 
@@ -268,6 +365,7 @@ $total = (Select-String "CACHE" logs\translator.log).Count
 | Screen capture | mss |
 | OCR | EasyOCR (CRAFT + CRNN) + PyTorch + Pillow |
 | Translation | OpenRouter (free) / Anthropic API |
+| Offline translation | NLLB-200-distilled-600M, int8, via CTranslate2 + SentencePiece (optional CUDA via `nvidia-cublas-cu12`) |
 | Cache | SQLite |
 | Key storage | keyring (OS credential vault) |
 | Language detection | langid |
