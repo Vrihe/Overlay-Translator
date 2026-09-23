@@ -78,6 +78,26 @@ class _LiveConfig:
         set_value("translation_engine", value)
 
     @property
+    def TRANSLATION_BACKEND(self):
+        """Which translator runs: "api" (cloud LLM) or "nllb" (local model)."""
+        return _cfg("translation_backend")
+
+    @TRANSLATION_BACKEND.setter
+    def TRANSLATION_BACKEND(self, value):
+        from settings.config_manager import set_value
+        set_value("translation_backend", value)
+
+    @property
+    def NLLB_MODEL_PATH(self):
+        """Explicit CTranslate2 model directory; "" means auto-discover."""
+        return _cfg("nllb_model_path")
+
+    @NLLB_MODEL_PATH.setter
+    def NLLB_MODEL_PATH(self, value):
+        from settings.config_manager import set_value
+        set_value("nllb_model_path", value)
+
+    @property
     def LLM_MODEL(self):
         return _cfg("llm_model")
 
