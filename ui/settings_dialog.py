@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
     QTextEdit, QScrollArea, QFrame, QCheckBox,
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QMetaObject, Q_ARG
+from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QMetaObject, Q_ARG
 from PyQt5.QtGui import QPainter, QPainterPath, QColor
 
 from typing import Any
@@ -79,6 +79,17 @@ _MODEL_HINTS: dict[str, str] = {
     "poolside/laguna-s-2.1:free":  "✶ Бесплатно · Быстрая компактная модель для перевода",
     "__custom__":                  "Впишите точный ID модели с сайта openrouter.ai",
 }
+
+
+class _NllbPreloadWorker(QThread):
+    """Load the local NLLB model off the UI thread so the dialog stays responsive."""
+
+    finished_with_status = pyqtSignal(bool, str)  # (ok, message)
+
+    def run(self) -> None:
+        from translate.backend import BACKEND_NLLB, preload
+        ok, message = preload(BACKEND_NLLB)
+        self.finished_with_status.emit(ok, message)
 
 
 class _ExampleRowWidget(QWidget):
@@ -428,6 +439,73 @@ class SettingsWidget(QWidget):
         key_layout.addWidget(self._key_status)
 
         layout.addWidget(grp_key)
+
+        # ── Translation backend section (API vs local NLLB) ──
+        grp_backend = QGroupBox("Бэкенд перевода")
+        grp_backend.setStyleSheet(self._GROUP_CSS)
+        backend_layout = QVBoxLayout(grp_backend)
+        backend_layout.setSpacing(8)
+
+        lbl_backend = QLabel("Чем выполнять перевод:")
+        lbl_backend.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
+        backend_layout.addWidget(lbl_backend)
+
+        backend_row = QHBoxLayout()
+        self._backend_group = QButtonGroup(self)
+        self._radio_backend_api = QRadioButton("API (Anthropic / OpenRouter)")
+        self._radio_backend_nllb = QRadioButton("Локальная модель (NLLB)")
+        self._radio_backend_api.setToolTip(
+            "Перевод через облачный LLM-провайдер. Требуется интернет и API-ключ."
+        )
+        self._radio_backend_nllb.setToolTip(
+            "Офлайн-перевод квантизованной моделью NLLB-200 на CPU. "
+            "Интернет и API-ключ не нужны."
+        )
+        self._backend_group.addButton(self._radio_backend_api, 0)
+        self._backend_group.addButton(self._radio_backend_nllb, 1)
+        self._radio_backend_api.setStyleSheet(radio_css)
+        self._radio_backend_nllb.setStyleSheet(radio_css)
+        backend_row.addWidget(self._radio_backend_api)
+        backend_row.addWidget(self._radio_backend_nllb)
+        backend_layout.addLayout(backend_row)
+
+        # Optional explicit model path (empty = auto-discover).
+        nllb_path_row = QHBoxLayout()
+        lbl_nllb_path = QLabel("Путь к модели:")
+        lbl_nllb_path.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._nllb_path_edit = QLineEdit()
+        self._nllb_path_edit.setPlaceholderText(
+            "оставьте пустым для автопоиска (…/models/nllb-200-ct2-int8)"
+        )
+        self._nllb_path_edit.setStyleSheet(self._INPUT_CSS)
+        nllb_path_row.addWidget(lbl_nllb_path)
+        nllb_path_row.addWidget(self._nllb_path_edit, 1)
+        backend_layout.addLayout(nllb_path_row)
+
+        status_row = QHBoxLayout()
+        self._nllb_status = QLabel("")
+        self._nllb_status.setWordWrap(True)
+        self._nllb_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        status_row.addWidget(self._nllb_status, 1)
+
+        self._btn_load_nllb = QPushButton("Загрузить модель")
+        self._btn_load_nllb.setCursor(Qt.PointingHandCursor)
+        self._btn_load_nllb.setToolTip("Проверить наличие модели и прогреть её в памяти")
+        self._btn_load_nllb.setStyleSheet(
+            "QPushButton {"
+            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
+            "  border-radius: 6px; padding: 6px 14px;"
+            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
+            "QPushButton:disabled { background: #1f1f2e; color: #555; border-color: #333; }"
+        )
+        self._btn_load_nllb.clicked.connect(self._on_load_nllb_clicked)
+        status_row.addWidget(self._btn_load_nllb)
+        backend_layout.addLayout(status_row)
+
+        self._backend_group.buttonClicked.connect(self._on_backend_changed)
+        layout.addWidget(grp_backend)
 
         # ── Translation section ──
         grp_trans = QGroupBox("Перевод")
@@ -813,7 +891,95 @@ class SettingsWidget(QWidget):
 
     # ── Load current values ──────────────────────────────
 
+    # ── Translation backend (API / local NLLB) ──────────
+
+    def _set_nllb_status(self, message: str, *, color: str = "#999") -> None:
+        self._nllb_status.setText(message)
+        self._nllb_status.setStyleSheet(self._css(f"color: {color}; font-size: 9pt;"))
+
+    def _refresh_nllb_status(self) -> None:
+        """Show whether the local model is present, without loading it."""
+        use_nllb = self._radio_backend_nllb.isChecked()
+        self._nllb_path_edit.setEnabled(use_nllb)
+        self._btn_load_nllb.setEnabled(use_nllb)
+
+        if not use_nllb:
+            self._set_nllb_status("Перевод выполняется через облачный API.")
+            return
+
+        from translate.nllb_backend import get_backend, resolve_model_dir
+
+        backend = get_backend()
+        if backend.is_loaded:
+            self._set_nllb_status(
+                f"✓ Модель загружена в память: {backend.model_dir}", color="#66cc99"
+            )
+            return
+
+        found = resolve_model_dir()
+        if found is not None:
+            self._set_nllb_status(
+                f"✓ Модель найдена: {found}\nБудет загружена при первом переводе "
+                "(или нажмите «Загрузить модель»).",
+                color="#66cc99",
+            )
+        else:
+            self._set_nllb_status(
+                "⚠ Локальная модель NLLB не найдена. Укажите путь к каталогу "
+                "nllb-200-ct2-int8 выше либо сконвертируйте модель "
+                "(ct2-transformers-converter). Пока модель недоступна, перевод "
+                "будет выполняться через API.",
+                color="#ffb347",
+            )
+
+    def _on_backend_changed(self, _button=None) -> None:
+        """Apply the explicit path being edited, then refresh availability."""
+        path_text = self._nllb_path_edit.text().strip()
+        if path_text != (getattr(config, "NLLB_MODEL_PATH", "") or ""):
+            # Preview the typed path without persisting it yet.
+            from translate.nllb_backend import reset_client as reset_nllb
+            reset_nllb()
+        self._refresh_nllb_status()
+
+    def _on_load_nllb_clicked(self) -> None:
+        """Persist the path, then load the model in the background with an indicator."""
+        config_manager.set_value("nllb_model_path", self._nllb_path_edit.text().strip())
+
+        from translate.nllb_backend import reset_client as reset_nllb
+        reset_nllb()
+
+        self._btn_load_nllb.setEnabled(False)
+        self._set_nllb_status("⏳ Загрузка локальной модели… (около 600 МБ, 1–5 с)")
+        QApplication.processEvents()
+
+        self._nllb_worker = _NllbPreloadWorker(self)
+        self._nllb_worker.finished_with_status.connect(self._on_nllb_preload_done)
+        self._nllb_worker.start()
+
+    def _on_nllb_preload_done(self, ok: bool, message: str) -> None:
+        self._btn_load_nllb.setEnabled(self._radio_backend_nllb.isChecked())
+        if ok:
+            self._set_nllb_status(f"✓ {message}", color="#66cc99")
+        else:
+            self._set_nllb_status(
+                f"⚠ {message}\n\nПока модель недоступна, перевод будет "
+                "выполняться через API.",
+                color="#ffb347",
+            )
+
+    # ── Load ─────────────────────────────────────────────
+
     def _load_current(self) -> None:
+
+        # Translation backend (API vs local NLLB).
+        from translate.backend import BACKEND_NLLB
+
+        if getattr(config, "TRANSLATION_BACKEND", "api") == BACKEND_NLLB:
+            self._radio_backend_nllb.setChecked(True)
+        else:
+            self._radio_backend_api.setChecked(True)
+        self._nllb_path_edit.setText(getattr(config, "NLLB_MODEL_PATH", "") or "")
+        self._refresh_nllb_status()
 
         # Primary provider choice & Fallback setting.
         primary = settings.get_primary_provider()
@@ -975,7 +1141,18 @@ class SettingsWidget(QWidget):
                 new_model = combo_data or "openai/gpt-oss-20b:free"
             new_timeout = self._timeout_spin.value()
 
+            from translate.backend import BACKEND_API, BACKEND_NLLB
+
+            new_backend = BACKEND_NLLB if self._radio_backend_nllb.isChecked() else BACKEND_API
+            new_nllb_path = self._nllb_path_edit.text().strip()
+            backend_switched_to_nllb = (
+                new_backend == BACKEND_NLLB
+                and getattr(config, "TRANSLATION_BACKEND", BACKEND_API) != BACKEND_NLLB
+            )
+
             cfg = config_manager.load_config()
+            cfg["translation_backend"] = new_backend
+            cfg["nllb_model_path"] = new_nllb_path
             cfg["primary_provider"] = primary_choice
             cfg["enable_fallback"] = self._chk_fallback.isChecked()
             cfg["enable_streaming"] = self._chk_streaming.isChecked()
@@ -992,8 +1169,9 @@ class SettingsWidget(QWidget):
             cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
             config_manager.save_config(cfg)
 
-            # Reset the LLM client so new model/provider is picked up.
-            reset_client()
+            # Reset both backends so the new model/provider/path is picked up.
+            from translate.backend import reset as reset_backends
+            reset_backends()
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -1001,6 +1179,13 @@ class SettingsWidget(QWidget):
                 f"Не удалось сохранить настройки:\n{e}"
             )
             return
+
+        # Freshly switched to the local model → warm it up with a visible indicator
+        # instead of making the user wait on their first hotkey press.
+        if backend_switched_to_nllb:
+            self._on_load_nllb_clicked()
+        else:
+            self._refresh_nllb_status()
 
         self.settings_saved.emit()
 

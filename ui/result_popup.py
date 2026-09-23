@@ -43,6 +43,7 @@ class ResultPopup(QWidget):
         *,
         is_error: bool = False,
         is_loading: bool = False,
+        notice: str = "",
         parent=None,
     ):
         super().__init__(parent)
@@ -52,6 +53,7 @@ class ResultPopup(QWidget):
         self._anchor = anchor
         self._is_error = is_error
         self._is_loading = is_loading
+        self._notice = notice
         self._closing = False
         self._scroll_area: QScrollArea | None = None
         self._btn_close: QPushButton | None = None
@@ -263,6 +265,12 @@ class ResultPopup(QWidget):
                 tl = self._make_label(self._translated, size=12, color="#e8e8e8", bold=True)
                 content_layout.addWidget(tl)
 
+            # Backend notice (e.g. local NLLB model unavailable → API was used).
+            # Kept out of self._translated so copy/TTS still yield the clean text.
+            if self._notice:
+                note = self._make_label(f"⚠ {self._notice}", size=8, color="#ffb347")
+                content_layout.addWidget(note)
+
         self._scroll_area.setWidget(scroll_content)
         card_layout.addWidget(self._scroll_area)
         layout.addWidget(self._card)
@@ -355,7 +363,8 @@ class ResultPopup(QWidget):
 
     # ── In-place content update ──────────────────────────
 
-    def update_content(self, source_text: str, translated_text: str, *, is_error: bool = False) -> None:
+    def update_content(self, source_text: str, translated_text: str, *,
+                       is_error: bool = False, notice: str = "") -> None:
         """Update popup content from loading state to final result in-place,
         fitting the window snugly to the translated content size."""
         if self._closing:
@@ -368,6 +377,7 @@ class ResultPopup(QWidget):
         self._is_error = is_error
         self._source = source_text
         self._translated = translated_text
+        self._notice = notice
 
         saved_pos = self.pos()
 
@@ -653,6 +663,7 @@ def show_result(
     anchor: QRect | None = None,
     *,
     is_error: bool = False,
+    notice: str = "",
     tray_icon=None,
     existing_popup: ResultPopup | None = None,
 ) -> ResultPopup | None:
@@ -665,7 +676,7 @@ def show_result(
             existing_popup.deleteLater()
 
         title = "Ошибка перевода" if is_error else "Перевод"
-        msg = translated_text
+        msg = f"{translated_text}\n\n⚠ {notice}" if notice else translated_text
 
         if tray_icon is not None and hasattr(tray_icon, "showMessage"):
             icon = QSystemTrayIcon.Warning if is_error else QSystemTrayIcon.Information
@@ -680,9 +691,12 @@ def show_result(
         return None
     else:
         if existing_popup is not None and not existing_popup._closing:
-            existing_popup.update_content(source_text, translated_text, is_error=is_error)
+            existing_popup.update_content(
+                source_text, translated_text, is_error=is_error, notice=notice
+            )
             return existing_popup
         else:
-            popup = ResultPopup(source_text, translated_text, anchor, is_error=is_error)
+            popup = ResultPopup(source_text, translated_text, anchor,
+                                is_error=is_error, notice=notice)
             popup.show()
             return popup

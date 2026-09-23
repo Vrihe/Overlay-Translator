@@ -195,6 +195,9 @@ class TranslationWorker(QThread):
         self.y2 = y2
         self.text_override = text_override
         self.ocr_only = ocr_only
+        # Set when the local NLLB backend was unavailable and the API was used
+        # instead; read by TranslatorApp after translation_done.
+        self.backend_notice: str = ""
 
     def run(self):
         logging.debug(f"TranslationWorker started for bbox ({self.x1}, {self.y1}, {self.x2}, {self.y2})")
@@ -230,9 +233,9 @@ class TranslationWorker(QThread):
                 self.ocr_done.emit(text, anchor)
                 return
 
-        # Step 3: LLM Translation
-        # Lazy import: openai/anthropic SDKs are loaded here, not at app startup.
-        from translate.llm_client import translate, detect_and_translate
+        # Step 3: Translation via the active backend (API or local NLLB).
+        # Lazy import: openai/anthropic SDKs and ctranslate2 load here, not at startup.
+        from translate.backend import translate, detect_and_translate, take_notice
         stream_cb = (lambda partial: self.partial_result.emit(partial)) if getattr(config, "ENABLE_STREAMING", True) else None
         try:
             logging.debug(f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}' (streaming={stream_cb is not None})...")
@@ -253,6 +256,7 @@ class TranslationWorker(QThread):
             self.translation_done.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
             return
 
+        self.backend_notice = take_notice()
         self.translation_done.emit(text, translated, "")
 
 
@@ -653,13 +657,16 @@ class TranslatorApp:
                 self._show_error(error_msg, anchor)
             else:
                 logging.info(f"Translation finished successfully. Source length: {len(source)}, Translated length: {len(translated)}")
-                self._show_result(source, translated, anchor)
+                notice = getattr(self._worker, "backend_notice", "") if self._worker is not None else ""
+                if notice:
+                    logging.warning("Backend notice: %s", notice)
+                self._show_result(source, translated, anchor, notice=notice)
         except Exception:
             logging.exception("Error presenting translation result/error popup")
 
     # ── Popup helpers ────────────────────────────────────
 
-    def _show_result(self, source: str, translated: str, anchor: QRect) -> None:
+    def _show_result(self, source: str, translated: str, anchor: QRect, notice: str = "") -> None:
         try:
             from ui.result_popup import show_result
             self._popup = show_result(
@@ -667,6 +674,7 @@ class TranslatorApp:
                 translated,
                 anchor,
                 is_error=False,
+                notice=notice,
                 tray_icon=self._tray,
                 existing_popup=self._popup,
             )

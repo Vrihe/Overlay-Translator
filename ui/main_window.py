@@ -48,7 +48,7 @@ class _TextTranslateWorker(QThread):
 
     def run(self):
         try:
-            from translate.llm_client import translate
+            from translate.backend import translate
             result = translate(self._text, domain_id=config.ACTIVE_DOMAIN)
             self.text_done.emit(result, "")
         except Exception as e:
@@ -83,7 +83,7 @@ class _ImageTranslateWorker(QThread):
             return
 
         try:
-            from translate.llm_client import translate
+            from translate.backend import translate
             translated = translate(text, domain_id=config.ACTIVE_DOMAIN)
         except Exception as e:
             self.image_done.emit(text, "", f"Ошибка перевода:\n{e}")
