@@ -193,7 +193,7 @@ This guarantees that:
 - The application runs cleanly even when extracted into write-restricted folders.
 
 ### 🔄 Automatic Update Checking
-The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
+The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
 
 ---
 
@@ -258,17 +258,17 @@ python scripts/test_nllb_translation.py --model models/nllb-200-ct2-int8
 
 ### 2. Where the app looks for the model
 
-1. The path entered in **Settings → Бэкенд перевода → Путь к модели** (if set, it is the only place checked).
+1. The path entered in **Settings → Бэкенд перевода (Translation backend) → Путь к модели (Model path)** (if set, it is the only place checked).
 2. The `NLLB_MODEL_DIR` environment variable.
 3. Auto-discovery: `<project>/models/nllb-200-ct2-int8`, then `%APPDATA%\translator-overlay\models\nllb-200-ct2-int8`.
 
 ### 3. Switch the backend in the UI
 
 1. Open Settings (`Ctrl+Shift+O`).
-2. Under **Бэкенд перевода**, select **Локальная модель (NLLB)**. The status line shows whether the model was found.
-3. Optional: press **Загрузить модель** to load it into memory right away (1–3 s).
+2. Under **Бэкенд перевода** (Translation backend), select **Локальная модель (NLLB)** (Local model). The status line shows whether the model was found.
+3. Optional: press **Загрузить модель** (Load model) to load it into memory right away (1–3 s).
    This button only loads the model; it does **not** switch the backend.
-4. Press **Сохранить**. Only this persists the backend choice (`translation_backend` in `settings.json`).
+4. Press **Сохранить** (Save). Only this persists the backend choice (`translation_backend` in `settings.json`).
 
 If the local model is selected but cannot be loaded (missing files, broken install), the request
 goes through the API backend instead, and the result popup says why. An error during a translation
@@ -325,7 +325,7 @@ The app can automatically detect the source language of recognised text before s
 | **LLM** | `llm` | Uses the active LLM provider — more accurate on noisy/short texts, but adds latency and cost |
 | **Off** | `off` | Disabled — uses the fixed `SOURCE_LANG` value |
 
-You can switch engines in the Settings dialog (Ctrl+Shift+O) under "Перевод" → "Определение языка".
+You can switch engines in the Settings dialog (Ctrl+Shift+O) under "Перевод" (Translation) → "Определение языка" (Language detection).
 
 ### Limitations
 

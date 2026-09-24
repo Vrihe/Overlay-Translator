@@ -581,7 +581,7 @@ class TranslatorApp:
                 logging.warning("Failed to register preset hotkey '%s'", hk, exc_info=True)
 
     def _show_presets_dialog(self) -> None:
-        """Открыть диалог управления пресетами регионов."""
+        """Open the region presets management dialog."""
         try:
             from ui.region_presets_dialog import RegionPresetsDialog
             dlg = RegionPresetsDialog()
@@ -597,7 +597,7 @@ class TranslatorApp:
             logging.exception("Error showing presets dialog")
 
     def _on_preset_translate(self, x1: int, y1: int, x2: int, y2: int) -> None:
-        """Разовый перевод области выбранного пресета (по бинду или кнопке 'Перевести')."""
+        """Translate the selected preset's region once (from its hotkey or the 'Перевести' button)."""
         anchor = QRect(x1, y1, x2 - x1, y2 - y1)
         if getattr(config, "ENABLE_OCR_PREVIEW", False):
             self._worker = TranslationWorker(x1, y1, x2, y2, ocr_only=True)
@@ -609,25 +609,25 @@ class TranslatorApp:
             self._start_translation_pipeline(x1, y1, x2, y2, anchor=anchor)
 
     def _on_preset_monitor(self, x1: int, y1: int, x2: int, y2: int) -> None:
-        """Запустить опциональный автомониторинг для выбранного пресета региона."""
+        """Start optional live monitoring for the selected region preset."""
         self._start_live_monitoring(x1, y1, x2, y2)
         if self._tray is not None:
             self._tray.act_live_monitor.setChecked(True)
 
     def _on_presets_updated(self) -> None:
-        """Обновить зарегистрированные хоткеи и контекстное меню трея."""
+        """Refresh the registered preset hotkeys and the tray context menu."""
         self._register_preset_hotkeys()
         if self._tray is not None:
             self._tray.rebuild_presets_menu()
 
     def _on_new_preset_requested(self, dialog) -> None:
-        """Пользователь нажал 'Новый' в диалоге пресетов — запускаем выделение региона."""
+        """The user pressed 'Новый' (New) in the presets dialog; start region selection."""
         self._preset_creation_mode = True
         dialog.hide()  # hide dialog while selecting region
         self._show_selector()
 
     def _on_preset_region_selected(self, x1: int, y1: int, x2: int, y2: int) -> None:
-        """Обработка выделенного региона в режиме создания пресета."""
+        """Handle the selected region while in preset-creation mode."""
         dlg = self._presets_dialog
         if dlg is not None:
             dlg.show()
