@@ -41,6 +41,7 @@ Overlay-Translator/
 ├── main.py                 # Entry point: logging, splash, TranslatorApp, hotkeys
 ├── config.py               # Global config facade (replaces itself in sys.modules!)
 ├── build.py / build.bat    # PyInstaller build scripts
+├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (elevated)
 ├── build*.spec             # Spec files (layered build: app + deps)
 ├── hooks/hook-optree.py    # PyInstaller hook
 ├── pyi_rth_torch_dll.py    # Runtime hook: torch DLL paths in the frozen build

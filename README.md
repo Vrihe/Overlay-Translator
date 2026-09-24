@@ -39,6 +39,9 @@ translator-overlay/
 ├── build.spec           # PyInstaller build specification (onedir mode)
 ├── build.py             # Cross-platform build launcher script
 ├── build.bat            # One-click Windows build script
+├── install.bat          # Creates .venv and installs dependencies
+├── download_model.bat   # Downloads the local NLLB model
+├── run.bat              # Starts the app from .venv (as Administrator)
 │
 ├── overlay/
 │   └── selector.py      # Fullscreen region-selection overlay (PyQt5)
@@ -76,6 +79,16 @@ translator-overlay/
 git clone https://github.com/your-username/overlay-translator.git
 cd overlay-translator
 ```
+
+### Quick start on Windows (double-click)
+
+| Script | What it does |
+|---|---|
+| `install.bat` | Creates `.venv` and installs `requirements.txt` into it (`install.bat --gpu` also installs `requirements-gpu.txt`) |
+| `download_model.bat` | Downloads the local NLLB model into `models/nllb-200-ct2-int8` (optional, for offline translation; arguments go to `scripts/download_model.py`) |
+| `run.bat` | Starts the app from `.venv` as Administrator, with no console window (`--console` keeps the console open for logs, `--no-admin` skips the UAC prompt) |
+
+The manual steps are below.
 
 ### 2. Install Python dependencies
 
