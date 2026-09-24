@@ -18,3 +18,4 @@ pyinstaller>=6.0
 # ─── Local NLLB backend (CTranslate2 int8) ──────────────
 ctranslate2>=4.5.0
 sentencepiece>=0.2.0
+huggingface_hub>=0.23.0   # scripts/download_model.py — fetches the model from the Hub

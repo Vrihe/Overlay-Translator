@@ -299,8 +299,8 @@ class NllbBackend:
                 raise NllbModelUnavailable(
                     "Локальная модель NLLB не найдена.\n"
                     + describe_model_location()
-                    + "\n\nУкажите путь в Настройках или сконвертируйте модель командой "
-                      "ct2-transformers-converter (см. scripts/test_nllb_translation.py)."
+                    + "\n\nСкачайте готовую модель командой python scripts/download_model.py "
+                      "или укажите путь к ней в Настройках (см. README, раздел про NLLB)."
                 )
             if not _is_complete(model_dir):
                 raise NllbModelUnavailable(

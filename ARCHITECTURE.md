@@ -90,6 +90,7 @@ Overlay-Translator/
 ├── tts/engine.py           # Text-to-speech for translations (SAPI, separate thread)
 ├── updater/check_update.py # Checks GitHub releases
 ├── scripts/                # Offline utilities (not part of the app build)
+│   ├── download_model.py           # Fetches the pinned model build from the HF Hub
 │   ├── test_nllb_translation.py    # Local model smoke test + CPU latency
 │   ├── export_history_dataset.py   # SQLite history → JSONL for fine-tuning
 │   └── baseline_eval_nllb.py       # NLLB chrF baseline on real pairs
@@ -114,6 +115,10 @@ Overlay-Translator/
   (`nllb-200-distilled-600M` — original HF checkpoint, 2.31 GiB, needed for fine-tuning;
   `nllb-200-ct2-int8` — CTranslate2 int8, 621 MiB, used by the app).
   Outside the repository, never committed.
+- Published model: Hugging Face Hub repo
+  [`Alhite/overlay-translator-nllb-int8`](https://huggingface.co/Alhite/overlay-translator-nllb-int8)
+  (public, CC-BY-NC-4.0). Tag `v0-base` = the plain int8 conversion before fine-tuning.
+  This is where other developers get the model from (see section 9).
 
 ---
 
@@ -153,6 +158,7 @@ so `import config; config.TARGET_LANG` reads a **property** that calls
   `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`.
 - Static (env/constants): `MAX_RETRIES_PER_PROVIDER`, `RETRY_BACKOFF_BASE_SEC`,
   `OPENROUTER_MODEL`, `ANTHROPIC_DETECT_MODEL`, `APP_VERSION`, `GITHUB_REPO`,
+  `NLLB_HF_REPO_ID`, `NLLB_HF_REVISION` (the pinned model build, see section 9),
   `SETTINGS_HOTKEY`, `EASYOCR_*`, `OVERLAY_*`, `USER_DATA_DIR`, `CACHE_DIR`,
   `CACHE_MAX_ITEMS`, `LOG_DIR`, `LOG_FILE`.
 
@@ -408,6 +414,9 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    the path without editing settings.
    `NLLB_DEVICE` (`auto` by default | `cuda` | `cpu`) picks the inference device; it is
    env-only and has no UI control.
+   **Model build version**: `config.NLLB_HF_REPO_ID` + `config.NLLB_HF_REVISION`
+   (default `Alhite/overlay-translator-nllb-int8` @ `v0-base`, env-overridable) — the only
+   place that pins which weights `scripts/download_model.py` fetches.
 3. **`.env`** (see `.env.example`) — API keys and static overrides
    (`EASYOCR_*`, `OVERLAY_*`, `CACHE_DIR`, `LOG_DIR`, `SETTINGS_HOTKEY`, `GITHUB_REPO`).
 4. **Keyring** — the working store for API keys (`settings.set_api_key`).
@@ -431,6 +440,7 @@ model, so a new provider/model/path is picked up on the next request.
 | **EasyOCR / torch** (local; weights are downloaded on first launch) | `ocr/engine.py::get_reader` |
 | **CTranslate2 + sentencepiece** (local, offline) | `translate/nllb_backend.py::NllbBackend.ensure_loaded` / `_raw_translate` |
 | **cuBLAS 12** (optional; `nvidia-cublas-cu12` wheel or CUDA Toolkit 12.x) | `translate/cuda_support.py::prepare_cuda_libraries`, loaded lazily by CTranslate2 on the first GPU matmul |
+| **Hugging Face Hub** (`huggingface_hub`, public repo, no login) | `scripts/download_model.py` only — the app itself never downloads anything |
 | **langid** (local) | `translate/lang_detect.py::LangidDetector`, `nllb_backend._detect_source` |
 | **keyring** (Windows Credential Manager) | `settings/__init__.py::_get_keyring` |
 | **mss** (screen capture) | `capture/screenshot.py` |
@@ -524,6 +534,28 @@ There is no `pytest.ini` / `pyproject.toml`; run from the project root
 Everything is in `scripts/` and is not part of the app build. Run from the project
 root with the venv interpreter.
 
+### Where the model comes from and how its version is pinned
+The app never downloads the model; it only looks for it on disk (search order in
+section 3, `nllb_backend.py`). There are two ways to get it:
+
+1. **Download the published build** (normal path for anyone but the model maintainer):
+   `python scripts/download_model.py` → `huggingface_hub.snapshot_download(repo_id, revision,
+   local_dir=models/nllb-200-ct2-int8)`. `models/nllb-200-ct2-int8` is the first auto-discovery
+   location, so no settings change is needed. The script verifies the required files
+   (`nllb_backend.missing_files`) and re-runs only fetch changed files.
+2. **Convert it yourself** (below) — needed only to produce a new build.
+
+**Versioning.** Builds are identified by **tags** in the HF repo, never by `main`:
+- `v0-base` → commit `0e37166` — the plain int8 conversion of `facebook/nllb-200-distilled-600M`.
+- A new build (e.g. after fine-tuning) = upload it, create a new tag (`v1-…`), then change
+  `NLLB_HF_REVISION` in `config.py` in the same commit that needs it. Never move or reuse a tag:
+  a tag must always point to the same weights so a checkout of any project commit stays reproducible.
+- `NLLB_HF_REVISION` can also be overridden via env or `--revision` to try another build.
+
+The HF repo is self-contained (`model.bin`, `config.json`, `shared_vocabulary.json`,
+`sentencepiece.bpe.model` + tokenizer JSONs + model card). Its model card lists speed numbers,
+limitations and the CC-BY-NC-4.0 license inherited from NLLB-200.
+
 ### Converting the HF checkpoint to CTranslate2 int8
 A one-off step; needs `transformers` + `torch` from `requirements-dev.txt`.
 
@@ -579,5 +611,5 @@ and, after a CPU fallback, the reason.
 
 _Created: 2026-09-23. Updated: 2026-09-24 (local NLLB backend, backend switching,
 export and baseline scripts; optional CUDA with CPU fallback, crash diagnostics;
-translated to English)._
+translated to English; model published on the HF Hub, pinned download)._
 _Update it after significant structural changes._

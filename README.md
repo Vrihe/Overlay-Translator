@@ -219,6 +219,8 @@ All settings can be overridden in `.env`:
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (paid) |
 | `NLLB_MODEL_DIR` | — | Path to the CTranslate2 NLLB model directory (overridden by the path set in Settings) |
 | `NLLB_DEVICE` | `auto` | Local NLLB device: `auto` (GPU if usable, else CPU), `cuda`, or `cpu` |
+| `NLLB_HF_REPO_ID` | `Alhite/overlay-translator-nllb-int8` | Hugging Face repo that `scripts/download_model.py` downloads the model from |
+| `NLLB_HF_REVISION` | `v0-base` | Model build (tag, branch or commit) to download |
 
 ---
 
@@ -231,26 +233,41 @@ It works offline, needs no API key, and covers the 29 languages mapped in `trans
 Domain profiles (prompts, few-shot examples) do not apply to it, because it is a plain seq2seq translation model.
 
 The runtime needs only `ctranslate2` and `sentencepiece`, both already in `requirements.txt`.
-The model weights are **not** part of the repository (`models/` is git-ignored), so you have to build them once.
+The model weights are **not** part of the repository (`models/` is git-ignored); get them once in one of two ways.
 
-### 1. Get and convert the model
+### 1a. Quick path: download the ready-made model (recommended)
+
+The converted model is published on the Hugging Face Hub as
+[Alhite/overlay-translator-nllb-int8](https://huggingface.co/Alhite/overlay-translator-nllb-int8)
+(public, no login needed, ~621 MB):
+
+```bash
+python scripts/download_model.py
+```
+
+This puts it into `models/nllb-200-ct2-int8`, where the app finds it automatically.
+The build is pinned to the `v0-base` tag (plain int8 conversion, no fine-tuning) by
+`NLLB_HF_REPO_ID` / `NLLB_HF_REVISION` in `config.py`, so everyone gets identical weights.
+Re-running the script only fetches files that changed. Options: `--revision <tag>` to try
+another build, `--dest <dir>` to download elsewhere (then set that path in Settings).
+
+> **License:** the model inherits NLLB-200's **CC-BY-NC-4.0** license, so it may be used for non-commercial purposes only.
+
+### 1b. Manual path: convert the original model yourself
 
 The conversion needs `transformers` and `torch`, but only for this one step (they are in `requirements-dev.txt`):
 
 ```bash
 pip install -r requirements-dev.txt
 
-ct2-transformers-converter --model facebook/nllb-200-distilled-600M \
-    --output_dir models/nllb-200-ct2-int8 --quantization int8 \
-    --copy_files sentencepiece.bpe.model tokenizer.json tokenizer_config.json \
-                 special_tokens_map.json generation_config.json
+ct2-transformers-converter --model facebook/nllb-200-distilled-600M     --output_dir models/nllb-200-ct2-int8 --quantization int8     --copy_files sentencepiece.bpe.model tokenizer.json tokenizer_config.json                  special_tokens_map.json generation_config.json
 ```
 
 The first run downloads the original checkpoint (~2.5 GB) from Hugging Face. To keep that
 download inside the project, set `HF_HOME=.hf-cache`; that folder is git-ignored.
 The output directory must contain `model.bin`, `config.json`, `shared_vocabulary.json` and `sentencepiece.bpe.model`.
 
-Check that the model works:
+### Check that the model works
 
 ```bash
 python scripts/test_nllb_translation.py --model models/nllb-200-ct2-int8

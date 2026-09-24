@@ -205,6 +205,14 @@ class _LiveConfig:
 
     APP_VERSION = "1.0.0"
     GITHUB_REPO = os.environ.get("GITHUB_REPO", "Vrihe/Overlay-Translator")
+
+    # ─── Local NLLB model on the Hugging Face Hub ───────────
+    # The single place that pins which model build the project uses; read by
+    # scripts/download_model.py. Bump the revision (a tag in the HF repo) to
+    # move everyone to a new build, e.g. after fine-tuning.
+    NLLB_HF_REPO_ID = os.environ.get("NLLB_HF_REPO_ID", "Alhite/overlay-translator-nllb-int8")
+    NLLB_HF_REVISION = os.environ.get("NLLB_HF_REVISION", "v0-base")
+
     _PROJECT_DIR = _PROJECT_DIR
 
     SETTINGS_HOTKEY = os.environ.get("SETTINGS_HOTKEY", "ctrl+shift+o")
