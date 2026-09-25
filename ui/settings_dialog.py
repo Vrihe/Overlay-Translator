@@ -440,7 +440,7 @@ class SettingsWidget(QWidget):
 
         layout.addWidget(grp_key)
 
-        # ── Translation backend section (API vs local NLLB) ──
+        # ── Translation backend section ──
         grp_backend = QGroupBox("Бэкенд перевода")
         grp_backend.setStyleSheet(self._GROUP_CSS)
         backend_layout = QVBoxLayout(grp_backend)
@@ -450,24 +450,19 @@ class SettingsWidget(QWidget):
         lbl_backend.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
         backend_layout.addWidget(lbl_backend)
 
-        backend_row = QHBoxLayout()
-        self._backend_group = QButtonGroup(self)
-        self._radio_backend_api = QRadioButton("API (Anthropic / OpenRouter)")
-        self._radio_backend_nllb = QRadioButton("Локальная модель (NLLB)")
-        self._radio_backend_api.setToolTip(
-            "Перевод через облачный LLM-провайдер. Требуется интернет и API-ключ."
-        )
-        self._radio_backend_nllb.setToolTip(
-            "Офлайн-перевод квантизованной моделью NLLB-200 на CPU. "
-            "Интернет и API-ключ не нужны."
-        )
-        self._backend_group.addButton(self._radio_backend_api, 0)
-        self._backend_group.addButton(self._radio_backend_nllb, 1)
-        self._radio_backend_api.setStyleSheet(radio_css)
-        self._radio_backend_nllb.setStyleSheet(radio_css)
-        backend_row.addWidget(self._radio_backend_api)
-        backend_row.addWidget(self._radio_backend_nllb)
-        backend_layout.addLayout(backend_row)
+        # Backend combo (replaces the old pair of radio buttons).
+        from translate.backend import BACKENDS as _ALL_BACKENDS
+        self._backend_combo = QComboBox()
+        self._backend_combo.setStyleSheet(self._INPUT_CSS)
+        for bid, blabel in _ALL_BACKENDS:
+            self._backend_combo.addItem(blabel, bid)
+        backend_layout.addWidget(self._backend_combo)
+
+        # ── NLLB-specific widgets (hidden when another backend is active) ──
+        self._nllb_container = QWidget()
+        nllb_inner = QVBoxLayout(self._nllb_container)
+        nllb_inner.setContentsMargins(0, 4, 0, 0)
+        nllb_inner.setSpacing(6)
 
         # Optional explicit model path (empty = auto-discover).
         nllb_path_row = QHBoxLayout()
@@ -480,7 +475,7 @@ class SettingsWidget(QWidget):
         self._nllb_path_edit.setStyleSheet(self._INPUT_CSS)
         nllb_path_row.addWidget(lbl_nllb_path)
         nllb_path_row.addWidget(self._nllb_path_edit, 1)
-        backend_layout.addLayout(nllb_path_row)
+        nllb_inner.addLayout(nllb_path_row)
 
         status_row = QHBoxLayout()
         self._nllb_status = QLabel("")
@@ -502,10 +497,164 @@ class SettingsWidget(QWidget):
         )
         self._btn_load_nllb.clicked.connect(self._on_load_nllb_clicked)
         status_row.addWidget(self._btn_load_nllb)
-        backend_layout.addLayout(status_row)
+        nllb_inner.addLayout(status_row)
 
-        self._backend_group.buttonClicked.connect(self._on_backend_changed)
+        backend_layout.addWidget(self._nllb_container)
+
+        self._backend_combo.currentIndexChanged.connect(self._on_backend_changed)
         layout.addWidget(grp_backend)
+
+        # ── NMT API keys section ──
+        grp_nmt = QGroupBox("Ключи быстрых переводчиков")
+        grp_nmt.setStyleSheet(self._GROUP_CSS)
+        nmt_layout = QVBoxLayout(grp_nmt)
+        nmt_layout.setSpacing(10)
+
+        nmt_btn_css = (
+            "QPushButton {"
+            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
+            "  border-radius: 6px; padding: 5px 12px;"
+            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
+            "QPushButton:disabled { background: #1f1f2e; color: #555; border-color: #333; }"
+        )
+
+        # ── Google API Key ──
+        lbl_google = QLabel("Google API Key")
+        lbl_google.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
+        nmt_layout.addWidget(lbl_google)
+        lbl_google_hint = QLabel("Необязательно — без ключа работает через бесплатный Web RPC")
+        lbl_google_hint.setStyleSheet(self._css("color: #888; font-size: 8.5pt;"))
+        nmt_layout.addWidget(lbl_google_hint)
+
+        google_row = QHBoxLayout()
+        self._google_key_input = QLineEdit()
+        self._google_key_input.setPlaceholderText("AIza...")
+        self._google_key_input.setEchoMode(QLineEdit.Password)
+        self._google_key_input.setStyleSheet(self._INPUT_CSS)
+        google_row.addWidget(self._google_key_input, 1)
+
+        self._btn_save_google = QPushButton("Сохранить")
+        self._btn_save_google.setStyleSheet(nmt_btn_css)
+        self._btn_save_google.setCursor(Qt.PointingHandCursor)
+        self._btn_save_google.clicked.connect(lambda: self._save_nmt_key("google"))
+        google_row.addWidget(self._btn_save_google)
+
+        self._btn_test_google = QPushButton("Проверить")
+        self._btn_test_google.setStyleSheet(nmt_btn_css)
+        self._btn_test_google.setCursor(Qt.PointingHandCursor)
+        self._btn_test_google.clicked.connect(lambda: self._test_nmt_key("google"))
+        google_row.addWidget(self._btn_test_google)
+        nmt_layout.addLayout(google_row)
+
+        self._google_key_status = QLabel("")
+        self._google_key_status.setWordWrap(True)
+        self._google_key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        nmt_layout.addWidget(self._google_key_status)
+
+        # ── DeepL API Key ──
+        lbl_deepl = QLabel("DeepL API Key")
+        lbl_deepl.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
+        nmt_layout.addWidget(lbl_deepl)
+        lbl_deepl_hint = QLabel("Free или Pro ключ (суффикс :fx = Free)")
+        lbl_deepl_hint.setStyleSheet(self._css("color: #888; font-size: 8.5pt;"))
+        nmt_layout.addWidget(lbl_deepl_hint)
+
+        deepl_row = QHBoxLayout()
+        self._deepl_key_input = QLineEdit()
+        self._deepl_key_input.setPlaceholderText("xxxxxxxx-xxxx-...:fx")
+        self._deepl_key_input.setEchoMode(QLineEdit.Password)
+        self._deepl_key_input.setStyleSheet(self._INPUT_CSS)
+        deepl_row.addWidget(self._deepl_key_input, 1)
+
+        self._btn_save_deepl = QPushButton("Сохранить")
+        self._btn_save_deepl.setStyleSheet(nmt_btn_css)
+        self._btn_save_deepl.setCursor(Qt.PointingHandCursor)
+        self._btn_save_deepl.clicked.connect(lambda: self._save_nmt_key("deepl"))
+        deepl_row.addWidget(self._btn_save_deepl)
+
+        self._btn_test_deepl = QPushButton("Проверить")
+        self._btn_test_deepl.setStyleSheet(nmt_btn_css)
+        self._btn_test_deepl.setCursor(Qt.PointingHandCursor)
+        self._btn_test_deepl.clicked.connect(lambda: self._test_nmt_key("deepl"))
+        deepl_row.addWidget(self._btn_test_deepl)
+        nmt_layout.addLayout(deepl_row)
+
+        self._deepl_key_status = QLabel("")
+        self._deepl_key_status.setWordWrap(True)
+        self._deepl_key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        nmt_layout.addWidget(self._deepl_key_status)
+
+        # ── Azure Translator Key + Region ──
+        lbl_azure = QLabel("Azure Translator Key")
+        lbl_azure.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
+        nmt_layout.addWidget(lbl_azure)
+
+        azure_row = QHBoxLayout()
+        self._azure_key_input = QLineEdit()
+        self._azure_key_input.setPlaceholderText("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        self._azure_key_input.setEchoMode(QLineEdit.Password)
+        self._azure_key_input.setStyleSheet(self._INPUT_CSS)
+        azure_row.addWidget(self._azure_key_input, 1)
+
+        self._btn_save_azure = QPushButton("Сохранить")
+        self._btn_save_azure.setStyleSheet(nmt_btn_css)
+        self._btn_save_azure.setCursor(Qt.PointingHandCursor)
+        self._btn_save_azure.clicked.connect(lambda: self._save_nmt_key("azure"))
+        azure_row.addWidget(self._btn_save_azure)
+
+        self._btn_test_azure = QPushButton("Проверить")
+        self._btn_test_azure.setStyleSheet(nmt_btn_css)
+        self._btn_test_azure.setCursor(Qt.PointingHandCursor)
+        self._btn_test_azure.clicked.connect(lambda: self._test_nmt_key("azure"))
+        azure_row.addWidget(self._btn_test_azure)
+        nmt_layout.addLayout(azure_row)
+
+        azure_region_row = QHBoxLayout()
+        lbl_azure_region = QLabel("Регион:")
+        lbl_azure_region.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._azure_region_input = QLineEdit()
+        self._azure_region_input.setPlaceholderText("global")
+        self._azure_region_input.setStyleSheet(self._INPUT_CSS)
+        azure_region_row.addWidget(lbl_azure_region)
+        azure_region_row.addWidget(self._azure_region_input, 1)
+        nmt_layout.addLayout(azure_region_row)
+
+        self._azure_key_status = QLabel("")
+        self._azure_key_status.setWordWrap(True)
+        self._azure_key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        nmt_layout.addWidget(self._azure_key_status)
+
+        layout.addWidget(grp_nmt)
+
+        # ── OCR GPU acceleration ──
+        grp_ocr_gpu = QGroupBox("Ускорение OCR (видеокарта)")
+        grp_ocr_gpu.setStyleSheet(self._GROUP_CSS)
+        ocr_gpu_layout = QVBoxLayout(grp_ocr_gpu)
+        ocr_gpu_layout.setSpacing(8)
+
+        # GPU info label
+        gpu_info = self._detect_gpu_info()
+        self._gpu_info_label = QLabel(gpu_info)
+        self._gpu_info_label.setWordWrap(True)
+        self._gpu_info_label.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        ocr_gpu_layout.addWidget(self._gpu_info_label)
+
+        gpu_mode_row = QHBoxLayout()
+        lbl_gpu_mode = QLabel("Режим GPU для EasyOCR:")
+        lbl_gpu_mode.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
+        gpu_mode_row.addWidget(lbl_gpu_mode)
+
+        self._ocr_gpu_combo = QComboBox()
+        self._ocr_gpu_combo.setStyleSheet(self._INPUT_CSS)
+        self._ocr_gpu_combo.addItem("Авто (GPU при наличии свободной VRAM ≥ 450 МБ)", "auto")
+        self._ocr_gpu_combo.addItem("Только видеокарта (CUDA)", "gpu")
+        self._ocr_gpu_combo.addItem("Только процессор (CPU)", "cpu")
+        gpu_mode_row.addWidget(self._ocr_gpu_combo, 1)
+        ocr_gpu_layout.addLayout(gpu_mode_row)
+
+        layout.addWidget(grp_ocr_gpu)
 
         # ── Translation section ──
         grp_trans = QGroupBox("Перевод")
@@ -880,6 +1029,30 @@ class SettingsWidget(QWidget):
             if found >= 0:
                 self._model_combo.setCurrentIndex(found)
 
+    @staticmethod
+    def _detect_gpu_info() -> str:
+        """Return a human-readable string about the detected GPU."""
+        try:
+            import torch
+            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+                name = torch.cuda.get_device_name(0)
+                total = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+                free_mb = 0.0
+                try:
+                    free, _ = torch.cuda.mem_get_info(0)
+                    free_mb = free / (1024 ** 2)
+                except Exception:
+                    pass
+                info = f"✓ Обнаружена: {name} ({total:.1f} ГБ)"
+                if free_mb > 0:
+                    info += f" — свободно {free_mb:.0f} МБ"
+                return info
+            return "CUDA недоступна — EasyOCR будет работать на CPU"
+        except ImportError:
+            return "PyTorch не установлен — EasyOCR будет работать на CPU"
+        except Exception as e:
+            return f"Не удалось определить GPU: {e}"
+
     def _on_model_changed(self, index: int) -> None:
         """Show a short hint below the combo and toggle the custom model field."""
         model_id = self._model_combo.itemData(index)
@@ -888,6 +1061,95 @@ class SettingsWidget(QWidget):
             self._custom_model_row_widget.setVisible(is_custom)
         hint = _MODEL_HINTS.get(str(model_id), "")
         self._model_hint.setText(hint)
+
+    # ── NMT key management ────────────────────────────────
+
+    def _nmt_status_label(self, provider: str) -> QLabel:
+        """Return the status QLabel for the given NMT provider."""
+        return {
+            "google": self._google_key_status,
+            "deepl":  self._deepl_key_status,
+            "azure":  self._azure_key_status,
+        }[provider]
+
+    def _nmt_key_input(self, provider: str) -> QLineEdit:
+        """Return the key QLineEdit for the given NMT provider."""
+        return {
+            "google": self._google_key_input,
+            "deepl":  self._deepl_key_input,
+            "azure":  self._azure_key_input,
+        }[provider]
+
+    def _save_nmt_key(self, provider: str) -> None:
+        """Save an NMT API key to keyring."""
+        key_text = self._nmt_key_input(provider).text().strip()
+        status = self._nmt_status_label(provider)
+
+        if not key_text:
+            status.setText("Введите ключ.")
+            status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
+            return
+
+        try:
+            settings.set_api_key(provider, key_text)
+        except Exception as e:
+            status.setText(f"Ошибка сохранения: {e}")
+            status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
+            return
+
+        # Also persist azure_region when saving azure key.
+        if provider == "azure":
+            region = self._azure_region_input.text().strip() or "global"
+            config_manager.set_value("azure_region", region)
+
+        status.setText(f"✓ Ключ {provider} сохранён!")
+        status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+        self._nmt_key_input(provider).clear()
+        self._refresh_nmt_key_status()
+
+    def _test_nmt_key(self, provider: str) -> None:
+        """Send a test phrase through the NMT backend and show the result."""
+        status = self._nmt_status_label(provider)
+        status.setText("Проверяем…")
+        status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        QApplication.processEvents()
+
+        # Temporarily persist azure_region so the test picks it up.
+        if provider == "azure":
+            region = self._azure_region_input.text().strip() or "global"
+            config_manager.set_value("azure_region", region)
+
+        try:
+            from translate.backend import _get_nmt_client
+            client = _get_nmt_client(provider)
+            detected, translated = client.translate("Hello world", target_lang="ru")
+            status.setText(f"✓ {detected} → ru: «{translated}»")
+            status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+        except Exception as e:
+            status.setText(f"✗ {e}")
+            status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
+
+    def _refresh_nmt_key_status(self) -> None:
+        """Update NMT key status labels based on what's stored in keyring."""
+        _nmt_providers = [
+            ("google", self._google_key_status, "Google"),
+            ("deepl",  self._deepl_key_status,  "DeepL"),
+            ("azure",  self._azure_key_status,   "Azure"),
+        ]
+        for provider, label, name in _nmt_providers:
+            has_key = bool(settings.get_api_key(provider))
+            if has_key:
+                label.setText(f"✓ Ключ {name} сохранён в Keyring")
+                label.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+            else:
+                if provider == "google":
+                    label.setText("Ключ не задан — будет использоваться бесплатный Web RPC")
+                else:
+                    label.setText(f"Ключ {name} не задан")
+                label.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+
+        # Azure region.
+        self._azure_region_input.setText(config_manager.get("azure_region") or "global")
 
     # ── Load current values ──────────────────────────────
 
@@ -899,12 +1161,11 @@ class SettingsWidget(QWidget):
 
     def _refresh_nllb_status(self) -> None:
         """Show whether the local model is present, without loading it."""
-        use_nllb = self._radio_backend_nllb.isChecked()
-        self._nllb_path_edit.setEnabled(use_nllb)
-        self._btn_load_nllb.setEnabled(use_nllb)
+        from translate.backend import BACKEND_NLLB
+        use_nllb = self._backend_combo.currentData() == BACKEND_NLLB
+        self._nllb_container.setVisible(use_nllb)
 
         if not use_nllb:
-            self._set_nllb_status("Перевод выполняется через облачный API.")
             return
 
         from translate.nllb_backend import get_backend, resolve_model_dir
@@ -932,13 +1193,15 @@ class SettingsWidget(QWidget):
                 color="#ffb347",
             )
 
-    def _on_backend_changed(self, _button=None) -> None:
-        """Apply the explicit path being edited, then refresh availability."""
-        path_text = self._nllb_path_edit.text().strip()
-        if path_text != (getattr(config, "NLLB_MODEL_PATH", "") or ""):
-            # Preview the typed path without persisting it yet.
-            from translate.nllb_backend import reset_client as reset_nllb
-            reset_nllb()
+    def _on_backend_changed(self, _index=None) -> None:
+        """React to backend combo change: show/hide NLLB block, refresh status."""
+        from translate.backend import BACKEND_NLLB
+        if self._backend_combo.currentData() == BACKEND_NLLB:
+            path_text = self._nllb_path_edit.text().strip()
+            if path_text != (getattr(config, "NLLB_MODEL_PATH", "") or ""):
+                # Preview the typed path without persisting it yet.
+                from translate.nllb_backend import reset_client as reset_nllb
+                reset_nllb()
         self._refresh_nllb_status()
 
     def _on_load_nllb_clicked(self) -> None:
@@ -957,7 +1220,8 @@ class SettingsWidget(QWidget):
         self._nllb_worker.start()
 
     def _on_nllb_preload_done(self, ok: bool, message: str) -> None:
-        self._btn_load_nllb.setEnabled(self._radio_backend_nllb.isChecked())
+        from translate.backend import BACKEND_NLLB
+        self._btn_load_nllb.setEnabled(self._backend_combo.currentData() == BACKEND_NLLB)
         if ok:
             self._set_nllb_status(f"✓ {message}", color="#66cc99")
         else:
@@ -971,15 +1235,24 @@ class SettingsWidget(QWidget):
 
     def _load_current(self) -> None:
 
-        # Translation backend (API vs local NLLB).
-        from translate.backend import BACKEND_NLLB
-
-        if getattr(config, "TRANSLATION_BACKEND", "api") == BACKEND_NLLB:
-            self._radio_backend_nllb.setChecked(True)
-        else:
-            self._radio_backend_api.setChecked(True)
+        # Translation backend (combo box).
+        current_backend = getattr(config, "TRANSLATION_BACKEND", "api") or "api"
+        for i in range(self._backend_combo.count()):
+            if self._backend_combo.itemData(i) == current_backend:
+                self._backend_combo.setCurrentIndex(i)
+                break
         self._nllb_path_edit.setText(getattr(config, "NLLB_MODEL_PATH", "") or "")
         self._refresh_nllb_status()
+
+        # NMT key statuses (Google / DeepL / Azure).
+        self._refresh_nmt_key_status()
+
+        # OCR GPU mode.
+        ocr_gpu_mode = getattr(config, "OCR_GPU_MODE", "auto") or "auto"
+        for i in range(self._ocr_gpu_combo.count()):
+            if self._ocr_gpu_combo.itemData(i) == ocr_gpu_mode:
+                self._ocr_gpu_combo.setCurrentIndex(i)
+                break
 
         # Primary provider choice & Fallback setting.
         primary = settings.get_primary_provider()
@@ -1143,7 +1416,7 @@ class SettingsWidget(QWidget):
 
             from translate.backend import BACKEND_API, BACKEND_NLLB
 
-            new_backend = BACKEND_NLLB if self._radio_backend_nllb.isChecked() else BACKEND_API
+            new_backend = self._backend_combo.currentData() or BACKEND_API
             new_nllb_path = self._nllb_path_edit.text().strip()
             backend_switched_to_nllb = (
                 new_backend == BACKEND_NLLB
@@ -1153,6 +1426,8 @@ class SettingsWidget(QWidget):
             cfg = config_manager.load_config()
             cfg["translation_backend"] = new_backend
             cfg["nllb_model_path"] = new_nllb_path
+            cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
+            cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
             cfg["primary_provider"] = primary_choice
             cfg["enable_fallback"] = self._chk_fallback.isChecked()
             cfg["enable_streaming"] = self._chk_streaming.isChecked()
