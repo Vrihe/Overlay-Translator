@@ -44,9 +44,16 @@ _SERVICE = "OverlayTranslator"
 _KEY_OPENROUTER = "openrouter_api_key"
 _KEY_ANTHROPIC = "anthropic_api_key"
 
+_KEY_GOOGLE = "google_api_key"
+_KEY_DEEPL = "deepl_api_key"
+_KEY_AZURE = "azure_api_key"
+
 _PROVIDER_KEYS = {
     "openrouter": _KEY_OPENROUTER,
     "anthropic": _KEY_ANTHROPIC,
+    "google": _KEY_GOOGLE,
+    "deepl": _KEY_DEEPL,
+    "azure": _KEY_AZURE,
 }
 
 
