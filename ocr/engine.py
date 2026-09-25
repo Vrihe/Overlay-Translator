@@ -48,8 +48,39 @@ _STRIP_MAX_WORKERS: int = 4
 
 # ── GPU helper ────────────────────────────────────────────────────────────────
 
+# ── GPU / VRAM helpers ────────────────────────────────────────────────────────
+
+# Minimum free VRAM (MB) required before we attempt GPU inference.
+# EasyOCR models (CRAFT + CRNN) need ~350-450 MB.
+_MIN_FREE_VRAM_MB: int = 450
+
+# Track whether the current reader is on GPU (for OOM fallback).
+_reader_on_gpu: bool = False
+
+
+def _cuda_available() -> bool:
+    """Return True if CUDA is genuinely usable (not just compiled in)."""
+    try:
+        import torch
+        return torch.cuda.is_available() and torch.cuda.device_count() > 0
+    except Exception:
+        return False
+
+
+def _free_vram_mb() -> float:
+    """Return free VRAM in megabytes, or 0 if CUDA is unavailable."""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return 0.0
+        free, _total = torch.cuda.mem_get_info(0)
+        return free / (1024 * 1024)
+    except Exception:
+        return 0.0
+
+
 def _resolve_gpu(gpu_setting) -> bool:
-    """Resolve GPU setting value into a boolean."""
+    """Resolve GPU setting value into a boolean (legacy .env support)."""
     if isinstance(gpu_setting, bool):
         return gpu_setting
     val = str(gpu_setting).strip().lower()
@@ -57,11 +88,45 @@ def _resolve_gpu(gpu_setting) -> bool:
         return True
     if val in ("false", "0"):
         return False
-    try:
-        import torch
-        return torch.cuda.is_available()
-    except Exception:
+    return _cuda_available()
+
+
+def _should_use_gpu() -> bool:
+    """Decide whether to initialise EasyOCR on the GPU.
+
+    Reads ``config.OCR_GPU_MODE`` (from settings.json):
+      • ``"gpu"``  — always try GPU (fall back if CUDA absent).
+      • ``"cpu"``  — never use GPU.
+      • ``"auto"`` — use GPU only if CUDA is available AND free VRAM ≥ threshold.
+
+    Also respects the legacy ``EASYOCR_GPU`` env-var / .env override.
+    """
+    # Legacy .env override (EASYOCR_GPU=true/false/auto).
+    legacy = getattr(config, "EASYOCR_GPU", "auto")
+    if str(legacy).strip().lower() in ("true", "1"):
+        return _cuda_available()
+    if str(legacy).strip().lower() in ("false", "0"):
         return False
+
+    mode = str(getattr(config, "OCR_GPU_MODE", "auto")).strip().lower()
+
+    if mode == "cpu":
+        return False
+    if mode == "gpu":
+        return _cuda_available()
+
+    # auto — check VRAM
+    if not _cuda_available():
+        return False
+    free = _free_vram_mb()
+    if free < _MIN_FREE_VRAM_MB:
+        logging.info(
+            "OCR auto-GPU: only %.0f MB VRAM free (need %d MB) — using CPU",
+            free, _MIN_FREE_VRAM_MB,
+        )
+        return False
+    logging.info("OCR auto-GPU: %.0f MB VRAM free — using GPU", free)
+    return True
 
 
 # ── Singleton reader ──────────────────────────────────────────────────────────
@@ -73,7 +138,7 @@ def get_reader():
     TranslationWorker cannot both initialize easyocr.Reader() simultaneously,
     which would cause a segfault in PyTorch's C++ internals.
     """
-    global _reader
+    global _reader, _reader_on_gpu
     if _reader is None:
         with _reader_lock:       # only one thread enters initialization at a time
             if _reader is None:  # re-check under lock (double-checked locking)
@@ -81,6 +146,16 @@ def get_reader():
                 import ctypes
 
                 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+                # Limit CPU threads so OCR doesn't starve the game of cores.
+                try:
+                    import torch
+                    cpu_count = os.cpu_count() or 4
+                    max_threads = max(2, min(4, cpu_count // 2))
+                    torch.set_num_threads(max_threads)
+                    logging.info("PyTorch CPU threads limited to %d / %d", max_threads, cpu_count)
+                except Exception:
+                    pass
 
                 if getattr(sys, "frozen", False):
                     base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
@@ -120,8 +195,7 @@ def get_reader():
                     raise
 
                 langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
-                gpu_setting = getattr(config, "EASYOCR_GPU", "auto")
-                use_gpu = _resolve_gpu(gpu_setting)
+                use_gpu = _should_use_gpu()
 
                 user_home = os.path.expanduser("~")
                 model_storage_dir = os.path.join(user_home, ".EasyOCR", "model")
@@ -138,7 +212,8 @@ def get_reader():
                         verbose=False,
                         model_storage_directory=model_storage_dir,
                     )
-                    logging.info("EasyOCR reader initialized successfully.")
+                    _reader_on_gpu = use_gpu
+                    logging.info("EasyOCR reader initialized successfully (GPU=%s).", use_gpu)
                 except Exception:
                     logging.exception("Failed to instantiate easyocr.Reader!")
                     raise
@@ -272,6 +347,61 @@ def _prepare_strip(strip_img: Image.Image, y_offset: int):
     return img_np, y_offset
 
 
+def _cleanup_gpu() -> None:
+    """Release cached GPU tensors so VRAM returns to the game immediately."""
+    if not _reader_on_gpu:
+        return
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def _safe_readtext(reader, img_np, **kwargs) -> list:
+    """Call reader.readtext with automatic OOM fallback to CPU.
+
+    If the GPU runs out of memory mid-inference (e.g. a game suddenly
+    allocated more VRAM), we catch the error, free GPU caches, and re-run
+    the same frame on CPU so the user still gets a result.
+    """
+    try:
+        results = reader.readtext(img_np, **kwargs)
+    except (RuntimeError,) as exc:
+        # torch.cuda.OutOfMemoryError is a subclass of RuntimeError
+        if "out of memory" not in str(exc).lower() and "CUDA" not in str(exc):
+            raise
+        logging.warning("GPU OOM during readtext — falling back to CPU for this frame")
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+        # Move model to CPU temporarily and retry
+        try:
+            reader.device = "cpu"
+            results = reader.readtext(img_np, **kwargs)
+        except Exception:
+            logging.exception("CPU fallback also failed")
+            results = []
+    return results
+
+
+# ── Adaptive mag_ratio ────────────────────────────────────────────────────────
+# mag_ratio=1.5 doubles pixel area (→ 4x FLOPS on convolutions).
+# For typical game UI (font ≥ 12px on a 1080p screen) mag_ratio=1.0 is enough.
+# We only increase for very small capture regions where text might be tiny.
+
+def _adaptive_mag_ratio(image_height: int) -> float:
+    """Return mag_ratio tuned to image size: smaller regions get upscaled more."""
+    if image_height < 80:
+        return 1.5    # very small region — need upscaling for tiny fonts
+    if image_height < 200:
+        return 1.2    # medium region — slight boost
+    return 1.0        # normal / large — no scaling needed
+
+
 def _extract_single(image: Image.Image) -> str:
     """Run OCR on the image as a single piece (small/medium images)."""
     processed = preprocess(image)
@@ -280,14 +410,15 @@ def _extract_single(image: Image.Image) -> str:
         else np.array(processed.convert("RGB"))
     )
     reader = get_reader()
-    logging.debug("Calling reader.readtext (single)...")
-    results = reader.readtext(
-        img_np,
+    mag = _adaptive_mag_ratio(image.height)
+    logging.debug("Calling reader.readtext (single, mag_ratio=%.1f)...", mag)
+    results = _safe_readtext(
+        reader, img_np,
         contrast_ths=0.05,
         adjust_contrast=0.8,
         text_threshold=0.4,
         link_threshold=0.2,
-        mag_ratio=1.5,
+        mag_ratio=mag,
         add_margin=0.2,
     )
     logging.debug(f"reader.readtext returned {len(results)} raw detections.")
@@ -295,6 +426,8 @@ def _extract_single(image: Image.Image) -> str:
     threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.20)
     filtered = [r for r in results if r[2] >= threshold]
     logging.debug(f"{len(filtered)} detections met confidence threshold {threshold}.")
+
+    _cleanup_gpu()
     return _sort_results(filtered)
 
 
@@ -351,13 +484,13 @@ def _extract_strips(image: Image.Image) -> str:
 
     for img_np, y_offset in active:
         logging.debug(f"Calling reader.readtext on strip at y={y_offset}...")
-        strip_results = reader.readtext(
-            img_np,
+        strip_results = _safe_readtext(
+            reader, img_np,
             contrast_ths=0.05,
             adjust_contrast=0.7,
             text_threshold=0.5,
             link_threshold=0.3,
-            mag_ratio=1.4,
+            mag_ratio=1.0,
             add_margin=0.15,
         )
         logging.debug(f"  → {len(strip_results)} detections in strip y={y_offset}")
@@ -370,6 +503,7 @@ def _extract_strips(image: Image.Image) -> str:
             all_results.append((adj_bbox, text, conf))
 
     # ── Step 5: Merge and sort ────────────────────────────────────────────────
+    _cleanup_gpu()
     return _sort_results(all_results)
 
 
@@ -399,3 +533,4 @@ def extract_text(image: Image.Image) -> str:
 def recognise(img: Image.Image, lang: str | None = None) -> str:
     """Run OCR on *img*. Kept as alias to extract_text for backward compatibility."""
     return extract_text(img)
+
