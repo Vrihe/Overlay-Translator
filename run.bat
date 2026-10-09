@@ -18,7 +18,7 @@ for %%A in (%*) do (
 )
 
 if not exist ".venv\Scripts\python.exe" (
-    echo ОШИБКА: .venv не найден. Сначала запустите install.bat
+    echo ERROR: .venv not found. Run install.bat first
     pause
     exit /b 1
 )
@@ -35,7 +35,7 @@ goto :elevated
 powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
 :elevated
 if errorlevel 1 (
-    echo Права администратора не получены. Запуск без них: run.bat --no-admin
+    echo Admin rights were not granted. To run without them: run.bat --no-admin
     pause
     exit /b 1
 )
@@ -48,5 +48,5 @@ if "%CONSOLE%"=="0" (
 )
 ".venv\Scripts\python.exe" main.py
 echo.
-echo Приложение завершилось (код %errorlevel%).
+echo The app exited (code %errorlevel%).
 pause
