@@ -1,0 +1,21 @@
+# Fine-tuning environment for the local NLLB backend (training/, not the app).
+# Separate venv because it needs a CUDA build of torch; the app venv keeps the
+# CPU build. download.pytorch.org is unreachable here, so the official torch
+# wheel comes from the NJU mirror (fast; mirrors.aliyun.com also works but is
+# ~10x slower). Keep pip cache/temp on E: to avoid filling C:.
+#
+#   py -3.13 -m venv .venv-train
+#   curl -r <ranges> ... https://mirrors.nju.edu.cn/pytorch/whl/cu130/torch-2.14.0%2Bcu130-cp313-cp313-win_amd64.whl
+#   set PIP_CACHE_DIR=.train-cache\pip & set TMP=.train-cache\tmp & set TEMP=.train-cache\tmp
+#   .venv-train\Scripts\pip install .train-cache\wheels\torch-2.14.0+cu130-cp313-cp313-win_amd64.whl -r requirements-train.txt
+#
+transformers==5.17.0
+peft
+accelerate
+sentencepiece==0.2.2
+sacrebleu==2.6.0
+pandas
+pyarrow
+huggingface_hub
+ctranslate2==4.8.2
+wordfreq

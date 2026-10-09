@@ -1,0 +1,621 @@
+# Game-chat phrases for the NLLB abbreviation fine-tune (stage 2.1).
+#
+# Format
+#   ## <abbr> | <mode> | <expansion>
+#   <phrase with the abbreviation> => <same phrase, abbreviation expanded>
+#
+# mode = translate : the abbreviation is expanded in the "full" phrase and the
+#                    translation carries its meaning.
+# mode = keep      : a gaming term that players write as is in every target
+#                    language; the translation must keep it verbatim, so a line
+#                    without "=>" means full == short.
+#
+# Sources: willwade/txt-sms-abbreviations (Apache-2.0) with gaming expansions
+# fixed by hand (gg, op, cc, dm, ign, ks, nt, pve ...), plus gaming abbreviations
+# missing from it (marked "added").
+
+# ─── keep ───────────────────────────────────────────────────────────────────
+
+## lol | keep | laughing out loud
+lol that jump was so bad
+lol he fell off the map again
+we lost to a bot lol
+LOL did you see that
+nice try lol
+
+## xd | keep | laughing face
+xd what was that
+he died to fall damage xd
+xD i forgot to heal
+that was close xd
+xd my character is stuck in a wall
+
+## afk | keep | away from keyboard
+afk 5 min
+our tank is afk again
+sorry was afk, what happened
+going afk, dinner is ready
+kick the afk guy
+
+## gg | keep | good game
+gg everyone
+gg, that was a close one
+gg we tried our best
+GG, well played team
+one more round after this gg
+
+## gl | keep | good luck
+gl on your next match
+gl with the boss
+gl team, lets win this
+gl everyone, see you in the arena
+gl, you will need it
+
+## hf | keep | have fun
+hf in the raid tonight
+hf guys, see you later
+go and hf
+hf with the new update
+hf, i am going to bed
+
+## glhf | keep | good luck, have fun
+glhf everyone
+glhf, lets have a clean game
+hi team glhf
+glhf, may the best team win
+glhf and dont tilt
+
+## ez | keep | easy
+ez win
+that boss was ez
+ez game, next
+not so ez now huh
+too ez for us
+
+## noob | keep | newbie
+dont be a noob and follow me
+im a noob at this game, help pls
+that noob pulled the whole room
+stop calling me a noob
+even a noob can do this quest
+
+## op | keep | overpowered
+this sword is op
+mages are so op right now
+that combo is op, nerf it pls
+he is op with that build
+this pet is op in pvp
+
+## nerf | keep | make weaker
+they need to nerf this hero
+the nerf killed my build
+nerf snipers already
+after the nerf nobody plays him
+please nerf this boss
+
+## gank | keep | ambush a lone player
+gank top lane now
+they will gank you, be careful
+their jg will gank bot soon
+come gank mid, he is low
+i will gank the enemy healer
+
+## ks | keep | kill steal
+stop ks my kills
+that was a ks, not cool
+he always ks the boss
+no ks please, he is mine
+you did a ks again, stop it
+
+## dc | keep | disconnect
+sorry i got dc
+our healer dc again
+wait, the mage dc
+if i dc just keep going
+the server keeps making me dc
+
+## hp | keep | health points
+low hp, need heals
+boss has 10% hp left
+my hp is almost gone
+watch your hp
+the tank has full hp
+
+## mp | keep | mana points
+out of mp, give me a second
+need mp potion
+my mp is full, lets go
+save your mp for the boss
+the healer has no mp
+
+## aoe | keep | area of effect
+use aoe on the pack
+dont stand in the aoe
+his aoe hits the whole group
+aoe them down fast
+this skill does aoe damage
+
+## dps | keep | damage per second
+our dps is too low
+need one more dps
+the dps check on this boss is hard
+dps focus the adds
+i play dps in every raid
+
+## npc | keep | non-player character
+talk to the npc near the gate
+the npc sells better armor
+that npc gives the quest
+kill the npc to finish the quest
+where is the blacksmith npc
+
+## pvp | keep | player versus player
+anyone up for pvp tonight
+pvp gear is better for arena
+i only play pvp
+this server is pvp only
+pvp rewards are better this season
+
+## pve | keep | player versus environment
+im more into pve content
+pve players get better loot here
+lets do some pve first
+pve is too easy on this server
+i only play pve with friends
+
+## lfg | keep | looking for group
+lfg dungeon, im a healer
+lfg raid tonight
+anyone lfg? we need a tank
+lfg for the weekly quest
+lfg, need two more for the dungeon
+
+## wts | keep | want to sell
+wts rare sword, send offers
+wts iron ore, cheap
+wts mount, 500 gold
+wts my old armor
+wts magic ring, good price
+
+## wtb | keep | want to buy
+wtb healing potions
+wtb fire staff, paying well
+wtb 20 leather
+wtb mount, will pay 300 gold
+wtb iron ore, need a lot
+
+## wp | keep | well played | added
+wp team
+wp, you carried that
+that was a wp from the enemy
+wp healer, you saved us
+nice game, wp
+
+## ggwp | keep | good game, well played | added
+ggwp everyone
+ggwp, see you next game
+ggwp, close match
+ggwp, that was fun
+ggwp guys, good luck next time
+
+## xp | keep | experience points | added
+this quest gives a lot of xp
+double xp weekend is live
+i need more xp to level up
+where is the best xp spot
+the boss gives no xp
+
+## cd | keep | cooldown | added
+my ult is on cd
+wait for the cd
+heal is on cd, be careful
+what is the cd on that skill
+dash is on cd, cover me
+
+## cc | keep | crowd control | added
+use cc on the healer
+i have no cc left
+too much cc in this game
+chain cc the boss
+break the cc and run
+
+## rng | keep | random number generator | added
+rng hates me today
+i lost to pure rng
+the drop is all rng
+bad rng again
+this game is all about rng
+
+## mvp | keep | most valuable player | added
+you are the mvp
+our healer was the mvp this game
+mvp goes to the tank
+who was the mvp today
+i think the healer is mvp
+
+## ult | keep | ultimate ability | added
+my ult is ready
+save your ult for the boss
+he wasted his ult
+ult now
+the enemy mage has his ult
+
+## ilvl | keep | item level | added
+you need 400 ilvl for this raid
+what is your ilvl
+my ilvl is too low
+check your ilvl before the dungeon
+this gear raises your ilvl
+
+## jg | keep | jungler | added
+jg come top
+our jg is afk
+jg, the dragon is up
+the enemy jg is near our blue buff
+can our jg help bot
+
+## adc | keep | attack damage carry | added
+protect the adc
+our adc is fed
+adc, stay behind me
+their adc is too strong
+i will play adc next game
+
+## supp | keep | support | added
+supp, ward the river
+our supp keeps dying
+i will play supp this game
+supp, stay with me
+we need a supp with heals
+
+## mia | keep | missing in action | added
+mid mia
+their jg is mia, be careful
+bot lane mia
+top lane mia, watch out
+two enemies mia, play safe
+
+## aggro | keep | enemy attention | added
+the tank lost aggro
+dont pull aggro before me
+i have aggro, run
+pull aggro off the healer
+the boss has aggro on me
+
+# ─── translate ──────────────────────────────────────────────────────────────
+
+## lmao | translate | laughing my ass off
+lmao that was so bad => laughing my ass off, that was so bad
+lmao he ran into the wall => laughing my ass off, he ran into the wall
+LMAO what a play => laughing my ass off, what a play
+we lost again lmao => we lost again, laughing my ass off
+
+## wtf | translate | what the fuck
+wtf was that => what the fuck was that
+wtf, how did he survive => what the fuck, how did he survive
+wtf is this lag => what the fuck is this lag
+WTF, the boss one shot me => what the fuck, the boss one shot me
+
+## omg | translate | oh my god
+omg we won => oh my god, we won
+omg look at this loot => oh my god, look at this loot
+omg not again => oh my god, not again
+OMG that was close => oh my god, that was close
+
+## idk | translate | I don't know
+idk where to go => I don't know where to go
+idk how to beat this boss => I don't know how to beat this boss
+idk, ask the leader => I don't know, ask the leader
+idk what happened => I don't know what happened
+
+## idc | translate | I don't care
+idc who plays tank => I don't care who plays tank
+idc, just finish the quest => I don't care, just finish the quest
+idc about the loot => I don't care about the loot
+
+## tbh | translate | to be honest
+tbh this map is boring => to be honest, this map is boring
+tbh you played well => to be honest, you played well
+tbh i dont like this class => to be honest, I don't like this class
+tbh we need a better healer => to be honest, we need a better healer
+
+## imo | translate | in my opinion
+imo mage is the best class => in my opinion, mage is the best class
+imo we should go left => in my opinion, we should go left
+this build is better imo => this build is better, in my opinion
+
+## imho | translate | in my humble opinion
+imho the new patch is worse => in my humble opinion, the new patch is worse
+imho we should wait => in my humble opinion, we should wait
+imho he is right => in my humble opinion, he is right
+
+## btw | translate | by the way
+btw the boss is weak to fire => by the way, the boss is weak to fire
+btw thanks for the help => by the way, thanks for the help
+i have a spare sword btw => I have a spare sword, by the way
+btw who has the key => by the way, who has the key
+
+## fyi | translate | for your information
+fyi the event starts at 8 => for your information, the event starts at 8
+fyi we need two more players => for your information, we need two more players
+fyi the shop closes soon => for your information, the shop closes soon
+
+## lmk | translate | let me know
+lmk when you are ready => let me know when you are ready
+lmk if you need help => let me know if you need help
+lmk what you want to buy => let me know what you want to buy
+
+## asap | translate | as soon as possible
+need a healer asap => need a healer as soon as possible
+come back asap => come back as soon as possible
+we need to leave asap => we need to leave as soon as possible
+ASAP pls, the event ends soon => as soon as possible please, the event ends soon
+
+## atm | translate | at the moment
+im busy atm => I'm busy at the moment
+atm we have four players => at the moment we have four players
+cant play atm => I can't play at the moment
+
+## rn | translate | right now
+come here rn => come here right now
+i cant talk rn => I can't talk right now
+the boss is up rn => the boss is up right now
+im in a dungeon rn => I'm in a dungeon right now
+
+## np | translate | no problem
+np, happy to help => no problem, happy to help
+np, see you tomorrow => no problem, see you tomorrow
+np at all => no problem at all
+
+## ty | translate | thank you
+ty for the heal => thank you for the heal
+ty so much => thank you so much
+ty, see you => thank you, see you
+ty for the gold => thank you for the gold
+
+## thx | translate | thanks
+thx for the carry => thanks for the carry
+thx, you saved me => thanks, you saved me
+thx everyone => thanks everyone
+
+## pls | translate | please
+heal me pls => heal me please
+pls wait for me => please wait for me
+pls stop pulling => please stop pulling
+invite me pls => invite me please
+
+## plz | translate | please
+plz help me with this quest => please help me with this quest
+revive me plz => revive me please
+plz dont leave => please don't leave
+
+## nvm | translate | never mind
+nvm, i found it => never mind, I found it
+nvm, he already left => never mind, he already left
+oh nvm => oh, never mind
+
+## omw | translate | on my way
+omw to the dungeon => on my way to the dungeon
+omw, wait for me => on my way, wait for me
+omw to help you => on my way to help you
+
+## brb | translate | be right back
+brb, getting water => be right back, getting water
+brb 2 min => be right back in 2 minutes
+brb, doorbell => be right back, doorbell
+BRB, dont start without me => be right back, don't start without me
+
+## bbl | translate | be back later
+bbl, going to work => be back later, going to work
+bbl, dinner time => be back later, dinner time
+bbl tonight => be back later tonight
+
+## gtg | translate | got to go
+gtg, mom is calling => got to go, mom is calling
+gtg, see you tomorrow => got to go, see you tomorrow
+sorry guys gtg => sorry guys, got to go
+
+## g2g | translate | got to go
+g2g, school tomorrow => got to go, school tomorrow
+g2g now, bye => got to go now, bye
+ok g2g => ok, got to go
+
+## cya | translate | see you
+cya tomorrow => see you tomorrow
+cya in the next raid => see you in the next raid
+ok cya => ok, see you
+
+## ttyl | translate | talk to you later
+ttyl, going to sleep => talk to you later, going to sleep
+ok ttyl => ok, talk to you later
+ttyl after the match => talk to you later, after the match
+
+## irl | translate | in real life
+i know him irl => I know him in real life
+busy irl today => busy in real life today
+irl stuff, sorry => real life stuff, sorry
+
+## jk | translate | just kidding
+jk, i will heal you => just kidding, I will heal you
+you are the worst tank, jk => you are the worst tank, just kidding
+jk jk, dont leave => just kidding, just kidding, don't leave
+
+## ikr | translate | I know, right
+ikr, this boss is annoying => I know, right? this boss is annoying
+ikr, the lag is terrible => I know, right? the lag is terrible
+ikr => I know, right?
+
+## ngl | translate | not going to lie
+ngl that was impressive => not going to lie, that was impressive
+ngl i was scared => not going to lie, I was scared
+ngl this game is hard => not going to lie, this game is hard
+
+## smh | translate | shaking my head
+smh, he pulled again => shaking my head, he pulled again
+smh at this team => shaking my head at this team
+they left the game smh => they left the game, shaking my head
+
+## afaik | translate | as far as I know
+afaik the event is over => as far as I know, the event is over
+afaik he is still online => as far as I know, he is still online
+afaik this item cant be traded => as far as I know, this item can't be traded
+
+## iirc | translate | if I remember correctly
+iirc the key drops from the boss => if I remember correctly, the key drops from the boss
+iirc it was patched => if I remember correctly, it was patched
+the portal is north iirc => the portal is north, if I remember correctly
+
+## ofc | translate | of course
+ofc i will help => of course I will help
+ofc he died again => of course he died again
+yes ofc => yes, of course
+
+## sry | translate | sorry
+sry, my fault => sorry, my fault
+sry i was late => sorry I was late
+sry, wrong button => sorry, wrong button
+
+## u | translate | you
+can u heal me => can you heal me
+u are the best => you are the best
+where are u => where are you
+u need a better weapon => you need a better weapon
+
+## ur | translate | your / you're
+ur gear is bad => your gear is bad
+ur the healer, stay back => you're the healer, stay back
+is that ur horse => is that your horse
+ur team is waiting => your team is waiting
+
+## r | translate | are
+r u ready => are you ready
+where r you => where are you
+they r coming => they are coming
+we r late => we are late
+
+## k | translate | okay
+k, lets go => okay, let's go
+k, i will wait => okay, I will wait
+k thanks => okay, thanks
+
+## kk | translate | okay
+kk, on my way => okay, on my way
+kk, starting now => okay, starting now
+kk sounds good => okay, sounds good
+
+## bc | translate | because
+we lost bc of lag => we lost because of lag
+i left bc it was late => I left because it was late
+buy it bc it is cheap => buy it because it is cheap
+
+## inc | translate | incoming
+inc mid => enemies incoming to mid
+2 inc left side => 2 enemies incoming on the left side
+inc, get ready => enemies incoming, get ready
+boss inc => boss incoming
+
+## lfm | translate | looking for more
+lfm for the raid, need a healer => looking for more players for the raid, need a healer
+lfm dungeon => looking for more players for the dungeon
+lfm, 3 spots left => looking for more players, 3 spots left
+
+## wtt | translate | want to trade
+wtt my sword for a shield => want to trade my sword for a shield
+wtt ore for wood => want to trade ore for wood
+wtt rare pet => want to trade a rare pet
+
+## gratz | translate | congratulations
+gratz on the level => congratulations on the level
+gratz, you earned it => congratulations, you earned it
+gratz on the new mount => congratulations on the new mount
+
+## ign | translate | in-game name
+what is ur ign => what is your in-game name
+my ign is DarkWolf => my in-game name is DarkWolf
+add me, same ign => add me, same in-game name
+
+## dm | translate | direct message
+dm me for the price => send me a direct message for the price
+check ur dm => check your direct messages
+i sent u a dm => I sent you a direct message
+
+## pm | translate | private message
+pm me if interested => send me a private message if interested
+pm me for trade => send me a private message to trade
+i will pm you => I will send you a private message
+
+## nt | translate | nice try
+nt, we will get them next time => nice try, we will get them next time
+nt team => nice try, team
+nt, almost had it => nice try, almost had it
+
+## gz | translate | congratulations | added
+gz on the drop => congratulations on the drop
+gz => congratulations
+gz, well deserved => congratulations, well deserved
+
+## grats | translate | congratulations | added
+grats on the win => congratulations on the win
+grats, finally => congratulations, finally
+grats on max level => congratulations on max level
+
+## tysm | translate | thank you so much | added
+tysm for the help => thank you so much for the help
+tysm, you are awesome => thank you so much, you are awesome
+tysm for the gold => thank you so much for the gold
+
+## lvl | translate | level | added
+what lvl are you => what level are you
+i am lvl 30 => I am level 30
+you need lvl 50 for this zone => you need level 50 for this zone
+lvl up soon => level up soon
+
+## oom | translate | out of mana | added
+oom, cant heal => out of mana, can't heal
+healer is oom => the healer is out of mana
+wait, im oom => wait, I'm out of mana
+
+## tp | translate | teleport | added
+tp to the city => teleport to the city
+can someone tp me => can someone teleport me
+tp is on cooldown => teleport is on cooldown
+
+## rez | translate | resurrect | added
+rez me pls => resurrect me please
+can someone rez the tank => can someone resurrect the tank
+no rez left => no resurrection left
+
+## lf1m | translate | looking for one more | added
+lf1m healer => looking for one more player, a healer
+lf1m for the dungeon => looking for one more player for the dungeon
+lf1m, then we start => looking for one more player, then we start
+
+## pst | translate | please send a message | added
+wts sword, pst => wts sword, please send me a message
+lfg tank, pst => lfg tank, please send me a message
+pst for price => please send me a message for the price
+
+## cuz | translate | because | added
+i died cuz of lag => I died because of lag
+cuz he is the leader => because he is the leader
+we wait cuz the tank is afk => we wait because the tank is afk
+
+## tho | translate | though | added
+nice sword tho => nice sword, though
+i lost tho => I lost, though
+it was fun tho => it was fun, though
+
+## wd | translate | well done | added
+wd team => well done, team
+wd, that was fast => well done, that was fast
+wd on the boss => well done on the boss
+
+## rekt | translate | wrecked | added
+we got rekt => we got destroyed
+he rekt the whole team => he destroyed the whole team
+rekt by a noob => destroyed by a noob
+
+## kite | translate | keep an enemy at a distance while attacking | added
+kite the boss around the room => keep the boss at a distance while attacking it around the room
+i will kite them, you heal => I will keep them at a distance while attacking, you heal
+kite, dont tank it => keep it at a distance, don't take its hits

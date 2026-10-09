@@ -79,3 +79,10 @@ models/
 
 # Exported datasets (contain captured screen text — user data)
 data/
+
+# Training environment (CUDA torch) and its pip/HF/temp caches — kept on this drive
+.venv-train/
+.train-cache/
+
+# LoRA checkpoints and training runs
+checkpoints/
