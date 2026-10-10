@@ -11,16 +11,16 @@ cd /d "%~dp0"
 set "VENV_PY=.venv\Scripts\python.exe"
 
 echo ============================================================
-echo   Translator Overlay ^| Установка зависимостей
+echo   Translator Overlay ^| Installing dependencies
 echo ============================================================
 echo.
 
 if exist "%VENV_PY%" (
-    echo [1/3] Виртуальное окружение .venv уже есть
+    echo [1/3] Virtual environment .venv already exists
     goto :deps
 )
 
-echo [1/3] Создаю виртуальное окружение .venv...
+echo [1/3] Creating virtual environment .venv...
 where py >nul 2>&1
 if not errorlevel 1 (
     py -3 -m venv .venv
@@ -29,34 +29,34 @@ if not errorlevel 1 (
 )
 if not exist "%VENV_PY%" (
     echo.
-    echo ОШИБКА: не удалось создать .venv. Установите Python 3.10+ с python.org
-    echo и отметьте "Add python.exe to PATH".
+    echo ERROR: failed to create .venv. Install Python 3.10+ from python.org
+    echo and check "Add python.exe to PATH".
     goto :fail
 )
 
 :deps
 echo.
-echo [2/3] Обновляю pip...
+echo [2/3] Upgrading pip...
 "%VENV_PY%" -m pip install --upgrade pip
 if errorlevel 1 goto :fail
 
 echo.
-echo [3/3] Устанавливаю зависимости из requirements.txt (первый раз - несколько минут)...
+echo [3/3] Installing dependencies from requirements.txt (first run takes a few minutes)...
 "%VENV_PY%" -m pip install -r requirements.txt
 if errorlevel 1 goto :fail
 
 if /i "%~1"=="--gpu" (
     echo.
-    echo [+] Устанавливаю cuBLAS для GPU ^(requirements-gpu.txt, ~740 MB^)...
+    echo [+] Installing cuBLAS for GPU ^(requirements-gpu.txt, ~740 MB^)...
     "%VENV_PY%" -m pip install -r requirements-gpu.txt
     if errorlevel 1 goto :fail
 )
 
 echo.
 echo ============================================================
-echo   ГОТОВО
-echo   Модель для офлайн-перевода: download_model.bat
-echo   Запуск приложения:          run.bat
+echo   DONE
+echo   Offline translation model: download_model.bat
+echo   Launch the app:             run.bat
 echo ============================================================
 echo.
 pause
@@ -64,6 +64,6 @@ exit /b 0
 
 :fail
 echo.
-echo УСТАНОВКА НЕ УДАЛАСЬ - смотрите вывод выше.
+echo INSTALLATION FAILED - see the output above.
 pause
 exit /b 1
