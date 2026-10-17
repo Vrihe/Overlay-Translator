@@ -41,7 +41,7 @@ translator-overlay/
 ├── build.bat            # One-click Windows build script
 ├── install.bat          # Creates .venv and installs dependencies
 ├── download_model.bat   # Downloads the local NLLB model
-├── run.bat              # Starts the app from .venv (as Administrator)
+├── run.bat              # Starts the app from .venv (normal user rights; --admin to elevate)
 │
 ├── overlay/
 │   └── selector.py      # Fullscreen region-selection overlay (PyQt5)
@@ -86,7 +86,7 @@ cd overlay-translator
 |---|---|
 | `install.bat` | Creates `.venv` and installs `requirements.txt` into it (`install.bat --gpu` also installs `requirements-gpu.txt`) |
 | `download_model.bat` | Downloads the local NLLB model into `models/nllb-200-ct2-int8` (optional, for offline translation; arguments go to `scripts/download_model.py`) |
-| `run.bat` | Starts the app from `.venv` as Administrator, with no console window (`--console` keeps the console open for logs, `--no-admin` skips the UAC prompt) |
+| `run.bat` | Starts the app from `.venv` with no console window (`--console` keeps the console open for logs, `--admin` re-launches it as Administrator, see the note under Usage) |
 
 The manual steps are below.
 
@@ -154,7 +154,10 @@ python main.py
 ```
 *(or `pythonw main.py` to launch without any console window)*
 
-> **Note:** On Windows, the `keyboard` library requires Administrator privileges for global low-level hooks. Run your terminal **as Administrator**.
+> **Note:** Global hotkeys work without Administrator rights. Windows does not deliver them while a window
+> running as Administrator (some games) has focus; only in that case start the app elevated (`run.bat --admin`).
+> Avoid it otherwise: an elevated app runs the project's code as Administrator, so anything that can edit
+> the project folder would get those rights too.
 
 ### Hotkeys
 
