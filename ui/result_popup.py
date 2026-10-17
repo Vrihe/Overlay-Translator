@@ -177,6 +177,7 @@ class ResultPopup(QWidget):
             header_row.addWidget(header_lbl)
 
             domain_badge = QLabel(f"•  Контекст: {domain_display_name}")
+            domain_badge.setTextFormat(Qt.PlainText)
             domain_badge.setStyleSheet("color: #777799; font-size: 8.5pt; font-family: 'Segoe UI'; background: transparent;")
             header_row.addWidget(domain_badge)
 
@@ -284,6 +285,8 @@ class ResultPopup(QWidget):
     @staticmethod
     def _make_label(text: str, *, size: int = 12, color: str = "#fff", bold: bool = False) -> QLabel:
         label = QLabel(text)
+        # OCR text and LLM output are untrusted: never let Qt render them as HTML.
+        label.setTextFormat(Qt.PlainText)
         label.setWordWrap(True)
         weight = "600" if bold else "normal"
         label.setStyleSheet(

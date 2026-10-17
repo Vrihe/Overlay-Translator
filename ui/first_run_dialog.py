@@ -2,8 +2,8 @@
 ui/first_run_dialog.py — first-launch dialog for API key setup.
 
 Shown when no API key is found (neither in keyring nor in env vars).
-The user picks a provider, enters a key, and the dialog validates it
-with a test translation before saving to keyring.
+The user picks a provider, enters a key, and the dialog checks it with that
+provider before saving it to keyring.
 """
 
 from PyQt5.QtWidgets import (
@@ -60,6 +60,17 @@ class FirstRunDialog(QDialog):
         sub.setAlignment(Qt.AlignCenter)
         layout.addWidget(sub)
 
+        # ── Privacy notice: screen text leaves the machine ──
+        privacy = QLabel(
+            "Распознанный текст выделенной области отправляется выбранному провайдеру. "
+            "Бесплатные модели OpenRouter могут сохранять запросы. Не переводите пароли "
+            "и личные данные или используйте локальную модель NLLB (Настройки → Бэкенд перевода)."
+        )
+        privacy.setTextFormat(Qt.PlainText)
+        privacy.setWordWrap(True)
+        privacy.setStyleSheet(self._css("color: #c9a86a; font-size: 9pt;"))
+        layout.addWidget(privacy)
+
         # ── Provider radio buttons ──
         provider_row = QHBoxLayout()
         provider_row.setSpacing(16)
@@ -102,6 +113,7 @@ class FirstRunDialog(QDialog):
 
         # ── Status label ──
         self._status = QLabel("")
+        self._status.setTextFormat(Qt.PlainText)
         self._status.setWordWrap(True)
         self._status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
         layout.addWidget(self._status)
@@ -184,24 +196,16 @@ class FirstRunDialog(QDialog):
         self._set_status("Проверяем ключ…")
         QApplication.processEvents()
 
-        # Temporarily save the key so translate() can pick it up.
-        settings.set_api_key(provider, key)
-
-        # Force the LLM client to re-create with the new key.
-        from translate.llm_client import translate, reset_client
-        reset_client()
-
+        from translate.llm_client import validate_api_key, reset_client
         try:
-            result = translate("Hello", target_lang="ru")
-            if not result:
-                raise RuntimeError("Пустой ответ от API")
+            validate_api_key(provider, key)
         except Exception as e:
-            # Roll back — remove the invalid key.
-            settings.delete_api_key(provider)
-            reset_client()
             self._set_status(f"Ошибка: {e}", error=True)
             self._btn_save.setEnabled(True)
             return
+
+        settings.set_api_key(provider, key)
+        reset_client()
 
         self._set_status("✓ Ключ работает! Сохранено.")
         QApplication.processEvents()

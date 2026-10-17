@@ -201,6 +201,7 @@ detect_and_translate(text: str, target_lang: str|None = None,
                      # -> (detected_lang, translation)
 
 reset_client() -> None          # resets clients and the system-prompt cache
+validate_api_key(provider, key) # raises RuntimeError if the provider rejects the key; no tokens spent
 get_provider_chain() -> list[str]
 ```
 

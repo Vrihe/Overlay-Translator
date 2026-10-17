@@ -12,9 +12,9 @@ from PyQt5.QtWidgets import (
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
     QTextEdit, QScrollArea, QFrame, QCheckBox,
 )
-from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QMetaObject, Q_ARG
-from PyQt5.QtGui import QPainter, QPainterPath, QColor
+from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
 
+import html
 from typing import Any
 import config
 import settings
@@ -433,6 +433,7 @@ class SettingsWidget(QWidget):
         key_layout.addWidget(self._key_input)
 
         self._key_status = QLabel("")
+        self._key_status.setTextFormat(Qt.PlainText)  # shows provider error text
         self._key_status.setWordWrap(True)
         self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
         key_layout.addWidget(self._key_status)
@@ -777,7 +778,10 @@ class SettingsWidget(QWidget):
             r_layout = QHBoxLayout(row)
             r_layout.setContentsMargins(8, 6, 8, 6)
 
-            lbl = QLabel(f"<b>{display_name}</b> <span style='color:#777; font-size:8.5pt;'>({dom_id})</span>")
+            lbl = QLabel(
+                f"<b>{html.escape(display_name)}</b> "
+                f"<span style='color:#777; font-size:8.5pt;'>({html.escape(dom_id)})</span>"
+            )
             lbl.setStyleSheet(self._css("color: #e0e0e0; font-size: 9.5pt;"))
             r_layout.addWidget(lbl)
             r_layout.addStretch()
@@ -1078,8 +1082,8 @@ class SettingsWidget(QWidget):
 
         if has_update:
             self._update_status_lbl.setText(
-                f"🚀 Доступна новая версия {version}! "
-                f'<a href="{url}" style="color:#5b8def; font-weight:600;">Скачать обновление →</a>'
+                f"🚀 Доступна новая версия {html.escape(version)}! "
+                f'<a href="{html.escape(url)}" style="color:#5b8def; font-weight:600;">Скачать обновление →</a>'
             )
             self._update_status_lbl.setStyleSheet(self._css("color: #66cc99; font-size: 9.5pt;"))
             self._update_status_lbl.setOpenExternalLinks(True)
@@ -1101,22 +1105,18 @@ class SettingsWidget(QWidget):
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
             QApplication.processEvents()
 
-            settings.set_api_key(provider, key_text)
-            reset_client()
-
-            from translate.llm_client import translate
+            # Check before storing, so a rejected key never replaces a working one.
+            from translate.llm_client import validate_api_key
             try:
-                result = translate("Hello", target_lang="ru")
-                if not result:
-                    raise RuntimeError("Пустой ответ от API")
+                validate_api_key(provider, key_text)
             except Exception as e:
-                settings.delete_api_key(provider)
-                reset_client()
                 self._key_status.setText(f"Ошибка: {e}")
                 self._key_status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
                 self._btn_save.setEnabled(True)
                 return
 
+            settings.set_api_key(provider, key_text)
+            reset_client()
             self._key_status.setText(f"✓ Ключ {provider} обновлён!")
             self._key_status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
             self._key_input.clear()

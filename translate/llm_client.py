@@ -141,6 +141,32 @@ def reset_client() -> None:
     _logger.info("LLM clients cache reset — new keys/models will be used on next request.")
 
 
+def validate_api_key(provider: str, key: str) -> None:
+    """Check *key* against *provider* itself; raise RuntimeError if it is rejected.
+
+    A test translation is not a reliable check: the cache, the same-language fast
+    path or a fallback to the other provider can all make a wrong key look valid.
+    The endpoints used here need a valid key but spend no tokens.
+    """
+    try:
+        if provider == "openrouter":
+            import openai
+            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1", api_key=key,
+                                   max_retries=0, timeout=15)
+            client.get("/key", cast_to=object)  # /models is public, /key is not
+            return
+        if provider == "anthropic":
+            import anthropic
+            client = anthropic.Anthropic(api_key=key, max_retries=0, timeout=15)
+            client.models.list(limit=1)
+            return
+    except Exception as exc:
+        if type(exc).__name__ in ("AuthenticationError", "PermissionDeniedError"):
+            raise RuntimeError(f"Ключ отклонён провайдером {provider}.") from exc
+        raise RuntimeError(f"Не удалось проверить ключ: {exc}") from exc
+    raise ValueError(f"Unknown provider: {provider!r}")
+
+
 def _dynamic_max_tokens(text: str) -> int:
     """Return max completion tokens ceiling from user config (default 350+)."""
     config_max = int(getattr(config, "LLM_MAX_TOKENS", 350))
