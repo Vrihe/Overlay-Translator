@@ -46,6 +46,7 @@ import argparse
 import json
 import os
 import random
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -172,6 +173,7 @@ def main() -> int:
             continue
 
         base_domain = domain[: -len(NLLB_DOMAIN_SUFFIX)] if domain.endswith(NLLB_DOMAIN_SUFFIX) else domain
+        base_domain = re.sub(r"\|glossary\d+$", "", base_domain)  # NLLB glossary cache version
         if args.domain and base_domain not in args.domain:
             stats["domain_filtered"] += 1
             continue

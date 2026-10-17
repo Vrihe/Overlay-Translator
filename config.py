@@ -214,6 +214,8 @@ class _LiveConfig:
     NLLB_HF_REPO_ID = os.environ.get("NLLB_HF_REPO_ID", "Alhite/overlay-translator-nllb-int8")
     NLLB_HF_REVISION = os.environ.get(
         "NLLB_HF_REVISION", "0e37166ae8c6ceb2a8f2560fc41b780e5bd41f3d")  # tag v0-base
+    # Expand English game-chat terms before local translation (translate/chat_glossary.py).
+    NLLB_GLOSSARY = os.environ.get("NLLB_GLOSSARY", "1").lower() not in ("0", "false", "no")
 
     _PROJECT_DIR = _PROJECT_DIR
 

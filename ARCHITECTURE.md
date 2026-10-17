@@ -61,6 +61,8 @@ Overlay-Translator/
 │   ├── backend.py          #   * Dispatcher: picks the API or the local model
 │   ├── llm_client.py       #   * Translation backend via the cloud API
 │   ├── nllb_backend.py     #   * Offline backend: NLLB-200 (CTranslate2 int8)
+│   ├── chat_glossary.py    #   Expands English game-chat terms before NLLB (wts, gg wp, lf2m)
+│   ├── glossary/game_en.json  # Term list, exported by training/game_abbreviations.py
 │   ├── cuda_support.py     #   Locates cuBLAS for optional GPU inference
 │   ├── domain_manager.py   #   Domain profiles (prompts + few-shot)
 │   ├── lang_detect.py      #   Language detection, "same language" fast path
@@ -242,6 +244,16 @@ How it differs from the API path:
   `domain_id` only affects the cache key.
 - **Cache entries get a `"|nllb"` suffix** on `domain_id`, so the local model's
   output never ends up in the fine-tuning dataset alongside API translations.
+  With the glossary on, the suffix is `"|glossary<version>|nllb"`, so a new glossary
+  never serves translations cached before it.
+- **Game-chat glossary** (`translate/chat_glossary.py`, English sources only,
+  `NLLB_GLOSSARY=0` turns it off): before inference each known term is replaced with
+  its English meaning (`wts` → "I want to sell", `lf2m` → "we need 2 more players",
+  `500g` → "500 gold"); terms without a translatable meaning (game titles, emotes,
+  ambiguous spellings) are masked as `[1]`, copied by NLLB and restored verbatim. If the
+  model drops a placeholder, the line is retranslated unmasked. NLLB alone drops or
+  invents slang (`gg ez` → «Доброе утро»); the term list (~1300 entries) comes from the
+  curated v2 fine-tune lexicon, see `docs/finetune_v2_process.md`.
 - **No streaming** (CTranslate2 beam search does not provide it): `on_chunk`
   is called once with the final text, so the UI behaves the same way.
 - With `source_language=auto` the source language is detected offline via `langid`.
