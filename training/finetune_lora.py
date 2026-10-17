@@ -12,13 +12,20 @@ Output: checkpoints/<run-name>/
 LoRA goes on q/k/v/out projections of every self- and cross-attention block.
 The base model is loaded in fp32 and trained under bf16 autocast; only the
 adapter weights get gradients. Memory is dominated by the logits over the
-256k-token vocabulary, hence batch 4 x grad-accum 4 (effective 16): with the
-process capped at 80 % of VRAM (--gpu-mem-fraction) batch 8 no longer fits.
+256k-token vocabulary, hence batch 4 x grad-accum 4 (effective 16).
+
+GPU load is capped for the duration of training only (nothing system-wide changes):
+  * --gpu-mem-fraction 0.9: hard cap on this process's share of VRAM;
+  * --gpu-duty 0.9: after every optimizer step the trainer sleeps long enough that the
+    GPU is busy at most 90 % of the wall-clock time (a power limit via nvidia-smi
+    would need admin rights).
 
 Usage (run with the CUDA venv, see requirements-train.txt)
 -----
     .venv-train\\Scripts\\python training/finetune_lora.py --max-steps 50 --run-name trial
     .venv-train\\Scripts\\python training/finetune_lora.py --epochs 3 --run-name v1-abbr
+    .venv-train\\Scripts\\python training/finetune_lora.py --data-dir data/processed_v2 --run-name v2-game \\
+        --lora-r 32 --lora-alpha 64 --group-by-length
 """
 
 from __future__ import annotations
@@ -61,6 +68,8 @@ def main() -> int:
     parser.add_argument("--epochs", type=float, default=3)
     parser.add_argument("--max-steps", type=int, default=-1, help="overrides --epochs when > 0 (trial runs)")
     parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--eval-batch-size", type=int, default=None,
+                        help="default 2 x --batch-size; lower it when the long FLORES val sentences OOM")
     parser.add_argument("--grad-accum", type=int, default=4, help="effective batch = batch-size * grad-accum")
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--warmup-steps", type=int, default=30)
@@ -70,8 +79,14 @@ def main() -> int:
     parser.add_argument("--max-len", type=int, default=128)
     parser.add_argument("--logging-steps", type=int, default=10)
     parser.add_argument("--eval-steps", type=int, default=100)
-    parser.add_argument("--gpu-mem-fraction", type=float, default=0.8,
+    parser.add_argument("--resume", type=Path, default=None,
+                        help="checkpoint-<step> directory of this run to continue from (same arguments)")
+    parser.add_argument("--group-by-length", action="store_true",
+                        help="batch pairs of similar length (less padding; short chat phrases dominate v2)")
+    parser.add_argument("--gpu-mem-fraction", type=float, default=0.9,
                         help="hard cap on this process's share of GPU memory")
+    parser.add_argument("--gpu-duty", type=float, default=0.9,
+                        help="max share of wall-clock time the GPU computes; 1 disables throttling")
     args = parser.parse_args()
 
     # The 256k-token vocabulary makes the logits the largest tensor by far
@@ -102,7 +117,8 @@ def main() -> int:
     print(f"Trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)", flush=True)
 
     log_path = out_dir / "log.jsonl"
-    log_path.unlink(missing_ok=True)
+    if args.resume is None:
+        log_path.unlink(missing_ok=True)  # a resumed run appends to its log
 
     class LogCallback(TrainerCallback):
         """Append every log record with peak VRAM and wall-clock speed to log.jsonl."""
@@ -110,6 +126,7 @@ def main() -> int:
         def on_train_begin(self, args_, state, control, **kwargs):
             torch.cuda.reset_peak_memory_stats()
             self.started = time.time()
+            self.first_step = state.global_step  # > 0 when resumed
 
         def on_log(self, args_, state, control, logs=None, **kwargs):
             elapsed = time.time() - self.started
@@ -117,9 +134,22 @@ def main() -> int:
                       "vram_peak_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2),
                       "vram_reserved_gb": round(torch.cuda.max_memory_reserved() / 2**30, 2),
                       "elapsed_s": round(elapsed, 1),
-                      "steps_per_s": round(state.global_step / elapsed, 2) if elapsed else None}
+                      "steps_per_s": round((state.global_step - self.first_step) / elapsed, 2) if elapsed else None}
             with log_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record) + "\n")
+
+    class DutyCycleCallback(TrainerCallback):
+        """Sleep after each optimizer step so GPU compute takes at most --gpu-duty of the time."""
+
+        def on_step_begin(self, args_, state, control, **kwargs):
+            self.step_started = time.perf_counter()
+
+        def on_step_end(self, args_, state, control, **kwargs):
+            torch.cuda.synchronize()
+            busy = time.perf_counter() - self.step_started
+            time.sleep(busy * (1 - args.gpu_duty) / args.gpu_duty)
+
+    callbacks = [LogCallback()] + ([DutyCycleCallback()] if args.gpu_duty < 1 else [])
 
     training_args = Seq2SeqTrainingArguments(
         output_dir=str(out_dir),
@@ -128,7 +158,7 @@ def main() -> int:
         num_train_epochs=args.epochs,
         max_steps=args.max_steps,
         per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size * 2,
+        per_device_eval_batch_size=args.eval_batch_size or args.batch_size * 2,
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr,
         lr_scheduler_type="linear",
@@ -142,7 +172,11 @@ def main() -> int:
         save_total_limit=2,
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
+        # only eval_loss is used; otherwise the Trainer keeps every val batch's fp32 logits
+        # (batch x seq x 256k) on the GPU, which OOMs with the larger v2 val set
+        prediction_loss_only=True,
         dataloader_num_workers=0,
+        train_sampling_strategy="group_by_length" if args.group_by_length else "random",
         report_to="none",
     )
     trainer = Seq2SeqTrainer(
@@ -152,7 +186,7 @@ def main() -> int:
         eval_dataset=val_ds,
         data_collator=DataCollatorForSeq2Seq(tokenizer, model=model, padding=True),
         processing_class=tokenizer,
-        callbacks=[LogCallback()],
+        callbacks=callbacks,
     )
     # PeftModel.forward takes **kwargs, so Trainer assumes the model normalises the loss by
     # num_items_in_batch itself and skips dividing by grad-accum. M2M100 ignores that kwarg,
@@ -160,7 +194,7 @@ def main() -> int:
     trainer.model_accepts_loss_kwargs = False
 
     started = time.time()
-    result = trainer.train()
+    result = trainer.train(resume_from_checkpoint=str(args.resume) if args.resume else None)
     elapsed = time.time() - started
     final_eval = trainer.evaluate()
 
@@ -173,7 +207,8 @@ def main() -> int:
         "trainable_params": trainable, "total_params": total,
         "steps": result.global_step, "train_loss": result.training_loss,
         "eval_loss": final_eval["eval_loss"], "best_checkpoint": trainer.state.best_model_checkpoint,
-        "train_time_s": round(elapsed, 1), "steps_per_s": round(result.global_step / elapsed, 2),
+        "train_time_s": round(elapsed, 1), "steps_per_s": round((result.global_step - (int(args.resume.name.rsplit("-", 1)[1])
+                                                    if args.resume else 0)) / elapsed, 2),
         "vram_peak_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2),
         "vram_reserved_gb": round(torch.cuda.max_memory_reserved() / 2**30, 2),
         "gpu": torch.cuda.get_device_name(0), "torch": torch.__version__,

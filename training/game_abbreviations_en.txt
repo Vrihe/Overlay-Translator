@@ -1,0 +1,3185 @@
+# GAME ABBREVIATIONS DATASET (EN) for NLLB fine-tune (v1-abbr)
+# Format: abbreviation | full meaning | policy | example input
+# policy:
+#   KEEP      = leave the abbreviation as-is in the translation (gaming jargon used untranslated)
+#   TRANSLATE = translate into a natural phrase in the target language (polite/social phrases)
+#   CONTEXT   = depends on language/context, decide per language
+# Note: policy is a first guess, review per target language.
+# Many items have variants (case, punctuation, spacing): include "GG", "gg", "Gg", "g g" etc. when generating samples.
+
+=========================================================
+## 1. SOCIAL / CHAT / POLITENESS
+=========================================================
+ty | thank you | TRANSLATE | ty, see you
+thx | thanks | TRANSLATE | thx for the help
+tyvm | thank you very much | TRANSLATE | tyvm for the carry
+tysm | thank you so much | TRANSLATE | tysm bro
+thnx | thanks | TRANSLATE | thnx man
+tks | thanks | TRANSLATE | tks for the invite
+np | no problem | TRANSLATE | np, happy to help
+nvm | never mind | TRANSLATE | nvm I found it
+yw | you're welcome | TRANSLATE | yw mate
+pls | please | TRANSLATE | pls help me with this quest
+plz | please | TRANSLATE | plz invite me
+plis | please | TRANSLATE | plis wait for me
+sry | sorry | TRANSLATE | sry my bad
+sorry | sorry | TRANSLATE | sorry lag
+mb | my bad | TRANSLATE | mb, wrong button
+gratz | congratulations | TRANSLATE | gratz on the new mount
+grats | congratulations | TRANSLATE | grats on lvl 60
+congrats | congratulations | TRANSLATE | congrats on the drop
+gz | congrats | TRANSLATE | gz on the win
+gj | good job | TRANSLATE | gj team
+gg | good game | KEEP | gg everyone
+ggs | good games | KEEP | ggs all
+gg wp | good game, well played | KEEP | gg wp everyone
+wp | well played | KEEP | wp guys
+gg ez | good game, easy | KEEP | gg ez
+ggwp | good game well played | KEEP | ggwp
+gl | good luck | TRANSLATE | gl everyone
+glhf | good luck, have fun | TRANSLATE | glhf
+gl hf | good luck, have fun | TRANSLATE | gl hf
+hf | have fun | TRANSLATE | hf guys
+gl on the run | good luck on the run | TRANSLATE | gl on the run
+ggwp ez | good game well played easy | KEEP | ggwp ez
+nt | nice try | TRANSLATE | nt bro
+ns | nice shot | TRANSLATE | ns!
+nj | nice job | TRANSLATE | nj team
+nice1 | nice one | TRANSLATE | nice1 mate
+n1 | nice one | TRANSLATE | n1
+gn | good night | TRANSLATE | gn all
+gm | good morning | TRANSLATE | gm everyone
+gd | good day | TRANSLATE | gd all
+ge | good evening | TRANSLATE | ge guys
+gnite | good night | TRANSLATE | gnite
+cya | see you | TRANSLATE | cya tomorrow
+c ya | see you | TRANSLATE | c ya later
+cu | see you | TRANSLATE | cu l8r
+cu l8r | see you later | TRANSLATE | cu l8r
+l8r | later | TRANSLATE | l8r guys
+ttyl | talk to you later | TRANSLATE | ttyl
+ttfn | ta-ta for now | TRANSLATE | ttfn
+bb | bye bye | TRANSLATE | bb all
+bye | bye | TRANSLATE | bye guys
+cya l8r | see you later | TRANSLATE | cya l8r
+hi | hi | TRANSLATE | hi all
+hey | hey | TRANSLATE | hey guys
+hello | hello | TRANSLATE | hello world
+yo | yo | TRANSLATE | yo what's up
+sup | what's up | TRANSLATE | sup guys
+wassup | what's up | TRANSLATE | wassup
+wsp | what's up | TRANSLATE | wsp
+hru | how are you | TRANSLATE | hru today
+hbu | how about you | TRANSLATE | hbu
+wbu | what about you | TRANSLATE | wbu
+wyd | what are you doing | TRANSLATE | wyd
+wym | what do you mean | TRANSLATE | wym
+idk | I don't know | TRANSLATE | idk where the boss is
+idc | I don't care | TRANSLATE | idc
+idrc | I don't really care | TRANSLATE | idrc
+imo | in my opinion | TRANSLATE | imo this build is bad
+imho | in my humble opinion | TRANSLATE | imho nerf it
+afaik | as far as I know | TRANSLATE | afaik it drops here
+btw | by the way | TRANSLATE | btw I have a spare key
+fyi | for your information | TRANSLATE | fyi the boss is bugged
+tbh | to be honest | TRANSLATE | tbh the game is mid
+ngl | not gonna lie | TRANSLATE | ngl that was close
+irl | in real life | TRANSLATE | irl I'm a student
+iirc | if I recall correctly | TRANSLATE | iirc it's level 40
+iow | in other words | TRANSLATE | iow don't go there
+ikr | I know right | TRANSLATE | ikr
+ofc | of course | TRANSLATE | ofc I can help
+obv | obviously | TRANSLATE | obv he's lying
+rn | right now | TRANSLATE | I'm busy rn
+asap | as soon as possible | TRANSLATE | need help asap
+atm | at the moment | TRANSLATE | afk atm
+tho | though | TRANSLATE | good tho
+thru | through | TRANSLATE | thru the door
+bc | because | TRANSLATE | bc I was lagging
+cuz | because | TRANSLATE | cuz I'm new
+cus | because | TRANSLATE | cus of lag
+coz | because | TRANSLATE | coz it's bugged
+gonna | going to | TRANSLATE | gonna farm
+wanna | want to | TRANSLATE | wanna join?
+gotta | got to | TRANSLATE | gotta go
+lemme | let me | TRANSLATE | lemme check
+gimme | give me | TRANSLATE | gimme the loot
+dunno | don't know | TRANSLATE | dunno
+kinda | kind of | TRANSLATE | kinda hard
+sorta | sort of | TRANSLATE | sorta fun
+u | you | TRANSLATE | u there?
+ur | your / you're | TRANSLATE | ur welcome
+r | are | TRANSLATE | r u ready
+y | why | TRANSLATE | y not
+k | okay | TRANSLATE | k
+kk | okay okay | TRANSLATE | kk
+ok | okay | TRANSLATE | ok let's go
+okie | okay | TRANSLATE | okie dokie
+ye | yeah | TRANSLATE | ye sure
+yep | yes | TRANSLATE | yep
+yup | yes | TRANSLATE | yup
+yea | yeah | TRANSLATE | yea sure
+nah | no | TRANSLATE | nah I'm good
+nope | no | TRANSLATE | nope
+ya | yeah | TRANSLATE | ya I know
+yw | you're welcome | TRANSLATE | yw
+ily | I love you | TRANSLATE | ily guys
+ilu | I love you | TRANSLATE | ilu
+omw | on my way | TRANSLATE | omw
+otw | on the way | TRANSLATE | otw to the dungeon
+eta | estimated time of arrival | TRANSLATE | eta 5 min
+brb | be right back | TRANSLATE | brb 2 min
+bbl | be back later | TRANSLATE | bbl
+bbs | be back soon | TRANSLATE | bbs
+bbiab | be back in a bit | TRANSLATE | bbiab
+b4 | before | TRANSLATE | b4 the raid
+gtg | got to go | TRANSLATE | gtg bye
+g2g | got to go | TRANSLATE | g2g
+gtgtb | got to go to bed | TRANSLATE | gtgtb
+bbiaf | be back in a few | TRANSLATE | bbiaf
+wb | welcome back | TRANSLATE | wb bro
+wc | welcome | TRANSLATE | wc to the guild
+jk | just kidding | TRANSLATE | jk lol
+j/k | just kidding | TRANSLATE | j/k
+lol | laughing out loud | CONTEXT | lol that was funny
+lmao | laughing my ass off | CONTEXT | lmao what a fail
+lmfao | laughing my f*cking ass off | CONTEXT | lmfao
+rofl | rolling on the floor laughing | CONTEXT | rofl
+roflmao | rolling on the floor laughing my ass off | CONTEXT | roflmao
+lul | lol (Twitch style) | KEEP | lul
+kek | lol (from WoW Korean) | KEEP | kek
+xd | laughing face | KEEP | xd
+xD | laughing face | KEEP | xD
+haha | haha | TRANSLATE | haha nice
+hehe | hehe | TRANSLATE | hehe
+omg | oh my god | TRANSLATE | omg that drop
+omfg | oh my f*cking god | TRANSLATE | omfg
+wtf | what the f*ck | CONTEXT | wtf was that
+wth | what the heck | CONTEXT | wth
+wtfh | what the f*ck | CONTEXT | wtfh
+smh | shaking my head | CONTEXT | smh
+fml | f*ck my life | CONTEXT | fml
+ffs | for f*ck's sake | CONTEXT | ffs
+stfu | shut the f*ck up | CONTEXT | stfu
+gtfo | get the f*ck out | CONTEXT | gtfo
+fk | f*ck | CONTEXT | fk
+fck | f*ck | CONTEXT | fck
+dm | direct message | KEEP | dm me
+pm | private message | KEEP | pm me
+pmed | private messaged | KEEP | I pmed you
+whisper | private message | TRANSLATE | whisper me
+w/ | with | TRANSLATE | w/ me
+w/o | without | TRANSLATE | w/o healer
+b/c | because | TRANSLATE | b/c lag
+aka | also known as | TRANSLATE | aka the boss
+vs | versus | TRANSLATE | warrior vs mage
+vs. | versus | TRANSLATE | team A vs. team B
+etc | et cetera | TRANSLATE | potions etc
+pov | point of view | KEEP | pov you're lost
+ftw | for the win | CONTEXT | warrior ftw
+fyi | for your information | TRANSLATE | fyi
+tbf | to be fair | TRANSLATE | tbf he's right
+tbd | to be determined | TRANSLATE | tbd
+tba | to be announced | TRANSLATE | tba
+eod | end of day | TRANSLATE | eod
+eow | end of week | TRANSLATE | eow
+dw | don't worry | TRANSLATE | dw I got you
+dont worry | don't worry | TRANSLATE | dont worry
+hmu | hit me up | TRANSLATE | hmu later
+hu | hit up | TRANSLATE | hu
+lmk | let me know | TRANSLATE | lmk when ready
+rsvp | please respond | TRANSLATE | rsvp
+iykyk | if you know you know | CONTEXT | iykyk
+tl;dr | too long; didn't read | KEEP | tl;dr
+tldr | too long didn't read | KEEP | tldr
+tfw | that feeling when | CONTEXT | tfw no loot
+mfw | my face when | CONTEXT | mfw boss dies
+mrw | my reaction when | CONTEXT | mrw drops
+ngmi | not gonna make it | CONTEXT | ngmi
+wagmi | we're all gonna make it | CONTEXT | wagmi
+gl all | good luck all | TRANSLATE | gl all
+ez | easy | CONTEXT | ez win
+ezpz | easy peasy | CONTEXT | ezpz
+ezclap | easy clap | KEEP | ezclap
+rip | rest in peace | CONTEXT | rip my gear
+f | pay respects | KEEP | F
+o7 | salute | KEEP | o7 captain
+7 | salute (o7) | KEEP | 7
+pog | play of the game / hype | KEEP | pog
+poggers | hype | KEEP | poggers
+pogchamp | hype | KEEP | pogchamp
+kappa | sarcasm (Twitch emote) | KEEP | kappa
+gachi | (meme) | KEEP | gachi
+copium | coping | KEEP | copium
+cope | cope | KEEP | cope
+seethe | seethe | KEEP | seethe
+sadge | sad | KEEP | sadge
+monka | worried | KEEP | monkaS
+based | based | KEEP | based
+cringe | cringe | KEEP | cringe
+sus | suspicious | KEEP | sus
+cap | lie | CONTEXT | no cap
+no cap | no lie | CONTEXT | no cap
+mid | mediocre | CONTEXT | game is mid
+w | win | KEEP | W
+l | loss | KEEP | L
+big w | big win | KEEP | big W
+big l | big loss | KEEP | big L
+ratio | ratio | KEEP | ratio
+rekt | wrecked | KEEP | you got rekt
+pwned | owned | KEEP | pwned
+owned | defeated | KEEP | owned
+noob | newbie | KEEP | noob
+n00b | newbie | KEEP | n00b
+nub | newbie | KEEP | nub
+newb | newbie | KEEP | newb
+newbie | newbie | CONTEXT | newbie here
+scrub | bad player | KEEP | scrub
+bot | bad player | CONTEXT | you're a bot
+trash | bad | CONTEXT | trash team
+trashcan | bad player | CONTEXT | trashcan
+tryhard | tries too hard | KEEP | tryhard
+sweat | try hard | KEEP | sweaty
+sweaty | try-hard | KEEP | sweaty lobby
+smurf | high skill on low acc | KEEP | smurf
+toxic | toxic | KEEP | toxic chat
+salty | angry | KEEP | salty
+tilt | emotional state after loss | KEEP | I'm on tilt
+tilted | on tilt | KEEP | tilted
+raging | angry | CONTEXT | raging
+rage quit | quit angrily | KEEP | rage quit
+rq | rage quit | KEEP | rq
+ragequit | quit angrily | KEEP | ragequit
+flame | insult | KEEP | don't flame
+flaming | insulting | KEEP | stop flaming
+griefing | harassing | KEEP | stop griefing
+troll | troll | KEEP | troll alert
+trolling | trolling | KEEP | he's trolling
+bm | bad manners | KEEP | bm
+bg | bad game / background | KEEP | bg
+bs | bullshit | CONTEXT | that's bs
+bsing | bullshitting | CONTEXT | stop bsing
+hax | hacks | KEEP | hax!
+hacker | cheater | KEEP | hacker!
+hacks | cheats | KEEP | he's using hacks
+cheater | cheater | KEEP | cheater!
+cheats | cheats | KEEP | cheats
+aimbot | cheating aim | KEEP | aimbot
+wallhack | cheat | KEEP | wallhack
+wh | wallhack | KEEP | wh
+esp | extra sensory perception cheat | KEEP | esp
+ban | ban | KEEP | he got banned
+banned | banned | KEEP | banned
+bannable | bannable | KEEP | bannable
+permaban | permanent ban | KEEP | permaban
+kick | kick | KEEP | kick him
+report | report | KEEP | report him
+reported | reported | KEEP | reported
+mute | mute | KEEP | mute him
+muted | muted | KEEP | muted
+block | block | KEEP | block him
+afk | away from keyboard | KEEP | afk 5 min
+away | away | TRANSLATE | away for 5
+bio | bio break | CONTEXT | bio 2 min
+bio break | bathroom break | CONTEXT | bio break
+back | back | TRANSLATE | back
+ready | ready | TRANSLATE | ready
+rdy | ready | TRANSLATE | rdy
+r? | ready? | TRANSLATE | r?
+rdy? | ready? | TRANSLATE | rdy?
+go | go | TRANSLATE | go go go
+gogo | go go | TRANSLATE | gogo
+gogogo | go go go | TRANSLATE | gogogo
+lets go | let's go | TRANSLATE | lets go
+lfg | let's f*cking go / looking for group | CONTEXT | lfg
+lfg! | let's f*cking go | CONTEXT | LFG!
+stop | stop | TRANSLATE | stop
+wait | wait | TRANSLATE | wait for me
+w8 | wait | TRANSLATE | w8
+w8 pls | wait please | TRANSLATE | w8 pls
+wait4me | wait for me | TRANSLATE | wait4me
+hold | hold | TRANSLATE | hold
+hold on | wait | TRANSLATE | hold on
+one sec | wait a second | TRANSLATE | one sec
+1 sec | wait a second | TRANSLATE | 1 sec
+sec | second | TRANSLATE | sec
+min | minute | TRANSLATE | 2 min
+mins | minutes | TRANSLATE | 5 mins
+hr | hour | TRANSLATE | 1 hr
+hrs | hours | TRANSLATE | 2 hrs
+d | day | TRANSLATE | 3 d
+wk | week | TRANSLATE | 1 wk
+mo | month | TRANSLATE | 1 mo
+yr | year | TRANSLATE | 1 yr
+y/o | years old | TRANSLATE | 18 y/o
+
+=========================================================
+## 2. GROUP FINDING / PARTY / LFG
+=========================================================
+lfg | looking for group | KEEP | lfg dungeon
+lf | looking for | KEEP | lf healer
+lfm | looking for more | KEEP | lfm 2 dps
+lf1m | looking for 1 more | KEEP | lf1m tank
+lf2m | looking for 2 more | KEEP | lf2m dps
+lf3m | looking for 3 more | KEEP | lf3m
+lf4m | looking for 4 more | KEEP | lf4m
+lf5m | looking for 5 more | KEEP | lf5m
+lfp | looking for party | KEEP | lfp
+lfr | looking for raid | KEEP | lfr
+lfguild | looking for guild | KEEP | lfguild
+lfg guild | looking for guild | KEEP | lfg guild
+lfc | looking for clan | KEEP | lfc
+lfd | looking for dungeon | KEEP | lfd
+lfdg | looking for dungeon group | KEEP | lfdg
+lft | looking for team | KEEP | lft
+lfs | looking for squad | KEEP | lfs
+lfsq | looking for squad | KEEP | lfsq
+lfduo | looking for duo | KEEP | lfduo
+lftrio | looking for trio | KEEP | lftrio
+lfscav | looking for scav | KEEP | lfscav
+lfpmc | looking for PMC | KEEP | lfpmc
+lfmate | looking for mate | KEEP | lfmate
+lfw | looking for work | KEEP | lfw
+lfwork | looking for work | KEEP | lfwork
+lfhelp | looking for help | KEEP | lfhelp
+lfq | looking for quest | KEEP | lfq
+lfc | looking for crafter | KEEP | lfc
+lfh | looking for healer | KEEP | lfh
+lft | looking for tank | KEEP | lft
+lfdps | looking for dps | KEEP | lfdps
+lfdd | looking for damage dealer | KEEP | lfdd
+lfheals | looking for heals | KEEP | lfheals
+lfmage | looking for mage | KEEP | lfmage
+lfwar | looking for warrior | KEEP | lfwar
+lfrogue | looking for rogue | KEEP | lfrogue
+lfpriest | looking for priest | KEEP | lfpriest
+lf all | looking for all | KEEP | lf all
+need | need | TRANSLATE | need healer
+need 1 | need one | TRANSLATE | need 1 dps
+need 2 | need two | TRANSLATE | need 2 tanks
+need more | need more | TRANSLATE | need more
+need all | need all | TRANSLATE | need all
+need healer | need healer | TRANSLATE | need healer
+need tank | need tank | TRANSLATE | need tank
+need dps | need dps | TRANSLATE | need dps
+need heals | need heals | TRANSLATE | need heals
+n | need | CONTEXT | N
+g | greed | CONTEXT | G
+d | disenchant | CONTEXT | D
+pass | pass | TRANSLATE | pass
+ninja | steal loot | KEEP | ninja looter
+ninjaed | stole loot | KEEP | he ninjaed it
+ninjaing | stealing loot | KEEP | ninjaing
+inv | invite | KEEP | inv pls
+inv pls | invite please | KEEP | inv pls
+invite | invite | TRANSLATE | invite me
+inv me | invite me | KEEP | inv me
+invd | invited | KEEP | invd
+inved | invited | KEEP | inved
+accept | accept | TRANSLATE | accept
+acc | accept | KEEP | acc
+accepted | accepted | TRANSLATE | accepted
+declined | declined | TRANSLATE | declined
+decl | decline | KEEP | decl
+decline | decline | TRANSLATE | decline
+join | join | TRANSLATE | join us
+join me | join me | TRANSLATE | join me
+joining | joining | TRANSLATE | joining
+jn | join | KEEP | jn
+jnd | joined | KEEP | jnd
+party | party | TRANSLATE | party up
+group | group | TRANSLATE | group up
+team | team | TRANSLATE | team up
+squad | squad | TRANSLATE | squad up
+duo | two players | TRANSLATE | duo
+trio | three players | TRANSLATE | trio
+quad | four players | TRANSLATE | quad
+solo | solo | TRANSLATE | solo
+pug | pick-up group | KEEP | pug
+pugs | pick-up groups | KEEP | pugs
+pugging | joining a random group | KEEP | pugging
+stack | stack | KEEP | stack
+stacked | stacked | KEEP | stacked
+premade | premade group | KEEP | premade
+pre-made | premade group | KEEP | pre-made
+randoms | random players | KEEP | randoms
+rando | random player | KEEP | rando
+randos | random players | KEEP | randos
+carry | carry | KEEP | carry me
+carried | carried | KEEP | carried
+carrying | carrying | KEEP | carrying
+boost | boost | KEEP | boost me
+boosted | boosted | KEEP | boosted
+boosting | boosting | KEEP | boosting
+boosting service | boosting service | KEEP | boosting service
+run | run | KEEP | run
+runs | runs | KEEP | runs
+dungeon | dungeon | TRANSLATE | dungeon run
+dg | dungeon | KEEP | dg
+dng | dungeon | KEEP | dng
+dgn | dungeon | KEEP | dgn
+raid | raid | KEEP | raid
+raiding | raiding | KEEP | raiding
+rd | raid | KEEP | rd
+inst | instance | KEEP | inst
+instance | instance | KEEP | instance
+heroic | heroic | KEEP | heroic
+hc | hardcore / heroic | KEEP | hc
+norm | normal | KEEP | norm
+nm | normal / nightmare | KEEP | nm
+nightmare | nightmare | KEEP | nightmare
+hell | hell | KEEP | hell
+mythic | mythic | KEEP | mythic
+m+ | mythic plus | KEEP | m+
+m0 | mythic zero | KEEP | m0
+key | key | TRANSLATE | key
+keystone | keystone | KEEP | keystone
+ks | keystone | KEEP | ks
++10 | plus ten | KEEP | +10
++15 | plus fifteen | KEEP | +15
+tank | tank | KEEP | need tank
+healer | healer | KEEP | need healer
+dps | damage per second | KEEP | need dps
+dd | damage dealer | KEEP | dd
+hps | heal per second | KEEP | hps
+tps | threat per second | KEEP | tps
+mdps | melee DPS | KEEP | mdps
+rdps | ranged DPS | KEEP | rdps
+heal | heal | KEEP | heal me
+heals | heals | KEEP | heals
+healz | heals | KEEP | healz
+healbot | healing bot | KEEP | healbot
+off-tank | off tank | KEEP | off-tank
+ot | off tank | KEEP | ot
+mt | main tank | KEEP | mt
+mh | main healer | KEEP | mh
+oh | off healer | KEEP | oh
+ml | master looter | KEEP | ml
+rl | raid leader | KEEP | rl
+gl | guild leader | CONTEXT | gl
+gm | guild master | CONTEXT | gm
+co | co-leader | KEEP | co
+officer | officer | TRANSLATE | officer
+guild | guild | TRANSLATE | guild
+gld | guild | KEEP | gld
+clan | clan | TRANSLATE | clan
+alliance | alliance | TRANSLATE | alliance
+all | alliance | CONTEXT | all
+order | order | TRANSLATE | order
+
+=========================================================
+## 3. TRADING / ECONOMY / MARKET
+=========================================================
+wtb | want to buy | KEEP | wtb healing potions
+wts | want to sell | KEEP | wts leather armor
+wtt | want to trade | KEEP | wtt sword for shield
+wtc | want to craft | KEEP | wtc
+wtr | want to rent | KEEP | wtr
+wtp | want to pay | KEEP | wtp
+wtf? | what the f*ck | CONTEXT | wtf?
+wtbuy | want to buy | KEEP | wtbuy
+wtsell | want to sell | KEEP | wtsell
+wtbtrade | want to buy / trade | KEEP | wtbtrade
+buying | buying | TRANSLATE | buying potions
+selling | selling | TRANSLATE | selling gear
+trading | trading | TRANSLATE | trading ore
+b/o | buyout | KEEP | b/o
+bo | buyout | KEEP | bo
+buyout | buyout | KEEP | buyout
+bin | buy it now | KEEP | bin
+auction | auction | TRANSLATE | auction
+ah | auction house | KEEP | check ah
+auc | auction | KEEP | auc
+ahouse | auction house | KEEP | ahouse
+mkt | market | KEEP | mkt
+market | market | TRANSLATE | market
+mp | marketplace | KEEP | mp
+shop | shop | TRANSLATE | shop
+vendor | vendor | TRANSLATE | vendor
+npc | non-player character | KEEP | npc
+npc vendor | NPC vendor | KEEP | npc vendor
+trade | trade | TRANSLATE | trade me
+trade chat | trade chat | KEEP | trade chat
+tc | trade chat | KEEP | tc
+t/c | trade chat | KEEP | t/c
+lfc | looking for crafter | KEEP | lfc
+craft | craft | TRANSLATE | craft
+crafting | crafting | TRANSLATE | crafting
+crafter | crafter | TRANSLATE | crafter
+tip | tip | TRANSLATE | tip
+tipping | tipping | TRANSLATE | tipping
+tips | tips | TRANSLATE | tips
+pst | please send tell | KEEP | pst
+pst me | please send me a tell | KEEP | pst me
+pm me | private message me | KEEP | pm me
+whisper me | whisper me | TRANSLATE | whisper me
+w/m | whisper me | KEEP | w/m
+offer | offer | TRANSLATE | offer
+offers | offers | TRANSLATE | offers
+nego | negotiable | KEEP | nego
+neg | negotiable | KEEP | neg
+negotiable | negotiable | TRANSLATE | negotiable
+obo | or best offer | KEEP | obo
+firm | firm price | TRANSLATE | firm
+fixed | fixed price | TRANSLATE | fixed
+fp | fixed price | KEEP | fp
+mp | market price | KEEP | mp
+mkt price | market price | KEEP | mkt price
+price | price | TRANSLATE | price
+cheap | cheap | TRANSLATE | cheap
+cheaper | cheaper | TRANSLATE | cheaper
+expensive | expensive | TRANSLATE | expensive
+exp | expensive / experience | CONTEXT | exp
+gold | gold | TRANSLATE | gold
+g | gold | KEEP | 100g
+gp | gold pieces | KEEP | 100gp
+k | thousand | KEEP | 5k
+kk | million | KEEP | 2kk
+m | million | KEEP | 2m
+mil | million | KEEP | 1 mil
+mill | million | KEEP | 5 mill
+b | billion | KEEP | 1b
+bil | billion | KEEP | 1 bil
+cr | credits | KEEP | 500cr
+c | copper / coin | CONTEXT | 50c
+s | silver | KEEP | 10s
+sp | silver pieces | KEEP | 10sp
+cp | copper pieces | KEEP | 5cp
+pp | platinum pieces | KEEP | 2pp
+plat | platinum | KEEP | 5 plat
+gold coins | gold coins | TRANSLATE | gold coins
+ruble | ruble | TRANSLATE | ruble
+rub | ruble | KEEP | 100 rub
+usd | US dollars | KEEP | 10 usd
+usdt | Tether | KEEP | 5 usdt
+eur | euros | KEEP | 10 eur
+$ | dollar | TRANSLATE | $10
+rmt | real money trading | KEEP | rmt
+rmt ban | RMT ban | KEEP | rmt ban
+gold sellers | gold sellers | KEEP | gold sellers
+gs | gold seller | KEEP | gs
+farmer | gold farmer | CONTEXT | farmer
+farming | farming | KEEP | farming
+farm | farm | KEEP | farm
+farmed | farmed | KEEP | farmed
+grind | grind | KEEP | grind
+grinding | grinding | KEEP | grinding
+grinded | grinded | KEEP | grinded
+loot | loot | KEEP | loot
+looting | looting | KEEP | looting
+looted | looted | KEEP | looted
+looter | looter | KEEP | looter
+lootbox | loot box | KEEP | lootbox
+lb | loot box | KEEP | lb
+loot filter | loot filter | KEEP | loot filter
+lf | loot filter | CONTEXT | lf
+lc | loot council | KEEP | lc
+dkp | dragon kill points | KEEP | dkp
+sr | soft reserve | KEEP | sr
+hr | hard reserve | KEEP | hr
+bis | best in slot | KEEP | bis
+bis list | best in slot list | KEEP | bis list
+bis gear | best in slot gear | KEEP | bis gear
+bis item | best in slot item | KEEP | bis item
+bis weapon | best in slot weapon | KEEP | bis weapon
+bis build | best in slot build | KEEP | bis build
+pre-bis | pre best in slot | KEEP | pre-bis
+prebis | pre best in slot | KEEP | prebis
+bis for now | best for now | KEEP | bis for now
+meta | most effective tactics | KEEP | meta build
+meta build | meta build | KEEP | meta build
+off-meta | off meta | KEEP | off-meta
+offmeta | off meta | KEEP | offmeta
+op | overpowered | KEEP | op weapon
+ops | overpowered | KEEP | ops
+op as hell | overpowered | KEEP | op as hell
+up | underpowered | KEEP | up
+nerf | weaken | KEEP | nerf this
+nerfed | weakened | KEEP | nerfed
+nerfs | nerfs | KEEP | nerfs
+buff | strengthen | KEEP | buff this
+buffed | strengthened | KEEP | buffed
+buffs | buffs | KEEP | buffs
+debuff | debuff | KEEP | debuff
+debuffs | debuffs | KEEP | debuffs
+debuffed | debuffed | KEEP | debuffed
+bug | bug | KEEP | bug
+bugged | bugged | KEEP | bugged
+bugs | bugs | KEEP | bugs
+glitch | glitch | KEEP | glitch
+glitched | glitched | KEEP | glitched
+exploit | exploit | KEEP | exploit
+exploiting | exploiting | KEEP | exploiting
+exploited | exploited | KEEP | exploited
+dupe | duplicate item | KEEP | dupe
+duped | duplicated | KEEP | duped
+duping | duplicating | KEEP | duping
+dup | duplicate | KEEP | dup
+dupe bug | duplication bug | KEEP | dupe bug
+rubberband | rubber banding | KEEP | rubberband
+desync | desync | KEEP | desync
+desynced | desynced | KEEP | desynced
+
+=========================================================
+## 4. LOOT / ITEMS / RARITY / GEAR
+=========================================================
+gear | equipment | KEEP | gear
+gear score | gear score | KEEP | gear score
+gs | gear score | KEEP | gs
+ilvl | item level | KEEP | ilvl
+il | item level | KEEP | il
+item level | item level | KEEP | item level
+ilevel | item level | KEEP | ilevel
+slot | slot | KEEP | slot
+bop | bind on pickup | KEEP | bop
+boe | bind on equip | KEEP | boe
+bou | bind on use | KEEP | bou
+bta | bind to account | KEEP | bta
+bnet | battle.net | KEEP | bnet
+bind | bind | TRANSLATE | bind
+bound | bound | TRANSLATE | bound
+unbound | unbound | TRANSLATE | unbound
+soulbound | soulbound | KEEP | soulbound
+sb | soulbound | KEEP | sb
+account bound | account bound | KEEP | account bound
+ab | account bound | KEEP | ab
+tradable | tradable | TRANSLATE | tradable
+untradable | untradable | TRANSLATE | untradable
+no trade | no trade | TRANSLATE | no trade
+nt | no trade | KEEP | nt
+rare | rare | KEEP | rare
+epic | epic | KEEP | epic
+legendary | legendary | KEEP | legendary
+legend | legendary | KEEP | legend
+leg | legendary | KEEP | leg
+mythical | mythical | KEEP | mythical
+common | common | KEEP | common
+uncommon | uncommon | KEEP | uncommon
+unique | unique | KEEP | unique
+set | set | KEEP | set
+set item | set item | KEEP | set item
+set bonus | set bonus | KEEP | set bonus
+tier | tier | KEEP | tier
+tier set | tier set | KEEP | tier set
+t1 | tier 1 | KEEP | t1
+t2 | tier 2 | KEEP | t2
+t3 | tier 3 | KEEP | t3
+t4 | tier 4 | KEEP | t4
+t5 | tier 5 | KEEP | t5
+t6 | tier 6 | KEEP | t6
+t7 | tier 7 | KEEP | t7
+t8 | tier 8 | KEEP | t8
+t9 | tier 9 | KEEP | t9
+t10 | tier 10 | KEEP | t10
+t11 | tier 11 | KEEP | t11
+t12 | tier 12 | KEEP | t12
+tier 1 | tier 1 | KEEP | tier 1
+tier 2 | tier 2 | KEEP | tier 2
+tier 3 | tier 3 | KEEP | tier 3
+tier 4 | tier 4 | KEEP | tier 4
+tier 5 | tier 5 | KEEP | tier 5
+s tier | S tier | KEEP | s tier
+a tier | A tier | KEEP | a tier
+b tier | B tier | KEEP | b tier
+c tier | C tier | KEEP | c tier
+d tier | D tier | KEEP | d tier
+f tier | F tier | KEEP | f tier
+god tier | god tier | KEEP | god tier
+top tier | top tier | KEEP | top tier
+low tier | low tier | KEEP | low tier
+mid tier | mid tier | KEEP | mid tier
+high tier | high tier | KEEP | high tier
+tier list | tier list | KEEP | tier list
+tierlist | tier list | KEEP | tierlist
+weapon | weapon | TRANSLATE | weapon
+armor | armor | TRANSLATE | armor
+armour | armour | TRANSLATE | armour
+helm | helmet | KEEP | helm
+helmet | helmet | TRANSLATE | helmet
+chest | chest | TRANSLATE | chest
+pants | pants | TRANSLATE | pants
+legs | legs | TRANSLATE | legs
+boots | boots | TRANSLATE | boots
+gloves | gloves | TRANSLATE | gloves
+ring | ring | TRANSLATE | ring
+amulet | amulet | TRANSLATE | amulet
+neck | necklace | TRANSLATE | neck
+cloak | cloak | TRANSLATE | cloak
+cape | cape | TRANSLATE | cape
+belt | belt | TRANSLATE | belt
+bracers | bracers | TRANSLATE | bracers
+shoulders | shoulders | TRANSLATE | shoulders
+trinket | trinket | KEEP | trinket
+trink | trinket | KEEP | trink
+sword | sword | TRANSLATE | sword
+2h | two-handed | KEEP | 2h sword
+1h | one-handed | KEEP | 1h sword
+2hs | two-handed sword | KEEP | 2hs
+1hs | one-handed sword | KEEP | 1hs
+oh | off hand | KEEP | oh
+mh | main hand | KEEP | mh
+shield | shield | TRANSLATE | shield
+bow | bow | TRANSLATE | bow
+xbow | crossbow | KEEP | xbow
+staff | staff | TRANSLATE | staff
+wand | wand | TRANSLATE | wand
+dagger | dagger | TRANSLATE | dagger
+axe | axe | TRANSLATE | axe
+mace | mace | TRANSLATE | mace
+spear | spear | TRANSLATE | spear
+polearm | polearm | TRANSLATE | polearm
+potion | potion | TRANSLATE | potion
+pot | potion | KEEP | pot
+pots | potions | KEEP | pots
+hp pot | health potion | KEEP | hp pot
+mp pot | mana potion | KEEP | mp pot
+health pot | health potion | KEEP | health pot
+mana pot | mana potion | KEEP | mana pot
+heal pot | healing potion | KEEP | heal pot
+elixir | elixir | TRANSLATE | elixir
+flask | flask | KEEP | flask
+scroll | scroll | TRANSLATE | scroll
+tp scroll | teleport scroll | KEEP | tp scroll
+hs | hearthstone | KEEP | hs
+hearth | hearthstone | KEEP | hearth
+food | food | TRANSLATE | food
+buff food | buff food | KEEP | buff food
+mat | material | KEEP | mat
+mats | materials | KEEP | mats
+material | material | TRANSLATE | material
+materials | materials | TRANSLATE | materials
+ore | ore | TRANSLATE | ore
+herb | herb | TRANSLATE | herb
+herbs | herbs | TRANSLATE | herbs
+leather | leather | TRANSLATE | leather
+cloth | cloth | TRANSLATE | cloth
+wood | wood | TRANSLATE | wood
+stone | stone | TRANSLATE | stone
+gem | gem | TRANSLATE | gem
+gems | gems | TRANSLATE | gems
+enchant | enchant | KEEP | enchant
+ench | enchant | KEEP | ench
+enchants | enchants | KEEP | enchants
+enchanting | enchanting | KEEP | enchanting
+enchanter | enchanter | KEEP | enchanter
+dust | dust | TRANSLATE | dust
+shard | shard | TRANSLATE | shard
+essence | essence | TRANSLATE | essence
+crystal | crystal | TRANSLATE | crystal
+rune | rune | TRANSLATE | rune
+runes | runes | TRANSLATE | runes
+socket | socket | KEEP | socket
+sockets | sockets | KEEP | sockets
+socketed | socketed | KEEP | socketed
+reforge | reforge | KEEP | reforge
+reroll | reroll | KEEP | reroll
+re-roll | reroll | KEEP | re-roll
+upgrade | upgrade | TRANSLATE | upgrade
+upgrades | upgrades | TRANSLATE | upgrades
+upgraded | upgraded | TRANSLATE | upgraded
+upg | upgrade | KEEP | upg
++1 | plus one | KEEP | +1 sword
++2 | plus two | KEEP | +2 sword
++3 | plus three | KEEP | +3 sword
++5 | plus five | KEEP | +5 sword
++7 | plus seven | KEEP | +7 sword
++10 | plus ten | KEEP | +10 sword
++15 | plus fifteen | KEEP | +15 sword
+dura | durability | KEEP | dura
+durability | durability | TRANSLATE | durability
+repair | repair | TRANSLATE | repair
+repairs | repairs | TRANSLATE | repairs
+rep | repair / reputation | CONTEXT | rep
+reps | repairs | CONTEXT | reps
+inv | inventory | CONTEXT | inv full
+inventory | inventory | TRANSLATE | inventory
+bag | bag | TRANSLATE | bag
+bags | bags | TRANSLATE | bags
+bank | bank | TRANSLATE | bank
+stash | stash | KEEP | stash
+vault | vault | TRANSLATE | vault
+chest | chest | TRANSLATE | chest
+loot chest | loot chest | KEEP | loot chest
+drop | drop | KEEP | drop
+drops | drops | KEEP | drops
+dropped | dropped | KEEP | dropped
+droprate | drop rate | KEEP | droprate
+drop rate | drop rate | KEEP | drop rate
+dr | drop rate | KEEP | dr
+rng | random number generator | KEEP | rng hates me
+rngesus | RNG god | KEEP | rngesus
+rng god | RNG god | KEEP | rng god
+rnd | random | KEEP | rnd
+random | random | TRANSLATE | random
+luck | luck | TRANSLATE | luck
+lucky | lucky | TRANSLATE | lucky
+unlucky | unlucky | TRANSLATE | unlucky
+gambling | gambling | TRANSLATE | gambling
+gamble | gamble | TRANSLATE | gamble
+chance | chance | TRANSLATE | chance
+crit chance | critical chance | KEEP | crit chance
+cc | crowd control / critical chance | CONTEXT | cc
+farming gear | farming gear | KEEP | farming gear
+
+=========================================================
+## 5. COMBAT / STATS / MECHANICS
+=========================================================
+hp | health points | KEEP | low hp
+mp | mana points | KEEP | no mp
+mana | mana | TRANSLATE | mana
+sp | stamina / skill points | CONTEXT | sp
+stam | stamina | KEEP | stam
+stamina | stamina | TRANSLATE | stamina
+xp | experience points | KEEP | 100 xp
+exp | experience | KEEP | exp
+exp. | experience | KEEP | exp.
+exp boost | experience boost | KEEP | exp boost
+double xp | double experience | KEEP | double xp
+lvl | level | KEEP | lvl 60
+lv | level | KEEP | lv 50
+lvls | levels | KEEP | lvls
+level | level | TRANSLATE | level
+lvlup | level up | KEEP | lvlup
+lvling | leveling | KEEP | lvling
+leveling | leveling | KEEP | leveling
+levelling | levelling | KEEP | levelling
+lvl cap | level cap | KEEP | lvl cap
+max lvl | max level | KEEP | max lvl
+maxed | maxed out | KEEP | maxed
+maxed out | maxed out | KEEP | maxed out
+cap | cap | KEEP | cap
+capped | capped | KEEP | capped
+stat | statistic | KEEP | stat
+stats | statistics | KEEP | stats
+str | strength | KEEP | str
+dex | dexterity | KEEP | dex
+int | intelligence | KEEP | int
+vit | vitality | KEEP | vit
+agi | agility | KEEP | agi
+luk | luck | KEEP | luk
+wis | wisdom | KEEP | wis
+cha | charisma | KEEP | cha
+con | constitution | KEEP | con
+end | endurance | KEEP | end
+spr | spirit | KEEP | spr
+spi | spirit | KEEP | spi
+sta | stamina | KEEP | sta
+ap | attack power | KEEP | ap
+sp | spell power | KEEP | sp
+ad | attack damage | KEEP | ad
+ap | ability power | KEEP | ap
+mr | magic resist | KEEP | mr
+mres | magic resist | KEEP | mres
+mdef | magic defense | KEEP | mdef
+pdef | physical defense | KEEP | pdef
+def | defense | KEEP | def
+atk | attack | KEEP | atk
+matk | magic attack | KEEP | matk
+patk | physical attack | KEEP | patk
+dmg | damage | KEEP | dmg
+dam | damage | KEEP | dam
+damage | damage | TRANSLATE | damage
+dmg done | damage done | KEEP | dmg done
+dmg taken | damage taken | KEEP | dmg taken
+aoe | area of effect | KEEP | aoe
+aoe dmg | area of effect damage | KEEP | aoe dmg
+cleave | cleave | KEEP | cleave
+single target | single target | KEEP | single target
+st | single target | KEEP | st
+mt | multi target | CONTEXT | mt
+dot | damage over time | KEEP | dot
+hot | heal over time | KEEP | hot
+dots | damage over time | KEEP | dots
+hots | heal over time | KEEP | hots
+cc | crowd control | KEEP | cc
+cc'd | crowd controlled | KEEP | cc'd
+ccd | crowd controlled | KEEP | ccd
+stun | stun | KEEP | stun
+stunned | stunned | KEEP | stunned
+stunlock | stun lock | KEEP | stunlock
+slow | slow | KEEP | slow
+root | root | KEEP | root
+rooted | rooted | KEEP | rooted
+snare | snare | KEEP | snare
+fear | fear | KEEP | fear
+feared | feared | KEEP | feared
+silence | silence | KEEP | silence
+silenced | silenced | KEEP | silenced
+sap | sap | KEEP | sap
+poly | polymorph | KEEP | poly
+sheep | polymorph | KEEP | sheep
+hex | hex | KEEP | hex
+sleep | sleep | KEEP | sleep
+knockback | knockback | KEEP | knockback
+kb | knockback | KEEP | kb
+knockup | knockup | KEEP | knockup
+ku | knockup | KEEP | ku
+pull | pull | KEEP | pull
+pulled | pulled | KEEP | pulled
+kite | kite | KEEP | kite
+kiting | kiting | KEEP | kiting
+kited | kited | KEEP | kited
+cd | cooldown | KEEP | cd
+cds | cooldowns | KEEP | cds
+cooldown | cooldown | KEEP | cooldown
+cooldowns | cooldowns | KEEP | cooldowns
+on cd | on cooldown | KEEP | on cd
+off cd | off cooldown | KEEP | off cd
+cd reset | cooldown reset | KEEP | cd reset
+cdr | cooldown reduction | KEEP | cdr
+gcd | global cooldown | KEEP | gcd
+ult | ultimate | KEEP | ult
+ults | ultimates | KEEP | ults
+ultimate | ultimate | KEEP | ultimate
+ulti | ultimate | KEEP | ulti
+q | ability Q | KEEP | q
+w | ability W | KEEP | w
+e | ability E | KEEP | e
+r | ability R | KEEP | r
+skill | skill | TRANSLATE | skill
+skills | skills | TRANSLATE | skills
+spell | spell | TRANSLATE | spell
+spells | spells | TRANSLATE | spells
+ability | ability | TRANSLATE | ability
+abilities | abilities | TRANSLATE | abilities
+passive | passive | KEEP | passive
+active | active | KEEP | active
+proc | proc | KEEP | proc
+procs | procs | KEEP | procs
+procced | procced | KEEP | procced
+proc'd | proc'd | KEEP | proc'd
+combo | combo | KEEP | combo
+combos | combos | KEEP | combos
+chain | chain | KEEP | chain
+chaining | chaining | KEEP | chaining
+dodge | dodge | KEEP | dodge
+dodged | dodged | KEEP | dodged
+parry | parry | KEEP | parry
+parried | parried | KEEP | parried
+block | block | KEEP | block
+blocked | blocked | KEEP | blocked
+miss | miss | KEEP | miss
+missed | missed | KEEP | missed
+crit | critical hit | KEEP | crit
+crits | critical hits | KEEP | crits
+critical | critical | KEEP | critical
+critted | critted | KEEP | critted
+crit dmg | critical damage | KEEP | crit dmg
+cdmg | critical damage | KEEP | cdmg
+cd | critical damage | CONTEXT | cd
+cc | critical chance | CONTEXT | cc
+crit rate | critical rate | KEEP | crit rate
+cr | critical rate | KEEP | cr
+hit | hit | KEEP | hit
+hit chance | hit chance | KEEP | hit chance
+acc | accuracy | KEEP | acc
+accuracy | accuracy | TRANSLATE | accuracy
+eva | evasion | KEEP | eva
+evasion | evasion | TRANSLATE | evasion
+eva rate | evasion rate | KEEP | eva rate
+spd | speed | KEEP | spd
+speed | speed | TRANSLATE | speed
+ms | movement speed | KEEP | ms
+as | attack speed | KEEP | as
+atkspd | attack speed | KEEP | atkspd
+aspd | attack speed | KEEP | aspd
+cspd | cast speed | KEEP | cspd
+castspd | cast speed | KEEP | castspd
+cast | cast | KEEP | cast
+casting | casting | KEEP | casting
+casted | casted | KEEP | casted
+channel | channel | KEEP | channel
+channeling | channeling | KEEP | channeling
+instant | instant | KEEP | instant
+instant cast | instant cast | KEEP | instant cast
+ranged | ranged | KEEP | ranged
+melee | melee | KEEP | melee
+range | range | TRANSLATE | range
+reach | reach | TRANSLATE | reach
+aggro | aggression / threat | KEEP | aggro
+aggroed | aggroed | KEEP | aggroed
+aggro'd | aggro'd | KEEP | aggro'd
+pull aggro | pull aggro | KEEP | pull aggro
+hold aggro | hold aggro | KEEP | hold aggro
+lose aggro | lose aggro | KEEP | lose aggro
+taunt | taunt | KEEP | taunt
+taunted | taunted | KEEP | taunted
+threat | threat | KEEP | threat
+tank spec | tank spec | KEEP | tank spec
+dps spec | dps spec | KEEP | dps spec
+heal spec | heal spec | KEEP | heal spec
+spec | specialization | KEEP | spec
+specs | specializations | KEEP | specs
+respec | respec | KEEP | respec
+re-spec | respec | KEEP | re-spec
+talent | talent | KEEP | talent
+talents | talents | KEEP | talents
+tree | talent tree | KEEP | tree
+build | build | KEEP | build
+builds | builds | KEEP | builds
+class | class | TRANSLATE | class
+classes | classes | TRANSLATE | classes
+race | race | TRANSLATE | race
+races | races | TRANSLATE | races
+role | role | TRANSLATE | role
+roles | roles | TRANSLATE | roles
+main | main | KEEP | main
+mains | mains | KEEP | mains
+alt | alternate character | KEEP | alt
+alts | alternate characters | KEEP | alts
+twink | low-level character with great gear | KEEP | twink
+twinks | twinks | KEEP | twinks
+mule | storage character | KEEP | mule
+banker | banker | KEEP | banker
+pet | pet | TRANSLATE | pet
+pets | pets | TRANSLATE | pets
+mount | mount | TRANSLATE | mount
+mounts | mounts | TRANSLATE | mounts
+mounted | mounted | TRANSLATE | mounted
+dismount | dismount | TRANSLATE | dismount
+dismounted | dismounted | TRANSLATE | dismounted
+flying | flying | TRANSLATE | flying
+fly | fly | TRANSLATE | fly
+swim | swim | TRANSLATE | swim
+run | run | TRANSLATE | run
+sprint | sprint | KEEP | sprint
+dash | dash | KEEP | dash
+blink | blink | KEEP | blink
+tp | teleport | KEEP | tp
+teleport | teleport | TRANSLATE | teleport
+port | portal | KEEP | port
+portal | portal | TRANSLATE | portal
+summon | summon | KEEP | summon
+summoned | summoned | KEEP | summoned
+summons | summons | KEEP | summons
+res | resurrect | KEEP | res
+rez | resurrect | KEEP | rez
+ress | resurrect | KEEP | ress
+resurrect | resurrect | TRANSLATE | resurrect
+revive | revive | TRANSLATE | revive
+revived | revived | TRANSLATE | revived
+battle res | battle resurrection | KEEP | battle res
+bres | battle resurrection | KEEP | bres
+brez | battle resurrection | KEEP | brez
+bl | bloodlust | KEEP | bl
+lust | bloodlust | KEEP | lust
+hero | heroism | CONTEXT | hero
+heroism | heroism | KEEP | heroism
+bloodlust | bloodlust | KEEP | bloodlust
+innervate | innervate | KEEP | innervate
+bop | blessing of protection | CONTEXT | bop
+bof | blessing of freedom | KEEP | bof
+bos | blessing of sacrifice | KEEP | bos
+loh | lay on hands | KEEP | loh
+ds | divine shield | CONTEXT | ds
+ws | war stomp | KEEP | ws
+cs | counterspell | CONTEXT | cs
+ci | counter interrupt | CONTEXT | ci
+int | interrupt | CONTEXT | int
+interrupt | interrupt | KEEP | interrupt
+interrupted | interrupted | KEEP | interrupted
+kick | kick | KEEP | kick
+kicked | kicked | KEEP | kicked
+stop cast | stop cast | KEEP | stop cast
+heal | heal | KEEP | heal
+nuke | nuke | KEEP | nuke
+nuked | nuked | KEEP | nuked
+nuking | nuking | KEEP | nuking
+burst | burst | KEEP | burst
+burst dmg | burst damage | KEEP | burst dmg
+sustain | sustain | KEEP | sustain
+sust | sustain | KEEP | sust
+oom | out of mana | KEEP | oom
+out of mana | out of mana | KEEP | out of mana
+oop | out of position | KEEP | oop
+out of range | out of range | KEEP | out of range
+oor | out of range | KEEP | oor
+los | line of sight | KEEP | los
+line of sight | line of sight | KEEP | line of sight
+ls | line of sight | KEEP | ls
+facing | facing | KEEP | facing
+face | face | KEEP | face
+behind | behind | TRANSLATE | behind
+flank | flank | KEEP | flank
+flanking | flanking | KEEP | flanking
+backstab | backstab | KEEP | backstab
+bs | backstab | CONTEXT | bs
+gouge | gouge | KEEP | gouge
+vanish | vanish | KEEP | vanish
+stealth | stealth | KEEP | stealth
+stealthed | stealthed | KEEP | stealthed
+invis | invisible | KEEP | invis
+invisible | invisible | TRANSLATE | invisible
+vis | visible | KEEP | vis
+visible | visible | TRANSLATE | visible
+camo | camouflage | KEEP | camo
+cloak | cloak | KEEP | cloak
+shield | shield | KEEP | shield
+shielded | shielded | KEEP | shielded
+armor | armor | KEEP | armor
+resist | resist | KEEP | resist
+resists | resists | KEEP | resists
+resistant | resistant | KEEP | resistant
+immune | immune | KEEP | immune
+immunity | immunity | KEEP | immunity
+iframe | invincibility frame | KEEP | iframe
+iframes | invincibility frames | KEEP | iframes
+i-frame | invincibility frame | KEEP | i-frame
+i-frames | invincibility frames | KEEP | i-frames
+hitbox | hitbox | KEEP | hitbox
+hitboxes | hitboxes | KEEP | hitboxes
+hurtbox | hurtbox | KEEP | hurtbox
+hurtboxes | hurtboxes | KEEP | hurtboxes
+hit reg | hit registration | KEEP | hit reg
+hitreg | hit registration | KEEP | hitreg
+netcode | netcode | KEEP | netcode
+tickrate | tick rate | KEEP | tickrate
+tick rate | tick rate | KEEP | tick rate
+tick | tick | KEEP | tick
+ticks | ticks | KEEP | ticks
+ticking | ticking | KEEP | ticking
+
+=========================================================
+## 6. PVE / BOSSES / MOBS / DUNGEONS
+=========================================================
+pve | player vs environment | KEEP | pve server
+pvp | player vs player | KEEP | pvp server
+pvpve | PvP + PvE | KEEP | pvpve
+pvx | PvP and PvE | KEEP | pvx
+eve | environment vs environment | KEEP | eve
+rvr | realm vs realm | KEEP | rvr
+gvg | guild vs guild | KEEP | gvg
+gvgvg | guild vs guild vs guild | KEEP | gvgvg
+cvc | clan vs clan | KEEP | cvc
+fvf | faction vs faction | KEEP | fvf
+fvfv | faction vs faction vs faction | KEEP | fvfv
+tvt | team vs team | KEEP | tvt
+1v1 | one vs one | KEEP | 1v1 me
+2v2 | two vs two | KEEP | 2v2
+3v3 | three vs three | KEEP | 3v3
+5v5 | five vs five | KEEP | 5v5
+1v2 | one vs two | KEEP | 1v2
+1v3 | one vs three | KEEP | 1v3
+1vx | one vs many | KEEP | 1vx
+1vall | one vs all | KEEP | 1vall
+duel | duel | TRANSLATE | duel
+dueling | dueling | TRANSLATE | dueling
+duels | duels | TRANSLATE | duels
+arena | arena | TRANSLATE | arena
+bg | battleground | KEEP | bg
+bgs | battlegrounds | KEEP | bgs
+battleground | battleground | TRANSLATE | battleground
+wsg | warsong gulch | KEEP | wsg
+ab | arathi basin | KEEP | ab
+av | alterac valley | KEEP | av
+eots | eye of the storm | KEEP | eots
+sota | strand of the ancients | KEEP | sota
+ioc | isle of conquest | KEEP | ioc
+tb | tol barad | KEEP | tb
+bfg | battle for gilneas | KEEP | bfg
+tp | temple of kotmogu | CONTEXT | tp
+ssm | silvershard mines | KEEP | ssm
+dg | deepwind gorge | CONTEXT | dg
+siege | siege | TRANSLATE | siege
+siege weapon | siege weapon | TRANSLATE | siege weapon
+castle | castle | TRANSLATE | castle
+fort | fort | TRANSLATE | fort
+keep | keep | TRANSLATE | keep
+tower | tower | TRANSLATE | tower
+gate | gate | TRANSLATE | gate
+wall | wall | TRANSLATE | wall
+base | base | TRANSLATE | base
+hq | headquarters | KEEP | hq
+flag | flag | TRANSLATE | flag
+fc | flag carrier | KEEP | fc
+efc | enemy flag carrier | KEEP | efc
+cap | capture | KEEP | cap
+capture | capture | TRANSLATE | capture
+point | point | TRANSLATE | point
+objective | objective | TRANSLATE | objective
+obj | objective | KEEP | obj
+mob | mobile object / monster | KEEP | mob
+mobs | monsters | KEEP | mobs
+npc | non-player character | KEEP | npc
+npcs | NPCs | KEEP | npcs
+boss | boss | TRANSLATE | boss
+bosses | bosses | TRANSLATE | bosses
+miniboss | mini boss | KEEP | miniboss
+mini boss | mini boss | KEEP | mini boss
+raid boss | raid boss | KEEP | raid boss
+world boss | world boss | KEEP | world boss
+wb | world boss | CONTEXT | wb
+wb spawn | world boss spawn | KEEP | wb spawn
+elite | elite | KEEP | elite
+elites | elites | KEEP | elites
+rare mob | rare mob | KEEP | rare mob
+rare spawn | rare spawn | KEEP | rare spawn
+rs | rare spawn | KEEP | rs
+spawn | spawn | KEEP | spawn
+spawned | spawned | KEEP | spawned
+spawns | spawns | KEEP | spawns
+respawn | respawn | KEEP | respawn
+respawned | respawned | KEEP | respawned
+respawn timer | respawn timer | KEEP | respawn timer
+resp | respawn | KEEP | resp
+camp | camp | KEEP | camp
+camping | camping | KEEP | camping
+camped | camped | KEEP | camped
+camper | camper | KEEP | camper
+spawn camp | spawn camp | KEEP | spawn camp
+spawncamp | spawn camp | KEEP | spawncamp
+spawn camping | spawn camping | KEEP | spawn camping
+farm spot | farm spot | KEEP | farm spot
+grind spot | grind spot | KEEP | grind spot
+xp spot | xp spot | KEEP | xp spot
+pack | pack | KEEP | pack
+packs | packs | KEEP | packs
+trash | trash mobs | KEEP | trash
+trash mobs | trash mobs | KEEP | trash mobs
+trash pack | trash pack | KEEP | trash pack
+add | additional enemy | KEEP | add
+adds | additional enemies | KEEP | adds
+phase | phase | KEEP | phase
+phases | phases | KEEP | phases
+p1 | phase 1 | KEEP | p1
+p2 | phase 2 | KEEP | p2
+p3 | phase 3 | KEEP | p3
+p4 | phase 4 | KEEP | p4
+p5 | phase 5 | KEEP | p5
+enrage | enrage | KEEP | enrage
+enraged | enraged | KEEP | enraged
+enrage timer | enrage timer | KEEP | enrage timer
+soft enrage | soft enrage | KEEP | soft enrage
+hard enrage | hard enrage | KEEP | hard enrage
+wipe | wipe | KEEP | wipe
+wiped | wiped | KEEP | wiped
+wiping | wiping | KEEP | wiping
+wipes | wipes | KEEP | wipes
+tpk | total party kill | KEEP | tpk
+oneshot | one shot | KEEP | oneshot
+one shot | one shot | KEEP | one shot
+1shot | one shot | KEEP | 1shot
+1 shot | one shot | KEEP | 1 shot
+os | one shot | CONTEXT | os
+ohko | one hit knock out | KEEP | ohko
+one hit | one hit | KEEP | one hit
+2shot | two shot | KEEP | 2shot
+3shot | three shot | KEEP | 3shot
+kill | kill | TRANSLATE | kill
+kills | kills | TRANSLATE | kills
+killed | killed | TRANSLATE | killed
+killing | killing | TRANSLATE | killing
+killstreak | kill streak | KEEP | killstreak
+kill streak | kill streak | KEEP | kill streak
+ks | kill steal | CONTEXT | ks
+ksd | kill stolen | KEEP | ksd
+ksing | kill stealing | KEEP | ksing
+kill steal | kill steal | KEEP | kill steal
+ks'd | kill stolen | KEEP | ks'd
+ks'ing | kill stealing | KEEP | ks'ing
+kd | kill death ratio | KEEP | kd
+k/d | kill death ratio | KEEP | k/d
+kda | kills deaths assists | KEEP | kda
+k/d/a | kills deaths assists | KEEP | k/d/a
+kdr | kill death ratio | KEEP | kdr
+death | death | TRANSLATE | death
+deaths | deaths | TRANSLATE | deaths
+died | died | TRANSLATE | died
+dead | dead | TRANSLATE | dead
+dying | dying | TRANSLATE | dying
+die | die | TRANSLATE | die
+rip | rest in peace | CONTEXT | rip
+dc | disconnect | KEEP | dc
+dced | disconnected | KEEP | dced
+dc'd | disconnected | KEEP | dc'd
+dcd | disconnected | KEEP | dcd
+disc | disconnect | KEEP | disc
+discon | disconnect | KEEP | discon
+disconnect | disconnect | KEEP | disconnect
+disconnected | disconnected | KEEP | disconnected
+reconnect | reconnect | KEEP | reconnect
+reconnecting | reconnecting | KEEP | reconnecting
+reconnected | reconnected | KEEP | reconnected
+recon | reconnect | KEEP | recon
+reco | reconnect | KEEP | reco
+relog | relog | KEEP | relog
+relogged | relogged | KEEP | relogged
+relogging | relogging | KEEP | relogging
+log | log | KEEP | log
+login | login | KEEP | login
+log in | log in | KEEP | log in
+logout | logout | KEEP | logout
+log out | log out | KEEP | log out
+logged | logged | KEEP | logged
+logging | logging | KEEP | logging
+logged out | logged out | KEEP | logged out
+logged in | logged in | KEEP | logged in
+online | online | TRANSLATE | online
+offline | offline | TRANSLATE | offline
+on | on | TRANSLATE | on
+off | off | TRANSLATE | off
+afk | away from keyboard | KEEP | afk
+idle | idle | KEEP | idle
+idling | idling | KEEP | idling
+inactive | inactive | TRANSLATE | inactive
+active | active | TRANSLATE | active
+queue | queue | KEEP | queue
+queued | queued | KEEP | queued
+queueing | queueing | KEEP | queueing
+q'd | queued | KEEP | q'd
+queue time | queue time | KEEP | queue time
+qt | queue time | KEEP | qt
+q time | queue time | KEEP | q time
+q | queue | CONTEXT | q
+pop | queue pop | KEEP | pop
+popped | popped | KEEP | popped
+queue pop | queue pop | KEEP | queue pop
+match | match | TRANSLATE | match
+matchmaking | matchmaking | KEEP | matchmaking
+mm | matchmaking | KEEP | mm
+mmr | matchmaking rating | KEEP | mmr
+elo | rating | KEEP | elo
+rating | rating | TRANSLATE | rating
+rank | rank | TRANSLATE | rank
+ranked | ranked | KEEP | ranked
+unranked | unranked | KEEP | unranked
+rank up | rank up | KEEP | rank up
+derank | derank | KEEP | derank
+deranked | deranked | KEEP | deranked
+promo | promotion | KEEP | promo
+promos | promotions | KEEP | promos
+promotion | promotion | TRANSLATE | promotion
+demotion | demotion | TRANSLATE | demotion
+placements | placement matches | KEEP | placements
+placement | placement | KEEP | placement
+season | season | TRANSLATE | season
+seasons | seasons | TRANSLATE | seasons
+s1 | season 1 | KEEP | s1
+s2 | season 2 | KEEP | s2
+s3 | season 3 | KEEP | s3
+s4 | season 4 | KEEP | s4
+s5 | season 5 | KEEP | s5
+sod | season of discovery | KEEP | sod
+sotc | season of the champion | KEEP | sotc
+sl | shadowlands | KEEP | sl
+df | dragonflight | KEEP | df
+tww | the war within | KEEP | tww
+bfa | battle for azeroth | KEEP | bfa
+wotlk | wrath of the lich king | KEEP | wotlk
+tbc | the burning crusade | KEEP | tbc
+vanilla | vanilla | KEEP | vanilla
+classic | classic | KEEP | classic
+cata | cataclysm | KEEP | cata
+mop | mists of pandaria | KEEP | mop
+wod | warlords of draenor | KEEP | wod
+legion | legion | KEEP | legion
+hc | hardcore | KEEP | hc
+hardcore | hardcore | KEEP | hardcore
+sf | self found | KEEP | sf
+ssf | solo self found | KEEP | ssf
+hcssf | hardcore solo self found | KEEP | hcssf
+ruthless | ruthless | KEEP | ruthless
+perma | permanent | KEEP | perma
+permadeath | permanent death | KEEP | permadeath
+perma death | permanent death | KEEP | perma death
+perma-death | permanent death | KEEP | perma-death
+perma ban | permanent ban | KEEP | perma ban
+
+=========================================================
+## 7. FPS / EXTRACTION / SHOOTER (Arena Breakout, Tarkov, etc.)
+=========================================================
+fps | frames per second / first person shooter | KEEP | low fps
+tps | third person shooter | KEEP | tps
+fov | field of view | KEEP | fov
+ads | aim down sights | KEEP | ads
+hip | hip fire | KEEP | hip
+hipfire | hip fire | KEEP | hipfire
+adsing | aiming down sights | KEEP | adsing
+recoil | recoil | KEEP | recoil
+spray | spray | KEEP | spray
+spraying | spraying | KEEP | spraying
+sprayed | sprayed | KEEP | sprayed
+tap | tap fire | KEEP | tap
+tapping | tap firing | KEEP | tapping
+burst | burst fire | KEEP | burst
+semi | semi-auto | KEEP | semi
+auto | full-auto | KEEP | auto
+full auto | full auto | KEEP | full auto
+fa | full auto | KEEP | fa
+sa | semi auto | KEEP | sa
+ba | bolt action | KEEP | ba
+bolty | bolt action | KEEP | bolty
+dmr | designated marksman rifle | KEEP | dmr
+ar | assault rifle | KEEP | ar
+smg | submachine gun | KEEP | smg
+lmg | light machine gun | KEEP | lmg
+mg | machine gun | KEEP | mg
+sg | shotgun | KEEP | sg
+sr | sniper rifle | KEEP | sr
+snip | sniper | KEEP | snip
+sniper | sniper | KEEP | sniper
+scope | scope | KEEP | scope
+scoped | scoped | KEEP | scoped
+sight | sight | KEEP | sight
+optic | optic | KEEP | optic
+red dot | red dot | KEEP | red dot
+rds | red dot sight | KEEP | rds
+holo | holographic sight | KEEP | holo
+acog | ACOG | KEEP | acog
+ir | infrared | KEEP | ir
+nv | night vision | KEEP | nv
+nvg | night vision goggles | KEEP | nvg
+thermal | thermal | KEEP | thermal
+flir | thermal imaging | KEEP | flir
+suppressor | suppressor | KEEP | suppressor
+supp | suppressor | KEEP | supp
+silencer | silencer | KEEP | silencer
+sil | silencer | KEEP | sil
+silenced | silenced | KEEP | silenced
+mag | magazine | KEEP | mag
+mags | magazines | KEEP | mags
+ext mag | extended magazine | KEEP | ext mag
+reload | reload | KEEP | reload
+reloading | reloading | KEEP | reloading
+reloaded | reloaded | KEEP | reloaded
+ammo | ammunition | KEEP | ammo
+ammos | ammunition | KEEP | ammos
+bullets | bullets | TRANSLATE | bullets
+rounds | rounds | KEEP | rounds
+rds | rounds | KEEP | rds
+ap | armor piercing | KEEP | ap
+ap ammo | armor piercing ammo | KEEP | ap ammo
+fmj | full metal jacket | KEEP | fmj
+hp | hollow point | CONTEXT | hp
+hp ammo | hollow point ammo | KEEP | hp ammo
+jhp | jacketed hollow point | KEEP | jhp
+sp | soft point | CONTEXT | sp
+bt | ballistic tip | KEEP | bt
+subsonic | subsonic | KEEP | subsonic
+sub | subsonic | KEEP | sub
+sonic | supersonic | KEEP | sonic
+tracer | tracer | KEEP | tracer
+tracers | tracers | KEEP | tracers
+slug | slug | KEEP | slug
+slugs | slugs | KEEP | slugs
+buck | buckshot | KEEP | buck
+buckshot | buckshot | KEEP | buckshot
+birdshot | birdshot | KEEP | birdshot
+shell | shell | KEEP | shell
+shells | shells | KEEP | shells
+5.56 | 5.56 NATO | KEEP | 5.56
+7.62 | 7.62 | KEEP | 7.62
+9mm | 9mm | KEEP | 9mm
+12ga | 12 gauge | KEEP | 12ga
+12g | 12 gauge | KEEP | 12g
+m4 | M4 carbine | KEEP | m4
+m4a1 | M4A1 | KEEP | m4a1
+ak | AK | KEEP | ak
+ak47 | AK-47 | KEEP | ak47
+ak74 | AK-74 | KEEP | ak74
+akm | AKM | KEEP | akm
+mp5 | MP5 | KEEP | mp5
+vector | Vector | KEEP | vector
+mk47 | Mk 47 | KEEP | mk47
+sks | SKS | KEEP | sks
+svd | SVD | KEEP | svd
+mosin | Mosin | KEEP | mosin
+m700 | M700 | KEEP | m700
+awm | AWM | KEEP | awm
+m870 | M870 | KEEP | m870
+pistol | pistol | TRANSLATE | pistol
+glock | Glock | KEEP | glock
+m1911 | M1911 | KEEP | m1911
+makarov | Makarov | KEEP | makarov
+pm | Makarov PM | CONTEXT | pm
+tt | TT pistol | KEEP | tt
+deagle | Desert Eagle | KEEP | deagle
+nade | grenade | KEEP | nade
+nades | grenades | KEEP | nades
+grenade | grenade | TRANSLATE | grenade
+frag | fragmentation grenade | KEEP | frag
+frags | fragmentation grenades | KEEP | frags
+fragged | fragged | KEEP | fragged
+flash | flashbang | KEEP | flash
+flashed | flashed | KEEP | flashed
+flashbang | flashbang | KEEP | flashbang
+smoke | smoke | KEEP | smoke
+smoked | smoked | KEEP | smoked
+molly | molotov | KEEP | molly
+molotov | molotov | KEEP | molotov
+claymore | claymore | KEEP | claymore
+c4 | C4 | KEEP | c4
+rpg | rocket-propelled grenade | KEEP | rpg
+rocket | rocket | TRANSLATE | rocket
+launcher | launcher | TRANSLATE | launcher
+armor | armor | TRANSLATE | armor
+plate | armor plate | KEEP | plate
+plates | armor plates | KEEP | plates
+plate carrier | plate carrier | KEEP | plate carrier
+pc | plate carrier | CONTEXT | pc
+rig | tactical rig | KEEP | rig
+chest rig | chest rig | KEEP | chest rig
+vest | vest | TRANSLATE | vest
+bp | backpack | KEEP | bp
+backpack | backpack | TRANSLATE | backpack
+bag | bag | TRANSLATE | bag
+helmet | helmet | TRANSLATE | helmet
+helm | helmet | KEEP | helm
+headset | headset | KEEP | headset
+hs | headshot | KEEP | hs
+headshot | headshot | KEEP | headshot
+hsd | headshot | KEEP | hsd
+hs only | headshot only | KEEP | hs only
+bodyshot | bodyshot | KEEP | bodyshot
+body shot | body shot | KEEP | body shot
+legshot | leg shot | KEEP | legshot
+leg shot | leg shot | KEEP | leg shot
+thorax | thorax | KEEP | thorax
+stomach | stomach | KEEP | stomach
+arms | arms | KEEP | arms
+legs | legs | KEEP | legs
+head | head | KEEP | head
+eyes | eyes | KEEP | eyes
+face | face | KEEP | face
+blacked | blacked limb | KEEP | blacked
+black | blacked limb | KEEP | black
+bleed | bleed | KEEP | bleed
+bleeding | bleeding | KEEP | bleeding
+bled | bled | KEEP | bled
+bleed out | bleed out | KEEP | bleed out
+frac | fracture | KEEP | frac
+fracture | fracture | KEEP | fracture
+fractured | fractured | KEEP | fractured
+broken | broken | TRANSLATE | broken
+splint | splint | KEEP | splint
+bandage | bandage | TRANSLATE | bandage
+band | bandage | KEEP | band
+med | medical | KEEP | med
+meds | medicine | KEEP | meds
+medic | medic | KEEP | medic
+medkit | medkit | KEEP | medkit
+medkits | medkits | KEEP | medkits
+ifak | IFAK | KEEP | ifak
+car | CAR medkit | CONTEXT | car
+afak | AFAK | KEEP | afak
+salewa | Salewa | KEEP | salewa
+grizzly | Grizzly | KEEP | grizzly
+surv12 | Surv12 | KEEP | surv12
+cms | CMS | KEEP | cms
+painkillers | painkillers | KEEP | painkillers
+pk | painkillers | KEEP | pk
+morphine | morphine | KEEP | morphine
+morph | morphine | KEEP | morph
+pills | pills | TRANSLATE | pills
+injector | injector | KEEP | injector
+stim | stimulant | KEEP | stim
+stims | stimulants | KEEP | stims
+adren | adrenaline | KEEP | adren
+adrenaline | adrenaline | KEEP | adrenaline
+propital | propital | KEEP | propital
+p22 | P22 | KEEP | p22
+sj6 | SJ6 | KEEP | sj6
+sj1 | SJ1 | KEEP | sj1
+mule | MULE | KEEP | mule
+meld | MELD | KEEP | meld
+obdolbos | Obdolbos | KEEP | obdolbos
+pmc | private military company | KEEP | pmc
+pmcs | PMCs | KEEP | pmcs
+scav | scavenger | KEEP | scav
+scavs | scavengers | KEEP | scavs
+scavving | scavenging | KEEP | scavving
+scav run | scav run | KEEP | scav run
+raider | raider | KEEP | raider
+raiders | raiders | KEEP | raiders
+rogue | rogue | KEEP | rogue
+rogues | rogues | KEEP | rogues
+cultist | cultist | KEEP | cultist
+cultists | cultists | KEEP | cultists
+sectant | cultist | KEEP | sectant
+boss | boss | KEEP | boss
+bosses | bosses | KEEP | bosses
+guard | guard | TRANSLATE | guard
+guards | guards | TRANSLATE | guards
+tagilla | Tagilla | KEEP | tagilla
+killa | Killa | KEEP | killa
+reshala | Reshala | KEEP | reshala
+glukhar | Glukhar | KEEP | glukhar
+sanitar | Sanitar | KEEP | sanitar
+shturman | Shturman | KEEP | shturman
+kaban | Kaban | KEEP | kaban
+kolontay | Kolontay | KEEP | kolontay
+partisan | Partisan | KEEP | partisan
+knight | Knight | KEEP | knight
+big pipe | Big Pipe | KEEP | big pipe
+birdeye | Birdeye | KEEP | birdeye
+zryachiy | Zryachiy | KEEP | zryachiy
+raid | raid | TRANSLATE | raid
+map | map | TRANSLATE | map
+maps | maps | TRANSLATE | maps
+customs | Customs | KEEP | customs
+factory | Factory | KEEP | factory
+woods | Woods | KEEP | woods
+shoreline | Shoreline | KEEP | shoreline
+interchange | Interchange | KEEP | interchange
+reserve | Reserve | KEEP | reserve
+lighthouse | Lighthouse | KEEP | lighthouse
+labs | The Lab | KEEP | labs
+lab | The Lab | KEEP | lab
+streets | Streets of Tarkov | KEEP | streets
+ground zero | Ground Zero | KEEP | ground zero
+gz | Ground Zero | CONTEXT | gz
+dam | Dam | KEEP | dam
+farm | Farm | CONTEXT | farm
+valley | Valley | KEEP | valley
+armory | Armory | KEEP | armory
+northridge | Northridge | KEEP | northridge
+tv station | TV Station | KEEP | tv station
+tv | TV Station | CONTEXT | tv
+extract | extraction | KEEP | extract
+extracted | extracted | KEEP | extracted
+extracting | extracting | KEEP | extracting
+extraction | extraction | KEEP | extraction
+exfil | exfiltration | KEEP | exfil
+exfils | exfiltrations | KEEP | exfils
+exfilled | exfiltrated | KEEP | exfilled
+exfilling | exfiltrating | KEEP | exfilling
+ex | extract | KEEP | ex
+exit | exit | TRANSLATE | exit
+exits | exits | TRANSLATE | exits
+evac | evacuate | KEEP | evac
+evacuate | evacuate | TRANSLATE | evacuate
+insure | insure | KEEP | insure
+insurance | insurance | KEEP | insurance
+insured | insured | KEEP | insured
+ins | insurance | KEEP | ins
+mia | missing in action | KEEP | mia
+kia | killed in action | KEEP | kia
+survived | survived | KEEP | survived
+sr | survived | CONTEXT | sr
+surv | survived | KEEP | surv
+runthrough | run through | KEEP | runthrough
+run through | run through | KEEP | run through
+rt | run through | KEEP | rt
+rat | rat (hides) | KEEP | rat
+ratting | ratting | KEEP | ratting
+rat spot | rat spot | KEEP | rat spot
+camping spot | camping spot | KEEP | camping spot
+spot | spot | TRANSLATE | spot
+spotted | spotted | KEEP | spotted
+spotting | spotting | KEEP | spotting
+contact | contact | KEEP | contact
+contacts | contacts | KEEP | contacts
+enemy | enemy | TRANSLATE | enemy
+enemies | enemies | TRANSLATE | enemies
+en | enemy | KEEP | en
+enemy down | enemy down | KEEP | enemy down
+ed | enemy down | KEEP | ed
+down | down | KEEP | down
+downed | downed | KEEP | downed
+knocked | knocked | KEEP | knocked
+knocked down | knocked down | KEEP | knocked down
+kd | knocked down | CONTEXT | kd
+dbno | downed but not out | KEEP | dbno
+rev | revive | KEEP | rev
+revive | revive | TRANSLATE | revive
+pick up | pick up | TRANSLATE | pick up
+pickup | pickup | KEEP | pickup
+pick | pick | TRANSLATE | pick
+picked | picked | TRANSLATE | picked
+drop | drop | TRANSLATE | drop
+dropped | dropped | TRANSLATE | dropped
+drop it | drop it | TRANSLATE | drop it
+cover | cover | KEEP | cover
+covering | covering | KEEP | covering
+cover me | cover me | KEEP | cover me
+holding | holding | KEEP | holding
+hold | hold | KEEP | hold
+hold angle | hold angle | KEEP | hold angle
+angle | angle | KEEP | angle
+angles | angles | KEEP | angles
+peek | peek | KEEP | peek
+peeking | peeking | KEEP | peeking
+peeked | peeked | KEEP | peeked
+peeker's advantage | peeker's advantage | KEEP | peeker's advantage
+wide peek | wide peek | KEEP | wide peek
+shoulder peek | shoulder peek | KEEP | shoulder peek
+jiggle peek | jiggle peek | KEEP | jiggle peek
+swing | swing | KEEP | swing
+swinging | swinging | KEEP | swinging
+rush | rush | KEEP | rush
+rushing | rushing | KEEP | rushing
+rushed | rushed | KEEP | rushed
+push | push | KEEP | push
+pushing | pushing | KEEP | pushing
+pushed | pushed | KEEP | pushed
+retreat | retreat | TRANSLATE | retreat
+fall back | fall back | TRANSLATE | fall back
+flank | flank | KEEP | flank
+flanker | flanker | KEEP | flanker
+flanking | flanking | KEEP | flanking
+rotate | rotate | KEEP | rotate
+rotating | rotating | KEEP | rotating
+rotation | rotation | KEEP | rotation
+rot | rotate | KEEP | rot
+rotates | rotates | KEEP | rotates
+hold | hold | KEEP | hold
+anchor | anchor | KEEP | anchor
+lurk | lurk | KEEP | lurk
+lurking | lurking | KEEP | lurking
+lurker | lurker | KEEP | lurker
+clutch | clutch | KEEP | clutch
+clutched | clutched | KEEP | clutched
+clutching | clutching | KEEP | clutching
+ace | ace | KEEP | ace
+aced | aced | KEEP | aced
+acing | acing | KEEP | acing
+wipe | wipe | KEEP | wipe
+team wipe | team wipe | KEEP | team wipe
+tw | team wipe | KEEP | tw
+squad wipe | squad wipe | KEEP | squad wipe
+sw | squad wipe | KEEP | sw
+quad kill | quad kill | KEEP | quad kill
+triple kill | triple kill | KEEP | triple kill
+double kill | double kill | KEEP | double kill
+multikill | multi kill | KEEP | multikill
+multi kill | multi kill | KEEP | multi kill
+spray n pray | spray and pray | KEEP | spray n pray
+sniping | sniping | KEEP | sniping
+sniped | sniped | KEEP | sniped
+noscope | no scope | KEEP | noscope
+no scope | no scope | KEEP | no scope
+360 | 360 no scope | KEEP | 360
+quickscope | quickscope | KEEP | quickscope
+qs | quickscope | KEEP | qs
+camper | camper | KEEP | camper
+camp | camp | KEEP | camp
+sit | sit | TRANSLATE | sit
+sitting | sitting | TRANSLATE | sitting
+hide | hide | TRANSLATE | hide
+hiding | hiding | TRANSLATE | hiding
+hidden | hidden | TRANSLATE | hidden
+hider | hider | TRANSLATE | hider
+bush | bush | TRANSLATE | bush
+bushes | bushes | TRANSLATE | bushes
+bush camper | bush camper | KEEP | bush camper
+bc | bush camper | CONTEXT | bc
+bush wookie | bush wookie | KEEP | bush wookie
+ghillie | ghillie suit | KEEP | ghillie
+ghillie suit | ghillie suit | KEEP | ghillie suit
+gillie | ghillie | KEEP | gillie
+camo | camouflage | KEEP | camo
+camouflage | camouflage | TRANSLATE | camouflage
+sound | sound | TRANSLATE | sound
+sounds | sounds | TRANSLATE | sounds
+footsteps | footsteps | TRANSLATE | footsteps
+steps | steps | TRANSLATE | steps
+step | step | TRANSLATE | step
+audio | audio | TRANSLATE | audio
+hear | hear | TRANSLATE | hear
+heard | heard | TRANSLATE | heard
+hearing | hearing | TRANSLATE | hearing
+ears | ears | TRANSLATE | ears
+vc | voice chat | KEEP | vc
+vc? | voice chat? | KEEP | vc?
+voice | voice | TRANSLATE | voice
+comms | communications | KEEP | comms
+comm | communication | KEEP | comm
+mic | microphone | KEEP | mic
+mics | microphones | KEEP | mics
+mic check | mic check | KEEP | mic check
+micspam | mic spam | KEEP | micspam
+mic spam | mic spam | KEEP | mic spam
+push to talk | push to talk | KEEP | push to talk
+ptt | push to talk | KEEP | ptt
+discord | Discord | KEEP | discord
+dc | Discord | CONTEXT | dc
+ds | Discord | CONTEXT | ds
+ts | TeamSpeak | KEEP | ts
+ts3 | TeamSpeak 3 | KEEP | ts3
+mumble | Mumble | KEEP | mumble
+ventrilo | Ventrilo | KEEP | ventrilo
+vent | Ventrilo | KEEP | vent
+steam | Steam | KEEP | steam
+epic | Epic Games | CONTEXT | epic
+origin | Origin | KEEP | origin
+uplay | Uplay | KEEP | uplay
+battle.net | Battle.net | KEEP | battle.net
+bnet | Battle.net | KEEP | bnet
+gog | GOG | KEEP | gog
+ea | Electronic Arts | KEEP | ea
+ubi | Ubisoft | KEEP | ubi
+bliz | Blizzard | KEEP | bliz
+activision | Activision | KEEP | activision
+valve | Valve | KEEP | valve
+riot | Riot Games | KEEP | riot
+nexon | Nexon | KEEP | nexon
+nc | NCSoft | KEEP | nc
+ncsoft | NCSoft | KEEP | ncsoft
+bsg | Battlestate Games | KEEP | bsg
+tencent | Tencent | KEEP | tencent
+netease | NetEase | KEEP | netease
+
+=========================================================
+## 8. MOBA / STRATEGY / RTS / OTHER GENRES
+=========================================================
+moba | multiplayer online battle arena | KEEP | moba
+lol | League of Legends | CONTEXT | lol
+dota | Dota | KEEP | dota
+dota2 | Dota 2 | KEEP | dota2
+hots | Heroes of the Storm | KEEP | hots
+smite | Smite | KEEP | smite
+hon | Heroes of Newerth | KEEP | hon
+aram | all random all mid | KEEP | aram
+adc | attack damage carry | KEEP | adc
+ad carry | attack damage carry | KEEP | ad carry
+carry | carry | KEEP | carry
+support | support | KEEP | support
+sup | support | KEEP | sup
+supp | support | KEEP | supp
+jg | jungle | KEEP | jg
+jng | jungle | KEEP | jng
+jungle | jungle | KEEP | jungle
+jungler | jungler | KEEP | jungler
+top | top lane | KEEP | top
+mid | mid lane | KEEP | mid
+bot | bot lane | KEEP | bot
+bot lane | bot lane | KEEP | bot lane
+lane | lane | KEEP | lane
+lanes | lanes | KEEP | lanes
+laning | laning | KEEP | laning
+lane phase | lane phase | KEEP | lane phase
+last hit | last hit | KEEP | last hit
+lh | last hit | KEEP | lh
+cs | creep score | KEEP | cs
+cs'ing | last hitting | KEEP | cs'ing
+creep | creep | KEEP | creep
+creeps | creeps | KEEP | creeps
+minion | minion | KEEP | minion
+minions | minions | KEEP | minions
+wave | wave | KEEP | wave
+waves | waves | KEEP | waves
+push | push | KEEP | push
+pushing | pushing | KEEP | pushing
+split push | split push | KEEP | split push
+splitpush | split push | KEEP | splitpush
+freeze | freeze | KEEP | freeze
+freezing | freezing | KEEP | freezing
+gank | gank | KEEP | gank
+ganks | ganks | KEEP | ganks
+ganked | ganked | KEEP | ganked
+ganking | ganking | KEEP | ganking
+dive | dive | KEEP | dive
+diving | diving | KEEP | diving
+dove | dove | KEEP | dove
+tower dive | tower dive | KEEP | tower dive
+td | tower dive | KEEP | td
+trade | trade | KEEP | trade
+trading | trading | KEEP | trading
+poke | poke | KEEP | poke
+poking | poking | KEEP | poking
+all in | all in | KEEP | all in
+allin | all in | KEEP | allin
+engage | engage | KEEP | engage
+engaged | engaged | KEEP | engaged
+disengage | disengage | KEEP | disengage
+dis | disengage | KEEP | dis
+initiate | initiate | KEEP | initiate
+init | initiate | KEEP | init
+peel | peel | KEEP | peel
+peeling | peeling | KEEP | peeling
+zone | zone | KEEP | zone
+zoning | zoning | KEEP | zoning
+zoned | zoned | KEEP | zoned
+objective | objective | KEEP | objective
+obj | objective | KEEP | obj
+objs | objectives | KEEP | objs
+drake | dragon | KEEP | drake
+drag | dragon | KEEP | drag
+baron | baron | KEEP | baron
+nash | nashor | KEEP | nash
+herald | herald | KEEP | herald
+rift | rift | KEEP | rift
+turret | turret | TRANSLATE | turret
+tower | tower | TRANSLATE | tower
+inhib | inhibitor | KEEP | inhib
+inhibitor | inhibitor | KEEP | inhibitor
+nexus | nexus | KEEP | nexus
+base | base | KEEP | base
+backdoor | backdoor | KEEP | backdoor
+bd | backdoor | KEEP | bd
+ward | ward | KEEP | ward
+wards | wards | KEEP | wards
+warding | warding | KEEP | warding
+warded | warded | KEEP | warded
+vision | vision | KEEP | vision
+vis | vision | KEEP | vis
+fog | fog of war | KEEP | fog
+fow | fog of war | KEEP | fow
+map awareness | map awareness | KEEP | map awareness
+mia | missing in action | KEEP | mia
+ss | missing | KEEP | ss
+miss | missing | KEEP | miss
+mid miss | mid missing | KEEP | mid miss
+ping | ping | KEEP | ping
+pinging | pinging | KEEP | pinging
+pinged | pinged | KEEP | pinged
+ping spam | ping spam | KEEP | ping spam
+inting | intentionally feeding | KEEP | inting
+int | intentionally feeding | CONTEXT | int
+inter | intentional feeder | KEEP | inter
+feed | feeding | KEEP | feed
+feeder | feeder | KEEP | feeder
+feeding | feeding | KEEP | feeding
+fed | fed | KEEP | fed
+over-fed | overfed | KEEP | over-fed
+afk farm | afk farm | KEEP | afk farm
+farm | farm | KEEP | farm
+farming | farming | KEEP | farming
+farmed | farmed | KEEP | farmed
+snowball | snowball | KEEP | snowball
+snowballing | snowballing | KEEP | snowballing
+comeback | comeback | KEEP | comeback
+come back | come back | TRANSLATE | come back
+throw | throw | KEEP | throw
+thrown | thrown | KEEP | thrown
+throwing | throwing | KEEP | throwing
+thrower | thrower | KEEP | thrower
+gg ff | good game, forfeit | KEEP | gg ff
+ff | forfeit | KEEP | ff
+ff15 | forfeit at 15 | KEEP | ff15
+ff20 | forfeit at 20 | KEEP | ff20
+surrender | surrender | TRANSLATE | surrender
+surr | surrender | KEEP | surr
+gg go next | good game, go next | KEEP | gg go next
+gg next | good game, next | KEEP | gg next
+ggn | good game next | KEEP | ggn
+gg | good game | KEEP | gg
+rts | real-time strategy | KEEP | rts
+4x | explore, expand, exploit, exterminate | KEEP | 4x
+tbs | turn-based strategy | KEEP | tbs
+apm | actions per minute | KEEP | apm
+spm | spells per minute | KEEP | spm
+macro | macro | KEEP | macro
+micro | micro | KEEP | micro
+macroing | macroing | KEEP | macroing
+microing | microing | KEEP | microing
+bo | build order | KEEP | bo
+build order | build order | KEEP | build order
+bo1 | best of one | KEEP | bo1
+bo3 | best of three | KEEP | bo3
+bo5 | best of five | KEEP | bo5
+bo7 | best of seven | KEEP | bo7
+ro | round of | KEEP | ro16
+ro16 | round of 16 | KEEP | ro16
+ro8 | round of 8 | KEEP | ro8
+ro4 | round of 4 | KEEP | ro4
+cheese | cheese strategy | KEEP | cheese
+cheesing | cheesing | KEEP | cheesing
+rush | rush | KEEP | rush
+zerg | zerg | KEEP | zerg
+zerg rush | zerg rush | KEEP | zerg rush
+tech | technology | KEEP | tech
+techs | technologies | KEEP | techs
+tech up | tech up | KEEP | tech up
+expand | expand | KEEP | expand
+expanding | expanding | KEEP | expanding
+expansion | expansion | KEEP | expansion
+exp | expansion | CONTEXT | exp
+nat | natural expansion | KEEP | nat
+nat expo | natural expansion | KEEP | nat expo
+expo | expansion | KEEP | expo
+third | third base | KEEP | third
+3rd | third base | KEEP | 3rd
+creep | creep tumor | CONTEXT | creep
+scout | scout | KEEP | scout
+scouting | scouting | KEEP | scouting
+scouted | scouted | KEEP | scouted
+worker | worker | KEEP | worker
+workers | workers | KEEP | workers
+wpm | workers per minute | KEEP | wpm
+supply | supply | KEEP | supply
+supply block | supply block | KEEP | supply block
+blocked | blocked | KEEP | blocked
+saturate | saturate | KEEP | saturate
+saturated | saturated | KEEP | saturated
+army | army | TRANSLATE | army
+unit | unit | TRANSLATE | unit
+units | units | TRANSLATE | units
+unit cap | unit cap | KEEP | unit cap
+pop cap | pop cap | KEEP | pop cap
+pop | population | CONTEXT | pop
+res | resources | CONTEXT | res
+resource | resource | TRANSLATE | resource
+resources | resources | TRANSLATE | resources
+gather | gather | TRANSLATE | gather
+gathering | gathering | TRANSLATE | gathering
+gatherer | gatherer | TRANSLATE | gatherer
+harvest | harvest | TRANSLATE | harvest
+mine | mine | TRANSLATE | mine
+mining | mining | TRANSLATE | mining
+miner | miner | TRANSLATE | miner
+lumber | lumber | TRANSLATE | lumber
+lumbering | lumbering | TRANSLATE | lumbering
+chop | chop | TRANSLATE | chop
+chopping | chopping | TRANSLATE | chopping
+fish | fish | TRANSLATE | fish
+fishing | fishing | TRANSLATE | fishing
+fisher | fisher | TRANSLATE | fisher
+cook | cook | TRANSLATE | cook
+cooking | cooking | TRANSLATE | cooking
+smith | smith | TRANSLATE | smith
+smithing | smithing | TRANSLATE | smithing
+alch | alchemy | KEEP | alch
+alchemy | alchemy | TRANSLATE | alchemy
+alchemist | alchemist | TRANSLATE | alchemist
+bs | blacksmithing | CONTEXT | bs
+blacksmith | blacksmith | TRANSLATE | blacksmith
+tailor | tailor | TRANSLATE | tailor
+tailoring | tailoring | TRANSLATE | tailoring
+lw | leatherworking | KEEP | lw
+leatherworking | leatherworking | TRANSLATE | leatherworking
+jc | jewelcrafting | KEEP | jc
+jewelcrafting | jewelcrafting | TRANSLATE | jewelcrafting
+eng | engineering | KEEP | eng
+engineering | engineering | TRANSLATE | engineering
+insc | inscription | KEEP | insc
+inscription | inscription | TRANSLATE | inscription
+herb | herbalism | CONTEXT | herb
+herbalism | herbalism | TRANSLATE | herbalism
+skinning | skinning | TRANSLATE | skinning
+prof | profession | KEEP | prof
+profs | professions | KEEP | profs
+profession | profession | TRANSLATE | profession
+professions | professions | TRANSLATE | professions
+gather prof | gathering profession | KEEP | gather prof
+craft prof | crafting profession | KEEP | craft prof
+
+=========================================================
+## 9. MMORPG / GAME-SPECIFIC (WoW, Gloria Victis, Albion, etc.)
+=========================================================
+mmo | massively multiplayer online | KEEP | mmo
+mmorpg | massively multiplayer online role-playing game | KEEP | mmorpg
+rpg | role-playing game | KEEP | rpg
+arpg | action RPG | KEEP | arpg
+crpg | computer RPG | KEEP | crpg
+jrpg | Japanese RPG | KEEP | jrpg
+srpg | strategy RPG | KEEP | srpg
+tactical rpg | tactical RPG | KEEP | tactical rpg
+wow | World of Warcraft | KEEP | wow
+ff14 | Final Fantasy XIV | KEEP | ff14
+ffxiv | Final Fantasy XIV | KEEP | ffxiv
+ff11 | Final Fantasy XI | KEEP | ff11
+eso | The Elder Scrolls Online | KEEP | eso
+swtor | Star Wars: The Old Republic | KEEP | swtor
+gw2 | Guild Wars 2 | KEEP | gw2
+gw | Guild Wars | KEEP | gw
+bdo | Black Desert Online | KEEP | bdo
+lost ark | Lost Ark | KEEP | lost ark
+la | Lost Ark | CONTEXT | la
+poe | Path of Exile | KEEP | poe
+poe2 | Path of Exile 2 | KEEP | poe2
+d3 | Diablo 3 | KEEP | d3
+d4 | Diablo 4 | KEEP | d4
+d2r | Diablo 2 Resurrected | KEEP | d2r
+tl | Throne and Liberty | CONTEXT | tl
+nw | New World | KEEP | nw
+rs | RuneScape | KEEP | rs
+osrs | Old School RuneScape | KEEP | osrs
+rs3 | RuneScape 3 | KEEP | rs3
+eq | EverQuest | KEEP | eq
+eq2 | EverQuest 2 | KEEP | eq2
+daoc | Dark Age of Camelot | KEEP | daoc
+uo | Ultima Online | KEEP | uo
+ac | Asheron's Call | KEEP | ac
+lotro | Lord of the Rings Online | KEEP | lotro
+aion | Aion | KEEP | aion
+tera | TERA | KEEP | tera
+rift | Rift | KEEP | rift
+gv | Gloria Victis | KEEP | gv
+gloria victis | Gloria Victis | KEEP | gloria victis
+albion | Albion Online | KEEP | albion
+ao | Albion Online | KEEP | ao
+mortal | Mortal Online | KEEP | mortal
+mo | Mortal Online | CONTEXT | mo
+mo2 | Mortal Online 2 | KEEP | mo2
+ashes | Ashes of Creation | KEEP | ashes
+aoc | Ashes of Creation | KEEP | aoc
+pantheon | Pantheon | KEEP | pantheon
+chronicles | Chronicles of Elyria | KEEP | chronicles
+coe | Chronicles of Elyria | KEEP | coe
+dune | Dune Awakening | KEEP | dune
+rust | Rust | KEEP | rust
+ark | Ark | KEEP | ark
+dayz | DayZ | KEEP | dayz
+scum | SCUM | KEEP | scum
+pubg | PlayerUnknown's Battlegrounds | KEEP | pubg
+bf | Battlefield | KEEP | bf
+bf4 | Battlefield 4 | KEEP | bf4
+bf1 | Battlefield 1 | KEEP | bf1
+bfv | Battlefield V | KEEP | bfv
+bf2042 | Battlefield 2042 | KEEP | bf2042
+cod | Call of Duty | KEEP | cod
+cod mw | Call of Duty Modern Warfare | KEEP | cod mw
+mw | Modern Warfare | KEEP | mw
+mw2 | Modern Warfare 2 | KEEP | mw2
+mw3 | Modern Warfare 3 | KEEP | mw3
+bo | Black Ops | CONTEXT | bo
+bo2 | Black Ops 2 | KEEP | bo2
+bo3 | Black Ops 3 | KEEP | bo3
+bo4 | Black Ops 4 | KEEP | bo4
+bo6 | Black Ops 6 | KEEP | bo6
+warzone | Warzone | KEEP | warzone
+wz | Warzone | KEEP | wz
+wz2 | Warzone 2 | KEEP | wz2
+apex | Apex Legends | KEEP | apex
+csgo | Counter-Strike: Global Offensive | KEEP | csgo
+cs2 | Counter-Strike 2 | KEEP | cs2
+cs | Counter-Strike | CONTEXT | cs
+cs:go | CS:GO | KEEP | cs:go
+valorant | Valorant | KEEP | valorant
+val | Valorant | KEEP | val
+r6 | Rainbow Six | KEEP | r6
+r6s | Rainbow Six Siege | KEEP | r6s
+siege | Rainbow Six Siege | CONTEXT | siege
+ow | Overwatch | KEEP | ow
+ow2 | Overwatch 2 | KEEP | ow2
+tf2 | Team Fortress 2 | KEEP | tf2
+l4d | Left 4 Dead | KEEP | l4d
+l4d2 | Left 4 Dead 2 | KEEP | l4d2
+hl | Half-Life | KEEP | hl
+hl2 | Half-Life 2 | KEEP | hl2
+gta | Grand Theft Auto | KEEP | gta
+gta5 | Grand Theft Auto V | KEEP | gta5
+gtav | Grand Theft Auto V | KEEP | gtav
+gtao | GTA Online | KEEP | gtao
+rdr | Red Dead Redemption | KEEP | rdr
+rdr2 | Red Dead Redemption 2 | KEEP | rdr2
+rdo | Red Dead Online | KEEP | rdo
+mc | Minecraft | CONTEXT | mc
+minecraft | Minecraft | KEEP | minecraft
+mc server | Minecraft server | KEEP | mc server
+mcpe | Minecraft Pocket Edition | KEEP | mcpe
+mcbe | Minecraft Bedrock Edition | KEEP | mcbe
+mcje | Minecraft Java Edition | KEEP | mcje
+sb | Skyblock | CONTEXT | sb
+skyblock | Skyblock | KEEP | skyblock
+sw | Skywars | CONTEXT | sw
+bw | Bedwars | KEEP | bw
+bedwars | Bedwars | KEEP | bedwars
+hg | Hunger Games | CONTEXT | hg
+fortnite | Fortnite | KEEP | fortnite
+fn | Fortnite | KEEP | fn
+br | battle royale | KEEP | br
+battle royale | battle royale | KEEP | battle royale
+roblox | Roblox | KEEP | roblox
+rbx | Roblox | KEEP | rbx
+robux | Robux | KEEP | robux
+rb | Robux | CONTEXT | rb
+bloxburg | Bloxburg | KEEP | bloxburg
+adopt me | Adopt Me | KEEP | adopt me
+am | Adopt Me | CONTEXT | am
+mm2 | Murder Mystery 2 | KEEP | mm2
+mm | Murder Mystery | CONTEXT | mm
+pet sim | Pet Simulator | KEEP | pet sim
+ps99 | Pet Simulator 99 | KEEP | ps99
+psx | Pet Simulator X | KEEP | psx
+arsenal | Arsenal | KEEP | arsenal
+bb | Big Brother | CONTEXT | bb
+tds | Tower Defense Simulator | KEEP | tds
+td | tower defense | CONTEXT | td
+bf | Blox Fruits | CONTEXT | bf
+blox fruits | Blox Fruits | KEEP | blox fruits
+bloxfruits | Blox Fruits | KEEP | bloxfruits
+da hood | Da Hood | KEEP | da hood
+dh | Da Hood | CONTEXT | dh
+jb | Jailbreak | KEEP | jb
+jailbreak | Jailbreak | KEEP | jailbreak
+ph | Phantom Forces | KEEP | ph
+phantom forces | Phantom Forces | KEEP | phantom forces
+bg | Big Games | CONTEXT | bg
+pf | Phantom Forces | CONTEXT | pf
+rc | Roblox Combat | CONTEXT | rc
+rs | Roblox Studio | CONTEXT | rs
+studio | Roblox Studio | CONTEXT | studio
+lua | Lua | KEEP | lua
+luau | Luau | KEEP | luau
+mod | modification / moderator | CONTEXT | mod
+mods | modifications / moderators | CONTEXT | mods
+admin | administrator | TRANSLATE | admin
+gm | game master | CONTEXT | gm
+gms | game masters | CONTEXT | gms
+dev | developer | KEEP | dev
+devs | developers | KEEP | devs
+dev team | developer team | KEEP | dev team
+staff | staff | TRANSLATE | staff
+support | support | TRANSLATE | support
+ticket | ticket | TRANSLATE | ticket
+tix | tickets | KEEP | tix
+cs | customer support | CONTEXT | cs
+appeal | appeal | TRANSLATE | appeal
+tos | terms of service | KEEP | tos
+eula | end user license agreement | KEEP | eula
+patch | patch | KEEP | patch
+patches | patches | KEEP | patches
+patched | patched | KEEP | patched
+hotfix | hotfix | KEEP | hotfix
+hot fix | hotfix | KEEP | hot fix
+update | update | TRANSLATE | update
+updated | updated | TRANSLATE | updated
+upd | update | KEEP | upd
+dlc | downloadable content | KEEP | dlc
+dlcs | DLCs | KEEP | dlcs
+expansion | expansion | TRANSLATE | expansion
+addon | add-on | KEEP | addon
+addons | add-ons | KEEP | addons
+add-on | add-on | KEEP | add-on
+add-ons | add-ons | KEEP | add-ons
+ui | user interface | KEEP | ui
+hud | heads-up display | KEEP | hud
+gui | graphical user interface | KEEP | gui
+ux | user experience | KEEP | ux
+minimap | minimap | KEEP | minimap
+mini map | mini map | KEEP | mini map
+map | map | TRANSLATE | map
+wp | waypoint | CONTEXT | wp
+wps | waypoints | CONTEXT | wps
+waypoint | waypoint | TRANSLATE | waypoint
+fast travel | fast travel | TRANSLATE | fast travel
+ft | fast travel | KEEP | ft
+quest | quest | TRANSLATE | quest
+quests | quests | TRANSLATE | quests
+q | quest | CONTEXT | q
+qs | quests | CONTEXT | qs
+main quest | main quest | TRANSLATE | main quest
+mq | main quest | KEEP | mq
+side quest | side quest | TRANSLATE | side quest
+sq | side quest | KEEP | sq
+daily | daily | TRANSLATE | daily
+dailies | dailies | TRANSLATE | dailies
+daily quest | daily quest | TRANSLATE | daily quest
+dq | daily quest | KEEP | dq
+weekly | weekly | TRANSLATE | weekly
+weeklies | weeklies | TRANSLATE | weeklies
+weekly quest | weekly quest | TRANSLATE | weekly quest
+wq | world quest | KEEP | wq
+world quest | world quest | TRANSLATE | world quest
+wqs | world quests | KEEP | wqs
+event | event | TRANSLATE | event
+events | events | TRANSLATE | events
+holiday | holiday | TRANSLATE | holiday
+holiday event | holiday event | TRANSLATE | holiday event
+seasonal | seasonal | TRANSLATE | seasonal
+limited | limited | TRANSLATE | limited
+limited time | limited time | TRANSLATE | limited time
+lto | limited time offer | KEEP | lto
+lte | limited time event | KEEP | lte
+ltm | limited time mode | KEEP | ltm
+bp | battle pass | CONTEXT | bp
+battle pass | battle pass | KEEP | battle pass
+season pass | season pass | KEEP | season pass
+sp | season pass | CONTEXT | sp
+premium | premium | TRANSLATE | premium
+prem | premium | KEEP | prem
+f2p | free to play | KEEP | f2p
+p2p | pay to play | KEEP | p2p
+b2p | buy to play | KEEP | b2p
+p2w | pay to win | KEEP | p2w
+f2w | free to win | KEEP | f2w
+p2e | play to earn | KEEP | p2e
+nft | non-fungible token | KEEP | nft
+nfts | NFTs | KEEP | nfts
+whale | big spender | KEEP | whale
+whales | big spenders | KEEP | whales
+dolphin | medium spender | KEEP | dolphin
+minnow | small spender | KEEP | minnow
+shop | shop | TRANSLATE | shop
+cash shop | cash shop | KEEP | cash shop
+cs | cash shop | CONTEXT | cs
+microtransactions | microtransactions | KEEP | microtransactions
+mtx | microtransactions | KEEP | mtx
+iap | in-app purchase | KEEP | iap
+gacha | gacha | KEEP | gacha
+pity | pity | KEEP | pity
+pulls | pulls | KEEP | pulls
+pull | pull | KEEP | pull
+summon | summon | KEEP | summon
+banner | banner | KEEP | banner
+limited banner | limited banner | KEEP | limited banner
+featured | featured | TRANSLATE | featured
+5 star | five star | KEEP | 5 star
+5* | five star | KEEP | 5*
+4 star | four star | KEEP | 4 star
+4* | four star | KEEP | 4*
+3 star | three star | KEEP | 3 star
+3* | three star | KEEP | 3*
+ssr | super super rare | KEEP | ssr
+sr | super rare | CONTEXT | sr
+ur | ultra rare | KEEP | ur
+lr | legend rare | KEEP | lr
+sss | triple S | KEEP | sss
+ss | double S | CONTEXT | ss
+s | S rank | KEEP | s
+a | A rank | KEEP | a
+sp | special | CONTEXT | sp
+ex | extra | CONTEXT | ex
+event | event | TRANSLATE | event
+
+=========================================================
+## 10. TECH / PERFORMANCE / PLATFORM
+=========================================================
+lag | lag | KEEP | lag
+laggy | laggy | KEEP | laggy
+lagging | lagging | KEEP | lagging
+lagged | lagged | KEEP | lagged
+laggers | laggers | KEEP | laggers
+lagspike | lag spike | KEEP | lagspike
+lag spike | lag spike | KEEP | lag spike
+spike | spike | KEEP | spike
+spikes | spikes | KEEP | spikes
+ping | ping | KEEP | high ping
+pings | pings | KEEP | pings
+high ping | high ping | KEEP | high ping
+low ping | low ping | KEEP | low ping
+ms | milliseconds | KEEP | 50 ms
+latency | latency | TRANSLATE | latency
+lat | latency | KEEP | lat
+packet loss | packet loss | KEEP | packet loss
+pl | packet loss | KEEP | pl
+jitter | jitter | KEEP | jitter
+rubberbanding | rubber banding | KEEP | rubberbanding
+rubber banding | rubber banding | KEEP | rubber banding
+rb | rubber banding | CONTEXT | rb
+stutter | stutter | KEEP | stutter
+stuttering | stuttering | KEEP | stuttering
+freeze | freeze | KEEP | freeze
+freezing | freezing | KEEP | freezing
+frozen | frozen | KEEP | frozen
+crash | crash | KEEP | crash
+crashed | crashed | KEEP | crashed
+crashes | crashes | KEEP | crashes
+crashing | crashing | KEEP | crashing
+ctd | crash to desktop | KEEP | ctd
+bsod | blue screen of death | KEEP | bsod
+hang | hang | KEEP | hang
+hung | hung | KEEP | hung
+nr | not responding | KEEP | nr
+not responding | not responding | TRANSLATE | not responding
+fps drop | fps drop | KEEP | fps drop
+fps drops | fps drops | KEEP | fps drops
+framerate | frame rate | KEEP | framerate
+frame rate | frame rate | KEEP | frame rate
+frames | frames | KEEP | frames
+60 fps | 60 fps | KEEP | 60 fps
+144hz | 144 Hz | KEEP | 144hz
+240hz | 240 Hz | KEEP | 240hz
+vsync | vertical sync | KEEP | vsync
+v-sync | vertical sync | KEEP | v-sync
+gsync | G-Sync | KEEP | gsync
+freesync | FreeSync | KEEP | freesync
+dlss | Deep Learning Super Sampling | KEEP | dlss
+fsr | FidelityFX Super Resolution | KEEP | fsr
+xess | XeSS | KEEP | xess
+rt | ray tracing | KEEP | rt
+rtx | RTX | KEEP | rtx
+gtx | GTX | KEEP | gtx
+rx | Radeon RX | KEEP | rx
+gpu | graphics processing unit | KEEP | gpu
+cpu | central processing unit | KEEP | cpu
+ram | random access memory | KEEP | ram
+vram | video RAM | KEEP | vram
+ssd | solid state drive | KEEP | ssd
+hdd | hard disk drive | KEEP | hdd
+nvme | NVMe | KEEP | nvme
+psu | power supply unit | KEEP | psu
+mobo | motherboard | KEEP | mobo
+mb | motherboard | CONTEXT | mb
+rig | PC rig | CONTEXT | rig
+pc | personal computer | KEEP | pc
+laptop | laptop | TRANSLATE | laptop
+console | console | TRANSLATE | console
+ps | PlayStation | KEEP | ps
+ps4 | PlayStation 4 | KEEP | ps4
+ps5 | PlayStation 5 | KEEP | ps5
+psn | PlayStation Network | KEEP | psn
+xbox | Xbox | KEEP | xbox
+xb1 | Xbox One | KEEP | xb1
+xbsx | Xbox Series X | KEEP | xbsx
+xbl | Xbox Live | KEEP | xbl
+xsx | Xbox Series X | KEEP | xsx
+switch | Nintendo Switch | CONTEXT | switch
+nsw | Nintendo Switch | KEEP | nsw
+ns | Nintendo Switch | CONTEXT | ns
+ds | Nintendo DS | CONTEXT | ds
+3ds | Nintendo 3DS | KEEP | 3ds
+wii | Wii | KEEP | wii
+wiiu | Wii U | KEEP | wiiu
+gc | GameCube | CONTEXT | gc
+n64 | Nintendo 64 | KEEP | n64
+snes | Super Nintendo | KEEP | snes
+nes | Nintendo Entertainment System | KEEP | nes
+gba | Game Boy Advance | KEEP | gba
+gb | Game Boy | KEEP | gb
+gbc | Game Boy Color | KEEP | gbc
+pc master race | PC master race | KEEP | pc master race
+pcmr | PC master race | KEEP | pcmr
+mkb | mouse and keyboard | KEEP | mkb
+m&k | mouse and keyboard | KEEP | m&k
+kbm | keyboard and mouse | KEEP | kbm
+kb&m | keyboard and mouse | KEEP | kb&m
+controller | controller | TRANSLATE | controller
+ctrl | control | KEEP | ctrl
+alt | alternate | CONTEXT | alt
+tab | tab | KEEP | tab
+esc | escape | KEEP | esc
+fn | function | CONTEXT | fn
+f1 | F1 | KEEP | f1
+wasd | WASD | KEEP | wasd
+lmb | left mouse button | KEEP | lmb
+rmb | right mouse button | KEEP | rmb
+mmb | middle mouse button | KEEP | mmb
+m1 | mouse 1 | KEEP | m1
+m2 | mouse 2 | KEEP | m2
+m3 | mouse 3 | KEEP | m3
+m4 | mouse 4 | CONTEXT | m4
+m5 | mouse 5 | KEEP | m5
+dpi | dots per inch | KEEP | dpi
+cpi | counts per inch | KEEP | cpi
+sens | sensitivity | KEEP | sens
+sensitivity | sensitivity | TRANSLATE | sensitivity
+edpi | effective dpi | KEEP | edpi
+polling | polling rate | KEEP | polling
+hz | hertz | KEEP | hz
+ms | millisecond | KEEP | ms
+res | resolution | CONTEXT | res
+resolution | resolution | TRANSLATE | resolution
+1080p | 1080p | KEEP | 1080p
+1440p | 1440p | KEEP | 1440p
+4k | 4K | KEEP | 4k
+2k | 2K | KEEP | 2k
+8k | 8K | KEEP | 8k
+hdr | high dynamic range | KEEP | hdr
+ips | in-plane switching | KEEP | ips
+va | vertical alignment | KEEP | va
+tn | twisted nematic | KEEP | tn
+oled | OLED | KEEP | oled
+lcd | LCD | KEEP | lcd
+led | LED | KEEP | led
+crt | CRT | KEEP | crt
+vr | virtual reality | KEEP | vr
+ar | augmented reality | CONTEXT | ar
+xr | extended reality | KEEP | xr
+mr | mixed reality | CONTEXT | mr
+hmd | head-mounted display | KEEP | hmd
+oculus | Oculus | KEEP | oculus
+quest | Quest | KEEP | quest
+vive | Vive | KEEP | vive
+index | Index | KEEP | index
+mobile | mobile | TRANSLATE | mobile
+android | Android | KEEP | android
+ios | iOS | KEEP | ios
+apk | Android package | KEEP | apk
+app | application | TRANSLATE | app
+apps | applications | TRANSLATE | apps
+web | web | TRANSLATE | web
+browser | browser | TRANSLATE | browser
+html5 | HTML5 | KEEP | html5
+cloud | cloud | TRANSLATE | cloud
+cloud gaming | cloud gaming | KEEP | cloud gaming
+geforce now | GeForce Now | KEEP | geforce now
+gfn | GeForce Now | KEEP | gfn
+xcloud | Xbox Cloud Gaming | KEEP | xcloud
+stadia | Stadia | KEEP | stadia
+vpn | virtual private network | KEEP | vpn
+proxy | proxy | KEEP | proxy
+dns | domain name system | KEEP | dns
+ip | IP address | KEEP | ip
+ddos | distributed denial of service | KEEP | ddos
+dos | denial of service | KEEP | dos
+ddosed | DDoSed | KEEP | ddosed
+ddosing | DDoSing | KEEP | ddosing
+booter | booter | KEEP | booter
+stresser | stresser | KEEP | stresser
+swatting | swatting | KEEP | swatting
+doxx | doxx | KEEP | doxx
+doxxed | doxxed | KEEP | doxxed
+dox | dox | KEEP | dox
+doxxing | doxxing | KEEP | doxxing
+
+=========================================================
+## 11. STREAMING / COMMUNITY / ESPORTS
+=========================================================
+stream | stream | TRANSLATE | stream
+streamer | streamer | KEEP | streamer
+streaming | streaming | TRANSLATE | streaming
+vod | video on demand | KEEP | vod
+vods | VODs | KEEP | vods
+clip | clip | KEEP | clip
+clips | clips | KEEP | clips
+highlight | highlight | KEEP | highlight
+highlights | highlights | KEEP | highlights
+hl | highlight | CONTEXT | hl
+montage | montage | KEEP | montage
+vid | video | KEEP | vid
+vids | videos | KEEP | vids
+vlog | video blog | KEEP | vlog
+yt | YouTube | KEEP | yt
+tw | Twitch | CONTEXT | tw
+twitch | Twitch | KEEP | twitch
+tt | TikTok | CONTEXT | tt
+tiktok | TikTok | KEEP | tiktok
+fb | Facebook | KEEP | fb
+ig | Instagram | KEEP | ig
+tg | Telegram | KEEP | tg
+wa | WhatsApp | KEEP | wa
+wapp | WhatsApp | KEEP | wapp
+vk | VKontakte | KEEP | vk
+tw | Twitter | CONTEXT | tw
+x | X (Twitter) | CONTEXT | x
+reddit | Reddit | KEEP | reddit
+r/ | subreddit | KEEP | r/gaming
+sub | subreddit / subscriber | CONTEXT | sub
+subs | subscribers | KEEP | subs
+sub | subscribe | CONTEXT | sub
+follow | follow | TRANSLATE | follow
+follower | follower | TRANSLATE | follower
+followers | followers | TRANSLATE | followers
+fol | follow | KEEP | fol
+donate | donate | TRANSLATE | donate
+donation | donation | TRANSLATE | donation
+don | donation | KEEP | don
+bits | bits | KEEP | bits
+cheer | cheer | KEEP | cheer
+raid | raid | KEEP | raid
+hype | hype | KEEP | hype
+hype train | hype train | KEEP | hype train
+emote | emote | KEEP | emote
+emotes | emotes | KEEP | emotes
+mod | moderator | CONTEXT | mod
+mods | moderators | CONTEXT | mods
+vip | very important person | KEEP | vip
+vips | VIPs | KEEP | vips
+chat | chat | TRANSLATE | chat
+chatting | chatting | TRANSLATE | chatting
+spam | spam | KEEP | spam
+spamming | spamming | KEEP | spamming
+spammer | spammer | KEEP | spammer
+copypasta | copypasta | KEEP | copypasta
+pasta | copypasta | KEEP | pasta
+meme | meme | KEEP | meme
+memes | memes | KEEP | memes
+memeing | memeing | KEEP | memeing
+shitpost | shitpost | KEEP | shitpost
+shitposting | shitposting | KEEP | shitposting
+shitposter | shitposter | KEEP | shitposter
+irl | in real life | KEEP | irl
+irl stream | IRL stream | KEEP | irl stream
+just chatting | Just Chatting | KEEP | just chatting
+jc | Just Chatting | CONTEXT | jc
+pog | pog | KEEP | pog
+poggers | poggers | KEEP | poggers
+sadge | sadge | KEEP | sadge
+pepega | pepega | KEEP | pepega
+omegalul | omegalul | KEEP | omegalul
+lulw | lulw | KEEP | lulw
+kekw | kekw | KEEP | kekw
+5head | 5Head | KEEP | 5head
+3head | 3Head | KEEP | 3head
+monkas | monkaS | KEEP | monkas
+monkaw | monkaW | KEEP | monkaw
+widepeepohappy | widePeepoHappy | KEEP | widepeepohappy
+peepo | Peepo | KEEP | peepo
+pepe | Pepe | KEEP | pepe
+doge | Doge | KEEP | doge
+kappa | Kappa | KEEP | kappa
+kappapride | KappaPride | KEEP | kappapride
+kreygasm | Kreygasm | KEEP | kreygasm
+residentsleeper | ResidentSleeper | KEEP | residentsleeper
+biblethump | BibleThump | KEEP | biblethump
+4head | 4Head | KEEP | 4head
+wutface | WutFace | KEEP | wutface
+cmonbruh | cmonBruh | KEEP | cmonbruh
+pjsalt | PJSalt | KEEP | pjsalt
+feelsbadman | FeelsBadMan | KEEP | feelsbadman
+feelsgoodman | FeelsGoodMan | KEEP | feelsgoodman
+fbm | FeelsBadMan | KEEP | fbm
+fgm | FeelsGoodMan | KEEP | fgm
+esports | esports | KEEP | esports
+e-sports | e-sports | KEEP | e-sports
+esport | esport | KEEP | esport
+pro | professional | TRANSLATE | pro
+pros | professionals | TRANSLATE | pros
+pro player | pro player | KEEP | pro player
+pro scene | pro scene | KEEP | pro scene
+tournament | tournament | TRANSLATE | tournament
+tourney | tournament | KEEP | tourney
+tournaments | tournaments | TRANSLATE | tournaments
+bracket | bracket | KEEP | bracket
+brackets | brackets | KEEP | brackets
+group stage | group stage | KEEP | group stage
+playoffs | playoffs | KEEP | playoffs
+finals | finals | KEEP | finals
+semi | semifinal | KEEP | semi
+semis | semifinals | KEEP | semis
+quarters | quarterfinals | KEEP | quarters
+qf | quarterfinal | KEEP | qf
+sf | semifinal | CONTEXT | sf
+gf | grand final | CONTEXT | gf
+grand finals | grand finals | KEEP | grand finals
+major | major | KEEP | major
+minor | minor | KEEP | minor
+lan | local area network | KEEP | lan
+lan event | LAN event | KEEP | lan event
+online | online | TRANSLATE | online
+qualifier | qualifier | KEEP | qualifier
+quals | qualifiers | KEEP | quals
+qual | qualifier | KEEP | qual
+open qual | open qualifier | KEEP | open qual
+closed qual | closed qualifier | KEEP | closed qual
+seed | seed | KEEP | seed
+seeding | seeding | KEEP | seeding
+seeded | seeded | KEEP | seeded
+bye | bye | KEEP | bye
+upper bracket | upper bracket | KEEP | upper bracket
+lower bracket | lower bracket | KEEP | lower bracket
+ub | upper bracket | KEEP | ub
+lb | lower bracket | CONTEXT | lb
+gfinal | grand final | KEEP | gfinal
+mvp | most valuable player | KEEP | mvp
+goat | greatest of all time | KEEP | goat
+g.o.a.t | greatest of all time | KEEP | g.o.a.t
+og | original gangster | KEEP | og
+ogs | OGs | KEEP | ogs
+pro tip | pro tip | KEEP | pro tip
+tips | tips | TRANSLATE | tips
+guide | guide | TRANSLATE | guide
+guides | guides | TRANSLATE | guides
+wiki | wiki | KEEP | wiki
+fandom | fandom | KEEP | fandom
+forum | forum | TRANSLATE | forum
+forums | forums | TRANSLATE | forums
+thread | thread | TRANSLATE | thread
+post | post | TRANSLATE | post
+op | original poster | CONTEXT | op
+ot | off topic | CONTEXT | ot
+offtopic | off topic | KEEP | offtopic
+off-topic | off topic | KEEP | off-topic
+necro | necroposting | KEEP | necro
+bump | bump | KEEP | bump
+bumped | bumped | KEEP | bumped
+bumping | bumping | KEEP | bumping
+bumpity | bumpity | KEEP | bumpity
+lock | lock | TRANSLATE | lock
+locked | locked | TRANSLATE | locked
+sticky | sticky | KEEP | sticky
+stickied | stickied | KEEP | stickied
+announcement | announcement | TRANSLATE | announcement
+news | news | TRANSLATE | news
+rumor | rumor | TRANSLATE | rumor
+leak | leak | KEEP | leak
+leaks | leaks | KEEP | leaks
+leaked | leaked | KEEP | leaked
+datamine | datamine | KEEP | datamine
+datamined | datamined | KEEP | datamined
+datamining | datamining | KEEP | datamining
+ptr | public test realm | KEEP | ptr
+pts | public test server | KEEP | pts
+beta | beta | KEEP | beta
+cbt | closed beta test | KEEP | cbt
+obt | open beta test | KEEP | obt
+ea | early access | CONTEXT | ea
+alpha | alpha | KEEP | alpha
+demo | demo | KEEP | demo
+playtest | playtest | KEEP | playtest
+playtesting | playtesting | KEEP | playtesting
+release | release | TRANSLATE | release
+launch | launch | TRANSLATE | launch
+launch day | launch day | TRANSLATE | launch day
+ld | launch day | KEEP | ld
+day 1 | day one | KEEP | day 1
+d1 | day one | KEEP | d1
+dayone | day one | KEEP | dayone
+wipe | server wipe | CONTEXT | wipe
+wipe day | wipe day | KEEP | wipe day
+server wipe | server wipe | KEEP | server wipe
+reset | reset | KEEP | reset
+resets | resets | KEEP | resets
+weekly reset | weekly reset | KEEP | weekly reset
+daily reset | daily reset | KEEP | daily reset
+maintenance | maintenance | TRANSLATE | maintenance
+maint | maintenance | KEEP | maint
+downtime | downtime | KEEP | downtime
+dt | downtime | KEEP | dt
+server | server | TRANSLATE | server
+servers | servers | TRANSLATE | servers
+srv | server | KEEP | srv
+shard | shard | CONTEXT | shard
+realm | realm | KEEP | realm
+realms | realms | KEEP | realms
+world | world | TRANSLATE | world
+channel | channel | TRANSLATE | channel
+ch | channel | KEEP | ch
+ch1 | channel 1 | KEEP | ch1
+cluster | cluster | KEEP | cluster
+region | region | TRANSLATE | region
+eu | Europe | KEEP | eu
+na | North America | KEEP | na
+us | United States | CONTEXT | us
+ru | Russia | KEEP | ru
+cis | CIS | KEEP | cis
+asia | Asia | TRANSLATE | asia
+sea | Southeast Asia | CONTEXT | sea
+oce | Oceania | KEEP | oce
+sa | South America | CONTEXT | sa
+latam | Latin America | KEEP | latam
+br | Brazil | CONTEXT | br
+kr | Korea | KEEP | kr
+jp | Japan | KEEP | jp
+cn | China | KEEP | cn
+tw | Taiwan | CONTEXT | tw
+hk | Hong Kong | KEEP | hk
+sg | Singapore | CONTEXT | sg
+au | Australia | KEEP | au
+uk | United Kingdom | KEEP | uk
+de | Germany | KEEP | de
+fr | France | KEEP | fr
+pl | Poland | CONTEXT | pl
+tr | Turkey | CONTEXT | tr
+me | Middle East | CONTEXT | me
+mena | Middle East and North Africa | KEEP | mena
+eune | Europe Nordic & East | KEEP | eune
+euw | Europe West | KEEP | euw
+lan | Latin America North | CONTEXT | lan
+las | Latin America South | KEEP | las
+oc | Oceania | CONTEXT | oc
+tz | timezone | KEEP | tz
+timezone | timezone | TRANSLATE | timezone
+utc | Coordinated Universal Time | KEEP | utc
+gmt | Greenwich Mean Time | KEEP | gmt
+est | Eastern Standard Time | KEEP | est
+cst | Central Standard Time | KEEP | cst
+pst | Pacific Standard Time | CONTEXT | pst
+cet | Central European Time | KEEP | cet
+msk | Moscow Time | KEEP | msk
+st | server time | KEEP | st
+server time | server time | TRANSLATE | server time
+
+=========================================================
+## 12. LONGER SLANG PHRASES / MULTI-WORD ABBREVIATION COMBOS (for sentence-level training)
+=========================================================
+gg wp | good game well played | KEEP | gg wp everyone
+gg wp ez | good game well played easy | KEEP | gg wp ez
+gg ez clap | good game easy clap | KEEP | gg ez clap
+ggwp ez clap | good game well played easy clap | KEEP | ggwp ez clap
+gl hf gg | good luck have fun good game | KEEP | gl hf gg
+gl hf all | good luck have fun all | KEEP | gl hf all
+glhf all | good luck have fun all | KEEP | glhf all
+hf gl | have fun good luck | KEEP | hf gl
+gg all | good game all | KEEP | gg all
+gg team | good game team | KEEP | gg team
+gg guys | good game guys | KEEP | gg guys
+gg bro | good game bro | KEEP | gg bro
+gg man | good game man | KEEP | gg man
+gg mate | good game mate | KEEP | gg mate
+gg boys | good game boys | KEEP | gg boys
+gg friends | good game friends | KEEP | gg friends
+wp all | well played all | KEEP | wp all
+wp team | well played team | KEEP | wp team
+wp guys | well played guys | KEEP | wp guys
+wp bro | well played bro | KEEP | wp bro
+wp man | well played man | KEEP | wp man
+wp mate | well played mate | KEEP | wp mate
+ty gg | thank you good game | KEEP | ty gg
+ty gg wp | thank you good game well played | KEEP | ty gg wp
+ty all | thank you all | TRANSLATE | ty all
+ty guys | thank you guys | TRANSLATE | ty guys
+ty bro | thank you bro | TRANSLATE | ty bro
+ty man | thank you man | TRANSLATE | ty man
+ty mate | thank you mate | TRANSLATE | ty mate
+ty team | thank you team | TRANSLATE | ty team
+ty for the carry | thank you for the carry | TRANSLATE | ty for the carry
+ty for the run | thank you for the run | TRANSLATE | ty for the run
+ty for the help | thank you for the help | TRANSLATE | ty for the help
+ty for the invite | thank you for the invite | TRANSLATE | ty for the invite
+ty for the trade | thank you for the trade | TRANSLATE | ty for the trade
+ty for the heal | thank you for the heal | TRANSLATE | ty for the heal
+ty for the res | thank you for the resurrect | TRANSLATE | ty for the res
+ty for the port | thank you for the portal | TRANSLATE | ty for the port
+ty for the buff | thank you for the buff | TRANSLATE | ty for the buff
+ty for the summon | thank you for the summon | TRANSLATE | ty for the summon
+ty for the loot | thank you for the loot | TRANSLATE | ty for the loot
+ty for the gold | thank you for the gold | TRANSLATE | ty for the gold
+ty for the tip | thank you for the tip | TRANSLATE | ty for the tip
+ty for the info | thank you for the info | TRANSLATE | ty for the info
+ty for the guide | thank you for the guide | TRANSLATE | ty for the guide
+ty for the quick run | thank you for the quick run | TRANSLATE | ty for the quick run
+ty and gl | thank you and good luck | TRANSLATE | ty and gl
+ty and bye | thank you and bye | TRANSLATE | ty and bye
+ty, bye | thank you, bye | TRANSLATE | ty, bye
+ty, see you | thank you, see you | TRANSLATE | ty, see you
+ty, cya | thank you, see you | TRANSLATE | ty, cya
+ty, gl | thank you, good luck | TRANSLATE | ty, gl
+ty, gg | thank you, good game | KEEP | ty, gg
+ty, gg wp everyone | thank you, good game well played everyone | KEEP | ty, gg wp everyone
+thx gg | thanks good game | KEEP | thx gg
+thx all | thanks all | TRANSLATE | thx all
+thx guys | thanks guys | TRANSLATE | thx guys
+thx for the run | thanks for the run | TRANSLATE | thx for the run
+thx for inv | thanks for invite | TRANSLATE | thx for inv
+thx 4 inv | thanks for invite | TRANSLATE | thx 4 inv
+thx 4 the run | thanks for the run | TRANSLATE | thx 4 the run
+thx 4 the help | thanks for the help | TRANSLATE | thx 4 the help
+thx 4 the carry | thanks for the carry | TRANSLATE | thx 4 the carry
+np gg | no problem good game | KEEP | np gg
+np bro | no problem bro | TRANSLATE | np bro
+np man | no problem man | TRANSLATE | np man
+np mate | no problem mate | TRANSLATE | np mate
+np guys | no problem guys | TRANSLATE | np guys
+np all | no problem all | TRANSLATE | np all
+no worries | no worries | TRANSLATE | no worries
+nw | no worries | KEEP | nw
+nws | no worries | KEEP | nws
+all good | all good | TRANSLATE | all good
+ag | all good | KEEP | ag
+sry my bad | sorry my bad | TRANSLATE | sry my bad
+sry bro | sorry bro | TRANSLATE | sry bro
+sry guys | sorry guys | TRANSLATE | sry guys
+sry all | sorry all | TRANSLATE | sry all
+sry team | sorry team | TRANSLATE | sry team
+sry lag | sorry lag | TRANSLATE | sry lag
+sry afk | sorry afk | TRANSLATE | sry afk
+sry dc | sorry disconnect | TRANSLATE | sry dc
+sry for the wipe | sorry for the wipe | TRANSLATE | sry for the wipe
+sry for the delay | sorry for the delay | TRANSLATE | sry for the delay
+sry for the wait | sorry for the wait | TRANSLATE | sry for the wait
+sry 4 the wipe | sorry for the wipe | TRANSLATE | sry 4 the wipe
+sry 4 the wait | sorry for the wait | TRANSLATE | sry 4 the wait
+gl hf everyone | good luck have fun everyone | TRANSLATE | gl hf everyone
+good luck everyone | good luck everyone | TRANSLATE | good luck everyone
+brb 5 | be right back 5 min | TRANSLATE | brb 5
+brb 5 min | be right back 5 minutes | TRANSLATE | brb 5 min
+brb 2 | be right back 2 min | TRANSLATE | brb 2
+brb 1 min | be right back 1 minute | TRANSLATE | brb 1 min
+brb phone | be right back phone | TRANSLATE | brb phone
+brb food | be right back food | TRANSLATE | brb food
+brb bio | be right back bio | TRANSLATE | brb bio
+brb door | be right back door | TRANSLATE | brb door
+brb wc | be right back toilet | TRANSLATE | brb wc
+brb afk | be right back afk | TRANSLATE | brb afk
+afk 5 | afk 5 min | KEEP | afk 5
+afk 5 min | afk 5 minutes | KEEP | afk 5 min
+afk 2 | afk 2 min | KEEP | afk 2
+afk 10 | afk 10 min | KEEP | afk 10
+afk food | afk food | KEEP | afk food
+afk phone | afk phone | KEEP | afk phone
+afk door | afk door | KEEP | afk door
+afk bio | afk bio | KEEP | afk bio
+afk wc | afk toilet | KEEP | afk wc
+afk smoke | afk smoke | KEEP | afk smoke
+afk coffee | afk coffee | KEEP | afk coffee
+afk tea | afk tea | KEEP | afk tea
+afk 1 min | afk 1 minute | KEEP | afk 1 min
+afk sec | afk second | KEEP | afk sec
+afk a sec | afk a second | KEEP | afk a sec
+afk a min | afk a minute | KEEP | afk a min
+afk brb | afk be right back | KEEP | afk brb
+afk now | afk now | KEEP | afk now
+afk atm | afk at the moment | KEEP | afk atm
+afk rn | afk right now | KEEP | afk rn
+afk pls wait | afk please wait | KEEP | afk pls wait
+afk wait | afk wait | KEEP | afk wait
+afk w8 | afk wait | KEEP | afk w8
+back from afk | back from afk | KEEP | back from afk
+wb afk | welcome back afk | KEEP | wb afk
+wtb hp pots | want to buy hp potions | KEEP | wtb hp pots
+wtb mp pots | want to buy mp potions | KEEP | wtb mp pots
+wtb healing potions | want to buy healing potions | KEEP | wtb healing potions
+wtb mana potions | want to buy mana potions | KEEP | wtb mana potions
+wtb gear | want to buy gear | KEEP | wtb gear
+wtb weapon | want to buy weapon | KEEP | wtb weapon
+wtb armor | want to buy armor | KEEP | wtb armor
+wtb mount | want to buy mount | KEEP | wtb mount
+wtb mats | want to buy materials | KEEP | wtb mats
+wtb ore | want to buy ore | KEEP | wtb ore
+wtb herbs | want to buy herbs | KEEP | wtb herbs
+wtb leather | want to buy leather | KEEP | wtb leather
+wtb cloth | want to buy cloth | KEEP | wtb cloth
+wtb wood | want to buy wood | KEEP | wtb wood
+wtb stone | want to buy stone | KEEP | wtb stone
+wtb gems | want to buy gems | KEEP | wtb gems
+wtb runes | want to buy runes | KEEP | wtb runes
+wtb scrolls | want to buy scrolls | KEEP | wtb scrolls
+wtb ench | want to buy enchant | KEEP | wtb ench
+wtb enchant | want to buy enchant | KEEP | wtb enchant
+wtb bis | want to buy best in slot | KEEP | wtb bis
+wtb gold | want to buy gold | KEEP | wtb gold
+wtb 100g | want to buy 100 gold | KEEP | wtb 100g
+wtb 1k | want to buy 1000 | KEEP | wtb 1k
+wtb 10k | want to buy 10000 | KEEP | wtb 10k
+wtb 1m | want to buy 1 million | KEEP | wtb 1m
+wtb pst | want to buy please send tell | KEEP | wtb pst
+wtb pm me | want to buy pm me | KEEP | wtb pm me
+wtb pm | want to buy pm | KEEP | wtb pm
+wtb now | want to buy now | KEEP | wtb now
+wtb asap | want to buy asap | KEEP | wtb asap
+wtb cheap | want to buy cheap | KEEP | wtb cheap
+wtb fast | want to buy fast | KEEP | wtb fast
+wts hp pots | want to sell hp potions | KEEP | wts hp pots
+wts mp pots | want to sell mp potions | KEEP | wts mp pots
+wts healing potions | want to sell healing potions | KEEP | wts healing potions
+wts gear | want to sell gear | KEEP | wts gear
+wts weapon | want to sell weapon | KEEP | wts weapon
+wts armor | want to sell armor | KEEP | wts armor
+wts mount | want to sell mount | KEEP | wts mount
+wts mats | want to sell materials | KEEP | wts mats
+wts ore | want to sell ore | KEEP | wts ore
+wts herbs | want to sell herbs | KEEP | wts herbs
+wts leather armor | want to sell leather armor | KEEP | wts leather armor
+wts cloth | want to sell cloth | KEEP | wts cloth
+wts wood | want to sell wood | KEEP | wts wood
+wts stone | want to sell stone | KEEP | wts stone
+wts gems | want to sell gems | KEEP | wts gems
+wts runes | want to sell runes | KEEP | wts runes
+wts scrolls | want to sell scrolls | KEEP | wts scrolls
+wts ench | want to sell enchant | KEEP | wts ench
+wts enchant | want to sell enchant | KEEP | wts enchant
+wts bis | want to sell best in slot | KEEP | wts bis
+wts gold | want to sell gold | KEEP | wts gold
+wts account | want to sell account | KEEP | wts account
+wts acc | want to sell account | KEEP | wts acc
+wts char | want to sell character | KEEP | wts char
+wts character | want to sell character | KEEP | wts character
+wts pst | want to sell please send tell | KEEP | wts pst
+wts pm me | want to sell pm me | KEEP | wts pm me
+wts pm | want to sell pm | KEEP | wts pm
+wts now | want to sell now | KEEP | wts now
+wts cheap | want to sell cheap | KEEP | wts cheap
+wts fast | want to sell fast | KEEP | wts fast
+wts 1k | want to sell 1000 | KEEP | wts 1k
+wts 10k | want to sell 10000 | KEEP | wts 10k
+wts 1m | want to sell 1 million | KEEP | wts 1m
+wts nego | want to sell negotiable | KEEP | wts nego
+wts obo | want to sell or best offer | KEEP | wts obo
+wts firm | want to sell firm | KEEP | wts firm
+wts fp | want to sell fixed price | KEEP | wts fp
+wtt for | want to trade for | KEEP | wtt for
+wtt sword for shield | want to trade sword for shield | KEEP | wtt sword for shield
+wtt gear for gold | want to trade gear for gold | KEEP | wtt gear for gold
+wtt mats for gold | want to trade materials for gold | KEEP | wtt mats for gold
+wtt mount for pet | want to trade mount for pet | KEEP | wtt mount for pet
+wtt 1 for 1 | want to trade 1 for 1 | KEEP | wtt 1 for 1
+wtt 1:1 | want to trade 1:1 | KEEP | wtt 1:1
+wtt pst | want to trade please send tell | KEEP | wtt pst
+wtt pm me | want to trade pm me | KEEP | wtt pm me
+wtt pm | want to trade pm | KEEP | wtt pm
+lf healer pls | looking for healer please | KEEP | lf healer pls
+lf tank pls | looking for tank please | KEEP | lf tank pls
+lf dps pls | looking for dps please | KEEP | lf dps pls
+lf1m healer | looking for 1 more healer | KEEP | lf1m healer
+lf1m tank | looking for 1 more tank | KEEP | lf1m tank
+lf1m dps | looking for 1 more dps | KEEP | lf1m dps
+lf2m dps | looking for 2 more dps | KEEP | lf2m dps
+lf2m tank dps | looking for 2 more tank and dps | KEEP | lf2m tank dps
+lfm dungeon | looking for more dungeon | KEEP | lfm dungeon
+lfm raid | looking for more raid | KEEP | lfm raid
+lfm hc | looking for more heroic | KEEP | lfm hc
+lfm hc dungeon | looking for more heroic dungeon | KEEP | lfm hc dungeon
+lfm m+ | looking for more mythic plus | KEEP | lfm m+
+lfm +10 | looking for more plus 10 | KEEP | lfm +10
+lfm pvp | looking for more pvp | KEEP | lfm pvp
+lfm arena | looking for more arena | KEEP | lfm arena
+lfm bg | looking for more battleground | KEEP | lfm bg
+lfm quest | looking for more quest | KEEP | lfm quest
+lfm farm | looking for more farm | KEEP | lfm farm
+lfm boss | looking for more boss | KEEP | lfm boss
+lfm world boss | looking for more world boss | KEEP | lfm world boss
+lfm wb | looking for more world boss | KEEP | lfm wb
+lfm gvg | looking for more guild vs guild | KEEP | lfm gvg
+lfm siege | looking for more siege | KEEP | lfm siege
+lfm pm me | looking for more pm me | KEEP | lfm pm me
+lfm pst | looking for more please send tell | KEEP | lfm pst
+lfm inv | looking for more invite | KEEP | lfm inv
+lfm inv me | looking for more invite me | KEEP | lfm inv me
+inv pls dps | invite please dps | KEEP | inv pls dps
+inv pls tank | invite please tank | KEEP | inv pls tank
+inv pls heal | invite please heal | KEEP | inv pls heal
+inv pls healer | invite please healer | KEEP | inv pls healer
+inv me pls | invite me please | KEEP | inv me pls
+inv plz | invite please | KEEP | inv plz
+inv me plz | invite me please | KEEP | inv me plz
+inv pls m+ | invite please mythic plus | KEEP | inv pls m+
+inv pls raid | invite please raid | KEEP | inv pls raid
+inv pls dungeon | invite please dungeon | KEEP | inv pls dungeon
+inv pls group | invite please group | KEEP | inv pls group
+inv pls party | invite please party | KEEP | inv pls party
+inv pls guild | invite please guild | KEEP | inv pls guild
+inv guild pls | invite guild please | KEEP | inv guild pls
+inv to guild | invite to guild | KEEP | inv to guild
+inv to party | invite to party | KEEP | inv to party
+inv to raid | invite to raid | KEEP | inv to raid
+inv to group | invite to group | KEEP | inv to group
+inv to clan | invite to clan | KEEP | inv to clan
+inv me to guild | invite me to guild | KEEP | inv me to guild
+inv me to party | invite me to party | KEEP | inv me to party
+inv me to raid | invite me to raid | KEEP | inv me to raid
+inv me to group | invite me to group | KEEP | inv me to group
+inv me to clan | invite me to clan | KEEP | inv me to clan
+rng hates me | RNG hates me | KEEP | rng hates me today
+rng is trash | RNG is trash | KEEP | rng is trash
+rng is bad | RNG is bad | KEEP | rng is bad
+rng is good | RNG is good | KEEP | rng is good
+rng blessed | RNG blessed | KEEP | rng blessed
+rng gods | RNG gods | KEEP | rng gods
+rng carried | RNG carried | KEEP | rng carried
+rng based | RNG based | KEEP | rng based
+rng dependent | RNG dependent | KEEP | rng dependent
+rng luck | RNG luck | KEEP | rng luck
+rng drop | RNG drop | KEEP | rng drop
+rng crit | RNG crit | KEEP | rng crit
+rng proc | RNG proc | KEEP | rng proc
+rng roll | RNG roll | KEEP | rng roll
+rng stats | RNG stats | KEEP | rng stats
+rng loot | RNG loot | KEEP | rng loot
+rng sucks | RNG sucks | KEEP | rng sucks
+rng is real | RNG is real | KEEP | rng is real
+rng is rigged | RNG is rigged | KEEP | rng is rigged
+rng screwed me | RNG screwed me | KEEP | rng screwed me
+rng saved me | RNG saved me | KEEP | rng saved me
+bad rng | bad RNG | KEEP | bad rng
+good rng | good RNG | KEEP | good rng
+pure rng | pure RNG | KEEP | pure rng
+just rng | just RNG | KEEP | just rng
+all rng | all RNG | KEEP | all rng
+no rng | no RNG | KEEP | no rng
+less rng | less RNG | KEEP | less rng
+more rng | more RNG | KEEP | more rng
+too much rng | too much RNG | KEEP | too much rng
+gratz on lvl 60 | congratulations on level 60 | TRANSLATE | gratz on lvl 60
+gratz on the mount | congratulations on the mount | TRANSLATE | gratz on the mount
+gratz on the drop | congratulations on the drop | TRANSLATE | gratz on the drop
+gratz on the loot | congratulations on the loot | TRANSLATE | gratz on the loot
+gratz on the win | congratulations on the win | TRANSLATE | gratz on the win
+gratz on the kill | congratulations on the kill | TRANSLATE | gratz on the kill
+gratz on the rank | congratulations on the rank | TRANSLATE | gratz on the rank
+gratz on the upgrade | congratulations on the upgrade | TRANSLATE | gratz on the upgrade
+gratz on the new gear | congratulations on the new gear | TRANSLATE | gratz on the new gear
+gratz on the new pet | congratulations on the new pet | TRANSLATE | gratz on the new pet
+gratz on the new mount | congratulations on the new mount | TRANSLATE | gratz on the new mount
+gratz on the new weapon | congratulations on the new weapon | TRANSLATE | gratz on the new weapon
+gratz on the new armor | congratulations on the new armor | TRANSLATE | gratz on the new armor
+gratz on the achievement | congratulations on the achievement | TRANSLATE | gratz on the achievement
+gratz on the title | congratulations on the title | TRANSLATE | gratz on the title
+gratz on the promotion | congratulations on the promotion | TRANSLATE | gratz on the promotion
+gratz on the level up | congratulations on the level up | TRANSLATE | gratz on the level up
+gratz everyone | congratulations everyone | TRANSLATE | gratz everyone
+gratz all | congratulations all | TRANSLATE | gratz all
+gratz guys | congratulations guys | TRANSLATE | gratz guys
+gratz team | congratulations team | TRANSLATE | gratz team
+gratz bro | congratulations bro | TRANSLATE | gratz bro
+gratz man | congratulations man | TRANSLATE | gratz man
+gratz mate | congratulations mate | TRANSLATE | gratz mate
+gratz buddy | congratulations buddy | TRANSLATE | gratz buddy
+gratz friend | congratulations friend | TRANSLATE | gratz friend
+gz bro | congrats bro | TRANSLATE | gz bro
+gz man | congrats man | TRANSLATE | gz man
+gz mate | congrats mate | TRANSLATE | gz mate
+gz all | congrats all | TRANSLATE | gz all
+gz guys | congrats guys | TRANSLATE | gz guys
+gz team | congrats team | TRANSLATE | gz team
+gz on the win | congrats on the win | TRANSLATE | gz on the win
+gz on the drop | congrats on the drop | TRANSLATE | gz on the drop
+gz on the mount | congrats on the mount | TRANSLATE | gz on the mount
+gz on lvl 60 | congrats on level 60 | TRANSLATE | gz on lvl 60
+
+=========================================================
+## 13. TEMPLATE SENTENCES FOR DATASET GENERATION (combine abbreviations in context)
+=========================================================
+# These are ready-made input sentences mixing KEEP and TRANSLATE abbreviations.
+# Use them as the "Input" column; fill v1-abbr after translation.
+
+ty, gg wp everyone
+wtb healing potions
+ty, see you
+gratz on the new mount
+rng hates me today
+gg ez, ty for the carry
+lf healer for dungeon, inv pls
+lfm +10, need tank and dps
+wts leather armor, pm me
+wtt sword for shield, pst
+brb 5 min, afk food
+sry my bad, lag
+np bro, gl hf
+omg that drop, gz
+idk where the boss is
+imo this build is op
+tbh the game is mid
+ngl that was close, gg
+btw I have a spare key
+fyi the boss is bugged
+afaik it drops in the cave
+nvm I found it
+thx for the run, cya
+ty all, gg wp
+gl hf everyone, let's go
+ok brb, need water
+sec, afk for 2 min
+wait for me, going afk
+need a res, bres pls
+cd on bl, wait 30 sec
+ult is ready, engage
+kite the boss, aggro is on me
+tank has aggro, dps now
+healer oom, drink mana
+wipe, sry my bad
+run it back, gl
+boss at 10% hp, burst now
+interrupt the cast, kick!
+stunned, cc'd, help
+low hp, need heal
+use hp pot, then retreat
+extract now, exfil is open
+enemy spotted at the tower
+camping the spawn, careful
+rotate to B, enemies pushing
+hold angle, flank incoming
+push now, they have no ult
+ff15, our team is bad
+gg go next, queue again
+dc'd, sry, reconnecting
+high ping, rubberband, lag
+fps drop, crashed to desktop
+need bis gear for raid
+farming mats for crafting
+grinding xp in the cave
+rng is trash, no drop again
+lucky proc, crit dmg
+nerf this class, op as hell
+buffed again, meta now
+bugged quest, can't finish
+exploit abuse, report him
+smurf in lobby, reported
+toxic player, muted
+noob team, we lost
+trash match, ff
+cheaters in the lobby, report
+ban incoming, hacker
+sell gold, rmt, report
+lfg for arena, 2v2
+lfg for gvg, need all roles
+lfg for boss, world boss spawn
+need 2 more for dungeon
+need tank for m+, lf1m
+need heals, lf1m healer
+tank lf group, inv pls
+dps lf dungeon, inv pls
+healer lf raid, inv pls
+alt lf guild, any guild
+main lf clan, pvp only
+lf pvp guild, active
+lf pve guild, casual
+lf social guild, chill
+lf hardcore guild, serious
+lf casual group, no pressure
+lf chill party, relaxed
+lf friends, voice chat
+add me, dm me
