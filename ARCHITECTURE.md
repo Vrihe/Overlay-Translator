@@ -65,6 +65,7 @@ Overlay-Translator/
 │   ├── domain_manager.py   #   Domain profiles (prompts + few-shot)
 │   ├── lang_detect.py      #   Language detection, "same language" fast path
 │   ├── error_classification.py  # Whether a provider error is retryable
+│   ├── privacy.py          #   loggable(text): keeps captured screen text out of the logs
 │   └── domain_profiles/    #   general.json, chat.json, game.json, documentation.json
 │
 ├── cache/                  # SQLite cache and history (L1 LRU + L2 SQLite)
@@ -125,7 +126,9 @@ Overlay-Translator/
 ## 3. Modules and responsibilities
 
 ### `main.py` — orchestrator
-- `_init_logging() -> str` — DEBUG log to `%APPDATA%/translator-overlay/app.log`, before any other import.
+- `_init_logging() -> str` — DEBUG log to `%APPDATA%/translator-overlay/app.log` (rotating, 2 MB × 3), before any
+  other import. The HTTP SDK loggers (`openai`, `anthropic`, `httpx`, …) are capped at WARNING: at DEBUG they
+  dump whole request bodies, i.e. the captured screen text.
 - `_global_excepthook` / `_thread_excepthook` — log unhandled exceptions.
 - `faulthandler` → `crash.log` and `_qt_message_handler` (Qt messages, including `qFatal`, → `app.log`) —
   catch native crashes that bypass the Python hooks.
@@ -276,6 +279,9 @@ with no user notice; every other CUDA failure logs a WARNING and leaves a notice
 Built-in profiles live in `translate/domain_profiles/*.json`, custom ones in
 `%APPDATA%\translator-overlay\`.
 Format: `{display_name, system_prompt, few_shot_examples: [{source, translation}]}`.
+Profile ids become file names, so `_safe_id()` accepts only `\w+` (anything else → `general`).
+Built-in ids (`general`, `game`, `documentation`, `chat`) are never looked up in the custom
+directories, so a dropped-in `custom/game.json` cannot replace a built-in prompt.
 
 ### `translate/lang_detect.py`
 `detect_script(text) -> str`,

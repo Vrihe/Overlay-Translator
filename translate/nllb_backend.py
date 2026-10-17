@@ -34,6 +34,7 @@ from pathlib import Path
 
 import config
 from cache.store import get_cached, save_to_cache
+from translate.privacy import loggable
 
 _logger = logging.getLogger("translator.nllb")
 
@@ -508,7 +509,7 @@ class NllbBackend:
         cache_domain = self._cache_domain(domain_id)
         cached = get_cached(text, source_lang, target_lang, domain_id=cache_domain)
         if cached is not None:
-            _logger.info("NLLB CACHE HIT | text=%r", text[:120])
+            _logger.info("NLLB CACHE HIT | text=%s", loggable(text, 120))
             if on_chunk is not None:
                 on_chunk(cached)
             return cached
@@ -532,8 +533,8 @@ class NllbBackend:
         elapsed = time.perf_counter() - t0
 
         _logger.info(
-            "NLLB OK | %s->%s | %.2fs | src=%r | result=%r",
-            src_code, tgt_code, elapsed, text[:80], translation[:80],
+            "NLLB OK | %s->%s | %.2fs | src=%s | result=%s",
+            src_code, tgt_code, elapsed, loggable(text), loggable(translation),
         )
 
         save_to_cache(text, source_lang, target_lang, translation, domain_id=cache_domain)
@@ -572,7 +573,7 @@ class NllbBackend:
         cache_domain = self._cache_domain(domain_id)
         cached = get_cached(text, "_auto", target_lang, domain_id=cache_domain)
         if cached is not None:
-            _logger.info("NLLB CACHE HIT (auto) | text=%r", text[:120])
+            _logger.info("NLLB CACHE HIT (auto) | text=%s", loggable(text, 120))
             if on_chunk is not None:
                 on_chunk(cached)
             return config.SOURCE_LANG, cached
@@ -593,8 +594,8 @@ class NllbBackend:
         elapsed = time.perf_counter() - t0
 
         _logger.info(
-            "NLLB OK (auto) | %s->%s | %.2fs | src=%r | result=%r",
-            src_code, tgt_code, elapsed, text[:80], translation[:80],
+            "NLLB OK (auto) | %s->%s | %.2fs | src=%s | result=%s",
+            src_code, tgt_code, elapsed, loggable(text), loggable(translation),
         )
 
         save_to_cache(text, "_auto", target_lang, translation, domain_id=cache_domain)
@@ -627,7 +628,7 @@ def translate(text: str, target_lang: str | None = None, source_lang: str | None
             domain_id=domain_id, on_chunk=on_chunk,
         )
     except Exception:
-        _logger.exception("NLLB translate() failed | text=%r", text[:120])
+        _logger.exception("NLLB translate() failed | text=%s", loggable(text, 120))
         raise
 
 
@@ -638,7 +639,7 @@ def detect_and_translate(text: str, target_lang: str | None = None,
             text, target_lang=target_lang, domain_id=domain_id, on_chunk=on_chunk,
         )
     except Exception:
-        _logger.exception("NLLB detect_and_translate() failed | text=%r", text[:120])
+        _logger.exception("NLLB detect_and_translate() failed | text=%s", loggable(text, 120))
         raise
 
 

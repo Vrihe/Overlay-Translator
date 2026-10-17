@@ -234,6 +234,9 @@ class _LiveConfig:
 
     LOG_DIR = os.environ.get("LOG_DIR", str(USER_DATA_DIR / "logs"))
     LOG_FILE = os.path.join(LOG_DIR, "translator.log")
+    # Captured screen text stays out of the logs unless explicitly enabled for debugging
+    # (translate/privacy.py).
+    LOG_TEXT = os.environ.get("OVERLAY_LOG_TEXT", "").lower() in ("1", "true", "yes")
 
 
 # Replace this module in sys.modules with the _LiveConfig instance

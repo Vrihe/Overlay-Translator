@@ -208,6 +208,15 @@ This guarantees that:
 - User configuration and history are preserved when updating or replacing the application folder.
 - The application runs cleanly even when extracted into write-restricted folders.
 
+### 🔒 Privacy
+- With the API backend, the text recognised in the selected region is sent to the chosen provider
+  (OpenRouter or Anthropic). Free OpenRouter models may log prompts. Do not translate passwords or
+  personal data that way, or use the local NLLB backend, which never touches the network.
+- The text you translate is not written to the logs: they record only its length. Set
+  `OVERLAY_LOG_TEXT=1` for a debugging session to log the first 80 characters. Logs rotate at 2 MB.
+- The history/cache database (`cache	ranslations.db`) does keep source texts and translations
+  (up to `CACHE_MAX_ITEMS`); clear it in the History page.
+
 ### 🔄 Automatic Update Checking
 The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
 
@@ -236,6 +245,7 @@ All settings can be overridden in `.env`:
 | `NLLB_DEVICE` | `auto` | Local NLLB device: `auto` (GPU if usable, else CPU), `cuda`, or `cpu` |
 | `NLLB_HF_REPO_ID` | `Alhite/overlay-translator-nllb-int8` | Hugging Face repo that `scripts/download_model.py` downloads the model from |
 | `NLLB_HF_REVISION` | commit of tag `v0-base` | Model build (commit SHA, tag or branch) to download |
+| `OVERLAY_LOG_TEXT` | `0` | `1` writes the first 80 characters of translated text to the logs (debugging only) |
 
 ---
 
