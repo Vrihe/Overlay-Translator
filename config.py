@@ -226,9 +226,6 @@ class _LiveConfig:
     EASYOCR_CONFIDENCE_THRESHOLD = float(os.environ.get("EASYOCR_CONFIDENCE_THRESHOLD", "0.25"))
     MIN_CHARS_FOR_DETECTION = int(os.environ.get("MIN_CHARS_FOR_DETECTION", "15"))
 
-    OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))
-    OVERLAY_FONT_SIZE = int(os.environ.get("OVERLAY_FONT_SIZE", "14"))
-
     USER_DATA_DIR = _get_user_data_dir()
     CACHE_DIR = os.environ.get("CACHE_DIR", str(USER_DATA_DIR / "cache"))
     CACHE_MAX_ITEMS = int(os.environ.get("CACHE_MAX_ITEMS", "500"))

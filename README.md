@@ -36,7 +36,7 @@ translator-overlay/
 ├── .env                 # API keys and personal settings (git-ignored)
 ├── .env.example         # Template for .env
 ├── requirements.txt     # Python dependencies
-├── build.spec           # PyInstaller build specification (onedir mode)
+├── build_*.spec         # PyInstaller specs (layered build: heavy deps + app code)
 ├── build.py             # Cross-platform build launcher script
 ├── build.bat            # One-click Windows build script
 ├── install.bat          # Creates .venv and installs dependencies
@@ -227,7 +227,6 @@ All settings can be overridden in `.env`:
 | `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
 | `OCR_USE_HSV_FILTER` | `false` | Enable HSV preprocessing for coloured backgrounds |
 | `POPUP_TIMEOUT_SEC` | `10` | Popup auto-close timeout (seconds) |
-| `OVERLAY_OPACITY` | `0.85` | Overlay background opacity |
 | `OPENROUTER_API_KEY` | — | OpenRouter API key (free) |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (paid) |
 | `NLLB_MODEL_DIR` | — | Path to the CTranslate2 NLLB model directory (overridden by the path set in Settings) |

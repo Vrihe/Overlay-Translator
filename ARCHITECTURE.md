@@ -43,7 +43,6 @@ Overlay-Translator/
 ├── build.py / build.bat    # PyInstaller build scripts
 ├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (elevated)
 ├── build*.spec             # Spec files (layered build: app + deps)
-├── hooks/hook-optree.py    # PyInstaller hook
 ├── pyi_rth_torch_dll.py    # Runtime hook: torch DLL paths in the frozen build
 ├── _deps_stub.py           # Stub for the layered dependency build
 │
@@ -85,7 +84,7 @@ Overlay-Translator/
 │   └── region_presets_dialog.py # Manage presets and their hotkeys
 │
 ├── history/
-│   └── history_window.py   #   HistoryWidget/HistoryWindow — view and export history
+│   └── history_window.py   #   HistoryWidget — view and export history
 │
 ├── tray/                   # System tray icon + context menu
 ├── tts/engine.py           # Text-to-speech for translations (SAPI, separate thread)
@@ -175,7 +174,6 @@ get_active_backend() -> str          # "api" | "nllb", read from config on every
 take_notice() -> str                 # one-shot message for the UI (thread-local)
 preload(backend=None) -> (bool, str) # warms up the model for the settings indicator
 reset() -> None                      # resets both backends
-BACKENDS: list[tuple[str, str]]      # (id, label) for the settings UI
 ```
 
 **Local backend error policy** (agreed with the user):
@@ -252,8 +250,8 @@ How it differs from the API path:
   plus a one-shot notice via `take_notice()` → `translate.backend.take_notice()` → result popup.
 
 Model search order: explicit path from settings → `NLLB_MODEL_DIR` →
-`<project>/models/nllb-200-ct2-int8` → `%APPDATA%/translator-overlay/models/…` →
-`D:\projects\overlay-translator\models\…`. An explicitly set path is authoritative:
+`<project>/models/nllb-200-ct2-int8` → `%APPDATA%/translator-overlay/models/…`.
+An explicitly set path is authoritative:
 if it is wrong, the backend reports that instead of picking up another copy.
 
 ### `translate/cuda_support.py` — cuBLAS discovery for the GPU path
@@ -314,7 +312,7 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   dropped on save**), `load_config()`, `save_config(cfg)`,
   `get(key)`, `set_value(key, value)`. File: `%APPDATA%\translator-overlay\settings.json`.
 - `settings/__init__.py`: `get_api_key(provider)`, `set_api_key`, `delete_api_key`,
-  `has_any_key()`, `get_primary_provider()`, `save_primary_provider()`,
+  `get_primary_provider()`, `save_primary_provider()`,
   `is_fallback_enabled()`, `set_fallback_enabled()`.
 - `region_presets.py`: `load_presets()`, `save_preset(...)`, `delete_preset(id)`,
   `rename_preset(id, name)`, `update_preset_hotkey(id, hotkey)`, `validate_hotkey(...)`.
@@ -495,8 +493,6 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
   `app.log` (`qInstallMessageHandler` in `main.py`); `faulthandler` writes all
   thread stacks to `%APPDATA%\translator-overlay\crash.log`; worker/inference
   DEBUG logs in `ui/main_window.py` and `nllb_backend._raw_translate`.
-- `nllb_backend._auto_model_dirs()` still contains a developer-machine path
-  (`D:\projects\overlay-translator\models`), harmless elsewhere but should go.
 - Two tests in `tests/test_domain_profiles.py` were already failing before the NLLB work
   (they check old texts of the `game` profile), and three more test files do not import
   without `pytest`/`easyocr` in the environment.

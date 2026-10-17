@@ -67,7 +67,6 @@ faulthandler.enable(file=_crash_log, all_threads=True)
 
 import ctypes
 import time
-import traceback
 
 # Fix Windows DLL path resolution for PyTorch & C++ runtimes in PyInstaller frozen app
 def _preload_torch_dlls():

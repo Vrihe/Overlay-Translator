@@ -48,7 +48,6 @@ class ResultPopup(QWidget):
     ):
         super().__init__(parent)
 
-        self._source = source_text
         self._translated = translated_text
         self._anchor = anchor
         self._is_error = is_error
@@ -375,7 +374,6 @@ class ResultPopup(QWidget):
 
         self._is_loading = False
         self._is_error = is_error
-        self._source = source_text
         self._translated = translated_text
         self._notice = notice
 

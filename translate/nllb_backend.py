@@ -142,7 +142,6 @@ def _auto_model_dirs() -> list[Path]:
     candidates = [
         Path(config._PROJECT_DIR) / "models" / MODEL_DIRNAME,
         Path(config.USER_DATA_DIR) / "models" / MODEL_DIRNAME,
-        Path(r"D:\projects\overlay-translator\models") / MODEL_DIRNAME,
     ]
 
     seen: set[str] = set()

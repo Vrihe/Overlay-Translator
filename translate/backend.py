@@ -30,12 +30,6 @@ import config
 BACKEND_API = "api"
 BACKEND_NLLB = "nllb"
 
-#: (id, human label) — consumed by ui/settings_dialog.
-BACKENDS: list[tuple[str, str]] = [
-    (BACKEND_API, "API (Anthropic / OpenRouter)"),
-    (BACKEND_NLLB, "Локальная модель (NLLB)"),
-]
-
 _logger = logging.getLogger("translator.backend")
 
 # Per-thread one-shot notice, consumed by the UI right after a translation call.

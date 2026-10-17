@@ -10,10 +10,10 @@ Tabs:
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTextEdit, QFileDialog, QStackedWidget,
-    QApplication, QFrame, QSizePolicy, QGraphicsDropShadowEffect,
+    QApplication, QFrame, QGraphicsDropShadowEffect,
     QComboBox,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QIcon
 
 import logging
