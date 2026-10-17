@@ -232,7 +232,7 @@ All settings can be overridden in `.env`:
 | `NLLB_MODEL_DIR` | — | Path to the CTranslate2 NLLB model directory (overridden by the path set in Settings) |
 | `NLLB_DEVICE` | `auto` | Local NLLB device: `auto` (GPU if usable, else CPU), `cuda`, or `cpu` |
 | `NLLB_HF_REPO_ID` | `Alhite/overlay-translator-nllb-int8` | Hugging Face repo that `scripts/download_model.py` downloads the model from |
-| `NLLB_HF_REVISION` | `v0-base` | Model build (tag, branch or commit) to download |
+| `NLLB_HF_REVISION` | commit of tag `v0-base` | Model build (commit SHA, tag or branch) to download |
 
 ---
 
@@ -258,8 +258,9 @@ python scripts/download_model.py
 ```
 
 This puts it into `models/nllb-200-ct2-int8`, where the app finds it automatically.
-The build is pinned to the `v0-base` tag (plain int8 conversion, no fine-tuning) by
-`NLLB_HF_REPO_ID` / `NLLB_HF_REVISION` in `config.py`, so everyone gets identical weights.
+The build is pinned to the commit behind the `v0-base` tag (plain int8 conversion, no fine-tuning) by
+`NLLB_HF_REPO_ID` / `NLLB_HF_REVISION` in `config.py`, so everyone gets identical weights. It is a
+commit SHA rather than the tag name because a tag can later be moved to other files.
 Re-running the script only fetches files that changed. Options: `--revision <tag>` to try
 another build, `--dest <dir>` to download elsewhere (then set that path in Settings).
 

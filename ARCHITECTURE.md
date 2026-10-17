@@ -414,7 +414,7 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    `NLLB_DEVICE` (`auto` by default | `cuda` | `cpu`) picks the inference device; it is
    env-only and has no UI control.
    **Model build version**: `config.NLLB_HF_REPO_ID` + `config.NLLB_HF_REVISION`
-   (default `Alhite/overlay-translator-nllb-int8` @ `v0-base`, env-overridable) — the only
+   (default `Alhite/overlay-translator-nllb-int8` @ the commit SHA of tag `v0-base`, env-overridable) — the only
    place that pins which weights `scripts/download_model.py` fetches.
 3. **`.env`** (see `.env.example`) — API keys and static overrides
    (`EASYOCR_*`, `OVERLAY_*`, `CACHE_DIR`, `LOG_DIR`, `SETTINGS_HOTKEY`, `GITHUB_REPO`).
@@ -544,9 +544,11 @@ section 3, `nllb_backend.py`). There are two ways to get it:
 
 **Versioning.** Builds are identified by **tags** in the HF repo, never by `main`:
 - `v0-base` → commit `0e37166` — the plain int8 conversion of `facebook/nllb-200-distilled-600M`.
-- A new build (e.g. after fine-tuning) = upload it, create a new tag (`v1-…`), then change
-  `NLLB_HF_REVISION` in `config.py` in the same commit that needs it. Never move or reuse a tag:
-  a tag must always point to the same weights so a checkout of any project commit stays reproducible.
+- A new build (e.g. after fine-tuning) = upload it, create a new tag (`v1-…`), then set
+  `NLLB_HF_REVISION` in `config.py` to **that tag's full commit SHA** in the same commit that needs it
+  (`https://huggingface.co/api/models/<repo>/revision/<tag>` → `sha`). The default is a SHA, not a tag
+  name, because a tag can be moved: whoever controls the HF account could otherwise ship other files.
+  Still never move or reuse a tag.
 - `NLLB_HF_REVISION` can also be overridden via env or `--revision` to try another build.
 
 The HF repo is self-contained (`model.bin`, `config.json`, `shared_vocabulary.json`,
