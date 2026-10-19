@@ -161,7 +161,11 @@ Overlay-Translator/
   `_on_ocr_preview_requested`, `_toggle_live_monitoring`, `_register_preset_hotkeys`,
   `_on_partial_translation`, `_on_translation_finished`, `_show_result`, `_show_error`,
   `_quit`, `run`.
-- `main()` — splash → first-run wizard (if there are no keys) → `TranslatorApp(app).run()`.
+- `main()` — splash → first-run wizard (if there are no keys) → `TranslatorApp(app).run()` →
+  `logging.shutdown()` → `os._exit(code)`. Python finalization is skipped on purpose: the
+  `keyboard` low-level hook thread and Qt window procedures could fire during module teardown
+  and crashed ~1 exit in 3 (`0xC000041D` / access violation, also with EasyOCR). Nothing is
+  saved at exit (no `atexit`), so new exit-time persistence must run before `os._exit`.
 
 ### `config.py` — config facade
 Unusual trick: at the end of the module, `sys.modules[__name__] = _LiveConfig()`,

@@ -787,7 +787,16 @@ def main() -> None:
 
         translator = TranslatorApp(app)
         splash.finish(translator._main_window)  # fade out once main window is ready
-        sys.exit(translator.run())
+        code = translator.run()
+        # Skip Python finalization: the keyboard library's low-level hook thread and
+        # Qt window procedures can still fire while modules are being torn down,
+        # which crashed about one exit in three (0xC000041D / access violation).
+        # Settings, history and cache are already on disk; the OS frees the rest.
+        logging.info(f"Exiting with code {code}.")
+        logging.shutdown()
+        if sys.stdout is not None:  # None under pythonw
+            sys.stdout.flush()
+        os._exit(code)
     except Exception:
         logging.exception("Unhandled exception in main()")
         sys.exit(1)
