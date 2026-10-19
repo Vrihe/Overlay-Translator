@@ -98,6 +98,16 @@ class _LiveConfig:
         set_value("nllb_model_path", value)
 
     @property
+    def OCR_GPU_MODE(self):
+        """EasyOCR CUDA mode: 'auto', 'gpu', or 'cpu'."""
+        return _cfg("ocr_gpu_mode")
+
+    @OCR_GPU_MODE.setter
+    def OCR_GPU_MODE(self, value):
+        from settings.config_manager import set_value
+        set_value("ocr_gpu_mode", value)
+
+    @property
     def LLM_MODEL(self):
         return _cfg("llm_model")
 

@@ -7,7 +7,8 @@ Falls back to sane defaults when the file doesn't exist or is corrupted.
 Stored keys:
   • target_language       — ISO 639-1 code (default "ru")
   • translation_engine    — "llm_text" | "llm_vision" | "api"
-  • translation_backend   — "api" (cloud LLM) | "nllb" (local CTranslate2 model)
+  • translation_backend   — "api" | "google" | "deepl" | "azure" | "nllb"
+  • azure_region           — Azure Translator region (default "global")
   • nllb_model_path       — explicit path to the local NLLB model ("" = auto-discover)
   • llm_model             — model identifier for OpenRouter / Anthropic
   • hotkey                — keyboard combo string
@@ -56,8 +57,10 @@ DEFAULTS: dict[str, Any] = {
     "source_language": "auto",
     "target_language": "ru",
     "translation_engine": "llm_text",     # "llm_text" | "llm_vision" | "api"
-    "translation_backend": "api",         # "api" (Anthropic/OpenRouter) | "nllb" (local model)
+    "translation_backend": "api",         # "api" | "google" | "deepl" | "azure" | "nllb"
     "nllb_model_path": "",                # optional explicit path to the CTranslate2 NLLB dir
+    "ocr_gpu_mode": "auto",               # "auto" | "gpu" | "cpu" — EasyOCR CUDA acceleration
+    "azure_region": "global",             # Azure Translator region (default "global")
     "llm_model": "poolside/laguna-s-2.1:free",
     "primary_provider": "openrouter",      # "openrouter" | "anthropic"
     "enable_fallback": True,               # True | False
