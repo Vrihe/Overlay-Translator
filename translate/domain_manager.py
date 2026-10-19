@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from i18n import N_, tr
+
 logger = logging.getLogger("translator")
 
 
@@ -93,6 +95,22 @@ _DEFAULT_PROFILE: dict[str, Any] = {
 }
 
 _BUILTIN_IDS = {"general", "game", "documentation", "chat"}
+
+# Interface names of the built-in profiles. The JSON files keep the Russian names.
+_BUILTIN_DISPLAY_NAMES = {
+    "general": N_("Общий"),
+    "game": N_("Игры"),
+    "documentation": N_("Документация"),
+    "chat": N_("Чат"),
+}
+
+
+def display_name_of(profile: dict[str, Any]) -> str:
+    """A profile's name in the interface language; custom names are shown as typed."""
+    name = profile.get("display_name") or str(profile.get("id", ""))
+    if profile.get("is_custom"):
+        return name
+    return tr(_BUILTIN_DISPLAY_NAMES.get(profile.get("id"), name))
 
 # Profile ids become file names; anything else (e.g. "../x" from a hand-edited
 # settings.json) must never reach the filesystem.
@@ -236,6 +254,8 @@ def list_available_domains() -> list[dict[str, Any]]:
     if not domains:
         domains.append({"id": "general", "display_name": "Общий", "is_custom": False})
 
+    for d in domains:
+        d["display_name"] = display_name_of(d)
     return domains
 
 
@@ -247,9 +267,9 @@ def save_custom_profile(
 ) -> dict[str, Any]:
     """Save custom domain profile JSON to the custom directory."""
     if not display_name.strip():
-        raise ValueError("Название профиля не может быть пустым.")
+        raise ValueError(tr("Название профиля не может быть пустым."))
     if not system_prompt.strip():
-        raise ValueError("Системный промпт не может быть пустым.")
+        raise ValueError(tr("Системный промпт не может быть пустым."))
 
     profile_id = _safe_id(existing_id, default="") if existing_id else generate_slug(display_name)
     if not profile_id or profile_id in _BUILTIN_IDS:
@@ -284,7 +304,7 @@ def delete_custom_profile(domain_id: str) -> bool:
     """Delete custom domain profile JSON by domain_id."""
     clean_id = _safe_id(domain_id, default="")
     if clean_id in _BUILTIN_IDS or not clean_id:
-        raise ValueError("Нельзя удалить предустановленный профиль.")
+        raise ValueError(tr("Нельзя удалить предустановленный профиль."))
 
     deleted = False
     for custom_dir in _get_custom_profiles_dirs():

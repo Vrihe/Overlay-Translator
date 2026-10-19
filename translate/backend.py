@@ -33,6 +33,7 @@ import logging
 import threading
 
 import config
+from i18n import tr
 
 BACKEND_API = "api"
 BACKEND_GOOGLE = "google"
@@ -78,7 +79,7 @@ def get_active_backend() -> str:
 
 def _api_fallback_notice(exc: Exception) -> str:
     first_line = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
-    return f"Локальная модель NLLB недоступна ({first_line}) — переведено через API."
+    return tr("Локальная модель NLLB недоступна ({reason}) — переведено через API.", reason=first_line)
 
 
 def _nllb_ready() -> bool:
@@ -255,10 +256,10 @@ def preload(backend: str | None = None) -> tuple[bool, str]:
 
     if target in _NMT_BACKENDS:
         label = _NMT_LABELS.get(target, target)
-        return True, f"Используется {label}."
+        return True, tr("Используется {backend}.", backend=label)
 
     if target != BACKEND_NLLB:
-        return True, "Используется перевод через API."
+        return True, tr("Используется перевод через API.")
 
     from translate.nllb_backend import NllbModelUnavailable, get_backend
 
@@ -268,15 +269,14 @@ def preload(backend: str | None = None) -> tuple[bool, str]:
     except NllbModelUnavailable as exc:
         return False, str(exc)
     except Exception as exc:  # defensive: never break the settings dialog
-        return False, f"Не удалось загрузить локальную модель: {exc}"
+        return False, tr("Не удалось загрузить локальную модель: {error}", error=exc)
 
     device_line = f"Device: {instance.active_device.upper()}"
     notice = instance.take_notice()  # shown here, so the first translation won't repeat it
     if notice:
         device_line += f"\n{notice}"
-    return True, (
-        f"Модель загружена за {instance.load_seconds:.1f} с\n{instance.model_dir}\n{device_line}"
-    )
+    loaded = tr("Модель загружена за {seconds} с", seconds=f"{instance.load_seconds:.1f}")
+    return True, f"{loaded}\n{instance.model_dir}\n{device_line}"
 
 
 def reset() -> None:

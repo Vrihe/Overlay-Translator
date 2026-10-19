@@ -1,0 +1,376 @@
+"""
+i18n/en.py — English catalog: Russian source string → English translation.
+
+Keys must match the ``tr()`` / ``N_()`` literals exactly, including ``{name}``
+placeholders, emoji and trailing spaces. ``tests/test_i18n.py`` fails on a
+missing key or a placeholder mismatch.
+"""
+
+MESSAGES: dict[str, str] = {
+    # ── Shared ──
+    "Отмена": "Cancel",
+    "Ошибка": "Error",
+    "Ошибка: {error}": "Error: {error}",
+    "Перевод": "Translation",
+    "Перевести": "Translate",
+    "Настройки": "Settings",
+    "История": "History",
+    "Ошибка сохранения": "Save error",
+    "Ошибка перевода": "Translation error",
+    "Ошибка перевода:\n{error}": "Translation error:\n{error}",
+    "Ошибка OCR:\n{error}": "OCR error:\n{error}",
+    "Контекст перевода:": "Translation context:",
+    "Язык перевода:": "Target language:",
+    "История переводов": "Translation history",
+    "Имя пресета": "Preset name",
+    "Введите имя для нового пресета региона:": "Enter a name for the new region preset:",
+    "Скачать обновление": "Download update",
+    "Проверяем ключ…": "Checking the key…",
+
+    # ── main.py ──
+    "Живой автомониторинг запущен": "Live auto-monitoring started",
+    "Область автоматически проверяется каждые 10 сек.": "The region is checked automatically every 10 s.",
+    "Живой мониторинг остановлен": "Live monitoring stopped",
+    "Автоматическое отслеживание области отключено.": "Automatic region tracking is off.",
+    "Ошибка захвата экрана:\n{error}": "Screen capture error:\n{error}",
+    "Текст не распознан.\nПопробуйте выделить область точнее.":
+        "No text recognised.\nTry selecting the region more precisely.",
+    "Ошибка перевода:\n{error}\n\nРаспознанный текст:\n{text}":
+        "Translation error:\n{error}\n\nRecognised text:\n{text}",
+
+    # ── overlay/selector.py ──
+    "Выделите область для перевода\nEsc — отмена": "Select a region to translate\nEsc — cancel",
+
+    # ── settings/region_presets.py ──
+    "Имя пресета не может быть пустым.": "The preset name cannot be empty.",
+    "Имя пресета не может быть длиннее {limit} символов (сейчас {length}).":
+        "The preset name cannot be longer than {limit} characters (now {length}).",
+    "Координаты должны быть целыми числами.": "Coordinates must be integers.",
+    "Некорректные координаты: x1 ({x1}) должен быть меньше x2 ({x2}).":
+        "Invalid coordinates: x1 ({x1}) must be less than x2 ({x2}).",
+    "Некорректные координаты: y1 ({y1}) должен быть меньше y2 ({y2}).":
+        "Invalid coordinates: y1 ({y1}) must be less than y2 ({y2}).",
+    "Достигнут лимит пресетов ({limit}). Удалите ненужные пресеты перед добавлением новых.":
+        "Preset limit reached ({limit}). Delete presets you no longer need before adding new ones.",
+    "Пресет с id '{id}' не найден.": "Preset with id '{id}' not found.",
+    "Некорректная комбинация клавиш: '{hotkey}'. ({error})": "Invalid key combination: '{hotkey}'. ({error})",
+    "Комбинация '{hotkey}' уже занята для основного перевода ({app_hotkey}).":
+        "The combination '{hotkey}' is already used for the main translation ({app_hotkey}).",
+    "Комбинация '{hotkey}' уже занята для окна настроек ({app_hotkey}).":
+        "The combination '{hotkey}' is already used for the settings window ({app_hotkey}).",
+    "Комбинация '{hotkey}' уже назначена для пресета «{name}».":
+        "The combination '{hotkey}' is already assigned to preset “{name}”.",
+
+    # ── translate/backend.py ──
+    "Локальная модель NLLB недоступна ({reason}) — переведено через API.":
+        "The local NLLB model is unavailable ({reason}) — translated via the API.",
+    "Модель загружена за {seconds} с": "Model loaded in {seconds} s",
+    "Используется перевод через API.": "Translation goes through the API.",
+    "Не удалось загрузить локальную модель: {error}": "Failed to load the local model: {error}",
+
+    # ── translate/domain_manager.py ──
+    "Общий": "General",
+    "Игры": "Games",
+    "Документация": "Documentation",
+    "Чат": "Chat",
+    "Название профиля не может быть пустым.": "The profile name cannot be empty.",
+    "Системный промпт не может быть пустым.": "The system prompt cannot be empty.",
+    "Нельзя удалить предустановленный профиль.": "A built-in profile cannot be deleted.",
+
+    # ── translate/llm_client.py ──
+    "Все провайдеры недоступны. Детали: {details}": "All providers are unavailable. Details: {details}",
+    "Нет доступных провайдеров — проверьте, что задан хотя бы один API-ключ (Anthropic или OpenRouter) в Настройках.":
+        "No providers available — make sure at least one API key (Anthropic or OpenRouter) is set in Settings.",
+    "Не удалось проверить ключ: {error}": "Could not verify the key: {error}",
+    "OpenRouter API не вернул варианты ответа ({response}).": "The OpenRouter API returned no choices ({response}).",
+    "Модель '{model}' вернула пустой текст ответа на OpenRouter. Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках.":
+        "Model '{model}' returned an empty response on OpenRouter. "
+        "Consider switching to 'poolside/laguna-s-2.1:free' in Settings.",
+    "Ключ отклонён провайдером {provider}.": "The key was rejected by {provider}.",
+    "Anthropic API (stream) вернул пустой текст ответа.": "The Anthropic API (stream) returned an empty response.",
+    "Anthropic API не вернул текст ответа.": "The Anthropic API returned no response text.",
+
+    # ── translate/nllb_backend.py ──
+    "Указанный каталог не существует: {path}": "The specified directory does not exist: {path}",
+    "Модель найдена: {path}": "Model found: {path}",
+    "Модель не найдена. Искали в:\n": "Model not found. Searched in:\n",
+    "Указанный каталог {path} не содержит модель — отсутствуют файлы: {files}":
+        "The specified directory {path} does not contain a model — missing files: {files}",
+    "Язык '{lang}' не поддерживается локальной моделью NLLB. Доступны: {langs}":
+        "Language '{lang}' is not supported by the local NLLB model. Available: {langs}",
+    "Каталог модели {path} неполон — отсутствуют файлы: {files}":
+        "The model directory {path} is incomplete — missing files: {files}",
+    "Не удалось загрузить локальную модель из {path}: {error}": "Failed to load the local model from {path}: {error}",
+    "Сбой инференса NLLB: {error}": "NLLB inference failed: {error}",
+    "Скачайте готовую модель командой python scripts/download_model.py или укажите путь к ней в Настройках (см. README, раздел про NLLB).":
+        "Download the prebuilt model with python scripts/download_model.py "
+        "or set its path in Settings (see the NLLB section of the README).",
+    "Не установлены пакеты для локального перевода. Выполните: pip install ctranslate2 sentencepiece":
+        "The packages for local translation are not installed. Run: pip install ctranslate2 sentencepiece",
+    "Локальная модель NLLB не найдена.\n": "The local NLLB model was not found.\n",
+
+    # ── tray/tray_icon.py ──
+    "Показать окно": "Show window",
+    "Перевести  ({hotkey})": "Translate  ({hotkey})",
+    "▶ Живой мониторинг области": "▶ Live region monitoring",
+    "📋 Пресеты регионов": "📋 Region presets",
+    "Управление пресетами…": "Manage presets…",
+    "🌐 Язык перевода": "🌐 Target language",
+    "Настройки  ({hotkey})": "Settings  ({hotkey})",
+    "Выход": "Exit",
+    "Язык перевода: {language}": "Target language: {language}",
+
+    # ── ui/first_run_dialog.py ──
+    "Translator Overlay — Настройка": "Translator Overlay — Setup",
+    "🌐 Добро пожаловать!": "🌐 Welcome!",
+    "Для работы переводчика нужен API-ключ.": "The translator needs an API key to work.",
+    "Распознанный текст выделенной области отправляется выбранному провайдеру. Бесплатные модели OpenRouter могут сохранять запросы. Не переводите пароли и личные данные или используйте локальную модель NLLB (Настройки → Бэкенд перевода).":
+        "Text recognised in the selected region is sent to the chosen provider. "
+        "Free OpenRouter models may store requests. Do not translate passwords or personal data, "
+        "or use the local NLLB model (Settings → Translation backend).",
+    "OpenRouter (бесплатно)": "OpenRouter (free)",
+    "Anthropic (платно)": "Anthropic (paid)",
+    "Вставьте API-ключ…": "Paste your API key…",
+    "Проверить и сохранить": "Verify and save",
+    "Получить ключ на openrouter.ai →": "Get a key at openrouter.ai →",
+    "Получить ключ на console.anthropic.com →": "Get a key at console.anthropic.com →",
+    "✓ Ключ работает! Сохранено.": "✓ The key works! Saved.",
+
+    # ── ui/main_window.py ──
+    "Приложение запущено": "App is running",
+    "⌨ Хоткей:  {hotkey}": "⌨ Hotkey:  {hotkey}",
+    "🌍 Перевод:  {src} → {tgt}": "🌍 Translation:  {src} → {tgt}",
+    "📝 Перевод текста": "📝 Translate text",
+    "Введите или вставьте текст для перевода…": "Type or paste text to translate…",
+    "🖼 Перевод из файла": "🖼 Translate from file",
+    "Загрузите скриншот — текст будет распознан через OCR и переведён":
+        "Load a screenshot — its text will be recognised with OCR and translated",
+    "📁 Загрузить скриншот": "📁 Load screenshot",
+    "Переводим…": "Translating…",
+    "Выберите изображение": "Choose an image",
+    "Изображения (*.png *.jpg *.jpeg *.bmp *.tiff *.webp);;Все файлы (*)":
+        "Images (*.png *.jpg *.jpeg *.bmp *.tiff *.webp);;All files (*)",
+    "📁 Обрабатываем…": "📁 Processing…",
+    "Главная": "Home",
+    "⚙️ Настройки": "⚙️ Settings",
+    "📜 История переводов": "📜 Translation history",
+    "Текст не распознан на изображении.": "No text recognised in the image.",
+    "❌ Ошибка: {error}": "❌ Error: {error}",
+    "✓ Результат перевода:": "✓ Translation result:",
+    "✓ Текст распознан и переведён:": "✓ Text recognised and translated:",
+    "🚀 Доступно обновление {version}!": "🚀 Update {version} available!",
+    "Ошибка загрузки изображения:\n{error}": "Image loading error:\n{error}",
+    "Доступно обновление": "Update available",
+    "Вышла новая версия {version}. Нажмите, чтобы открыть страницу скачивания.":
+        "Version {version} is out. Click to open the download page.",
+
+    # ── ui/ocr_preview_popup.py ──
+    "✏️ Редактирование OCR-текста": "✏️ Edit OCR text",
+    "Перевести ↵": "Translate ↵",
+
+    # ── ui/region_presets_dialog.py ──
+    "Назначить бинд — «{name}»": "Assign hotkey — “{name}”",
+    "Нажмите комбинацию клавиш для этого пресета:": "Press a key combination for this preset:",
+    "Например: Ctrl+Alt+1, F8, Alt+Shift+T. Бинд будет работать глобально.":
+        "For example: Ctrl+Alt+1, F8, Alt+Shift+T. The hotkey works globally.",
+    "✔ Применить": "✔ Apply",
+    "❌ Очистить бинд": "❌ Clear hotkey",
+    "Translator Overlay — Пресеты регионов": "Translator Overlay — Region presets",
+    "📋 Пресеты областей экрана": "📋 Screen region presets",
+    "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода или запустите опциональный автомониторинг.":
+        "Saved screen regions. Assign a hotkey for quick one-off translation "
+        "or start optional auto-monitoring.",
+    "➕ Новый": "➕ New",
+    "⌨ Назначить бинд": "⌨ Assign hotkey",
+    "❌ Сбросить": "❌ Reset",
+    "✏️ Имя": "✏️ Rename",
+    "🗑️ Удалить": "🗑️ Delete",
+    "▶ Перевести область": "▶ Translate region",
+    "👁 Автомониторинг (10 сек)": "👁 Auto-monitoring (10 s)",
+    "Закрыть": "Close",
+    "Переименовать пресет": "Rename preset",
+    "Новое имя:": "New name:",
+    "Удаление пресета": "Delete preset",
+    "Удалить пресет «{name}»?": "Delete preset “{name}”?",
+    "[Нет бинда]": "[No hotkey]",
+    "Ошибка бинда": "Hotkey error",
+    "Ошибка сброса бинда": "Hotkey reset error",
+    "Ошибка переименования": "Rename error",
+    "Ошибка удаления": "Delete error",
+
+    # ── ui/result_popup.py ──
+    "Закрыть окно": "Close window",
+    "Переводим ({context})...": "Translating ({context})...",
+    "Переводим ({context})": "Translating ({context})",
+    "•  Контекст: {context}": "•  Context: {context}",
+    "Озвучить перевод": "Read the translation aloud",
+    "Скопировать перевод": "Copy the translation",
+
+    # ── ui/settings_dialog.py ──
+    "✶ Бесплатно · Базовая открытая модель": "✶ Free · Basic open model",
+    "✶ Бесплатно · Новая мощная открытая модель Google": "✶ Free · Google's new powerful open model",
+    "✶ Бесплатно · Быстрая компактная модель для перевода": "✶ Free · Fast compact model for translation",
+    "Впишите точный ID модели с сайта openrouter.ai": "Enter the exact model ID from openrouter.ai",
+    "Автоопределение": "Auto-detect",
+    "OCR → LLM (текстовый)": "OCR → LLM (text)",
+    "LLM Vision (картинка)": "LLM Vision (image)",
+    "Другая модель...": "Other model...",
+    "Оригинал (напр. HP)": "Source (e.g. HP)",
+    "Перевод (напр. ОЗ)": "Translation (e.g. ОЗ)",
+    "Редактирование профиля": "Edit profile",
+    "Создание профиля контекста": "New context profile",
+    "✏️ Редактирование профиля": "✏️ Edit profile",
+    "✨ Новый профиль контекста": "✨ New context profile",
+    "Название профиля (display_name):": "Profile name (display_name):",
+    "Например: Фэнтези РПГ, Медицина, Юриспруденция...": "For example: Fantasy RPG, Medicine, Law...",
+    "Инструкция для ИИ (system_prompt):": "Instructions for the AI (system_prompt):",
+    "Опишите роль ИИ и правила перевода терминов, напр.:\nТы опытный переводчик фэнтези игр. Переводи игровые термины (HP -> ОЗ, Mana -> Мана). Сохраняй геймерский сленг и атмосферу.":
+        "Describe the AI's role and how to translate terms, e.g.:\n"
+        "You are an experienced translator of fantasy games. Translate game terms (HP -> ОЗ, Mana -> Мана). "
+        "Keep the gamer slang and the atmosphere.",
+    "Примеры перевода (Few-Shot Examples):": "Translation examples (few-shot):",
+    "➕ Добавить пример": "➕ Add example",
+    "Сохранить профиль": "Save profile",
+    "API-ключ и провайдеры": "API key and providers",
+    "Основной провайдер:": "Primary provider:",
+    "Автоматически переключаться на резервный провайдер при сбое (Fallback)":
+        "Switch to the backup provider automatically on failure (fallback)",
+    "Новый API-ключ для выбранного провайдера (оставьте пустым, если не меняется)":
+        "New API key for the selected provider (leave empty to keep the current one)",
+    "Бэкенд перевода": "Translation backend",
+    "Чем выполнять перевод:": "Translate with:",
+    "Путь к модели:": "Model path:",
+    "оставьте пустым для автопоиска (…/models/nllb-200-ct2-int8)":
+        "leave empty to auto-discover (…/models/nllb-200-ct2-int8)",
+    "Загрузить модель": "Load model",
+    "Проверить наличие модели и прогреть её в памяти": "Check that the model exists and warm it up in memory",
+    "Исходный язык:": "Source language:",
+    "Движок перевода:": "Translation engine:",
+    "LLM-модель:": "LLM model:",
+    "ID модели:": "Model ID:",
+    "например: meta-llama/llama-3.3-70b-instruct": "e.g. meta-llama/llama-3.3-70b-instruct",
+    "Потоковый вывод перевода (Streaming)": "Stream the translation as it is generated",
+    "Выводить перевод слово за словом сразу по мере генерации ответа моделью":
+        "Show the translation word by word as the model generates it",
+    "Компактный системный промпт (ускорение отклика)": "Compact system prompt (faster response)",
+    "Сокращает служебные инструкции запроса, ускоряя начало ответа модели на ~30–50%":
+        "Shortens the request's service instructions, so the model starts answering ~30–50% sooner",
+    "Предпросмотр и правка OCR-текста перед переводом": "Preview and edit OCR text before translating",
+    "Макс. токенов ответа:": "Max response tokens:",
+    " токенов": " tokens",
+    "Автоскрытие попапа (сек):": "Hide popup after (s):",
+    " сек": " s",
+    "Мои профили контекста": "My context profiles",
+    "Кастомные промпты и словари для адаптивного перевода:": "Custom prompts and glossaries for adaptive translation:",
+    "➕ Создать новый профиль": "➕ Create a new profile",
+    "Интерфейс": "Interface",
+    "Язык интерфейса:": "Interface language:",
+    "Новый язык применяется после перезапуска приложения.": "A new language is applied after the app restarts.",
+    "Уведомления": "Notifications",
+    "Показывать результат в попап-окне": "Show the result in a popup window",
+    "Показывать через системные уведомления Windows": "Show it as a Windows notification",
+    "О программе и обновления": "About and updates",
+    "Версия приложения: v{version}": "App version: v{version}",
+    "Проверить обновления": "Check for updates",
+    "Сохранить": "Save",
+    "Подтверждение удаления": "Confirm deletion",
+    "Вы действительно хотите удалить пользовательский профиль '{name}' ({id})?":
+        "Do you really want to delete the custom profile '{name}' ({id})?",
+    "⏳ Загрузка локальной модели… (около 600 МБ, 1–5 с)": "⏳ Loading the local model… (about 600 MB, 1–5 s)",
+    "Проверка наличия обновлений…": "Checking for updates…",
+    "Ошибка ввода": "Input error",
+    "Введите название профиля.": "Enter a profile name.",
+    "Заполните системный промпт для ИИ.": "Fill in the system prompt for the AI.",
+    "У вас пока нет пользовательских профилей.": "You have no custom profiles yet.",
+    "✏️ Редактировать": "✏️ Edit",
+    "✓ Модель загружена в память: {path}": "✓ Model loaded in memory: {path}",
+    "✓ Модель найдена: {path}\nБудет загружена при первом переводе (или нажмите «Загрузить модель»).":
+        "✓ Model found: {path}\nIt will be loaded on the first translation (or press “Load model”).",
+    "⚠ Локальная модель NLLB не найдена. Укажите путь к каталогу nllb-200-ct2-int8 выше либо сконвертируйте модель (ct2-transformers-converter). Пока модель недоступна, перевод будет выполняться через API.":
+        "⚠ The local NLLB model was not found. Set the path to the nllb-200-ct2-int8 directory above "
+        "or convert the model (ct2-transformers-converter). Until the model is available, "
+        "translation goes through the API.",
+    "Ключи не заданы в Keyring (используются переменные из .env)": "No keys in the keyring (using variables from .env)",
+    "✓ У вас установлена актуальная версия (v{version}).": "✓ You have the latest version (v{version}).",
+    "✓ Ключ {provider} обновлён!": "✓ {provider} key updated!",
+    "Язык интерфейса": "Interface language",
+    "Язык интерфейса изменится после перезапуска приложения.": "The interface language will change after the app restarts.",
+    "Не удалось сохранить профиль:\n{error}": "Could not save the profile:\n{error}",
+    "Пока модель недоступна, перевод будет выполняться через API.":
+        "Until the model is available, translation goes through the API.",
+    "Сохранённые ключи: ": "Saved keys: ",
+    "Не удалось сохранить настройки:\n{error}": "Could not save the settings:\n{error}",
+    "Скачать обновление →": "Download update →",
+    "🚀 Доступна новая версия {version}! ": "🚀 Version {version} is available! ",
+
+    "Ключи быстрых переводчиков": "Fast translator keys",
+    "Необязательно — без ключа работает через бесплатный Web RPC": "Optional — without a key the free Web RPC is used",
+    "Free или Pro ключ (суффикс :fx = Free)": "Free or Pro key (the :fx suffix means Free)",
+    "Проверить": "Test",
+    "Регион:": "Region:",
+    "Ускорение OCR (видеокарта)": "OCR acceleration (GPU)",
+    "Режим GPU для EasyOCR:": "EasyOCR GPU mode:",
+    "Авто (GPU при наличии свободной VRAM ≥ 450 МБ)": "Auto (GPU when ≥ 450 MB of VRAM is free)",
+    "Только видеокарта (CUDA)": "GPU only (CUDA)",
+    "Только процессор (CPU)": "CPU only",
+    "✓ Обнаружена: {name} ({total} ГБ)": "✓ Detected: {name} ({total} GB)",
+    " — свободно {free} МБ": " — {free} MB free",
+    "CUDA недоступна — EasyOCR будет работать на CPU": "CUDA is unavailable — EasyOCR will run on the CPU",
+    "PyTorch не установлен — EasyOCR будет работать на CPU": "PyTorch is not installed — EasyOCR will run on the CPU",
+    "Не удалось определить GPU: {error}": "Could not detect the GPU: {error}",
+    "Введите ключ.": "Enter a key.",
+    "Ошибка сохранения: {error}": "Save error: {error}",
+    "✓ Ключ {provider} сохранён!": "✓ {provider} key saved!",
+    "Проверяем…": "Testing…",
+    "✓ Ключ {provider} сохранён в Keyring": "✓ {provider} key is stored in the keyring",
+    "Ключ не задан — будет использоваться бесплатный Web RPC": "No key set — the free Web RPC will be used",
+    "Ключ {provider} не задан": "No {provider} key set",
+
+    # ── translate/{google,deepl,azure}_client.py ──
+    "Azure Translator API key missing! Укажите ключ в Настройках.": "Azure Translator API key missing! Set it in Settings.",
+    "Azure Translator: ключ недействителен или регион указан неверно (401).":
+        "Azure Translator: the key is invalid or the region is wrong (401).",
+    "Azure Translator: доступ запрещён (403). Проверьте подписку.":
+        "Azure Translator: access denied (403). Check your subscription.",
+    "Azure Translator API вернул ошибку {code}: {detail}": "The Azure Translator API returned error {code}: {detail}",
+    "Не удалось подключиться к Azure Translator API: {error}": "Could not connect to the Azure Translator API: {error}",
+    "Azure Translator API вернул пустой ответ.": "The Azure Translator API returned an empty response.",
+    "DeepL API key missing! Укажите ключ в Настройках.": "DeepL API key missing! Set it in Settings.",
+    "DeepL: ключ недействителен или заблокирован (403 Forbidden).": "DeepL: the key is invalid or blocked (403 Forbidden).",
+    "DeepL: превышена квота символов. Проверьте лимит вашего тарифа.":
+        "DeepL: character quota exceeded. Check your plan's limit.",
+    "DeepL API вернул ошибку {code}: {detail}": "The DeepL API returned error {code}: {detail}",
+    "Не удалось подключиться к DeepL API: {error}": "Could not connect to the DeepL API: {error}",
+    "DeepL API вернул пустой ответ.": "The DeepL API returned an empty response.",
+    "Google Cloud Translation API вернул ошибку {code}: {detail}":
+        "The Google Cloud Translation API returned error {code}: {detail}",
+    "Не удалось подключиться к Google Cloud Translation API: {error}":
+        "Could not connect to the Google Cloud Translation API: {error}",
+    "Google Cloud Translation API вернул пустой ответ.": "The Google Cloud Translation API returned an empty response.",
+    "Google Translate (Web RPC) вернул ошибку {code}.": "Google Translate (Web RPC) returned error {code}.",
+    "Не удалось подключиться к Google Translate: {error}": "Could not connect to Google Translate: {error}",
+    "Google Translate вернул пустой ответ.": "Google Translate returned an empty response.",
+    "Используется {backend}.": "Using {backend}.",
+
+    # ── history/history_window.py ──
+    "🔍 Поиск по оригиналу или переводу...": "🔍 Search source or translation...",
+    "Всего записей: {count}": "Total entries: {count}",
+    "💾 Экспорт .txt": "💾 Export .txt",
+    "🗑 Очистить историю": "🗑 Clear history",
+    "Сохранить историю переводов": "Save translation history",
+    "Текстовые файлы (*.txt);;Все файлы (*)": "Text files (*.txt);;All files (*)",
+    "Подтверждение очистки": "Confirm clearing",
+    "Вы уверены, что хотите удалить всю историю переводов?\nЭто действие нельзя отменить.":
+        "Are you sure you want to delete the whole translation history?\nThis cannot be undone.",
+    "Дата / Время": "Date / Time",
+    "Язык": "Language",
+    "Оригинал": "Source",
+    "Экспорт": "Export",
+    "Нет записей для экспорта.": "No entries to export.",
+    "Экспорт завершён": "Export complete",
+    "Успешно экспортировано записей: {count}\nФайл: {path}": "Entries exported: {count}\nFile: {path}",
+    "Оригинал:   {text}": "Source:      {text}",
+    "Перевод:    {text}": "Translation: {text}",
+    "Ошибка экспорта": "Export error",
+    "Не удалось сохранить файл:\n{error}": "Could not save the file:\n{error}",
+}

@@ -17,6 +17,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QKeySequence
 
+from i18n import tr
+
 from settings.region_presets import (
     load_presets, save_preset, delete_preset, rename_preset,
     update_preset_hotkey, validate_hotkey,
@@ -53,7 +55,7 @@ class HotkeyInputDialog(QDialog):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle(f"Назначить бинд — «{preset_name}»")
+        self.setWindowTitle(tr("Назначить бинд — «{name}»", name=preset_name))
         self.resize(380, 200)
         self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
         self.setStyleSheet(f"QDialog {{ background: {_DIALOG_BG}; }}")
@@ -67,11 +69,11 @@ class HotkeyInputDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        lbl = QLabel("Нажмите комбинацию клавиш для этого пресета:")
+        lbl = QLabel(tr("Нажмите комбинацию клавиш для этого пресета:"))
         lbl.setStyleSheet(f"color: {_TEXT}; font-family: '{_FONT}'; font-size: 10pt; font-weight: 600;")
         layout.addWidget(lbl)
 
-        hint = QLabel("Например: Ctrl+Alt+1, F8, Alt+Shift+T. Бинд будет работать глобально.")
+        hint = QLabel(tr("Например: Ctrl+Alt+1, F8, Alt+Shift+T. Бинд будет работать глобально."))
         hint.setWordWrap(True)
         hint.setStyleSheet(f"color: {_TEXT_DIM}; font-family: '{_FONT}'; font-size: 8.5pt;")
         layout.addWidget(hint)
@@ -90,7 +92,7 @@ class HotkeyInputDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        btn_ok = QPushButton("✔ Применить")
+        btn_ok = QPushButton(tr("✔ Применить"))
         btn_ok.setCursor(Qt.PointingHandCursor)
         btn_ok.setStyleSheet(
             f"QPushButton {{"
@@ -102,7 +104,7 @@ class HotkeyInputDialog(QDialog):
         btn_ok.clicked.connect(self._on_apply)
         btn_row.addWidget(btn_ok)
 
-        btn_clear = QPushButton("❌ Очистить бинд")
+        btn_clear = QPushButton(tr("❌ Очистить бинд"))
         btn_clear.setCursor(Qt.PointingHandCursor)
         btn_clear.setStyleSheet(
             f"QPushButton {{"
@@ -114,7 +116,7 @@ class HotkeyInputDialog(QDialog):
         btn_clear.clicked.connect(self._on_clear)
         btn_row.addWidget(btn_clear)
 
-        btn_cancel = QPushButton("Отмена")
+        btn_cancel = QPushButton(tr("Отмена"))
         btn_cancel.setCursor(Qt.PointingHandCursor)
         btn_cancel.setStyleSheet(
             f"QPushButton {{"
@@ -136,7 +138,7 @@ class HotkeyInputDialog(QDialog):
             self.result_hotkey = valid_hk
             self.accept()
         except ValueError as exc:
-            QMessageBox.warning(self, "Ошибка бинда", str(exc))
+            QMessageBox.warning(self, tr("Ошибка бинда"), str(exc))
 
     def _on_clear(self) -> None:
         self.result_hotkey = None
@@ -162,7 +164,7 @@ class RegionPresetsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Translator Overlay — Пресеты регионов")
+        self.setWindowTitle(tr("Translator Overlay — Пресеты регионов"))
         self.resize(540, 460)
         self.setMinimumSize(440, 360)
         self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
@@ -179,17 +181,17 @@ class RegionPresetsDialog(QDialog):
         layout.setSpacing(12)
 
         # Title & Hint
-        lbl_title = QLabel("📋 Пресеты областей экрана")
+        lbl_title = QLabel(tr("📋 Пресеты областей экрана"))
         lbl_title.setStyleSheet(
             f"font-family: '{_FONT}'; font-size: 13pt; font-weight: 600; "
             f"color: {_TEXT}; background: transparent;"
         )
         layout.addWidget(lbl_title)
 
-        lbl_hint = QLabel(
+        lbl_hint = QLabel(tr(
             "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода "
             "или запустите опциональный автомониторинг."
-        )
+        ))
         lbl_hint.setWordWrap(True)
         lbl_hint.setStyleSheet(
             f"font-family: '{_FONT}'; font-size: 9pt; color: {_TEXT_DIM}; "
@@ -223,23 +225,23 @@ class RegionPresetsDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(6)
 
-        self._btn_new = self._make_button("➕ Новый", _ACCENT, "#fff", _ACCENT_HOVER)
+        self._btn_new = self._make_button(tr("➕ Новый"), _ACCENT, "#fff", _ACCENT_HOVER)
         self._btn_new.clicked.connect(self._on_new)
         btn_row.addWidget(self._btn_new)
 
-        self._btn_hotkey = self._make_button("⌨ Назначить бинд", _INPUT_BG, _TEXT, "#3a3a5c")
+        self._btn_hotkey = self._make_button(tr("⌨ Назначить бинд"), _INPUT_BG, _TEXT, "#3a3a5c")
         self._btn_hotkey.clicked.connect(self._on_set_hotkey)
         btn_row.addWidget(self._btn_hotkey)
 
-        self._btn_clear_hotkey = self._make_button("❌ Сбросить", _INPUT_BG, _TEXT_DIM, "#3a3a5c")
+        self._btn_clear_hotkey = self._make_button(tr("❌ Сбросить"), _INPUT_BG, _TEXT_DIM, "#3a3a5c")
         self._btn_clear_hotkey.clicked.connect(self._on_clear_hotkey)
         btn_row.addWidget(self._btn_clear_hotkey)
 
-        self._btn_rename = self._make_button("✏️ Имя", _INPUT_BG, _TEXT_DIM, "#3a3a5c")
+        self._btn_rename = self._make_button(tr("✏️ Имя"), _INPUT_BG, _TEXT_DIM, "#3a3a5c")
         self._btn_rename.clicked.connect(self._on_rename)
         btn_row.addWidget(self._btn_rename)
 
-        self._btn_delete = self._make_button("🗑️ Удалить", _INPUT_BG, _DANGER, _DANGER_BG_HOVER)
+        self._btn_delete = self._make_button(tr("🗑️ Удалить"), _INPUT_BG, _DANGER, _DANGER_BG_HOVER)
         self._btn_delete.clicked.connect(self._on_delete)
         btn_row.addWidget(self._btn_delete)
 
@@ -249,7 +251,7 @@ class RegionPresetsDialog(QDialog):
         action_row = QHBoxLayout()
         action_row.setSpacing(10)
 
-        self._btn_translate = QPushButton("▶ Перевести область")
+        self._btn_translate = QPushButton(tr("▶ Перевести область"))
         self._btn_translate.setCursor(Qt.PointingHandCursor)
         self._btn_translate.setStyleSheet(
             f"QPushButton {{"
@@ -263,7 +265,7 @@ class RegionPresetsDialog(QDialog):
         self._btn_translate.clicked.connect(self._on_translate_now)
         action_row.addWidget(self._btn_translate)
 
-        self._btn_monitor = QPushButton("👁 Автомониторинг (10 сек)")
+        self._btn_monitor = QPushButton(tr("👁 Автомониторинг (10 сек)"))
         self._btn_monitor.setCursor(Qt.PointingHandCursor)
         self._btn_monitor.setStyleSheet(
             f"QPushButton {{"
@@ -279,7 +281,7 @@ class RegionPresetsDialog(QDialog):
 
         action_row.addStretch()
 
-        self._btn_cancel = QPushButton("Закрыть")
+        self._btn_cancel = QPushButton(tr("Закрыть"))
         self._btn_cancel.setCursor(Qt.PointingHandCursor)
         self._btn_cancel.setStyleSheet(
             f"QPushButton {{"
@@ -321,7 +323,7 @@ class RegionPresetsDialog(QDialog):
             x2, y2 = p.get("x2", 0), p.get("y2", 0)
             w, h = x2 - x1, y2 - y1
             hk = p.get("hotkey")
-            hk_badge = f"[{hk.upper()}]" if hk else "[Нет бинда]"
+            hk_badge = f"[{hk.upper()}]" if hk else tr("[Нет бинда]")
             label = f"{hk_badge:<16} {name}    ({x1}, {y1}) → ({x2}, {y2})  [{w}×{h}]"
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, p)
@@ -355,8 +357,8 @@ class RegionPresetsDialog(QDialog):
         """Called by the main app after region selection to prompt for a name and save."""
         name, ok = QInputDialog.getText(
             self,
-            "Имя пресета",
-            "Введите имя для нового пресета региона:",
+            tr("Имя пресета"),
+            tr("Введите имя для нового пресета региона:"),
             text="",
         )
         if not ok or not name.strip():
@@ -367,7 +369,7 @@ class RegionPresetsDialog(QDialog):
             self.presets_updated.emit()
             logger.info("Region preset '%s' created from dialog.", name.strip())
         except ValueError as e:
-            QMessageBox.warning(self, "Ошибка сохранения", str(e))
+            QMessageBox.warning(self, tr("Ошибка сохранения"), str(e))
 
     def _on_set_hotkey(self) -> None:
         preset = self._selected_preset()
@@ -385,7 +387,7 @@ class RegionPresetsDialog(QDialog):
                 self._reload_list()
                 self.presets_updated.emit()
             except ValueError as e:
-                QMessageBox.warning(self, "Ошибка бинда", str(e))
+                QMessageBox.warning(self, tr("Ошибка бинда"), str(e))
 
     def _on_clear_hotkey(self) -> None:
         preset = self._selected_preset()
@@ -396,7 +398,7 @@ class RegionPresetsDialog(QDialog):
             self._reload_list()
             self.presets_updated.emit()
         except ValueError as e:
-            QMessageBox.warning(self, "Ошибка сброса бинда", str(e))
+            QMessageBox.warning(self, tr("Ошибка сброса бинда"), str(e))
 
     def _on_rename(self) -> None:
         preset = self._selected_preset()
@@ -404,8 +406,8 @@ class RegionPresetsDialog(QDialog):
             return
         new_name, ok = QInputDialog.getText(
             self,
-            "Переименовать пресет",
-            "Новое имя:",
+            tr("Переименовать пресет"),
+            tr("Новое имя:"),
             text=preset.get("name", ""),
         )
         if not ok or not new_name.strip():
@@ -415,7 +417,7 @@ class RegionPresetsDialog(QDialog):
             self._reload_list()
             self.presets_updated.emit()
         except ValueError as e:
-            QMessageBox.warning(self, "Ошибка переименования", str(e))
+            QMessageBox.warning(self, tr("Ошибка переименования"), str(e))
 
     def _on_delete(self) -> None:
         preset = self._selected_preset()
@@ -423,8 +425,8 @@ class RegionPresetsDialog(QDialog):
             return
         reply = QMessageBox.question(
             self,
-            "Удаление пресета",
-            f"Удалить пресет «{preset.get('name', '???')}»?",
+            tr("Удаление пресета"),
+            tr("Удалить пресет «{name}»?", name=preset.get("name", "???")),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -435,7 +437,7 @@ class RegionPresetsDialog(QDialog):
             self._reload_list()
             self.presets_updated.emit()
         except ValueError as e:
-            QMessageBox.warning(self, "Ошибка удаления", str(e))
+            QMessageBox.warning(self, tr("Ошибка удаления"), str(e))
 
     def _on_translate_now(self) -> None:
         """Primary action: single-shot translation of the selected preset region."""

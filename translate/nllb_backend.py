@@ -40,6 +40,7 @@ from pathlib import Path
 
 import config
 from cache.store import get_cached, save_to_cache
+from i18n import tr
 from translate.privacy import loggable
 
 _logger = logging.getLogger("translator.nllb")
@@ -191,19 +192,19 @@ def describe_model_location() -> str:
     explicit = explicit_model_dir()
     if explicit is not None:
         if _is_complete(explicit):
-            return f"Модель найдена: {explicit}"
+            return tr("Модель найдена: {path}", path=explicit)
         if explicit.is_dir():
-            return (
-                f"Указанный каталог {explicit} не содержит модель — "
-                "отсутствуют файлы: " + ", ".join(missing_files(explicit))
+            return tr(
+                "Указанный каталог {path} не содержит модель — отсутствуют файлы: {files}",
+                path=explicit, files=", ".join(missing_files(explicit)),
             )
-        return f"Указанный каталог не существует: {explicit}"
+        return tr("Указанный каталог не существует: {path}", path=explicit)
 
     found = resolve_model_dir()
     if found is not None:
-        return f"Модель найдена: {found}"
+        return tr("Модель найдена: {path}", path=found)
     searched = "\n".join(f"  • {p}" for p in _auto_model_dirs())
-    return "Модель не найдена. Искали в:\n" + searched
+    return tr("Модель не найдена. Искали в:\n") + searched
 
 
 # ── Backend ──────────────────────────────────────────────
@@ -303,25 +304,28 @@ class NllbBackend:
             model_dir = self._explicit_dir if self._explicit_dir else resolve_model_dir()
             if model_dir is None:
                 raise NllbModelUnavailable(
-                    "Локальная модель NLLB не найдена.\n"
+                    tr("Локальная модель NLLB не найдена.\n")
                     + describe_model_location()
-                    + "\n\nСкачайте готовую модель командой python scripts/download_model.py "
-                      "или укажите путь к ней в Настройках (см. README, раздел про NLLB)."
+                    + "\n\n"
+                    + tr(
+                        "Скачайте готовую модель командой python scripts/download_model.py "
+                        "или укажите путь к ней в Настройках (см. README, раздел про NLLB)."
+                    )
                 )
             if not _is_complete(model_dir):
-                raise NllbModelUnavailable(
-                    f"Каталог модели {model_dir} неполон — отсутствуют файлы: "
-                    + ", ".join(missing_files(model_dir))
-                )
+                raise NllbModelUnavailable(tr(
+                    "Каталог модели {path} неполон — отсутствуют файлы: {files}",
+                    path=model_dir, files=", ".join(missing_files(model_dir)),
+                ))
 
             try:
                 import ctranslate2
                 import sentencepiece as spm
             except ImportError as exc:
-                raise NllbModelUnavailable(
+                raise NllbModelUnavailable(tr(
                     "Не установлены пакеты для локального перевода. "
                     "Выполните: pip install ctranslate2 sentencepiece"
-                ) from exc
+                )) from exc
 
             t0 = time.perf_counter()
             translator, device, compute_type = self._create_translator(ctranslate2, model_dir)
@@ -330,9 +334,10 @@ class NllbBackend:
                     model_file=str(model_dir / "sentencepiece.bpe.model")
                 )
             except Exception as exc:
-                raise NllbModelUnavailable(
-                    f"Не удалось загрузить локальную модель из {model_dir}: {exc}"
-                ) from exc
+                raise NllbModelUnavailable(tr(
+                    "Не удалось загрузить локальную модель из {path}: {error}",
+                    path=model_dir, error=exc,
+                )) from exc
 
             self._translator = translator
             self._sp = sp
@@ -373,9 +378,10 @@ class NllbBackend:
                 intra_threads=self._intra_threads,
             )
         except Exception as exc:
-            raise NllbModelUnavailable(
-                f"Не удалось загрузить локальную модель из {model_dir}: {exc}"
-            ) from exc
+            raise NllbModelUnavailable(tr(
+                "Не удалось загрузить локальную модель из {path}: {error}",
+                path=model_dir, error=exc,
+            )) from exc
         return translator, "cpu", self._compute_type
 
     def _create_cuda_translator(self, ctranslate2, model_dir: Path):
@@ -454,10 +460,10 @@ class NllbBackend:
     def _flores(lang: str) -> str:
         code = NLLB_LANG_CODES.get((lang or "").strip().lower())
         if code is None:
-            raise NllbTranslationError(
-                f"Язык '{lang}' не поддерживается локальной моделью NLLB. "
-                f"Доступны: {', '.join(sorted(SUPPORTED_LANGS))}"
-            )
+            raise NllbTranslationError(tr(
+                "Язык '{lang}' не поддерживается локальной моделью NLLB. Доступны: {langs}",
+                lang=lang, langs=", ".join(sorted(SUPPORTED_LANGS)),
+            ))
         return code
 
     @staticmethod
@@ -560,7 +566,7 @@ class NllbBackend:
         except NllbError:
             raise
         except Exception as exc:
-            raise NllbTranslationError(f"Сбой инференса NLLB: {exc}") from exc
+            raise NllbTranslationError(tr("Сбой инференса NLLB: {error}", error=exc)) from exc
         elapsed = time.perf_counter() - t0
 
         _logger.info(
@@ -621,7 +627,7 @@ class NllbBackend:
         except NllbError:
             raise
         except Exception as exc:
-            raise NllbTranslationError(f"Сбой инференса NLLB: {exc}") from exc
+            raise NllbTranslationError(tr("Сбой инференса NLLB: {error}", error=exc)) from exc
         elapsed = time.perf_counter() - t0
 
         _logger.info(

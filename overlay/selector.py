@@ -11,6 +11,8 @@ from PyQt5.QtWidgets import QWidget, QApplication
 from PyQt5.QtCore import Qt, QRect, QPoint, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen, QFont, QCursor
 
+from i18n import tr
+
 
 def _virtual_desktop_geometry() -> QRect:
     """Return the bounding QRect that covers every connected screen.
@@ -226,7 +228,7 @@ class RegionSelector(QWidget):
             # centered on the monitor where the cursor was at activation.
             painter.fillRect(full, self._OVERLAY_COLOR)
 
-            hint_text = "Выделите область для перевода\nEsc — отмена"
+            hint_text = tr("Выделите область для перевода\nEsc — отмена")
             hint_font = QFont("Segoe UI", 14)
             painter.setFont(hint_font)
             fm = painter.fontMetrics()

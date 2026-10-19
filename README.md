@@ -22,6 +22,7 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 - **SQLite cache** — repeated texts are translated instantly without API calls
 - **Floating popup** — shows original + translation near the selected area; draggable, auto-closes after a timeout
 - **Auto language detection** — automatically detects the source language before translation (offline via `langid` or via LLM); falls back to a fixed language for very short texts
+- **Interface in English and Russian** — picked automatically from the Windows language or set in Settings → Interface (applies after a restart)
 - **Executable support** — can be compiled into a standalone application folder (`onedir` mode) via PyInstaller
 
 ---

@@ -159,6 +159,7 @@ qInstallMessageHandler(_qt_message_handler)
 
 import config
 import settings
+from i18n import tr
 from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
 from ocr.engine import recognise
@@ -242,7 +243,7 @@ class TranslationWorker(QThread):
                 image = capture_region(self.x1, self.y1, self.x2, self.y2)
             except Exception as e:
                 logging.exception("Step 1 Failed: Screen capture error")
-                self.translation_done.emit("", "", f"Ошибка захвата экрана:\n{e}")
+                self.translation_done.emit("", "", tr("Ошибка захвата экрана:\n{error}", error=e))
                 return
 
             try:
@@ -250,12 +251,12 @@ class TranslationWorker(QThread):
                 text = recognise(image)
             except Exception as e:
                 logging.exception("Step 2 Failed: OCR recognition error")
-                self.translation_done.emit("", "", f"Ошибка OCR:\n{e}")
+                self.translation_done.emit("", "", tr("Ошибка OCR:\n{error}", error=e))
                 return
 
             if not text:
                 logging.info("Step 2 Result: No text recognized in region.")
-                self.translation_done.emit("", "", "Текст не распознан.\nПопробуйте выделить область точнее.")
+                self.translation_done.emit("", "", tr("Текст не распознан.\nПопробуйте выделить область точнее."))
                 return
 
             # D1: If ocr_only, emit ocr_done and stop here
@@ -283,7 +284,7 @@ class TranslationWorker(QThread):
                 )
         except Exception as e:
             logging.exception("Step 3 Failed: Translation error")
-            self.translation_done.emit(text, "", f"Ошибка перевода:\n{e}\n\nРаспознанный текст:\n{text}")
+            self.translation_done.emit(text, "", tr("Ошибка перевода:\n{error}\n\nРаспознанный текст:\n{text}", error=e, text=text))
             return
 
         self.backend_notice = take_notice()
@@ -526,8 +527,8 @@ class TranslatorApp:
 
         if self._tray is not None:
             self._tray.showMessage(
-                "Живой автомониторинг запущен",
-                "Область автоматически проверяется каждые 10 сек.",
+                tr("Живой автомониторинг запущен"),
+                tr("Область автоматически проверяется каждые 10 сек."),
                 TrayIcon.Information,
                 3000,
             )
@@ -539,8 +540,8 @@ class TranslatorApp:
             self._live_monitor = None
             if self._tray is not None:
                 self._tray.showMessage(
-                    "Живой мониторинг остановлен",
-                    "Автоматическое отслеживание области отключено.",
+                    tr("Живой мониторинг остановлен"),
+                    tr("Автоматическое отслеживание области отключено."),
                     TrayIcon.Information,
                     2000,
                 )
@@ -641,8 +642,8 @@ class TranslatorApp:
             from settings.region_presets import save_preset
             name, ok = QInputDialog.getText(
                 None,
-                "Имя пресета",
-                "Введите имя для нового пресета региона:",
+                tr("Имя пресета"),
+                tr("Введите имя для нового пресета региона:"),
             )
             if ok and name.strip():
                 try:
@@ -789,6 +790,12 @@ def main() -> None:
         _hide_console()
 
         app = QApplication(sys.argv)
+        from ui.theme import apply_app_theme
+        from ui.wheel_guard import install_wheel_guard
+        from i18n import install_qt_translator
+        apply_app_theme(app)
+        install_wheel_guard(app)
+        install_qt_translator(app)
 
         # Show splash immediately — torch is already loaded (module level above),
         # splash covers the remaining init time: MainWindow, TrayIcon, hotkeys.

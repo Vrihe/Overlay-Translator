@@ -20,6 +20,7 @@ from PyQt5.QtCore import Qt
 
 import config
 import cache.store as store
+from i18n import tr
 
 
 class HistoryWidget(QWidget):
@@ -92,7 +93,7 @@ class HistoryWidget(QWidget):
         header_layout.addStretch()
 
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText("🔍 Поиск по оригиналу или переводу...")
+        self._search_input.setPlaceholderText(tr("🔍 Поиск по оригиналу или переводу..."))
         self._search_input.setFixedWidth(280)
         self._search_input.setStyleSheet(self._INPUT_CSS)
         header_layout.addWidget(self._search_input)
@@ -102,7 +103,7 @@ class HistoryWidget(QWidget):
         # ── Table Widget ──
         self._table = QTableWidget()
         self._table.setColumnCount(4)
-        self._table.setHorizontalHeaderLabels(["Дата / Время", "Язык", "Оригинал", "Перевод"])
+        self._table.setHorizontalHeaderLabels([tr("Дата / Время"), tr("Язык"), tr("Оригинал"), tr("Перевод")])
         self._table.setStyleSheet(self._TABLE_CSS)
         self._table.setAlternatingRowColors(True)
         self._table.verticalHeader().setVisible(False)
@@ -122,14 +123,14 @@ class HistoryWidget(QWidget):
         # ── Bottom row (Count + Clear button) ──
         bottom_layout = QHBoxLayout()
 
-        self._count_label = QLabel("Всего записей: 0")
+        self._count_label = QLabel(tr("Всего записей: {count}", count=0))
         self._count_label.setStyleSheet(self._css("color: #888899; font-size: 9.5pt;"))
         bottom_layout.addWidget(self._count_label)
 
         bottom_layout.addStretch()
 
         # C3: Export button
-        self._btn_export = QPushButton("💾 Экспорт .txt")
+        self._btn_export = QPushButton(tr("💾 Экспорт .txt"))
         self._btn_export.setStyleSheet(
             "QPushButton {"
             "  background: #1e2f4a; color: #7ca5f5; border: 1px solid #3a5a9a;"
@@ -142,7 +143,7 @@ class HistoryWidget(QWidget):
         self._btn_export.clicked.connect(self._on_export_history)
         bottom_layout.addWidget(self._btn_export)
 
-        self._btn_clear = QPushButton("🗑 Очистить историю")
+        self._btn_clear = QPushButton(tr("🗑 Очистить историю"))
         self._btn_clear.setStyleSheet(
             "QPushButton {"
             "  background: #3a2228; color: #ff6b6b; border: 1px solid #5a2c35;"
@@ -197,7 +198,7 @@ class HistoryWidget(QWidget):
             self._table.setItem(row_idx, 3, item_trans)
 
         self._displayed_records = records
-        self._count_label.setText(f"Всего записей: {len(records)}")
+        self._count_label.setText(tr("Всего записей: {count}", count=len(records)))
         self._btn_clear.setEnabled(len(self._all_records) > 0)
         self._btn_export.setEnabled(len(records) > 0)
 
@@ -213,14 +214,14 @@ class HistoryWidget(QWidget):
         """C3: Export currently filtered history entries to a formatted text file."""
         records = getattr(self, "_displayed_records", [])
         if not records:
-            QMessageBox.information(self, "Экспорт", "Нет записей для экспорта.")
+            QMessageBox.information(self, tr("Экспорт"), tr("Нет записей для экспорта."))
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Сохранить историю переводов",
+            tr("Сохранить историю переводов"),
             "history_export.txt",
-            "Текстовые файлы (*.txt);;Все файлы (*)",
+            tr("Текстовые файлы (*.txt);;Все файлы (*)"),
         )
         if not file_path:
             return
@@ -236,8 +237,8 @@ class HistoryWidget(QWidget):
                 trans = rec.get("translated_text", "")
 
                 lines.append(f"[{dt_str}] {src} → {tgt}")
-                lines.append(f"Оригинал:   {orig}")
-                lines.append(f"Перевод:    {trans}")
+                lines.append(tr("Оригинал:   {text}", text=orig))
+                lines.append(tr("Перевод:    {text}", text=trans))
                 lines.append("-" * 50)
 
             with open(file_path, "w", encoding="utf-8") as f:
@@ -245,11 +246,14 @@ class HistoryWidget(QWidget):
 
             QMessageBox.information(
                 self,
-                "Экспорт завершён",
-                f"Успешно экспортировано записей: {len(records)}\nФайл: {file_path}",
+                tr("Экспорт завершён"),
+                tr(
+                    "Успешно экспортировано записей: {count}\nФайл: {path}",
+                    count=len(records), path=file_path,
+                ),
             )
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка экспорта", f"Не удалось сохранить файл:\n{e}")
+            QMessageBox.critical(self, tr("Ошибка экспорта"), tr("Не удалось сохранить файл:\n{error}", error=e))
 
     # ── Filter search ────────────────────────────────────
 
@@ -270,8 +274,8 @@ class HistoryWidget(QWidget):
     def _on_clear_clicked(self) -> None:
         reply = QMessageBox.question(
             self,
-            "Подтверждение очистки",
-            "Вы уверены, что хотите удалить всю историю переводов?\nЭто действие нельзя отменить.",
+            tr("Подтверждение очистки"),
+            tr("Вы уверены, что хотите удалить всю историю переводов?\nЭто действие нельзя отменить."),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
