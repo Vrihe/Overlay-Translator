@@ -89,6 +89,8 @@ import time
 # (msvcp140.dll 14.26) next to Qt5Core.dll; once Qt loads it, onnxruntime (needs
 # >= 14.40) fails with "DLL initialization routine failed". Loaded first, it pulls
 # in the newer runtime and Qt reuses it. Costs ~0.5 s at startup.
+# The frozen build does this even earlier in pyi_rth_onnxruntime.py, because
+# PyInstaller's PyQt5 runtime hook loads QtCore before main.py runs.
 try:
     import onnxruntime  # noqa: F401
 except Exception:

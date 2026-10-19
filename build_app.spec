@@ -17,6 +17,23 @@ The build.py merge step then copies the cached dep files into this directory.
 import sys
 from pathlib import Path
 
+# ── sentencepiece workaround ─────────────────────────────────────────────────
+# find_binary_dependencies() imports every package in one isolated process, Qt
+# bindings first. PyQt5 loads its old msvcp140.dll (14.26) and the sentencepiece
+# extension then crashes (0xC0000005). The import only discovers extra DLL search
+# dirs, which sentencepiece does not add; its binaries are still collected.
+# At runtime main.py loads onnxruntime (newer msvcp140) before Qt, so it is safe.
+import PyInstaller.building.build_main
+_orig_find_binary_deps = PyInstaller.building.build_main.find_binary_dependencies
+
+def _safe_find_binary_deps(binaries, import_packages, symlink_suppression_patterns):
+    filtered = [p for p in import_packages if not p.startswith('sentencepiece')]
+    return _orig_find_binary_deps(binaries, filtered, symlink_suppression_patterns)
+
+PyInstaller.building.build_main.find_binary_dependencies = _safe_find_binary_deps
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 block_cipher = None
 ROOT = Path(SPECPATH)
 
@@ -79,7 +96,8 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    # Must run before PyInstaller's PyQt5 hook (custom hooks run first).
+    runtime_hooks=[str(ROOT / 'pyi_rth_onnxruntime.py')],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

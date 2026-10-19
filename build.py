@@ -241,6 +241,27 @@ def merge_deps_into_app(root: Path) -> None:
     print(f"  ✓ Merged deps layer: {added:,} files added to app dist.")
 
 
+# onnxruntime imports MSVCP140.dll + MSVCP140_1.dll and needs >= 14.40, but the
+# only msvcp140_1.dll PyInstaller collects is PyQt5's 14.26 copy in Qt5\bin.
+# Ship one consistent, current set at the _internal root (main.py preloads it).
+_MSVC_RUNTIME_DLLS = ('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'msvcp140_1.dll')
+
+
+def bundle_msvc_runtime(dist_dir: Path) -> None:
+    """Copy the system VC++ runtime (System32) over the copies in _internal/."""
+    system32 = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32'
+    internal = dist_dir / '_internal'
+    missing = [name for name in _MSVC_RUNTIME_DLLS if not (system32 / name).exists()]
+    if missing:
+        raise RuntimeError(
+            f"VC++ runtime not found in {system32}: {', '.join(missing)}. "
+            "Install the latest Microsoft Visual C++ Redistributable (x64)."
+        )
+    for name in _MSVC_RUNTIME_DLLS:
+        shutil.copy2(system32 / name, internal / name)
+    print(f"  ✓ Bundled VC++ runtime from {system32}: {', '.join(_MSVC_RUNTIME_DLLS)}")
+
+
 def precompile_sources(root: Path) -> None:
     """Precompile application Python files to bytecode (.pyc) in parallel (optimization 2.4).
 
@@ -327,6 +348,7 @@ def main() -> None:
         print()
         print("  Merging dep layer → app dist…")
         merge_deps_into_app(root)
+        bundle_msvc_runtime(root / 'dist' / 'TranslatorOverlay')
 
     except RuntimeError as exc:
         print(f"\n[ERROR] {exc}")

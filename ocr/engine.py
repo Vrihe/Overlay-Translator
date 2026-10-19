@@ -93,9 +93,11 @@ def _onnxruntime():
 def _dml_available() -> bool:
     """Return True if onnxruntime ships the DirectML execution provider."""
     try:
-        return "DmlExecutionProvider" in _onnxruntime().get_available_providers()
+        providers = _onnxruntime().get_available_providers()
     except Exception:
         return False
+    logging.debug("onnxruntime providers: %s", providers)
+    return "DmlExecutionProvider" in providers
 
 
 def _resolve_gpu(gpu_setting) -> bool:

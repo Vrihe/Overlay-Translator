@@ -46,6 +46,7 @@ Overlay-Translator/
 ├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (--admin elevates)
 ├── build*.spec             # Spec files (layered build: app + deps)
 ├── _deps_stub.py           # Stub for the layered dependency build
+├── pyi_rth_onnxruntime.py  # Runtime hook: import onnxruntime before PyInstaller's PyQt5 hook
 │
 ├── capture/                # Screen capture
 │   ├── screenshot.py       #   capture_region() via mss
@@ -148,6 +149,12 @@ Overlay-Translator/
 - `import onnxruntime` at module level, **before PyQt5**: PyQt5 ships msvcp140.dll 14.26 next to
   Qt5Core.dll, and onnxruntime (needs ≥ 14.40) fails with "DLL initialization routine failed"
   if Qt's copy is loaded first. `ocr/engine._onnxruntime()` never retries a failed import.
+  Frozen build: PyInstaller's own PyQt5 runtime hook imports `PyQt5.QtCore` before `main.py`,
+  so `pyi_rth_onnxruntime.py` (custom runtime hooks run first) does the import instead, and
+  `build.py::bundle_msvc_runtime` copies `vcruntime140(_1)` / `msvcp140(_1)` from System32 to
+  `_internal/` (onnxruntime imports `MSVCP140_1.dll`; the only other copy is Qt's 14.26).
+  `build_app.spec` also skips `sentencepiece` in PyInstaller's isolated DLL-path probe, which
+  imports it after PyQt5 and crashes for the same reason.
 - `class HotkeyBridge(QObject)` — `triggered = pyqtSignal()`; bridge from the `keyboard` thread to the Qt thread.
 - `class TranslationWorker(QThread)` — the whole pipeline in the background.
   Signals: `translation_done(str src, str translated, str error)`,
