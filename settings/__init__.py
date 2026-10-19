@@ -7,7 +7,6 @@ everywhere:
   settings.get_api_key(provider)
   settings.set_api_key(provider, key)
   settings.delete_api_key(provider)
-  settings.has_any_key()
 
   from settings import config_manager
   config_manager.load_config()
@@ -95,11 +94,6 @@ def delete_api_key(provider: str) -> None:
         kr.delete_password(_SERVICE, keyname)
     except Exception:
         pass
-
-
-def has_any_key() -> bool:
-    """Return True if at least one API key is stored in keyring."""
-    return any(get_api_key(p) for p in _PROVIDER_KEYS)
 
 
 def get_primary_provider() -> str:

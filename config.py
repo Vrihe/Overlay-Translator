@@ -218,10 +218,14 @@ class _LiveConfig:
 
     # ─── Local NLLB model on the Hugging Face Hub ───────────
     # The single place that pins which model build the project uses; read by
-    # scripts/download_model.py. Bump the revision (a tag in the HF repo) to
-    # move everyone to a new build, e.g. after fine-tuning.
+    # scripts/download_model.py. The revision is a full commit SHA, not a tag:
+    # a tag can be moved to other weights later, a commit cannot. To move everyone
+    # to a new build, tag it in the HF repo and put that tag's commit SHA here.
     NLLB_HF_REPO_ID = os.environ.get("NLLB_HF_REPO_ID", "Alhite/overlay-translator-nllb-int8")
-    NLLB_HF_REVISION = os.environ.get("NLLB_HF_REVISION", "v0-base")
+    NLLB_HF_REVISION = os.environ.get(
+        "NLLB_HF_REVISION", "0e37166ae8c6ceb2a8f2560fc41b780e5bd41f3d")  # tag v0-base
+    # Expand English game-chat terms before local translation (translate/chat_glossary.py).
+    NLLB_GLOSSARY = os.environ.get("NLLB_GLOSSARY", "1").lower() not in ("0", "false", "no")
 
     _PROJECT_DIR = _PROJECT_DIR
 
@@ -236,15 +240,15 @@ class _LiveConfig:
     EASYOCR_CONFIDENCE_THRESHOLD = float(os.environ.get("EASYOCR_CONFIDENCE_THRESHOLD", "0.25"))
     MIN_CHARS_FOR_DETECTION = int(os.environ.get("MIN_CHARS_FOR_DETECTION", "15"))
 
-    OVERLAY_OPACITY = float(os.environ.get("OVERLAY_OPACITY", "0.85"))
-    OVERLAY_FONT_SIZE = int(os.environ.get("OVERLAY_FONT_SIZE", "14"))
-
     USER_DATA_DIR = _get_user_data_dir()
     CACHE_DIR = os.environ.get("CACHE_DIR", str(USER_DATA_DIR / "cache"))
     CACHE_MAX_ITEMS = int(os.environ.get("CACHE_MAX_ITEMS", "500"))
 
     LOG_DIR = os.environ.get("LOG_DIR", str(USER_DATA_DIR / "logs"))
     LOG_FILE = os.path.join(LOG_DIR, "translator.log")
+    # Captured screen text stays out of the logs unless explicitly enabled for debugging
+    # (translate/privacy.py).
+    LOG_TEXT = os.environ.get("OVERLAY_LOG_TEXT", "").lower() in ("1", "true", "yes")
 
 
 # Replace this module in sys.modules with the _LiveConfig instance

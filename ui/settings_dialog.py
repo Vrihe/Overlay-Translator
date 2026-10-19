@@ -3,7 +3,6 @@ ui/settings_dialog.py — runtime settings widget and dialog.
 
 Provides:
   • SettingsWidget: reusable QWidget containing all settings controls.
-  • SettingsDialog: non-modal QDialog wrapper for SettingsWidget.
   • ProfileEditorDialog: modal QDialog for creating and editing custom domain profiles.
 """
 
@@ -13,9 +12,9 @@ from PyQt5.QtWidgets import (
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
     QTextEdit, QScrollArea, QFrame, QCheckBox,
 )
-from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QMetaObject, Q_ARG
-from PyQt5.QtGui import QPainter, QPainterPath, QColor
+from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
 
+import html
 from typing import Any
 import config
 import settings
@@ -434,6 +433,7 @@ class SettingsWidget(QWidget):
         key_layout.addWidget(self._key_input)
 
         self._key_status = QLabel("")
+        self._key_status.setTextFormat(Qt.PlainText)  # shows provider error text
         self._key_status.setWordWrap(True)
         self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
         key_layout.addWidget(self._key_status)
@@ -927,7 +927,10 @@ class SettingsWidget(QWidget):
             r_layout = QHBoxLayout(row)
             r_layout.setContentsMargins(8, 6, 8, 6)
 
-            lbl = QLabel(f"<b>{display_name}</b> <span style='color:#777; font-size:8.5pt;'>({dom_id})</span>")
+            lbl = QLabel(
+                f"<b>{html.escape(display_name)}</b> "
+                f"<span style='color:#777; font-size:8.5pt;'>({html.escape(dom_id)})</span>"
+            )
             lbl.setStyleSheet(self._css("color: #e0e0e0; font-size: 9.5pt;"))
             r_layout.addWidget(lbl)
             r_layout.addStretch()
@@ -1352,8 +1355,8 @@ class SettingsWidget(QWidget):
 
         if has_update:
             self._update_status_lbl.setText(
-                f"🚀 Доступна новая версия {version}! "
-                f'<a href="{url}" style="color:#5b8def; font-weight:600;">Скачать обновление →</a>'
+                f"🚀 Доступна новая версия {html.escape(version)}! "
+                f'<a href="{html.escape(url)}" style="color:#5b8def; font-weight:600;">Скачать обновление →</a>'
             )
             self._update_status_lbl.setStyleSheet(self._css("color: #66cc99; font-size: 9.5pt;"))
             self._update_status_lbl.setOpenExternalLinks(True)
@@ -1375,22 +1378,18 @@ class SettingsWidget(QWidget):
             self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
             QApplication.processEvents()
 
-            settings.set_api_key(provider, key_text)
-            reset_client()
-
-            from translate.llm_client import translate
+            # Check before storing, so a rejected key never replaces a working one.
+            from translate.llm_client import validate_api_key
             try:
-                result = translate("Hello", target_lang="ru")
-                if not result:
-                    raise RuntimeError("Пустой ответ от API")
+                validate_api_key(provider, key_text)
             except Exception as e:
-                settings.delete_api_key(provider)
-                reset_client()
                 self._key_status.setText(f"Ошибка: {e}")
                 self._key_status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
                 self._btn_save.setEnabled(True)
                 return
 
+            settings.set_api_key(provider, key_text)
+            reset_client()
             self._key_status.setText(f"✓ Ключ {provider} обновлён!")
             self._key_status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
             self._key_input.clear()
@@ -1463,75 +1462,3 @@ class SettingsWidget(QWidget):
             self._refresh_nllb_status()
 
         self.settings_saved.emit()
-
-
-class SettingsDialog(QDialog):
-    """Non-modal settings dialog with dark theme."""
-
-    _WIDTH = 520
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.setWindowTitle("Translator Overlay — Настройки")
-        self.setFixedWidth(self._WIDTH)
-        self.setWindowFlags(
-            Qt.Dialog
-            | Qt.WindowCloseButtonHint
-        )
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-
-        self._build_ui()
-
-    def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-
-        self._card = QWidget(self)
-        layout = QVBoxLayout(self._card)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(12)
-
-        # ── Title ──
-        title = QLabel("⚙️ Настройки")
-        title.setStyleSheet(SettingsWidget._css("color: #e8e8e8; font-size: 14pt; font-weight: 600;"))
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
-
-        # ── Settings widget ──
-        self.settings_widget = SettingsWidget(self)
-        self.settings_widget.settings_saved.connect(self.accept)
-        layout.addWidget(self.settings_widget)
-
-        # ── Close button row ──
-        btn_row = QHBoxLayout()
-        self._btn_close = QPushButton("Закрыть")
-        self._btn_close.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent; color: #999; border: 1px solid #444;"
-            "  border-radius: 6px; padding: 9px 24px;"
-            "  font-family: 'Segoe UI'; font-size: 10pt;"
-            "}"
-            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
-        )
-        self._btn_close.clicked.connect(self.close)
-
-        btn_row.addStretch()
-        btn_row.addWidget(self._btn_close)
-        layout.addLayout(btn_row)
-
-        root.addWidget(self._card)
-
-    def paintEvent(self, _event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        path = QPainterPath()
-        r = self.rect()
-        path.addRoundedRect(r.x(), r.y(), r.width(), r.height(), 12, 12)
-        painter.fillPath(path, QColor(28, 28, 36, 245))
-
-        painter.setPen(QColor(255, 255, 255, 15))
-        painter.drawPath(path)
-        painter.end()

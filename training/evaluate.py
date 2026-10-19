@@ -112,12 +112,19 @@ def score(rows: list[dict], hyps: list[str], keep_terms: set[str]) -> dict:
     def corpus(idx: list[int]) -> float:
         return chrf.corpus_score([hyps[i] for i in idx], [[rows[i]["tgt"] for i in idx]]).score
 
+    def row_keep_terms(row: dict) -> list[str]:
+        # v2 rows list their keep terms (also inside translate-mode lines); v1 rows: keep-mode only
+        if "keep_terms" in row:
+            return row["keep_terms"]
+        return [a for a in row["abbrs"] if a in keep_terms] if row["mode"] == "keep" else []
+
     kinds = {k: [i for i, r in enumerate(rows) if r["kind"] == k] for k in ("abbr", "general")}
-    keep_idx = [i for i in kinds["abbr"] if rows[i]["mode"] == "keep"]
-    result = {"chrf": {k: round(corpus(v), 2) for k, v in kinds.items()},
+    keep_idx = [i for i in kinds["abbr"] if row_keep_terms(rows[i])]
+    modes = [m for m in ("keep", "translate", "plain") if any(rows[i]["mode"] == m for i in kinds["abbr"])]
+    result = {"chrf": {k: round(corpus(v), 2) for k, v in kinds.items() if v},
               "chrf_by_mode": {m: round(corpus([i for i in kinds["abbr"] if rows[i]["mode"] == m]), 2)
-                               for m in ("keep", "translate")},
-              "keep_rate": round(100 * sum(keep_ok(hyps[i], [a for a in rows[i]["abbrs"] if a in keep_terms])
+                               for m in modes},
+              "keep_rate": round(100 * sum(keep_ok(hyps[i], row_keep_terms(rows[i]))
                                            for i in keep_idx) / len(keep_idx), 1),
               "chrf_by_lang": {}}
     for kind, idx in kinds.items():
@@ -210,8 +217,9 @@ def main() -> int:
     ref = names[0]
     for name in names[1:]:
         summary["systems"][name]["delta_vs_" + ref] = {
-            kind: bootstrap_delta(rows, hyps[ref], hyps[name], [i for i, r in enumerate(rows) if r["kind"] == kind])
-            for kind in ("abbr", "general")}
+            kind: bootstrap_delta(rows, hyps[ref], hyps[name], idx)
+            for kind in ("abbr", "general")
+            if (idx := [i for i, r in enumerate(rows) if r["kind"] == kind])}
     (eval_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0

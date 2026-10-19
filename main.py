@@ -24,13 +24,17 @@ def _init_logging() -> str:
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "app.log")
 
+    from logging.handlers import RotatingFileHandler
+    handler = RotatingFileHandler(log_file, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
     logging.basicConfig(
-        filename=log_file,
-        filemode="a",
         level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] %(name)s (%(filename)s:%(lineno)d): %(message)s",
-        encoding="utf-8",
+        handlers=[handler],
     )
+    # At DEBUG the HTTP SDKs dump whole request bodies (the captured screen text)
+    # into the log; only their warnings are useful here.
+    for noisy in ("openai", "anthropic", "httpx", "httpcore", "urllib3", "huggingface_hub", "PIL"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     logging.info("================ Application Initialization Started ================")
     logging.info(f"Log file: {log_file}")
     logging.info(f"Python executable: {sys.executable}")
@@ -67,7 +71,6 @@ faulthandler.enable(file=_crash_log, all_threads=True)
 
 import ctypes
 import time
-import traceback
 
 # Fix Windows DLL path resolution for PyTorch & C++ runtimes in PyInstaller frozen app
 def _preload_torch_dlls():

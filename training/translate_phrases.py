@@ -3,14 +3,16 @@ training/translate_phrases.py — stage 2.2 of the NLLB fine-tune: translate the
 full (expanded) game-chat phrases into the target languages with the local
 fp32 NLLB checkpoint (Hugging Face transformers).
 
-Input : ``data/interim/abbr_phrases.jsonl`` (built by ``training/abbr_phrases.py``)
-Output: ``data/interim/abbr_translations.jsonl``, one line per (phrase, language)::
+Input : ``data/interim/abbr_phrases.jsonl`` (built by ``training/abbr_phrases.py``), or ``--input``
+Output: ``data/interim/abbr_translations.jsonl``, or ``--output``, one line per (phrase, language)::
 
     {"full": "be right back, doorbell", "lang": "ru", "text": "...",
      "keep_terms": ["..."], "keep_ok": true}
 
 ``keep_terms`` are the "keep" abbreviations found in the phrase (gg, dps, lfg ...);
 ``keep_ok`` says whether all of them survived verbatim in the translation.
+v2 phrase files (``training/game_abbreviations.py``) carry their own ``keep_terms``
+and ``langs`` (the target languages that phrase needs); both are used when present.
 The script resumes: pairs already in the output file are skipped.
 
 NLLB often drops or transliterates these terms ("gg" -> "ГГ", "nerf" -> "нерв").
@@ -24,6 +26,7 @@ Usage
     python training/translate_phrases.py
     python training/translate_phrases.py --langs ru uk --batch-size 16
     python training/translate_phrases.py --repair-keep
+    python training/translate_phrases.py --input data/interim/v2/game_phrases.jsonl         --output data/interim/v2/game_translations.jsonl --batch-size 32
 """
 
 from __future__ import annotations
@@ -89,8 +92,8 @@ def translate_batch(model, tokenizer, texts: list[str], lang: str, beams: int) -
     return tokenizer.batch_decode(gen, skip_special_tokens=True)
 
 
-def repair_keep(model, tokenizer, batch_size: int, beams: int) -> None:
-    rows = [json.loads(line) for line in OUT_JSONL.read_text(encoding="utf-8").splitlines()]
+def repair_keep(model, tokenizer, out_path: Path, batch_size: int, beams: int) -> None:
+    rows = [json.loads(line) for line in out_path.read_text(encoding="utf-8").splitlines()]
     for lang in LANGS:
         todo = [r for r in rows if r["lang"] == lang and not r["keep_ok"]]
         fixed = 0
@@ -98,13 +101,17 @@ def repair_keep(model, tokenizer, batch_size: int, beams: int) -> None:
             batch = todo[i:i + batch_size]
             masked = [mask_terms(r["full"], r["keep_terms"]) for r in batch]
             outputs = translate_batch(model, tokenizer, [m[0] for m in masked], lang, beams)
-            for row, (_, restore), text in zip(batch, masked, outputs):
+            for row, (masked_text, restore), text in zip(batch, masked, outputs):
+                # Nothing but keep terms and punctuation ("sks!"): there is nothing to translate, and
+                # NLLB hallucinates on a bare "[1]" in es/fr ("En el caso de los Estados miembros,").
+                if not re.search(r"[^\W\d_]", re.sub(r"\[\d+\]", "", masked_text)):
+                    text = masked_text
                 restored = unmask_terms(text, restore)
                 if restored is not None and keep_terms_ok(restored, row["keep_terms"]):
                     row.update(text=restored, keep_ok=True, repaired=True)
                     fixed += 1
         print(f"[{lang}] repaired {fixed}/{len(todo)}", flush=True)
-    with OUT_JSONL.open("w", encoding="utf-8") as out:
+    with out_path.open("w", encoding="utf-8") as out:
         for row in rows:
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
 
@@ -112,6 +119,8 @@ def repair_keep(model, tokenizer, batch_size: int, beams: int) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Translate full game-chat phrases with local NLLB.")
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL, help="fp32 NLLB checkpoint directory")
+    parser.add_argument("--input", type=Path, default=IN_JSONL, help="phrase JSONL with a 'full' field")
+    parser.add_argument("--output", type=Path, default=OUT_JSONL)
     parser.add_argument("--langs", nargs="+", default=list(LANGS), choices=list(LANGS))
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--beams", type=int, default=4)
@@ -122,13 +131,15 @@ def main() -> int:
     import torch
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-    phrases = [json.loads(line) for line in IN_JSONL.read_text(encoding="utf-8").splitlines()]
-    keep_abbrs = {p["abbr"].lower() for p in phrases if p["mode"] == "keep"}
+    phrases = [json.loads(line) for line in args.input.read_text(encoding="utf-8").splitlines()]
+    keep_abbrs = {p["abbr"].lower() for p in phrases if p["mode"] == "keep" and "abbr" in p}
+    explicit_terms = {p["full"]: p["keep_terms"] for p in phrases if "keep_terms" in p}
+    wanted = {(p["full"], lang) for p in phrases for lang in p.get("langs", LANGS)}
     sources = sorted({p["full"] for p in phrases})
 
     done: set[tuple[str, str]] = set()
-    if OUT_JSONL.exists():
-        for line in OUT_JSONL.read_text(encoding="utf-8").splitlines():
+    if args.output.exists():
+        for line in args.output.read_text(encoding="utf-8").splitlines():
             row = json.loads(line)
             done.add((row["full"], row["lang"]))
 
@@ -139,13 +150,13 @@ def main() -> int:
     model = AutoModelForSeq2SeqLM.from_pretrained(args.model).to(device).eval()
 
     if args.repair_keep:
-        repair_keep(model, tokenizer, args.batch_size, args.beams)
+        repair_keep(model, tokenizer, args.output, args.batch_size, args.beams)
         return 0
 
-    OUT_JSONL.parent.mkdir(parents=True, exist_ok=True)
-    with OUT_JSONL.open("a", encoding="utf-8") as out:
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with args.output.open("a", encoding="utf-8") as out:
         for lang in args.langs:
-            todo = [s for s in sources if (s, lang) not in done]
+            todo = [s for s in sources if (s, lang) in wanted and (s, lang) not in done]
             if not todo:
                 print(f"[{lang}] already done", flush=True)
                 continue
@@ -153,7 +164,7 @@ def main() -> int:
             for i in range(0, len(todo), args.batch_size):
                 batch = todo[i:i + args.batch_size]
                 for src, text in zip(batch, translate_batch(model, tokenizer, batch, lang, args.beams)):
-                    terms = find_keep_terms(src, keep_abbrs)
+                    terms = explicit_terms.get(src) or find_keep_terms(src, keep_abbrs)
                     ok = keep_terms_ok(text, terms)
                     lost += not ok
                     out.write(json.dumps({"full": src, "lang": lang, "text": text,

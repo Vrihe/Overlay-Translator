@@ -24,7 +24,7 @@ icon_path = ROOT / 'assets' / 'icon.ico'
 if not icon_path.exists():
     icon_path = ROOT / 'icon.ico'
 
-# ── UPX exclusion list (same as main build.spec, 3.4) ────────────────────────
+# ── UPX exclusion list ──────────────────────────────────────────────────────────
 _UPX_EXCLUDE = [
     'torch_cpu.dll', 'c10.dll', 'torch.dll', 'libiomp5md.dll',
     'fbgemm.dll', 'asmjit.dll', 'uv.dll', 'torchvision.dll',

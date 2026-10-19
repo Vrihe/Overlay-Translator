@@ -17,7 +17,7 @@ Expected output: dist/TranslatorOverlay_deps/
 import sys
 from pathlib import Path
 
-# ── optree workaround (same as main build.spec) ──────────────────────────────
+# ── optree workaround ────────────────────────────────────────────────────────
 import PyInstaller.building.build_main
 _orig_find_binary_deps = PyInstaller.building.build_main.find_binary_dependencies
 

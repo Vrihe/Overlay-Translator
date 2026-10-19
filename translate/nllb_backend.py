@@ -22,18 +22,25 @@ Differences from the API backend, by design:
     once with the final text so the UI behaves consistently.
   • Cache entries are written under ``"<domain_id>|nllb"`` so local output never
     contaminates the API-produced history used for fine-tuning datasets.
+  • English game-chat terms go through ``translate.chat_glossary`` first
+    (``wts`` -> "want to sell", titles masked as ``[1]``), unless
+    ``config.NLLB_GLOSSARY`` is off. The glossary version is part of the cache
+    domain (``"<domain_id>|glossary1|nllb"``), so a new glossary never returns
+    translations cached before it.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import time
 from pathlib import Path
 
 import config
 from cache.store import get_cached, save_to_cache
+from translate.privacy import loggable
 
 _logger = logging.getLogger("translator.nllb")
 
@@ -142,7 +149,6 @@ def _auto_model_dirs() -> list[Path]:
     candidates = [
         Path(config._PROJECT_DIR) / "models" / MODEL_DIRNAME,
         Path(config.USER_DATA_DIR) / "models" / MODEL_DIRNAME,
-        Path(r"D:\projects\overlay-translator\models") / MODEL_DIRNAME,
     ]
 
     seen: set[str] = set()
@@ -457,7 +463,32 @@ class NllbBackend:
     @staticmethod
     def _cache_domain(domain_id: str) -> str:
         """Namespace cache keys so local output stays separable from API output."""
+        if getattr(config, "NLLB_GLOSSARY", True):
+            from translate.chat_glossary import glossary_version
+            return f"{domain_id}|glossary{glossary_version()}|nllb"
         return f"{domain_id}|nllb"
+
+    def _translate_text(self, text: str, src_lang: str, src_code: str, tgt_code: str) -> str:
+        """Translate one text, expanding game-chat terms first for English sources."""
+        if src_lang.strip().lower() != "en" or not getattr(config, "NLLB_GLOSSARY", True):
+            return self._raw_translate(text, src_code, tgt_code)
+
+        from translate import chat_glossary
+
+        prepared = chat_glossary.prepare(text)
+        if not prepared.changed:
+            return self._raw_translate(text, src_code, tgt_code)
+        # Only protected terms and punctuation ("kekw!"): nothing to translate, and NLLB
+        # invents a sentence for a bare "[1]".
+        if not re.search(r"[^\W\d_]", re.sub(r"\[\d+\]", "", prepared.text)):
+            return text
+        _logger.debug("Glossary | expanded=%s | protected=%s | text=%s",
+                      prepared.expanded, list(prepared.restore.values()), loggable(prepared.text, 120))
+        restored = chat_glossary.restore(self._raw_translate(prepared.text, src_code, tgt_code), prepared)
+        if restored is None:
+            _logger.info("Glossary placeholder lost, retranslating unmasked | text=%s", loggable(text))
+            restored = self._raw_translate(prepared.unmasked, src_code, tgt_code)
+        return restored
 
     def _detect_source(self, text: str, target_lang: str) -> str:
         """Offline source-language detection (langid + script heuristic)."""
@@ -509,7 +540,7 @@ class NllbBackend:
         cache_domain = self._cache_domain(domain_id)
         cached = get_cached(text, source_lang, target_lang, domain_id=cache_domain)
         if cached is not None:
-            _logger.info("NLLB CACHE HIT | text=%r", text[:120])
+            _logger.info("NLLB CACHE HIT | text=%s", loggable(text, 120))
             if on_chunk is not None:
                 on_chunk(cached)
             return cached
@@ -525,7 +556,7 @@ class NllbBackend:
 
         t0 = time.perf_counter()
         try:
-            translation = self._raw_translate(text, src_code, tgt_code)
+            translation = self._translate_text(text, resolved_src, src_code, tgt_code)
         except NllbError:
             raise
         except Exception as exc:
@@ -533,8 +564,8 @@ class NllbBackend:
         elapsed = time.perf_counter() - t0
 
         _logger.info(
-            "NLLB OK | %s->%s | %.2fs | src=%r | result=%r",
-            src_code, tgt_code, elapsed, text[:80], translation[:80],
+            "NLLB OK | %s->%s | %.2fs | src=%s | result=%s",
+            src_code, tgt_code, elapsed, loggable(text), loggable(translation),
         )
 
         save_to_cache(text, source_lang, target_lang, translation, domain_id=cache_domain)
@@ -573,7 +604,7 @@ class NllbBackend:
         cache_domain = self._cache_domain(domain_id)
         cached = get_cached(text, "_auto", target_lang, domain_id=cache_domain)
         if cached is not None:
-            _logger.info("NLLB CACHE HIT (auto) | text=%r", text[:120])
+            _logger.info("NLLB CACHE HIT (auto) | text=%s", loggable(text, 120))
             if on_chunk is not None:
                 on_chunk(cached)
             return config.SOURCE_LANG, cached
@@ -586,7 +617,7 @@ class NllbBackend:
 
         t0 = time.perf_counter()
         try:
-            translation = self._raw_translate(text, src_code, tgt_code)
+            translation = self._translate_text(text, detected, src_code, tgt_code)
         except NllbError:
             raise
         except Exception as exc:
@@ -594,8 +625,8 @@ class NllbBackend:
         elapsed = time.perf_counter() - t0
 
         _logger.info(
-            "NLLB OK (auto) | %s->%s | %.2fs | src=%r | result=%r",
-            src_code, tgt_code, elapsed, text[:80], translation[:80],
+            "NLLB OK (auto) | %s->%s | %.2fs | src=%s | result=%s",
+            src_code, tgt_code, elapsed, loggable(text), loggable(translation),
         )
 
         save_to_cache(text, "_auto", target_lang, translation, domain_id=cache_domain)
@@ -628,7 +659,7 @@ def translate(text: str, target_lang: str | None = None, source_lang: str | None
             domain_id=domain_id, on_chunk=on_chunk,
         )
     except Exception:
-        _logger.exception("NLLB translate() failed | text=%r", text[:120])
+        _logger.exception("NLLB translate() failed | text=%s", loggable(text, 120))
         raise
 
 
@@ -639,7 +670,7 @@ def detect_and_translate(text: str, target_lang: str | None = None,
             text, target_lang=target_lang, domain_id=domain_id, on_chunk=on_chunk,
         )
     except Exception:
-        _logger.exception("NLLB detect_and_translate() failed | text=%r", text[:120])
+        _logger.exception("NLLB detect_and_translate() failed | text=%s", loggable(text, 120))
         raise
 
 

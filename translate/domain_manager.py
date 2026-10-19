@@ -94,6 +94,19 @@ _DEFAULT_PROFILE: dict[str, Any] = {
 
 _BUILTIN_IDS = {"general", "game", "documentation", "chat"}
 
+# Profile ids become file names; anything else (e.g. "../x" from a hand-edited
+# settings.json) must never reach the filesystem.
+_SAFE_ID = re.compile(r"^\w+$")
+
+
+def _safe_id(domain_id: str | None, default: str = "general") -> str:
+    """Normalise *domain_id*; fall back to *default* if it is not a plain slug."""
+    clean_id = str(domain_id or default).strip().lower()
+    if not _SAFE_ID.fullmatch(clean_id):
+        logger.warning("Rejected invalid domain profile id %r", clean_id)
+        return default
+    return clean_id
+
 
 def generate_slug(display_name: str) -> str:
     """Generate a clean URL/filename-safe slug from display_name."""
@@ -125,10 +138,12 @@ def load_domain_profile(domain_id: str) -> dict[str, Any]:
     Searches custom profiles first, then built-in profiles.
     Falls back to 'general.json' if missing or corrupted.
     """
-    clean_id = str(domain_id or "general").strip().lower()
+    clean_id = _safe_id(domain_id)
 
-    # 1. Search in custom directories
-    for custom_dir in _get_custom_profiles_dirs():
+    # 1. Search in custom directories. Built-in ids are never looked up there, so a
+    # file dropped into a custom directory cannot silently replace a built-in prompt.
+    custom_dirs = [] if clean_id in _BUILTIN_IDS else _get_custom_profiles_dirs()
+    for custom_dir in custom_dirs:
         fp = custom_dir / f"{clean_id}.json"
         if fp.exists():
             try:
@@ -236,7 +251,9 @@ def save_custom_profile(
     if not system_prompt.strip():
         raise ValueError("Системный промпт не может быть пустым.")
 
-    profile_id = existing_id if existing_id else generate_slug(display_name)
+    profile_id = _safe_id(existing_id, default="") if existing_id else generate_slug(display_name)
+    if not profile_id or profile_id in _BUILTIN_IDS:
+        profile_id = generate_slug(display_name)
     target_dir = _get_writable_custom_dir()
     filepath = target_dir / f"{profile_id}.json"
 
@@ -265,7 +282,7 @@ def save_custom_profile(
 
 def delete_custom_profile(domain_id: str) -> bool:
     """Delete custom domain profile JSON by domain_id."""
-    clean_id = str(domain_id or "").strip().lower()
+    clean_id = _safe_id(domain_id, default="")
     if clean_id in _BUILTIN_IDS or not clean_id:
         raise ValueError("Нельзя удалить предустановленный профиль.")
 

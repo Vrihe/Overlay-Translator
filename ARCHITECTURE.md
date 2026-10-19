@@ -41,9 +41,8 @@ Overlay-Translator/
 ├── main.py                 # Entry point: logging, splash, TranslatorApp, hotkeys
 ├── config.py               # Global config facade (replaces itself in sys.modules!)
 ├── build.py / build.bat    # PyInstaller build scripts
-├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (elevated)
+├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (--admin elevates)
 ├── build*.spec             # Spec files (layered build: app + deps)
-├── hooks/hook-optree.py    # PyInstaller hook
 ├── pyi_rth_torch_dll.py    # Runtime hook: torch DLL paths in the frozen build
 ├── _deps_stub.py           # Stub for the layered dependency build
 │
@@ -62,10 +61,13 @@ Overlay-Translator/
 │   ├── backend.py          #   * Dispatcher: picks the API or the local model
 │   ├── llm_client.py       #   * Translation backend via the cloud API
 │   ├── nllb_backend.py     #   * Offline backend: NLLB-200 (CTranslate2 int8)
+│   ├── chat_glossary.py    #   Expands English game-chat terms before NLLB (wts, gg wp, lf2m)
+│   ├── glossary/game_en.json  # Term list, exported by training/game_abbreviations.py
 │   ├── cuda_support.py     #   Locates cuBLAS for optional GPU inference
 │   ├── domain_manager.py   #   Domain profiles (prompts + few-shot)
 │   ├── lang_detect.py      #   Language detection, "same language" fast path
 │   ├── error_classification.py  # Whether a provider error is retryable
+│   ├── privacy.py          #   loggable(text): keeps captured screen text out of the logs
 │   └── domain_profiles/    #   general.json, chat.json, game.json, documentation.json
 │
 ├── cache/                  # SQLite cache and history (L1 LRU + L2 SQLite)
@@ -85,7 +87,7 @@ Overlay-Translator/
 │   └── region_presets_dialog.py # Manage presets and their hotkeys
 │
 ├── history/
-│   └── history_window.py   #   HistoryWidget/HistoryWindow — view and export history
+│   └── history_window.py   #   HistoryWidget — view and export history
 │
 ├── tray/                   # System tray icon + context menu
 ├── tts/engine.py           # Text-to-speech for translations (SAPI, separate thread)
@@ -126,7 +128,9 @@ Overlay-Translator/
 ## 3. Modules and responsibilities
 
 ### `main.py` — orchestrator
-- `_init_logging() -> str` — DEBUG log to `%APPDATA%/translator-overlay/app.log`, before any other import.
+- `_init_logging() -> str` — DEBUG log to `%APPDATA%/translator-overlay/app.log` (rotating, 2 MB × 3), before any
+  other import. The HTTP SDK loggers (`openai`, `anthropic`, `httpx`, …) are capped at WARNING: at DEBUG they
+  dump whole request bodies, i.e. the captured screen text.
 - `_global_excepthook` / `_thread_excepthook` — log unhandled exceptions.
 - `faulthandler` → `crash.log` and `_qt_message_handler` (Qt messages, including `qFatal`, → `app.log`) —
   catch native crashes that bypass the Python hooks.
@@ -175,7 +179,6 @@ get_active_backend() -> str          # "api" | "nllb", read from config on every
 take_notice() -> str                 # one-shot message for the UI (thread-local)
 preload(backend=None) -> (bool, str) # warms up the model for the settings indicator
 reset() -> None                      # resets both backends
-BACKENDS: list[tuple[str, str]]      # (id, label) for the settings UI
 ```
 
 **Local backend error policy** (agreed with the user):
@@ -200,6 +203,7 @@ detect_and_translate(text: str, target_lang: str|None = None,
                      # -> (detected_lang, translation)
 
 reset_client() -> None          # resets clients and the system-prompt cache
+validate_api_key(provider, key) # raises RuntimeError if the provider rejects the key; no tokens spent
 get_provider_chain() -> list[str]
 ```
 
@@ -240,6 +244,16 @@ How it differs from the API path:
   `domain_id` only affects the cache key.
 - **Cache entries get a `"|nllb"` suffix** on `domain_id`, so the local model's
   output never ends up in the fine-tuning dataset alongside API translations.
+  With the glossary on, the suffix is `"|glossary<version>|nllb"`, so a new glossary
+  never serves translations cached before it.
+- **Game-chat glossary** (`translate/chat_glossary.py`, English sources only,
+  `NLLB_GLOSSARY=0` turns it off): before inference each known term is replaced with
+  its English meaning (`wts` → "I want to sell", `lf2m` → "we need 2 more players",
+  `500g` → "500 gold"); terms without a translatable meaning (game titles, emotes,
+  ambiguous spellings) are masked as `[1]`, copied by NLLB and restored verbatim. If the
+  model drops a placeholder, the line is retranslated unmasked. NLLB alone drops or
+  invents slang (`gg ez` → «Доброе утро»); the term list (~1300 entries) comes from the
+  curated v2 fine-tune lexicon, see `docs/finetune_v2_process.md`.
 - **No streaming** (CTranslate2 beam search does not provide it): `on_chunk`
   is called once with the final text, so the UI behaves the same way.
 - With `source_language=auto` the source language is detected offline via `langid`.
@@ -252,8 +266,8 @@ How it differs from the API path:
   plus a one-shot notice via `take_notice()` → `translate.backend.take_notice()` → result popup.
 
 Model search order: explicit path from settings → `NLLB_MODEL_DIR` →
-`<project>/models/nllb-200-ct2-int8` → `%APPDATA%/translator-overlay/models/…` →
-`D:\projects\overlay-translator\models\…`. An explicitly set path is authoritative:
+`<project>/models/nllb-200-ct2-int8` → `%APPDATA%/translator-overlay/models/…`.
+An explicitly set path is authoritative:
 if it is wrong, the backend reports that instead of picking up another copy.
 
 ### `translate/cuda_support.py` — cuBLAS discovery for the GPU path
@@ -278,6 +292,9 @@ with no user notice; every other CUDA failure logs a WARNING and leaves a notice
 Built-in profiles live in `translate/domain_profiles/*.json`, custom ones in
 `%APPDATA%\translator-overlay\`.
 Format: `{display_name, system_prompt, few_shot_examples: [{source, translation}]}`.
+Profile ids become file names, so `_safe_id()` accepts only `\w+` (anything else → `general`).
+Built-in ids (`general`, `game`, `documentation`, `chat`) are never looked up in the custom
+directories, so a dropped-in `custom/game.json` cannot replace a built-in prompt.
 
 ### `translate/lang_detect.py`
 `detect_script(text) -> str`,
@@ -314,7 +331,7 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   dropped on save**), `load_config()`, `save_config(cfg)`,
   `get(key)`, `set_value(key, value)`. File: `%APPDATA%\translator-overlay\settings.json`.
 - `settings/__init__.py`: `get_api_key(provider)`, `set_api_key`, `delete_api_key`,
-  `has_any_key()`, `get_primary_provider()`, `save_primary_provider()`,
+  `get_primary_provider()`, `save_primary_provider()`,
   `is_fallback_enabled()`, `set_fallback_enabled()`.
 - `region_presets.py`: `load_presets()`, `save_preset(...)`, `delete_preset(id)`,
   `rename_preset(id, name)`, `update_preset_hotkey(id, hotkey)`, `validate_hotkey(...)`.
@@ -416,7 +433,7 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    `NLLB_DEVICE` (`auto` by default | `cuda` | `cpu`) picks the inference device; it is
    env-only and has no UI control.
    **Model build version**: `config.NLLB_HF_REPO_ID` + `config.NLLB_HF_REVISION`
-   (default `Alhite/overlay-translator-nllb-int8` @ `v0-base`, env-overridable) — the only
+   (default `Alhite/overlay-translator-nllb-int8` @ the commit SHA of tag `v0-base`, env-overridable) — the only
    place that pins which weights `scripts/download_model.py` fetches.
 3. **`.env`** (see `.env.example`) — API keys and static overrides
    (`EASYOCR_*`, `OVERLAY_*`, `CACHE_DIR`, `LOG_DIR`, `SETTINGS_HOTKEY`, `GITHUB_REPO`).
@@ -495,8 +512,6 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
   `app.log` (`qInstallMessageHandler` in `main.py`); `faulthandler` writes all
   thread stacks to `%APPDATA%\translator-overlay\crash.log`; worker/inference
   DEBUG logs in `ui/main_window.py` and `nllb_backend._raw_translate`.
-- `nllb_backend._auto_model_dirs()` still contains a developer-machine path
-  (`D:\projects\overlay-translator\models`), harmless elsewhere but should go.
 - Two tests in `tests/test_domain_profiles.py` were already failing before the NLLB work
   (they check old texts of the `game` profile), and three more test files do not import
   without `pytest`/`easyocr` in the environment.
@@ -548,9 +563,11 @@ section 3, `nllb_backend.py`). There are two ways to get it:
 
 **Versioning.** Builds are identified by **tags** in the HF repo, never by `main`:
 - `v0-base` → commit `0e37166` — the plain int8 conversion of `facebook/nllb-200-distilled-600M`.
-- A new build (e.g. after fine-tuning) = upload it, create a new tag (`v1-…`), then change
-  `NLLB_HF_REVISION` in `config.py` in the same commit that needs it. Never move or reuse a tag:
-  a tag must always point to the same weights so a checkout of any project commit stays reproducible.
+- A new build (e.g. after fine-tuning) = upload it, create a new tag (`v1-…`), then set
+  `NLLB_HF_REVISION` in `config.py` to **that tag's full commit SHA** in the same commit that needs it
+  (`https://huggingface.co/api/models/<repo>/revision/<tag>` → `sha`). The default is a SHA, not a tag
+  name, because a tag can be moved: whoever controls the HF account could otherwise ship other files.
+  Still never move or reuse a tag.
 - `NLLB_HF_REVISION` can also be overridden via env or `--revision` to try another build.
 
 The HF repo is self-contained (`model.bin`, `config.json`, `shared_vocabulary.json`,

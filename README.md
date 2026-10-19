@@ -36,12 +36,12 @@ translator-overlay/
 ├── .env                 # API keys and personal settings (git-ignored)
 ├── .env.example         # Template for .env
 ├── requirements.txt     # Python dependencies
-├── build.spec           # PyInstaller build specification (onedir mode)
+├── build_*.spec         # PyInstaller specs (layered build: heavy deps + app code)
 ├── build.py             # Cross-platform build launcher script
 ├── build.bat            # One-click Windows build script
 ├── install.bat          # Creates .venv and installs dependencies
 ├── download_model.bat   # Downloads the local NLLB model
-├── run.bat              # Starts the app from .venv (as Administrator)
+├── run.bat              # Starts the app from .venv (normal user rights; --admin to elevate)
 │
 ├── overlay/
 │   └── selector.py      # Fullscreen region-selection overlay (PyQt5)
@@ -86,7 +86,7 @@ cd overlay-translator
 |---|---|
 | `install.bat` | Creates `.venv` and installs `requirements.txt` into it (`install.bat --gpu` also installs `requirements-gpu.txt`) |
 | `download_model.bat` | Downloads the local NLLB model into `models/nllb-200-ct2-int8` (optional, for offline translation; arguments go to `scripts/download_model.py`) |
-| `run.bat` | Starts the app from `.venv` as Administrator, with no console window (`--console` keeps the console open for logs, `--no-admin` skips the UAC prompt) |
+| `run.bat` | Starts the app from `.venv` with no console window (`--console` keeps the console open for logs, `--admin` re-launches it as Administrator, see the note under Usage) |
 
 The manual steps are below.
 
@@ -154,7 +154,10 @@ python main.py
 ```
 *(or `pythonw main.py` to launch without any console window)*
 
-> **Note:** On Windows, the `keyboard` library requires Administrator privileges for global low-level hooks. Run your terminal **as Administrator**.
+> **Note:** Global hotkeys work without Administrator rights. Windows does not deliver them while a window
+> running as Administrator (some games) has focus; only in that case start the app elevated (`run.bat --admin`).
+> Avoid it otherwise: an elevated app runs the project's code as Administrator, so anything that can edit
+> the project folder would get those rights too.
 
 ### Hotkeys
 
@@ -205,6 +208,15 @@ This guarantees that:
 - User configuration and history are preserved when updating or replacing the application folder.
 - The application runs cleanly even when extracted into write-restricted folders.
 
+### 🔒 Privacy
+- With the API backend, the text recognised in the selected region is sent to the chosen provider
+  (OpenRouter or Anthropic). Free OpenRouter models may log prompts. Do not translate passwords or
+  personal data that way, or use the local NLLB backend, which never touches the network.
+- The text you translate is not written to the logs: they record only its length. Set
+  `OVERLAY_LOG_TEXT=1` for a debugging session to log the first 80 characters. Logs rotate at 2 MB.
+- The history/cache database (`cache	ranslations.db`) does keep source texts and translations
+  (up to `CACHE_MAX_ITEMS`); clear it in the History page.
+
 ### 🔄 Automatic Update Checking
 The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
 
@@ -227,13 +239,13 @@ All settings can be overridden in `.env`:
 | `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
 | `OCR_USE_HSV_FILTER` | `false` | Enable HSV preprocessing for coloured backgrounds |
 | `POPUP_TIMEOUT_SEC` | `10` | Popup auto-close timeout (seconds) |
-| `OVERLAY_OPACITY` | `0.85` | Overlay background opacity |
 | `OPENROUTER_API_KEY` | — | OpenRouter API key (free) |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (paid) |
 | `NLLB_MODEL_DIR` | — | Path to the CTranslate2 NLLB model directory (overridden by the path set in Settings) |
 | `NLLB_DEVICE` | `auto` | Local NLLB device: `auto` (GPU if usable, else CPU), `cuda`, or `cpu` |
 | `NLLB_HF_REPO_ID` | `Alhite/overlay-translator-nllb-int8` | Hugging Face repo that `scripts/download_model.py` downloads the model from |
-| `NLLB_HF_REVISION` | `v0-base` | Model build (tag, branch or commit) to download |
+| `NLLB_HF_REVISION` | commit of tag `v0-base` | Model build (commit SHA, tag or branch) to download |
+| `OVERLAY_LOG_TEXT` | `0` | `1` writes the first 80 characters of translated text to the logs (debugging only) |
 
 ---
 
@@ -259,8 +271,9 @@ python scripts/download_model.py
 ```
 
 This puts it into `models/nllb-200-ct2-int8`, where the app finds it automatically.
-The build is pinned to the `v0-base` tag (plain int8 conversion, no fine-tuning) by
-`NLLB_HF_REPO_ID` / `NLLB_HF_REVISION` in `config.py`, so everyone gets identical weights.
+The build is pinned to the commit behind the `v0-base` tag (plain int8 conversion, no fine-tuning) by
+`NLLB_HF_REPO_ID` / `NLLB_HF_REVISION` in `config.py`, so everyone gets identical weights. It is a
+commit SHA rather than the tag name because a tag can later be moved to other files.
 Re-running the script only fetches files that changed. Options: `--revision <tag>` to try
 another build, `--dest <dir>` to download elsewhere (then set that path in Settings).
 

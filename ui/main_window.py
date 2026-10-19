@@ -10,10 +10,10 @@ Tabs:
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTextEdit, QFileDialog, QStackedWidget,
-    QApplication, QFrame, QSizePolicy, QGraphicsDropShadowEffect,
+    QApplication, QFrame, QGraphicsDropShadowEffect,
     QComboBox,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QIcon
 
 import logging
@@ -293,6 +293,7 @@ class _HomePage(QWidget):
 
         # ── Result area ──────────────────────────────────
         self._result_label = QLabel("")
+        self._result_label.setTextFormat(Qt.PlainText)  # shows error text
         self._result_label.setStyleSheet(self._CSS_MUTED)
         self._result_label.setVisible(False)
         layout.addWidget(self._result_label)
@@ -329,6 +330,7 @@ class _HomePage(QWidget):
         layout.addLayout(img_btn_row)
 
         self._img_result_label = QLabel("")
+        self._img_result_label.setTextFormat(Qt.PlainText)
         self._img_result_label.setStyleSheet(self._CSS_MUTED)
         self._img_result_label.setVisible(False)
         layout.addWidget(self._img_result_label)
@@ -645,6 +647,7 @@ class MainWindow(QMainWindow):
         ub_layout.setContentsMargins(20, 8, 20, 8)
 
         self._update_label = QLabel("")
+        self._update_label.setTextFormat(Qt.PlainText)  # version comes from GitHub
         self._update_label.setStyleSheet("color: #ffffff; font-family: 'Segoe UI'; font-size: 9.5pt;")
         ub_layout.addWidget(self._update_label)
         ub_layout.addStretch()
