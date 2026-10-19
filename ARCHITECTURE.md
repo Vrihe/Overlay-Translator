@@ -12,7 +12,7 @@ you select any region of the screen; the app recognises the text in it (OCR)
 and shows the translation in an always-on-top popup.
 
 **Main flow**: `Ctrl+Shift+R` → selection frame → screenshot of the region →
-EasyOCR → translation (cloud API **or** the local NLLB model) → popup with the translation.
+RapidOCR → translation (cloud API **or** the local NLLB model) → popup with the translation.
 
 **Stack**:
 
@@ -20,7 +20,7 @@ EasyOCR → translation (cloud API **or** the local NLLB model) → popup with t
 |---|---|
 | GUI | PyQt5 5.15 (QMainWindow + sidebar, QSystemTrayIcon, frameless popups) |
 | Screen capture | `mss` |
-| OCR | EasyOCR (CRAFT + CRNN) on top of torch/torchvision, CPU or CUDA |
+| OCR | RapidOCR 3.x: PP-OCRv6 det + PP-OCRv5 `eslav` rec on ONNX Runtime, GPU via DirectML (`onnxruntime-directml`) or CPU; no torch |
 | Translation (API) | OpenRouter (OpenAI-compatible SDK) and/or Anthropic SDK |
 | Translation (offline) | NLLB-200-distilled-600M, CTranslate2 int8 + sentencepiece, CPU or optional CUDA |
 | Language detection | `langid` + a script heuristic, or an LLM |
@@ -45,7 +45,6 @@ Overlay-Translator/
 ├── build.py / build.bat    # PyInstaller build scripts
 ├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (--admin elevates)
 ├── build*.spec             # Spec files (layered build: app + deps)
-├── pyi_rth_torch_dll.py    # Runtime hook: torch DLL paths in the frozen build
 ├── _deps_stub.py           # Stub for the layered dependency build
 │
 ├── capture/                # Screen capture
@@ -53,7 +52,7 @@ Overlay-Translator/
 │   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region
 │
 ├── ocr/                    # Text recognition
-│   ├── engine.py           #   EasyOCR singleton, preprocessing, line sorting
+│   ├── engine.py           #   RapidOCR singleton, preprocessing, line sorting
 │   └── hsv_filter.py       #   Optional HSV filter for coloured text
 │
 ├── overlay/
@@ -142,17 +141,19 @@ Overlay-Translator/
 - `_global_excepthook` / `_thread_excepthook` — log unhandled exceptions.
 - `faulthandler` → `crash.log` and `_qt_message_handler` (Qt messages, including `qFatal`, → `app.log`) —
   catch native crashes that bypass the Python hooks.
-- Single-instance guard (`single_instance.SingleInstance`, only when run as `__main__`, before torch/Qt load):
+- Single-instance guard (`single_instance.SingleInstance`, only when run as `__main__`, before Qt loads):
   a named mutex `Local\TranslatorOverlay.SingleInstance.Mutex`. A second launch signals the named event
   `...Activate` and exits with code 0; the running instance's listener thread emits a `HotkeyBridge`
   → `MainWindow.show_window()`. The OS frees both objects when the process dies, so a crash leaves no stale lock.
-- `_preload_torch_dlls()` — preloads torch DLLs (needed for the frozen build).
+- `import onnxruntime` at module level, **before PyQt5**: PyQt5 ships msvcp140.dll 14.26 next to
+  Qt5Core.dll, and onnxruntime (needs ≥ 14.40) fails with "DLL initialization routine failed"
+  if Qt's copy is loaded first. `ocr/engine._onnxruntime()` never retries a failed import.
 - `class HotkeyBridge(QObject)` — `triggered = pyqtSignal()`; bridge from the `keyboard` thread to the Qt thread.
 - `class TranslationWorker(QThread)` — the whole pipeline in the background.
   Signals: `translation_done(str src, str translated, str error)`,
   `partial_result(str)` (streaming), `ocr_done(str, QRect)`.
   Constructor: `(x1, y1, x2, y2, text_override: str|None = None, ocr_only: bool = False)`.
-- `class OcrWarmupWorker(QThread)` — warms up EasyOCR 3 s after start.
+- `class OcrWarmupWorker(QThread)` — builds the RapidOCR engine 3 s after start.
 - `class TranslatorApp` — owns `QApplication`, `MainWindow`, `TrayIcon`, hotkeys,
   the selector, popups, live monitoring and preset hotkeys.
   Key methods: `_show_selector`, `_on_region_selected`,
@@ -350,9 +351,18 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   File: `%APPDATA%\translator-overlay\region_presets.json`.
 
 ### `ocr/engine.py`
-`get_reader()` — lazy EasyOCR singleton, `preprocess(img, scale=1) -> np.ndarray`,
+`get_reader()` — lazy RapidOCR singleton, `preprocess(img, scale=1) -> np.ndarray`,
 `extract_text(image) -> str`, `recognise(img, lang=None) -> str` (public entry point),
 `_extract_strips` — splits tall regions into strips for accuracy.
+- Models: PP-OCRv6 small detector + PP-OCRv5 mobile recognizer (`eslav` = ru/uk/be + Latin
+  when `OCR_LANGUAGES` has a Cyrillic code, else `en`); the angle classifier is off.
+  `_model_dir()` = `%APPDATA%\translator-overlay\ocr_models`, seeded from `rapidocr/models/`
+  (`_MODEL_FILES`); a rec model missing there is downloaded once by rapidocr.
+- Device: `OCR_GPU_MODE` `auto` (legacy `gpu` behaves the same) → DirectML when
+  `DmlExecutionProvider` is available, `cpu` → CPU; `EASYOCR_GPU` env still overrides.
+  A failing DirectML run rebuilds the engine on the CPU and re-runs the frame (`_safe_readtext`).
+- `_infer_lock` serialises inference; `_reader_lock` guards the lazy init.
+  Confidence threshold: `EASYOCR_CONFIDENCE_THRESHOLD` (the env names kept their old prefix).
 
 ### `ui/`
 - `MainWindow` (sidebar: `PAGE_HOME` / `PAGE_HISTORY` / `PAGE_SETTINGS`),
@@ -434,7 +444,7 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
 | LLM clients, system-prompt cache | module globals in `translate/llm_client.py` (reset — `reset_client()`) |
 | Loaded NLLB model | singleton `translate/nllb_backend._backend` (reset — `reset_client()`; both at once — `translate.backend.reset()`) |
 | One-shot fallback notice | `threading.local()` in `translate/backend.py` |
-| EasyOCR singleton | module global in `ocr/engine.py` |
+| RapidOCR singleton | module global in `ocr/engine.py` |
 
 ---
 
@@ -486,10 +496,10 @@ model, so a new provider/model/path is picked up on the next request.
 | **OpenRouter API** (`openai` SDK, `base_url=https://openrouter.ai/api/v1`) | `translate/llm_client.py::_get_client_for`, `_call_provider` |
 | **Anthropic API** (`anthropic` SDK) | `translate/llm_client.py::_get_client_for`, `_call_provider` |
 | **GitHub Releases API** | `updater/check_update.py::check_for_update` (repository from `config.GITHUB_REPO`) |
-| **EasyOCR / torch** (local; weights are downloaded on first launch) | `ocr/engine.py::get_reader` |
+| **RapidOCR / ONNX Runtime (DirectML)** (local; a rec model missing from `rapidocr/models/` is downloaded from ModelScope on first launch) | `ocr/engine.py::get_reader` / `_build_engine` |
 | **CTranslate2 + sentencepiece** (local, offline) | `translate/nllb_backend.py::NllbBackend.ensure_loaded` / `_raw_translate` |
 | **cuBLAS 12** (optional; `nvidia-cublas-cu12` wheel or CUDA Toolkit 12.x) | `translate/cuda_support.py::prepare_cuda_libraries`, loaded lazily by CTranslate2 on the first GPU matmul |
-| **Hugging Face Hub** (`huggingface_hub`, public repo, no login) | `scripts/download_model.py` only — the app itself never downloads anything |
+| **Hugging Face Hub** (`huggingface_hub`, public repo, no login) | `scripts/download_model.py` only — the app never downloads the NLLB model |
 | **langid** (local) | `translate/lang_detect.py::LangidDetector`, `nllb_backend._detect_source` |
 | **keyring** (Windows Credential Manager) | `settings/__init__.py::_get_keyring` |
 | **mss** (screen capture) | `capture/screenshot.py` |
@@ -545,7 +555,8 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
   DEBUG logs in `ui/main_window.py` and `nllb_backend._raw_translate`.
 - Two tests in `tests/test_domain_profiles.py` were already failing before the NLLB work
   (they check old texts of the `game` profile), and three more test files do not import
-  without `pytest`/`easyocr` in the environment.
+  without `pytest` in the environment. The three `preprocess` tests in `tests/test_ocr.py`
+  fail too: they predate the padding and auto-upscale in `preprocess()`.
 - The hard-coded `HTTP-Referer` in the OpenRouter headers points to a placeholder repository.
 
 ---
@@ -556,7 +567,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 
 | File | Coverage |
 |---|---|
-| `tests/test_ocr.py` | preprocessing, box sorting, `_resolve_gpu`, confidence filter (mocked Reader) |
+| `tests/test_ocr.py` | preprocessing, box sorting, GPU mode → DirectML, rec language, model dir seeding, confidence filter, strip offsets, GPU → CPU fallback (mocked engine) |
 | `tests/test_lang_detect.py` | script/language detection, "same language" fast path |
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |

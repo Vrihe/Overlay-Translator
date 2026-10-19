@@ -5,7 +5,7 @@ build_app.spec — PyInstaller spec for the app-code layer (fast incremental bui
 Part of the layered build system (optimization 2.1).
 Run via build.py — do NOT invoke directly with pyinstaller.
 
-All heavy dependencies (torch, easyocr, scipy, numpy, cv2, PIL …) are listed
+All heavy dependencies (onnxruntime, rapidocr, numpy, cv2, PIL …) are listed
 in `excludes` so PyInstaller skips re-collecting them.  At runtime they are
 found via the regular filesystem import path inside _internal/, where the deps
 layer (built by build_deps.spec) placed them as individual .pyc files.
@@ -26,8 +26,7 @@ if not icon_path.exists():
 
 # ── UPX exclusion list ──────────────────────────────────────────────────────────
 _UPX_EXCLUDE = [
-    'torch_cpu.dll', 'c10.dll', 'torch.dll', 'libiomp5md.dll',
-    'fbgemm.dll', 'asmjit.dll', 'uv.dll', 'torchvision.dll',
+    'onnxruntime.dll', 'onnxruntime_providers_shared.dll', 'DirectML.dll',
     'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'vcomp140.dll',
 ]
 
@@ -61,17 +60,12 @@ a = Analysis(
     ],
     excludes=[
         # ── Heavy deps — provided by the deps cache layer ─────────────────────
-        'torch', 'torch._C', 'torchvision',
-        'easyocr',
-        'scipy', 'scipy.ndimage', 'scipy.spatial', 'scipy.special',
-        'scipy.signal', 'scipy.optimize', 'scipy.io', 'scipy.stats',
+        'onnxruntime', 'rapidocr', 'pyclipper', 'omegaconf',
         'numpy',
         'cv2',
         'PIL', 'PIL.Image',
-        'skimage', 'skimage.feature', 'skimage.transform',
         'shapely', 'yaml', 'langid',
         'mss', 'mss.windows',
-        'optree',
         'unittest', 'unittest.mock',
         # ── Unused Qt modules ─────────────────────────────────────────────────
         'PyQt5.QtSql', 'PyQt5.QtNetwork', 'PyQt5.QtXml', 'PyQt5.QtBluetooth',
@@ -79,12 +73,13 @@ a = Analysis(
         'PyQt5.QtWebEngineWidgets', 'PyQt5.QtWebEngine', 'PyQt5.QtWebChannel',
         'PyQt5.QtTest', 'PyQt5.QtPrintSupport', 'PyQt5.QtHelp', 'PyQt5.QtDesigner',
         # ── Definitely unused ─────────────────────────────────────────────────
+        'torch', 'torchvision', 'easyocr', 'scipy', 'skimage',
         'tensorflow', 'keras', 'openvino', 'jax', 'sklearn', 'h5py', 'grpc',
         'matplotlib', 'pandas', 'IPython', 'jupyter', 'notebook',
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[str(ROOT / 'pyi_rth_torch_dll.py')],
+    runtime_hooks=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

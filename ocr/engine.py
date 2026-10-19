@@ -1,31 +1,38 @@
 """
-ocr/engine.py — EasyOCR engine with lazy model loading & Cyrillic optimization.
+ocr/engine.py — RapidOCR (PP-OCR on ONNX Runtime) engine with lazy model loading.
 
 Key features:
-  1. Lazy Singleton Reader: Model weights (CRAFT + CRNN) are loaded once into memory
-     and reused across all OCR requests.
-  2. Thread-safe initialization: double-checked locking prevents concurrent init from
-     OcrWarmupWorker and TranslationWorker causing a PyTorch segfault.
-  3. Multilingual Support: Default language set is ['ru', 'en'], allowing combined
-     recognition of Cyrillic text, English UI elements, usernames, and game slang.
-  4. Neural Preprocessing: Optional HSV filter, converts PIL Image to NumPy RGB array.
-  5. Line-Ordering & Confidence Thresholding: Filters low-confidence noise and sorts
+  1. Lazy Singleton Engine: the det + rec ONNX sessions are created once and reused
+     across all OCR requests.
+  2. Thread-safe initialization: double-checked locking prevents OcrWarmupWorker and
+     TranslationWorker from building two engines at once; a second lock serialises
+     inference (one session is not run from several threads at the same time).
+  3. Cyrillic + Latin: the PP-OCRv5 "eslav" recognition model reads Russian,
+     Ukrainian and Belarusian together with English UI elements and game slang.
+  4. GPU via DirectML (onnxruntime-directml): any DirectX 12 GPU, no CUDA needed.
+     A GPU failure mid-inference rebuilds the engine on the CPU and retries.
+  5. Preprocessing: optional HSV filter, converts PIL Image to NumPy RGB array.
+  6. Line-Ordering & Confidence Thresholding: filters low-confidence noise and sorts
      detected text blocks top-to-bottom, left-to-right.
-  6. Strip-based OCR (1.6): Large images are split into horizontal strips.
+  7. Strip-based OCR (1.6): Large images are split into horizontal strips.
      - Strip preprocessing runs in parallel via ThreadPoolExecutor (numpy/PIL ops
        release the GIL, so threads genuinely overlap).
      - Blank strips (low pixel variance) are detected and skipped before OCR.
-     - OCR inference itself is sequential: easyocr.Reader.readtext() shares internal
-       PyTorch state that is not reentrant from multiple threads simultaneously.
+     - OCR inference itself is sequential (see the inference lock above).
      - Bounding-box Y coordinates are adjusted per strip before results are merged.
-     Expected gain: -30–40 % wall time for large sparse images (game UIs, subtitles).
+
+Models live in <user data dir>/ocr_models.  Files shipped inside the rapidocr
+package (and the rec model bundled by the build) are copied there on first use;
+anything still missing is downloaded once by rapidocr.
 """
 
 import concurrent.futures
-import os
-import sys
 import logging
+import os
+import shutil
 import threading
+from pathlib import Path
+
 from PIL import Image
 import numpy as np
 
@@ -34,6 +41,10 @@ import config
 # ── Singleton state ───────────────────────────────────────────────────────────
 _reader = None
 _reader_lock = threading.Lock()  # guards singleton initialization across QThreads
+_infer_lock = threading.Lock()   # serialises inference on the shared engine
+
+# Track whether the current engine runs on the GPU (for the CPU fallback).
+_reader_on_gpu: bool = False
 
 # ── Strip-mode tuning ─────────────────────────────────────────────────────────
 # Images taller than this (px) are split into strips.
@@ -45,38 +56,46 @@ _BLANK_STD_THRESHOLD: float = 8.0
 # Maximum worker threads for parallel strip preprocessing.
 _STRIP_MAX_WORKERS: int = 4
 
-
-# ── GPU helper ────────────────────────────────────────────────────────────────
-
-# ── GPU / VRAM helpers ────────────────────────────────────────────────────────
-
-# Minimum free VRAM (MB) required before we attempt GPU inference.
-# EasyOCR models (CRAFT + CRNN) need ~350-450 MB.
-_MIN_FREE_VRAM_MB: int = 450
-
-# Track whether the current reader is on GPU (for OOM fallback).
-_reader_on_gpu: bool = False
+# ── Models ────────────────────────────────────────────────────────────────────
+# OCR language codes that the East-Slavic recognition model covers.
+_CYRILLIC_LANGS = {"ru", "uk", "be"}
+# Model files the engine can use (keep in sync with _OCR_MODELS in build_deps.spec).
+_MODEL_FILES = (
+    "PP-OCRv6_det_small.onnx",
+    "eslav_PP-OCRv5_rec_mobile.onnx",
+    "en_PP-OCRv5_rec_mobile.onnx",
+)
 
 
-def _cuda_available() -> bool:
-    """Return True if CUDA is genuinely usable (not just compiled in)."""
+# ── GPU helpers ───────────────────────────────────────────────────────────────
+
+_ort_import_error: Exception | None = None
+
+
+def _onnxruntime():
+    """Import onnxruntime once; a failed DLL init is never retried.
+
+    Re-importing after "DLL initialization routine failed" (e.g. onnxruntime loaded
+    after PyQt5's old msvcp140.dll, see main.py) can crash the process later.
+    """
+    global _ort_import_error
+    if _ort_import_error is not None:
+        raise ImportError("onnxruntime is unavailable") from _ort_import_error
     try:
-        import torch
-        return torch.cuda.is_available() and torch.cuda.device_count() > 0
+        import onnxruntime
+    except Exception as exc:
+        _ort_import_error = exc
+        logging.exception("onnxruntime failed to load")
+        raise
+    return onnxruntime
+
+
+def _dml_available() -> bool:
+    """Return True if onnxruntime ships the DirectML execution provider."""
+    try:
+        return "DmlExecutionProvider" in _onnxruntime().get_available_providers()
     except Exception:
         return False
-
-
-def _free_vram_mb() -> float:
-    """Return free VRAM in megabytes, or 0 if CUDA is unavailable."""
-    try:
-        import torch
-        if not torch.cuda.is_available():
-            return 0.0
-        free, _total = torch.cuda.mem_get_info(0)
-        return free / (1024 * 1024)
-    except Exception:
-        return 0.0
 
 
 def _resolve_gpu(gpu_setting) -> bool:
@@ -88,136 +107,132 @@ def _resolve_gpu(gpu_setting) -> bool:
         return True
     if val in ("false", "0"):
         return False
-    return _cuda_available()
+    return _dml_available()
 
 
 def _should_use_gpu() -> bool:
-    """Decide whether to initialise EasyOCR on the GPU.
+    """Decide whether to run OCR on the GPU through DirectML.
 
     Reads ``config.OCR_GPU_MODE`` (from settings.json):
-      • ``"gpu"``  — always try GPU (fall back if CUDA absent).
-      • ``"cpu"``  — never use GPU.
-      • ``"auto"`` — use GPU only if CUDA is available AND free VRAM ≥ threshold.
+      • ``"gpu"`` / ``"auto"`` — use DirectML when it is available, else the CPU.
+      • ``"cpu"``              — never use the GPU.
 
     Also respects the legacy ``EASYOCR_GPU`` env-var / .env override.
     """
-    # Legacy .env override (EASYOCR_GPU=true/false/auto).
-    legacy = getattr(config, "EASYOCR_GPU", "auto")
-    if str(legacy).strip().lower() in ("true", "1"):
-        return _cuda_available()
-    if str(legacy).strip().lower() in ("false", "0"):
+    legacy = str(getattr(config, "EASYOCR_GPU", "auto")).strip().lower()
+    if legacy in ("true", "1"):
+        return _dml_available()
+    if legacy in ("false", "0"):
         return False
 
     mode = str(getattr(config, "OCR_GPU_MODE", "auto")).strip().lower()
-
     if mode == "cpu":
         return False
-    if mode == "gpu":
-        return _cuda_available()
+    return _dml_available()
 
-    # auto — check VRAM
-    if not _cuda_available():
-        return False
-    free = _free_vram_mb()
-    if free < _MIN_FREE_VRAM_MB:
-        logging.info(
-            "OCR auto-GPU: only %.0f MB VRAM free (need %d MB) — using CPU",
-            free, _MIN_FREE_VRAM_MB,
-        )
-        return False
-    logging.info("OCR auto-GPU: %.0f MB VRAM free — using GPU", free)
-    return True
+
+# ── Model files ───────────────────────────────────────────────────────────────
+
+def _model_dir() -> Path:
+    """Writable model directory, seeded from the models shipped with rapidocr."""
+    target = Path(config.USER_DATA_DIR) / "ocr_models"
+    target.mkdir(parents=True, exist_ok=True)
+    try:
+        import rapidocr
+        bundled = Path(rapidocr.__file__).parent / "models"
+        for name in _MODEL_FILES:
+            src, dst = bundled / name, target / name
+            if src.exists() and not dst.exists():
+                shutil.copy2(src, dst)
+    except Exception:
+        logging.exception("Could not copy bundled OCR models to %s", target)
+    return target
+
+
+def _rec_lang(langs):
+    """Pick the recognition model language for the configured OCR languages."""
+    from rapidocr import LangRec
+
+    codes = {str(code).strip().lower() for code in (langs or [])}
+    if codes & _CYRILLIC_LANGS or not codes:
+        return LangRec.ESLAV
+    return LangRec.EN
+
+
+def _build_engine(use_gpu: bool):
+    """Create a RapidOCR engine (PP-OCRv6 det + PP-OCRv5 rec, no angle classifier)."""
+    _onnxruntime()  # fail cleanly before rapidocr touches a broken onnxruntime
+    from rapidocr import ModelType, OCRVersion, RapidOCR
+
+    langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
+    rec_lang = _rec_lang(langs)
+    model_dir = _model_dir()
+
+    # Limit CPU threads so OCR doesn't starve the game of cores.
+    cpu_count = os.cpu_count() or 4
+    max_threads = max(2, min(4, cpu_count // 2))
+
+    logging.info(
+        "Initializing RapidOCR engine (DirectML=%s, rec=%s, threads=%d / %d, models=%s)",
+        use_gpu, rec_lang.value, max_threads, cpu_count, model_dir,
+    )
+    return RapidOCR(params={
+        "Global.log_level": "warning",
+        "Global.model_root_dir": str(model_dir),
+        # Screen text is never upside down: skip the angle classifier.
+        "Global.use_cls": False,
+        "Global.text_score": float(getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)),
+        "EngineConfig.onnxruntime.use_dml": use_gpu,
+        "EngineConfig.onnxruntime.intra_op_num_threads": max_threads,
+        "Rec.ocr_version": OCRVersion.PPOCRV5,
+        "Rec.lang_type": rec_lang,
+        "Rec.model_type": ModelType.MOBILE,
+    })
 
 
 # ── Singleton reader ──────────────────────────────────────────────────────────
 
 def get_reader():
-    """Return the singleton easyocr.Reader instance, initializing it on first use.
+    """Return the singleton RapidOCR engine, initializing it on first use.
 
     Thread-safe: uses double-checked locking so that OcrWarmupWorker and
-    TranslationWorker cannot both initialize easyocr.Reader() simultaneously,
-    which would cause a segfault in PyTorch's C++ internals.
+    TranslationWorker cannot both build the engine simultaneously.
     """
     global _reader, _reader_on_gpu
     if _reader is None:
         with _reader_lock:       # only one thread enters initialization at a time
             if _reader is None:  # re-check under lock (double-checked locking)
-                logging.info("Initializing EasyOCR reader instance...")
-                import ctypes
-
-                os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-                # Limit CPU threads so OCR doesn't starve the game of cores.
-                try:
-                    import torch
-                    cpu_count = os.cpu_count() or 4
-                    max_threads = max(2, min(4, cpu_count // 2))
-                    torch.set_num_threads(max_threads)
-                    logging.info("PyTorch CPU threads limited to %d / %d", max_threads, cpu_count)
-                except Exception:
-                    pass
-
-                if getattr(sys, "frozen", False):
-                    base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-                    torch_lib = os.path.join(base_dir, "torch", "lib")
-                    if os.path.exists(torch_lib):
-                        if hasattr(os, "add_dll_directory"):
-                            try:
-                                os.add_dll_directory(torch_lib)
-                            except Exception:
-                                pass
-                        os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
-                        for dll_name in [
-                            "vcruntime140.dll",
-                            "vcruntime140_1.dll",
-                            "msvcp140.dll",
-                            "vcomp140.dll",
-                            "libiomp5md.dll",
-                            "asmjit.dll",
-                            "fbgemm.dll",
-                            "uv.dll",
-                            "torch_cpu.dll",
-                            "c10.dll",
-                            "torch.dll",
-                        ]:
-                            dll_path = os.path.join(torch_lib, dll_name)
-                            if os.path.exists(dll_path):
-                                try:
-                                    ctypes.CDLL(dll_path)
-                                except Exception:
-                                    pass
-
-                try:
-                    import easyocr
-                    logging.info("easyocr module imported successfully.")
-                except Exception:
-                    logging.exception("Failed to import easyocr module!")
-                    raise
-
-                langs = getattr(config, "OCR_LANGUAGES", None) or config.EASYOCR_LANGS
                 use_gpu = _should_use_gpu()
-
-                user_home = os.path.expanduser("~")
-                model_storage_dir = os.path.join(user_home, ".EasyOCR", "model")
-                os.makedirs(model_storage_dir, exist_ok=True)
-                logging.info(
-                    f"EasyOCR model storage directory: {model_storage_dir} "
-                    f"(GPU={use_gpu}, languages={langs})"
-                )
-
                 try:
-                    _reader = easyocr.Reader(
-                        langs,
-                        gpu=use_gpu,
-                        verbose=False,
-                        model_storage_directory=model_storage_dir,
-                    )
+                    _reader = _build_engine(use_gpu)
                     _reader_on_gpu = use_gpu
-                    logging.info("EasyOCR reader initialized successfully (GPU=%s).", use_gpu)
+                    logging.info("RapidOCR engine initialized successfully (DirectML=%s).", use_gpu)
                 except Exception:
-                    logging.exception("Failed to instantiate easyocr.Reader!")
+                    logging.exception("Failed to initialize the RapidOCR engine!")
                     raise
     return _reader
+
+
+def warm_up() -> None:
+    """Build the engine and run one tiny inference.
+
+    The first DirectML run compiles GPU kernels (~2 s); doing it here keeps that
+    cost off the user's first hotkey press.
+    """
+    from PIL import ImageDraw
+
+    img = Image.new("RGB", (240, 48), "white")
+    ImageDraw.Draw(img).text((10, 14), "Warm up 123", fill="black", font_size=20)
+    _safe_readtext(get_reader(), np.array(img))
+
+
+def _fallback_to_cpu() -> None:
+    """Replace a failing GPU engine with a CPU one for the rest of the session."""
+    global _reader, _reader_on_gpu
+    with _reader_lock:
+        if _reader_on_gpu:
+            _reader = _build_engine(use_gpu=False)
+            _reader_on_gpu = False
 
 
 # ── Preprocessing ─────────────────────────────────────────────────────────────
@@ -347,59 +362,42 @@ def _prepare_strip(strip_img: Image.Image, y_offset: int):
     return img_np, y_offset
 
 
-def _cleanup_gpu() -> None:
-    """Release cached GPU tensors so VRAM returns to the game immediately."""
-    if not _reader_on_gpu:
-        return
-    try:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    except Exception:
-        pass
+def _to_results(output) -> list:
+    """Convert a RapidOCROutput into [(bbox, text, score), …] (bbox = 4 [x, y] points)."""
+    if output is None or output.boxes is None or output.txts is None:
+        return []
+    return [
+        (box.tolist(), text, float(score))
+        for box, text, score in zip(output.boxes, output.txts, output.scores)
+    ]
 
 
-def _safe_readtext(reader, img_np, **kwargs) -> list:
-    """Call reader.readtext with automatic OOM fallback to CPU.
+def _safe_readtext(reader, img_np) -> list:
+    """Run OCR on *img_np* with an automatic fallback to the CPU.
 
-    If the GPU runs out of memory mid-inference (e.g. a game suddenly
-    allocated more VRAM), we catch the error, free GPU caches, and re-run
-    the same frame on CPU so the user still gets a result.
+    If DirectML fails mid-inference (device removed, driver reset, a game
+    suddenly taking all VRAM), the engine is rebuilt on the CPU and the same
+    frame is re-run, so the user still gets a result.
     """
     try:
-        results = reader.readtext(img_np, **kwargs)
-    except (RuntimeError,) as exc:
-        # torch.cuda.OutOfMemoryError is a subclass of RuntimeError
-        if "out of memory" not in str(exc).lower() and "CUDA" not in str(exc):
+        with _infer_lock:
+            return _to_results(reader(img_np))
+    except Exception:
+        if not _reader_on_gpu:
             raise
-        logging.warning("GPU OOM during readtext — falling back to CPU for this frame")
-        try:
-            import torch
-            torch.cuda.empty_cache()
-        except Exception:
-            pass
-        # Move model to CPU temporarily and retry
-        try:
-            reader.device = "cpu"
-            results = reader.readtext(img_np, **kwargs)
-        except Exception:
-            logging.exception("CPU fallback also failed")
-            results = []
-    return results
+        logging.warning("GPU (DirectML) OCR failed — switching to CPU", exc_info=True)
+    try:
+        _fallback_to_cpu()
+        with _infer_lock:
+            return _to_results(get_reader()(img_np))
+    except Exception:
+        logging.exception("CPU fallback also failed")
+        return []
 
 
-# ── Adaptive mag_ratio ────────────────────────────────────────────────────────
-# mag_ratio=1.5 doubles pixel area (→ 4x FLOPS on convolutions).
-# For typical game UI (font ≥ 12px on a 1080p screen) mag_ratio=1.0 is enough.
-# We only increase for very small capture regions where text might be tiny.
-
-def _adaptive_mag_ratio(image_height: int) -> float:
-    """Return mag_ratio tuned to image size: smaller regions get upscaled more."""
-    if image_height < 80:
-        return 1.5    # very small region — need upscaling for tiny fonts
-    if image_height < 200:
-        return 1.2    # medium region — slight boost
-    return 1.0        # normal / large — no scaling needed
+def _filter_confident(results: list) -> list:
+    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)
+    return [r for r in results if r[2] >= threshold]
 
 
 def _extract_single(image: Image.Image) -> str:
@@ -410,24 +408,12 @@ def _extract_single(image: Image.Image) -> str:
         else np.array(processed.convert("RGB"))
     )
     reader = get_reader()
-    mag = _adaptive_mag_ratio(image.height)
-    logging.debug("Calling reader.readtext (single, mag_ratio=%.1f)...", mag)
-    results = _safe_readtext(
-        reader, img_np,
-        contrast_ths=0.05,
-        adjust_contrast=0.8,
-        text_threshold=0.4,
-        link_threshold=0.2,
-        mag_ratio=mag,
-        add_margin=0.2,
-    )
-    logging.debug(f"reader.readtext returned {len(results)} raw detections.")
+    logging.debug("Running OCR (single pass)...")
+    results = _safe_readtext(reader, img_np)
+    logging.debug(f"OCR returned {len(results)} raw detections.")
 
-    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.20)
-    filtered = [r for r in results if r[2] >= threshold]
-    logging.debug(f"{len(filtered)} detections met confidence threshold {threshold}.")
-
-    _cleanup_gpu()
+    filtered = _filter_confident(results)
+    logging.debug(f"{len(filtered)} detections met the confidence threshold.")
     return _sort_results(filtered)
 
 
@@ -440,11 +426,9 @@ def _extract_strips(image: Image.Image) -> str:
            - Convert to grayscale and measure pixel std.
            - Blank strips (std < _BLANK_STD_THRESHOLD) are discarded here
              without ever calling the neural network.
-           - Active strips are converted to RGB numpy arrays for EasyOCR.
-      3. Run EasyOCR sequentially on each active strip.
-           reader.readtext() uses shared PyTorch model state that is NOT
-           safe to call concurrently — parallelism here would cause races
-           or crashes.  The benefit is already captured in step 2.
+           - Active strips are converted to RGB numpy arrays.
+      3. Run OCR sequentially on each active strip (inference is serialised
+         by _infer_lock; the benefit is already captured in step 2).
       4. Shift each result's bounding-box Y coordinates by the strip's
          vertical offset so that positions are relative to the full image.
       5. Merge all results and sort top-to-bottom, left-to-right.
@@ -478,39 +462,27 @@ def _extract_strips(image: Image.Image) -> str:
     if not active:
         return ""
 
-    reader    = get_reader()
-    threshold = getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.20)
+    reader = get_reader()
     all_results: list = []
 
     for img_np, y_offset in active:
-        logging.debug(f"Calling reader.readtext on strip at y={y_offset}...")
-        strip_results = _safe_readtext(
-            reader, img_np,
-            contrast_ths=0.05,
-            adjust_contrast=0.7,
-            text_threshold=0.5,
-            link_threshold=0.3,
-            mag_ratio=1.0,
-            add_margin=0.15,
-        )
+        logging.debug(f"Running OCR on strip at y={y_offset}...")
+        strip_results = _filter_confident(_safe_readtext(reader, img_np))
         logging.debug(f"  → {len(strip_results)} detections in strip y={y_offset}")
 
         for bbox, text, conf in strip_results:
-            if conf < threshold:
-                continue
             # Shift each bounding-box point's Y by the strip's vertical offset
             adj_bbox = [[x, y + y_offset] for x, y in bbox]
             all_results.append((adj_bbox, text, conf))
 
     # ── Step 5: Merge and sort ────────────────────────────────────────────────
-    _cleanup_gpu()
     return _sort_results(all_results)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def extract_text(image: Image.Image) -> str:
-    """Run EasyOCR on *image* (PIL Image) and return sorted recognised text.
+    """Run OCR on *image* (PIL Image) and return sorted recognised text.
 
     Automatically selects single-pass or strip mode based on image height:
       • height < _STRIP_MODE_MIN_HEIGHT  → single pass (original behaviour)
@@ -533,4 +505,3 @@ def extract_text(image: Image.Image) -> str:
 def recognise(img: Image.Image, lang: str | None = None) -> str:
     """Run OCR on *img*. Kept as alias to extract_text for backward compatibility."""
     return extract_text(img)
-

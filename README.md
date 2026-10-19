@@ -16,7 +16,7 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 - **System Tray support** — runs quietly in the background without a cluttering console window
 - **Region selector** — fullscreen transparent overlay with mouse-drag selection
 - **Multi-monitor support** — works across all connected displays, including negative-coordinate layouts
-- **OCR** via EasyOCR (CRAFT + CRNN neural network) with multilingual support (`ru` + `en`), GPU acceleration, and optimised preprocessing
+- **OCR** via RapidOCR (PP-OCR models on ONNX Runtime) with Cyrillic + Latin recognition (`ru` + `en`), GPU acceleration through DirectML, and optimised preprocessing
 - **Translation** via OpenRouter (free models) or Anthropic Claude
 - **Offline translation** (optional) with a local, quantized NLLB-200 model (CTranslate2 int8), with no API key or internet needed. It runs on the CPU and can use an NVIDIA GPU for extra speed
 - **SQLite cache** — repeated texts are translated instantly without API calls
@@ -49,7 +49,7 @@ translator-overlay/
 ├── capture/
 │   └── screenshot.py    # Screen capture via mss
 ├── ocr/
-│   ├── engine.py        # EasyOCR engine with lazy model loading & Cyrillic optimisation
+│   ├── engine.py        # RapidOCR engine with lazy model loading & Cyrillic optimisation
 │   └── hsv_filter.py    # Optional HSV-based preprocessing filter
 ├── translate/
 │   ├── backend.py       # Picks the active backend (API or local NLLB) on every call
@@ -97,11 +97,13 @@ The manual steps are below.
 pip install -r requirements.txt
 ```
 
-> **Note:** EasyOCR will automatically download pre-trained model files (~100 MB)
-> to `~/.EasyOCR/model/` on first launch. No external binaries required.
+> **Note:** OCR needs no PyTorch. The detector ships with `rapidocr`; the Cyrillic
+> recognition model (~8 MB) is downloaded once on first launch to
+> `%APPDATA%\translator-overlay\ocr_models\`.
 >
-> For GPU acceleration, install the CUDA-enabled version of PyTorch.
-> With CPU-only, EasyOCR still works but is slower (~0.5–2s per screenshot).
+> GPU acceleration uses DirectML (`onnxruntime-directml`), which works with any
+> DirectX 12 GPU (NVIDIA, AMD, Intel) without CUDA. Without a usable GPU, OCR runs on the
+> CPU (~0.5–1.5 s per screenshot). For a CPU-only install use `requirements-cpu.txt`.
 
 ### 3. Configure API keys
 
@@ -235,8 +237,8 @@ All settings can be overridden in `.env`:
 | `SOURCE_LANG` | `en` | Source language (fallback when auto-detect is off or text is too short) |
 | `LANG_DETECT_ENGINE` | `langid` | Source language detection engine: `langid` (offline ML), `llm` (via API), `off` (fixed) |
 | `MIN_CHARS_FOR_DETECTION` | `15` | Minimum character count for auto-detection; shorter texts use fixed `SOURCE_LANG` |
-| `EASYOCR_LANGS` | `ru,en` | Comma-separated list of OCR languages |
-| `EASYOCR_GPU` | `auto` | GPU mode: `auto` (detect CUDA), `true`, or `false` |
+| `EASYOCR_LANGS` | `ru,en` | Comma-separated list of OCR languages (a Cyrillic code selects the `eslav` model, otherwise `en`) |
+| `EASYOCR_GPU` | `auto` | OCR GPU mode: `auto` (DirectML if available), `true`, or `false` |
 | `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
 | `OCR_USE_HSV_FILTER` | `false` | Enable HSV preprocessing for coloured backgrounds |
 | `POPUP_TIMEOUT_SEC` | `10` | Popup auto-close timeout (seconds) |
@@ -407,7 +409,7 @@ $total = (Select-String "CACHE" logs\translator.log).Count
 | UI / Overlay | PyQt5 |
 | System Tray | QSystemTrayIcon (PyQt5) |
 | Screen capture | mss |
-| OCR | EasyOCR (CRAFT + CRNN) + PyTorch + Pillow |
+| OCR | RapidOCR (PP-OCRv6 det + PP-OCRv5 rec) + ONNX Runtime DirectML + Pillow |
 | Translation | OpenRouter (free) / Anthropic API |
 | Offline translation | NLLB-200-distilled-600M, int8, via CTranslate2 + SentencePiece (optional CUDA via `nvidia-cublas-cu12`) |
 | Cache | SQLite |

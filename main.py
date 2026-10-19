@@ -3,7 +3,7 @@ Translator Overlay — entry point.
 
 Full pipeline:
   Ctrl+Shift+R  →  region selector  →  screenshot (mss)
-                →  OCR (EasyOCR)     →  translate (LLM)
+                →  OCR (RapidOCR)    →  translate (LLM)
                 →  result popup
 
 Main window is shown on startup with sidebar navigation.
@@ -70,7 +70,7 @@ _crash_log = open(os.path.join(os.path.dirname(_log_file_path), "crash.log"), "a
 faulthandler.enable(file=_crash_log, all_threads=True)
 
 # ── Single instance ──────────────────────────────────────
-# Checked before torch/Qt load so a duplicate launch exits immediately: a second
+# Checked before Qt loads so a duplicate launch exits immediately: a second
 # copy would add a second tray icon and register every global hotkey twice.
 _instance_guard = None
 if __name__ == "__main__":
@@ -85,67 +85,14 @@ if __name__ == "__main__":
 import ctypes
 import time
 
-# Fix Windows DLL path resolution for PyTorch & C++ runtimes in PyInstaller frozen app
-def _preload_torch_dlls():
-    import ctypes
-    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-    os.environ["OMP_NUM_THREADS"] = "1"
-
-    if getattr(sys, "frozen", False):
-        base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-        torch_lib = os.path.join(base_dir, "torch", "lib")
-        logging.debug(f"_MEIPASS base_dir: {base_dir}, torch_lib: {torch_lib}")
-        if os.path.exists(torch_lib):
-            try:
-                ctypes.windll.kernel32.SetDllDirectoryW(torch_lib)
-                logging.debug("SetDllDirectoryW(torch_lib) succeeded.")
-            except Exception as e:
-                logging.warning(f"SetDllDirectoryW failed: {e}")
-            if hasattr(os, "add_dll_directory"):
-                try:
-                    os.add_dll_directory(torch_lib)
-                    logging.debug("add_dll_directory(torch_lib) succeeded.")
-                except Exception as e:
-                    logging.warning(f"add_dll_directory(torch_lib) failed: {e}")
-            os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
-        if hasattr(os, "add_dll_directory"):
-            try:
-                os.add_dll_directory(base_dir)
-                logging.debug("add_dll_directory(base_dir) succeeded.")
-            except Exception as e:
-                logging.warning(f"add_dll_directory(base_dir) failed: {e}")
-
-        for dll_name in [
-            "vcruntime140.dll",
-            "vcruntime140_1.dll",
-            "msvcp140.dll",
-            "vcomp140.dll",
-            "libiomp5md.dll",
-            "asmjit.dll",
-            "fbgemm.dll",
-            "uv.dll",
-            "torch_cpu.dll",
-            "c10.dll",
-            "torch.dll",
-        ]:
-            dll_path = os.path.join(torch_lib, dll_name)
-            if os.path.exists(dll_path):
-                try:
-                    ctypes.CDLL(dll_path)
-                    logging.debug(f"Preloaded DLL: {dll_name}")
-                except Exception as e:
-                    logging.warning(f"Failed preloading DLL {dll_name}: {e}")
-
-_preload_torch_dlls()
-
-# torch must be imported at module level — BEFORE QApplication is created.
-# Qt DLL initialization (OpenMP, MSVC runtimes) modifies the DLL search path,
-# which causes c10.dll to fail if torch is loaded after QApplication.
+# onnxruntime must be imported BEFORE PyQt5. PyQt5 ships an old MSVC runtime
+# (msvcp140.dll 14.26) next to Qt5Core.dll; once Qt loads it, onnxruntime (needs
+# >= 14.40) fails with "DLL initialization routine failed". Loaded first, it pulls
+# in the newer runtime and Qt reuses it. Costs ~0.5 s at startup.
 try:
-    import torch
-    logging.info(f"PyTorch loaded successfully. Version: {torch.__version__}")
+    import onnxruntime  # noqa: F401
 except Exception:
-    logging.exception("PyTorch failed to load during entry point initialization")
+    logging.exception("onnxruntime failed to load; OCR will be unavailable")
 
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtCore import QObject, QRect, QTimer, pyqtSignal, QThread, Qt, QtMsgType, qInstallMessageHandler
@@ -307,21 +254,27 @@ class TranslationWorker(QThread):
 # ── Background OCR engine warm-up ───────────────────────
 
 class OcrWarmupWorker(QThread):
-    """Pre-loads the EasyOCR singleton in a background thread.
+    """Pre-loads the RapidOCR engine and the langid model in a background thread.
 
-    Scheduled 3 s after app start so the heavy model load (CRAFT + CRNN, ~2-4 s)
-    happens silently while the user reads the UI — not on their first hotkey press.
-    torch is already imported at module level so c10.dll is safe to use here.
+    Scheduled 3 s after app start so the ONNX model load plus the first DirectML
+    run (~2-4 s) and the langid model load (~3 s) happen silently while the user
+    reads the UI — not on their first hotkey press.
     """
 
     def run(self) -> None:
         try:
-            logging.info("OcrWarmupWorker: pre-loading EasyOCR engine...")
-            from ocr.engine import get_reader
-            get_reader()
-            logging.info("OcrWarmupWorker: EasyOCR engine ready.")
+            logging.info("OcrWarmupWorker: pre-loading OCR engine...")
+            from ocr.engine import warm_up
+            warm_up()
+            logging.info("OcrWarmupWorker: OCR engine ready.")
         except Exception:
             logging.exception("OcrWarmupWorker: pre-load failed (non-fatal, will retry on first use)")
+        try:
+            from translate.lang_detect import get_detector
+            get_detector("langid").detect("warm up")
+            logging.info("OcrWarmupWorker: langid model ready.")
+        except Exception:
+            logging.exception("OcrWarmupWorker: langid pre-load failed (non-fatal)")
 
 
 # ── Application ──────────────────────────────────────────
@@ -816,8 +769,8 @@ def main() -> None:
         install_wheel_guard(app)
         install_qt_translator(app)
 
-        # Show splash immediately — torch is already loaded (module level above),
-        # splash covers the remaining init time: MainWindow, TrayIcon, hotkeys.
+        # Show splash immediately: it covers the remaining init time
+        # (MainWindow, TrayIcon, hotkeys).
         splash = _create_splash()
         splash.show()
         app.processEvents()

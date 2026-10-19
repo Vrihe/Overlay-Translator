@@ -1,11 +1,10 @@
 keyboard==0.13.5
 PyQt5==5.15.11
 mss==9.0.2
-# For slim CPU-only build (-150 to -300 MB), use: pip install -r requirements-cpu.txt
-easyocr>=1.7.0
-torch>=2.0.0
-torchvision>=0.15.0
-optree>=0.11.0
+# OCR: PP-OCR models on ONNX Runtime; DirectML runs them on any DirectX 12 GPU.
+# CPU-only alternative (no DirectML): pip install -r requirements-cpu.txt
+rapidocr>=3.10.0,<4
+onnxruntime-directml>=1.24.4
 numpy>=1.24.0
 Pillow==11.1.0
 anthropic>=0.42.0
