@@ -33,13 +33,28 @@ import logging
 import threading
 
 import config
-from i18n import tr
+from i18n import N_, tr
 
 BACKEND_API = "api"
 BACKEND_GOOGLE = "google"
 BACKEND_DEEPL = "deepl"
 BACKEND_AZURE = "azure"
 BACKEND_NLLB = "nllb"
+
+#: Set of all valid backend identifiers.
+_VALID_BACKENDS = {BACKEND_API, BACKEND_GOOGLE, BACKEND_DEEPL, BACKEND_AZURE, BACKEND_NLLB}
+
+#: Set of NMT (fast, non-LLM) backends handled via simple HTTP clients.
+_NMT_BACKENDS = {BACKEND_GOOGLE, BACKEND_DEEPL, BACKEND_AZURE}
+
+#: (id, human label) — consumed by ui/settings_dialog, which passes labels through tr().
+BACKENDS: list[tuple[str, str]] = [
+    (BACKEND_API,    "LLM (OpenRouter / Anthropic)"),
+    (BACKEND_GOOGLE, "Google Translate"),
+    (BACKEND_DEEPL,  "DeepL API"),
+    (BACKEND_AZURE,  "Microsoft Azure Translator"),
+    (BACKEND_NLLB,   N_("Локальная модель (NLLB-200)")),
+]
 
 _logger = logging.getLogger("translator.backend")
 

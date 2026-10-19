@@ -458,7 +458,7 @@ class SettingsWidget(QWidget):
         self._backend_combo = QComboBox()
         self._backend_combo.setStyleSheet(self._INPUT_CSS)
         for bid, blabel in _ALL_BACKENDS:
-            self._backend_combo.addItem(blabel, bid)
+            self._backend_combo.addItem(tr(blabel), bid)
         backend_layout.addWidget(self._backend_combo)
 
         # ── NLLB-specific widgets (hidden when another backend is active) ──

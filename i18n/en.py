@@ -351,6 +351,7 @@ MESSAGES: dict[str, str] = {
     "Не удалось подключиться к Google Translate: {error}": "Could not connect to Google Translate: {error}",
     "Google Translate вернул пустой ответ.": "Google Translate returned an empty response.",
     "Используется {backend}.": "Using {backend}.",
+    "Локальная модель (NLLB-200)": "Local model (NLLB-200)",
 
     # ── history/history_window.py ──
     "🔍 Поиск по оригиналу или переводу...": "🔍 Search source or translation...",
