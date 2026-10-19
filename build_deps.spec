@@ -6,7 +6,7 @@ Part of the layered build system (optimization 2.1).
 Run via build.py — do NOT invoke directly with pyinstaller.
 
 This spec is always invoked with --noarchive so that all Python packages
-(torch, easyocr, scipy, numpy, cv2, PyQt5 …) are laid out as individual
+(onnxruntime, rapidocr, numpy, cv2, PyQt5 …) are laid out as individual
 .pyc files inside TranslatorOverlay_deps/_internal/.  The app layer
 (build_app.spec) can then find them at runtime via the regular filesystem
 import path without needing them in its own PYZ archive.
@@ -17,75 +17,58 @@ Expected output: dist/TranslatorOverlay_deps/
 import sys
 from pathlib import Path
 
-# ── optree workaround ────────────────────────────────────────────────────────
-import PyInstaller.building.build_main
-_orig_find_binary_deps = PyInstaller.building.build_main.find_binary_dependencies
-
-def _safe_find_binary_deps(binaries, import_packages, symlink_suppression_patterns):
-    filtered = [p for p in import_packages if not p.startswith('optree')]
-    return _orig_find_binary_deps(binaries, filtered, symlink_suppression_patterns)
-
-PyInstaller.building.build_main.find_binary_dependencies = _safe_find_binary_deps
-
-# ─────────────────────────────────────────────────────────────────────────────
-
 block_cipher = None
 ROOT = Path(SPECPATH)
 
-from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files, collect_all
+from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files, collect_submodules
 
-torch_binaries      = collect_dynamic_libs('torch')
-torchvision_binaries = collect_dynamic_libs('torchvision')
+# ONNX Runtime: onnxruntime.dll, DirectML.dll and the provider bridge DLL.
+onnxruntime_binaries = collect_dynamic_libs('onnxruntime')
 
-# Targeted torch datas: skip C++ headers, cmake, type stubs, tests (2.2)
-torch_datas = [
-    (src, dst) for src, dst in collect_data_files('torch')
-    if not any(
-        skip in src.replace('\\', '/')
-        for skip in ('/torch/include/', '/torch/share/', '/torch/test/', '.pyi')
-    )
+# RapidOCR: config YAMLs plus only the ONNX models ocr/engine.py uses.  The app
+# copies them to the user data dir; a rec model that was not yet downloaded into
+# rapidocr/models/ on the build machine is fetched by the app at first run.
+_OCR_MODELS = {
+    'PP-OCRv6_det_small.onnx',
+    'eslav_PP-OCRv5_rec_mobile.onnx',
+    'en_PP-OCRv5_rec_mobile.onnx',
+}
+rapidocr_datas = [
+    (src, dst) for src, dst in collect_data_files('rapidocr')
+    if not src.endswith('.pyi')
+    and (not src.endswith('.onnx') or Path(src).name in _OCR_MODELS)
 ]
 
-# EasyOCR: skip bundled .pt weights (downloaded to ~/.EasyOCR/ at first run)
-easyocr_datas = [
-    (src, dst) for src, dst in collect_data_files('easyocr')
-    if not src.endswith('.pt')
-]
-
-optree_datas, optree_binaries, optree_hiddenimports = collect_all('optree')
+# Only the onnxruntime inference engine is used; the paddle/pytorch/openvino/mnn/
+# tensorrt engine modules would drag in frameworks we do not ship.
+_UNUSED_ENGINES = ('.paddle', '.pytorch', '.openvino', '.mnn', '.tensorrt')
+rapidocr_hiddenimports = collect_submodules(
+    'rapidocr', filter=lambda name: not any(e in name for e in _UNUSED_ENGINES)
+)
 
 a = Analysis(
     [str(ROOT / '_deps_stub.py')],
     pathex=[str(ROOT)],
-    binaries=torch_binaries + torchvision_binaries + optree_binaries,
-    datas=torch_datas + easyocr_datas + optree_datas,
+    binaries=onnxruntime_binaries,
+    datas=rapidocr_datas,
     hiddenimports=[
         'unittest', 'unittest.mock',
-        'optree', 'optree._C',
         'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets',
         'mss', 'mss.windows',
-        'easyocr', 'easyocr.easyocr', 'easyocr.model', 'easyocr.craft',
-        'easyocr.detection', 'easyocr.recognition', 'easyocr.utils',
-        'torch', 'torch._C', 'torch._C._nn', 'torch._C._fft',
-        'torch._C._linalg', 'torch.distributions',
-        'torchvision', 'torchvision.ops',
-        'numpy', 'scipy', 'scipy.ndimage', 'scipy.spatial',
-        'scipy.spatial.transform', 'scipy.special',
-        'skimage', 'skimage.feature', 'skimage.transform',
-        'cv2', 'shapely', 'yaml',
+        'onnxruntime', 'onnxruntime.capi', 'onnxruntime.capi._pybind_state',
+        'numpy', 'cv2', 'shapely', 'pyclipper', 'yaml', 'omegaconf',
         'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFilter', 'PIL.ImageEnhance',
         'langid',
-    ] + optree_hiddenimports,
+    ] + rapidocr_hiddenimports,
     excludes=[
+        # The OCR stack is torch-free; keep a leftover install out of the build.
+        'torch', 'torchvision', 'easyocr', 'paddle', 'tensorrt', 'MNN',
         'tensorflow', 'keras', 'openvino', 'jax', 'sklearn', 'h5py', 'grpc',
         'matplotlib', 'pandas', 'IPython', 'jupyter', 'notebook',
-        'scipy.optimize', 'scipy.stats', 'scipy.signal', 'scipy.io.matlab',
-        # skimage.io and skimage.viewer are NOT excluded — EasyOCR imports them
-        # at init time and noarchive=True makes their absence a hard error.
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[str(ROOT / 'pyi_rth_torch_dll.py')],
+    runtime_hooks=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

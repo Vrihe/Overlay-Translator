@@ -11,7 +11,7 @@ How it works (optimization 2.1 — layered build):
 
   ┌─────────────────────────────────────────────────────────────────────┐
   │  Layer 1 — DEPS  (build_deps.spec, run with --noarchive)            │
-  │  Heavy packages: torch, easyocr, scipy, numpy, cv2, PyQt5 …        │
+  │  Heavy packages: onnxruntime, rapidocr, numpy, cv2, PyQt5 …        │
   │  Output: dist/TranslatorOverlay_deps/_internal/  (~500 MB)          │
   │  Build time: 10–15 min  (but cached between builds!)                │
   ├─────────────────────────────────────────────────────────────────────┤
@@ -76,8 +76,7 @@ def post_build_cleanup(dist_dir: Path) -> None:
     Targets:
       - Python type stubs (.pyi) — only needed for IDEs, not at runtime.
       - Cython sources (.pyx) — compiled to .pyd already, originals unneeded.
-      - Test directories shipped inside packages (torch/test/, scipy/.../tests/).
-      - PyTorch C++ build artifacts (torch/include/, torch/share/) — not used at runtime.
+      - Test directories shipped inside packages (scipy/.../tests/, skimage data).
     """
     import glob
 
@@ -97,13 +96,10 @@ def post_build_cleanup(dist_dir: Path) -> None:
         # for C extensions (e.g. skimage\_init_.pyi for skimage/__init__.pyd).
         # Deleting them causes "Cannot load imports from non-existent stub" crash.
         # Type annotation stubs are already filtered out during collection
-        # (see torch_datas / easyocr_datas filtering in build_deps.spec).
+        # (see collect_data_files filtering in build_deps.spec).
     ]
 
     dirs_to_remove = [
-        "torch/test",
-        "torch/include",
-        "torch/share",
         "scipy/io/matlab/tests",
         "scipy/ndimage/tests",
         "skimage/data",
@@ -141,10 +137,10 @@ def post_build_cleanup(dist_dir: Path) -> None:
 
 # Packages whose version changes should trigger a full deps rebuild.
 _TRACKED_PACKAGES = [
-    'torch', 'torchvision', 'easyocr',
-    'scipy', 'numpy', 'opencv-python', 'opencv-python-headless',
-    'Pillow', 'scikit-image', 'shapely', 'PyYAML', 'langid',
-    'PyQt5', 'mss', 'optree',
+    'onnxruntime', 'onnxruntime-directml', 'rapidocr',
+    'numpy', 'opencv-python', 'opencv-python-headless',
+    'Pillow', 'pyclipper', 'shapely', 'PyYAML', 'omegaconf', 'langid',
+    'PyQt5', 'mss',
 ]
 
 
@@ -223,7 +219,7 @@ def merge_deps_into_app(root: Path) -> None:
     that is NOT already present, so the app's own files always take precedence.
 
     At runtime the PyInstaller bootloader adds _internal/ to sys.path.
-    Python's regular import machinery then finds torch, easyocr, numpy etc.
+    Python's regular import machinery then finds onnxruntime, rapidocr, numpy etc.
     as individual .pyc / .pyd files placed here by the deps layer.
     """
     deps_internal = root / 'dist' / 'TranslatorOverlay_deps' / '_internal'

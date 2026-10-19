@@ -645,14 +645,14 @@ class SettingsWidget(QWidget):
         ocr_gpu_layout.addWidget(self._gpu_info_label)
 
         gpu_mode_row = QHBoxLayout()
-        lbl_gpu_mode = QLabel(tr("Режим GPU для EasyOCR:"))
+        lbl_gpu_mode = QLabel(tr("Режим OCR:"))
         lbl_gpu_mode.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
         gpu_mode_row.addWidget(lbl_gpu_mode)
 
+        # A legacy "gpu" value behaves like "auto" and shows as the first item.
         self._ocr_gpu_combo = QComboBox()
         self._ocr_gpu_combo.setStyleSheet(self._INPUT_CSS)
-        self._ocr_gpu_combo.addItem(tr("Авто (GPU при наличии свободной VRAM ≥ 450 МБ)"), "auto")
-        self._ocr_gpu_combo.addItem(tr("Только видеокарта (CUDA)"), "gpu")
+        self._ocr_gpu_combo.addItem(tr("Авто (видеокарта через DirectML, если доступна)"), "auto")
         self._ocr_gpu_combo.addItem(tr("Только процессор (CPU)"), "cpu")
         gpu_mode_row.addWidget(self._ocr_gpu_combo, 1)
         ocr_gpu_layout.addLayout(gpu_mode_row)
@@ -1065,27 +1065,11 @@ class SettingsWidget(QWidget):
 
     @staticmethod
     def _detect_gpu_info() -> str:
-        """Return a human-readable string about the detected GPU."""
-        try:
-            import torch
-            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-                name = torch.cuda.get_device_name(0)
-                total = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
-                free_mb = 0.0
-                try:
-                    free, _ = torch.cuda.mem_get_info(0)
-                    free_mb = free / (1024 ** 2)
-                except Exception:
-                    pass
-                info = tr("✓ Обнаружена: {name} ({total} ГБ)", name=name, total=f"{total:.1f}")
-                if free_mb > 0:
-                    info += tr(" — свободно {free} МБ", free=f"{free_mb:.0f}")
-                return info
-            return tr("CUDA недоступна — EasyOCR будет работать на CPU")
-        except ImportError:
-            return tr("PyTorch не установлен — EasyOCR будет работать на CPU")
-        except Exception as e:
-            return tr("Не удалось определить GPU: {error}", error=e)
+        """Return a human-readable string about GPU support for OCR."""
+        from ocr.engine import _dml_available
+        if _dml_available():
+            return tr("✓ DirectML доступен — OCR может работать на видеокарте")
+        return tr("DirectML недоступен — OCR будет работать на CPU")
 
     def _on_model_changed(self, index: int) -> None:
         """Show a short hint below the combo and toggle the custom model field."""

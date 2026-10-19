@@ -1,1 +1,1 @@
-# ocr — text recognition via EasyOCR
+# ocr — text recognition via RapidOCR (PP-OCR on ONNX Runtime)

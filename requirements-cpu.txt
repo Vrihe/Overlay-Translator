@@ -1,11 +1,10 @@
---extra-index-url https://download.pytorch.org/whl/cpu
+# Same as requirements.txt, but with the CPU-only ONNX Runtime instead of DirectML.
+# Do not install both: onnxruntime and onnxruntime-directml share one module name.
 keyboard==0.13.5
 PyQt5==5.15.11
 mss==9.0.2
-easyocr>=1.7.0
-torch>=2.0.0+cpu
-torchvision>=0.15.0+cpu
-optree>=0.11.0
+rapidocr>=3.10.0,<4
+onnxruntime>=1.24.4
 numpy>=1.24.0
 Pillow==11.1.0
 anthropic>=0.42.0

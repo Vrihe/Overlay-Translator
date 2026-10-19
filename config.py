@@ -99,7 +99,7 @@ class _LiveConfig:
 
     @property
     def OCR_GPU_MODE(self):
-        """EasyOCR CUDA mode: 'auto', 'gpu', or 'cpu'."""
+        """OCR device mode: 'auto' (DirectML GPU when available) or 'cpu'; legacy 'gpu' = 'auto'."""
         return _cfg("ocr_gpu_mode")
 
     @OCR_GPU_MODE.setter
@@ -233,7 +233,7 @@ class _LiveConfig:
 
     OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
 
-    # ─── EasyOCR Engine ─────────────────────────────────────
+    # ─── OCR Engine (RapidOCR; EASYOCR_* env names kept for existing .env files) ──
     _LANGS_RAW = os.environ.get("EASYOCR_LANGS", "ru,en")
     EASYOCR_LANGS = [lang.strip() for lang in _LANGS_RAW.split(",") if lang.strip()]
     EASYOCR_GPU = os.environ.get("EASYOCR_GPU", "auto")

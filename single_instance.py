@@ -7,7 +7,7 @@ instance brings its window to the front, and exits.  The OS releases both
 kernel objects when the owning process dies, even after a crash, so a stale
 lock can never block a fresh start.
 
-Runs before torch/Qt are imported, so a duplicate launch exits in milliseconds.
+Runs before Qt is imported, so a duplicate launch exits in milliseconds.
 """
 
 from __future__ import annotations
