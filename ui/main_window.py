@@ -741,7 +741,9 @@ class MainWindow(QMainWindow):
         """Lazy-init the settings page with SettingsWidget."""
         try:
             from ui.settings_dialog import SettingsWidget
-        except ImportError:
+            settings_widget = SettingsWidget()
+        except Exception:
+            logging.exception("Failed to initialize settings page")
             return
 
         from PyQt5.QtWidgets import QScrollArea
@@ -760,7 +762,7 @@ class MainWindow(QMainWindow):
         )
         vbox.addWidget(title)
 
-        self._settings_widget = SettingsWidget()
+        self._settings_widget = settings_widget
         # C2: keep tray language checkmarks in sync when settings are saved
         if getattr(self, "_tray_icon", None) is not None and hasattr(self._tray_icon, "rebuild_lang_menu"):
             self._settings_widget.settings_saved.connect(self._tray_icon.rebuild_lang_menu)
@@ -781,7 +783,9 @@ class MainWindow(QMainWindow):
         """Lazy-init the history page with HistoryWidget."""
         try:
             from history.history_window import HistoryWidget
-        except ImportError:
+            history_widget = HistoryWidget()
+        except Exception:
+            logging.exception("Failed to initialize history page")
             return
 
         from PyQt5.QtWidgets import QScrollArea
@@ -800,7 +804,7 @@ class MainWindow(QMainWindow):
         )
         vbox.addWidget(title)
 
-        self._history_widget = HistoryWidget()
+        self._history_widget = history_widget
         vbox.addWidget(self._history_widget, 1)
 
         scroll = QScrollArea()
@@ -827,14 +831,18 @@ class MainWindow(QMainWindow):
             self.raise_()
             self.activateWindow()
 
-    def show_and_switch(self, page_index: int):
-        """Show the window and switch to a specific tab."""
+    def show_window(self):
+        """Show, restore and focus the window (e.g. on a repeated app launch)."""
         self.show()
         self.setWindowState(
             self.windowState() & ~Qt.WindowMinimized | Qt.WindowActive
         )
         self.raise_()
         self.activateWindow()
+
+    def show_and_switch(self, page_index: int):
+        """Show the window and switch to a specific tab."""
+        self.show_window()
         self.switch_to_page(page_index)
 
     # ── Close event → hide to tray ───────────────────────

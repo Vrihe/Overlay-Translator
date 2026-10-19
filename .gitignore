@@ -6,6 +6,15 @@ __pycache__/
 *.egg
 *.whl
 
+# Test / lint / type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
 # ─── PyInstaller Build Artifacts ────────────────────────
 dist/
 build/
@@ -21,6 +30,10 @@ venv/
 env/
 .env/
 .env
+.env.*
+!.env.example
+*.pem
+*.key
 
 # ─── IDE / Editors ──────────────────────────────────────
 .vscode/
@@ -33,7 +46,10 @@ env/
 
 # ─── OS files ────────────────────────────────────────────
 Thumbs.db
+ehthumbs.db
 Desktop.ini
+$RECYCLE.BIN/
+*.lnk
 .DS_Store
 
 # ─── Project-specific ───────────────────────────────────
@@ -60,12 +76,27 @@ tests/*.txt
 # User settings (generated at runtime)
 settings.json
 
+# Local databases (translation cache, history) — contain captured screen text
+*.db
+*.sqlite
+*.sqlite3
+
 # Layered build deps cache (2.1)
 _build_cache/
 dist/TranslatorOverlay_deps/
 
 # Claude Code workspace (local notes, project map, rtk instructions)
 .claude/
+
+# AI assistant files (Claude): instructions, skills, local notes, scratch
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.agents/
+.skills/
+skills/
+.mcp.json
+scratch/
 
 # RTK (Rust Token Killer) local config
 .rtk/
