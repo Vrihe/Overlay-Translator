@@ -831,14 +831,18 @@ class MainWindow(QMainWindow):
             self.raise_()
             self.activateWindow()
 
-    def show_and_switch(self, page_index: int):
-        """Show the window and switch to a specific tab."""
+    def show_window(self):
+        """Show, restore and focus the window (e.g. on a repeated app launch)."""
         self.show()
         self.setWindowState(
             self.windowState() & ~Qt.WindowMinimized | Qt.WindowActive
         )
         self.raise_()
         self.activateWindow()
+
+    def show_and_switch(self, page_index: int):
+        """Show the window and switch to a specific tab."""
+        self.show_window()
         self.switch_to_page(page_index)
 
     # ── Close event → hide to tray ───────────────────────

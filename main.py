@@ -69,6 +69,19 @@ import faulthandler
 _crash_log = open(os.path.join(os.path.dirname(_log_file_path), "crash.log"), "a", encoding="utf-8")
 faulthandler.enable(file=_crash_log, all_threads=True)
 
+# ── Single instance ──────────────────────────────────────
+# Checked before torch/Qt load so a duplicate launch exits immediately: a second
+# copy would add a second tray icon and register every global hotkey twice.
+_instance_guard = None
+if __name__ == "__main__":
+    from single_instance import SingleInstance
+
+    _instance_guard = SingleInstance()
+    if not _instance_guard.acquire():
+        _notified = _instance_guard.notify_existing()
+        logging.info(f"Another instance is already running (window activated: {_notified}). Exiting.")
+        sys.exit(0)
+
 import ctypes
 import time
 
@@ -361,6 +374,12 @@ class TranslatorApp:
         self._settings_bridge.triggered.connect(
             lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS)
         )
+
+        # A repeated launch of the app signals this instance to show its window.
+        self._activate_bridge = HotkeyBridge()
+        self._activate_bridge.triggered.connect(self._main_window.show_window)
+        if _instance_guard is not None:
+            _instance_guard.listen(self._activate_bridge.triggered.emit)
 
         self._selector: RegionSelector | None = None
         self._popup: ResultPopup | None = None

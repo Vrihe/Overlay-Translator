@@ -40,6 +40,7 @@ are in English.
 ```
 Overlay-Translator/
 ├── main.py                 # Entry point: logging, splash, TranslatorApp, hotkeys
+├── single_instance.py      # Windows named-mutex guard: one running copy per session
 ├── config.py               # Global config facade (replaces itself in sys.modules!)
 ├── build.py / build.bat    # PyInstaller build scripts
 ├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (--admin elevates)
@@ -141,6 +142,10 @@ Overlay-Translator/
 - `_global_excepthook` / `_thread_excepthook` — log unhandled exceptions.
 - `faulthandler` → `crash.log` and `_qt_message_handler` (Qt messages, including `qFatal`, → `app.log`) —
   catch native crashes that bypass the Python hooks.
+- Single-instance guard (`single_instance.SingleInstance`, only when run as `__main__`, before torch/Qt load):
+  a named mutex `Local\TranslatorOverlay.SingleInstance.Mutex`. A second launch signals the named event
+  `...Activate` and exits with code 0; the running instance's listener thread emits a `HotkeyBridge`
+  → `MainWindow.show_window()`. The OS frees both objects when the process dies, so a crash leaves no stale lock.
 - `_preload_torch_dlls()` — preloads torch DLLs (needed for the frozen build).
 - `class HotkeyBridge(QObject)` — `triggered = pyqtSignal()`; bridge from the `keyboard` thread to the Qt thread.
 - `class TranslationWorker(QThread)` — the whole pipeline in the background.
