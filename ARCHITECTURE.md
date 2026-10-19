@@ -29,8 +29,9 @@ EasyOCR → translation (cloud API **or** the local NLLB model) → popup with t
 | Hotkeys | `keyboard` (global, background thread) |
 | Packaging | PyInstaller (`build.py`, `*.spec`) |
 
-The UI and user-facing messages are in Russian; code, comments, docstrings and
-documentation are in English.
+The UI is available in Russian and English (`i18n/`, see section 5); Russian is
+the source language of UI strings. Code, comments, docstrings and documentation
+are in English.
 
 ---
 
@@ -83,11 +84,17 @@ Overlay-Translator/
 │   ├── settings_dialog.py  #   * SettingsWidget — all settings; ProfileEditorDialog
 │   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize)
 │   ├── first_run_dialog.py #   First-run wizard (API key entry)
+│   ├── theme.py            #   App-wide dark styling for QMessageBox / QInputDialog
+│   ├── wheel_guard.py      #   Wheel over a closed combo / spin box scrolls the page instead
 │   ├── ocr_preview_popup.py#   Preview/edit OCR text before translating
 │   └── region_presets_dialog.py # Manage presets and their hotkeys
 │
 ├── history/
 │   └── history_window.py   #   HistoryWidget — view and export history
+│
+├── i18n/                   # Interface language (ru / en)
+│   ├── __init__.py         #   tr(), N_(), current_language(), resolve_language()
+│   └── en.py               #   MESSAGES: Russian source string → English
 │
 ├── tray/                   # System tray icon + context menu
 ├── tts/engine.py           # Text-to-speech for translations (SAPI, separate thread)
@@ -350,8 +357,17 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `_on_save()`, `reload()`, `_css(extra)`; constants `_SOURCE_LANGUAGES`,
   `_TARGET_LANGUAGES`, `_ENGINES`, `_OPENROUTER_MODELS`, `_MODEL_HINTS`.
   Sections: "API-ключ и провайдеры" (API key and providers), "Бэкенд перевода"
-  (translation backend), "Перевод" (translation), then OCR / interface / updates.
+  (translation backend), "Перевод" (translation), custom profiles,
+  "Интерфейс" (interface language), notifications, updates.
   Styling: dark theme, `QGroupBox` + `self._INPUT_CSS` / `self._GROUP_CSS`.
+- **Stylesheets on page ancestors must be selector-scoped** (`#pageStack { … }`, not a bare
+  `background: …;`). A bare rule cascades into every descendant, including a `QMessageBox`
+  opened from the page, and ancestor rules beat the app-wide sheet in `ui/theme.py`: the
+  dialog then renders with no visible text or buttons. `main.py` installs `ui/theme.py` and
+  `i18n.install_qt_translator()` (Russian Yes/No/Cancel on stock buttons).
+- `ui/wheel_guard.py` (app-wide event filter, installed in `main.py`): a wheel event over a
+  `QComboBox` / `QAbstractSpinBox` never changes its value; it goes to the nearest scroll
+  area's viewport, so long pages scroll past controls. An open combo list still scrolls.
 - `ResultPopup(...)` — frameless window, streaming updates via `update_content()`,
   auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the edges, TTS, copy.
 
@@ -441,6 +457,16 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
 5. **`translate/domain_profiles/*.json`** — system prompts and few-shot examples per domain.
 6. **`region_presets.json`** — saved regions and their individual hotkeys.
 7. **`build*.spec` / `build.py`** — PyInstaller build parameters.
+8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
+   set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
+   (`i18n.current_language()`), so a change applies after a restart. `"auto"` picks Russian
+   for a Russian/Ukrainian/Belarusian Windows UI language, otherwise English.
+   UI strings stay Russian in the code, wrapped in `tr("…")` (`N_("…")` marks module-level
+   constants that are translated where shown); placeholders go through keyword arguments,
+   `tr("Ошибка: {error}", error=e)`, never f-strings. The English text lives in `i18n/en.py`;
+   a missing entry falls back to Russian. Built-in domain profile names are translated via
+   `domain_manager.display_name_of()`; custom profile names, LLM prompts and few-shot
+   examples are not translated.
 
 After settings are saved, `SettingsWidget._on_save` calls
 `translate.backend.reset()`. It resets both the LLM clients and the loaded NLLB
@@ -531,6 +557,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
+| `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:
 

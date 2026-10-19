@@ -9,6 +9,7 @@ import json
 import pytest
 from pathlib import Path
 
+from i18n import set_language
 from settings import region_presets
 from settings.region_presets import (
     load_presets,
@@ -27,7 +28,9 @@ def _isolated_presets_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Redirect _PRESETS_FILE to a temporary directory for every test."""
     fake_file = tmp_path / "region_presets.json"
     monkeypatch.setattr(region_presets, "_PRESETS_FILE", fake_file)
+    set_language("ru")  # the assertions match the Russian messages
     yield fake_file
+    set_language(None)
 
 
 # ── Basic CRUD ───────────────────────────────────────────

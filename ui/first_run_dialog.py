@@ -14,6 +14,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QColor, QPainter, QPainterPath
 
 import settings
+from i18n import tr
 
 
 class FirstRunDialog(QDialog):
@@ -24,7 +25,7 @@ class FirstRunDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("Translator Overlay — Настройка")
+        self.setWindowTitle(tr("Translator Overlay — Настройка"))
         self.setFixedWidth(self._WIDTH)
         self.setWindowFlags(
             Qt.Dialog
@@ -49,23 +50,23 @@ class FirstRunDialog(QDialog):
         layout.setSpacing(16)
 
         # ── Title ──
-        title = QLabel("🌐 Добро пожаловать!")
+        title = QLabel(tr("🌐 Добро пожаловать!"))
         title.setStyleSheet(self._css("color: #e8e8e8; font-size: 16pt; font-weight: 600;"))
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
         # ── Subtitle ──
-        sub = QLabel("Для работы переводчика нужен API-ключ.")
+        sub = QLabel(tr("Для работы переводчика нужен API-ключ."))
         sub.setStyleSheet(self._css("color: #999; font-size: 10pt;"))
         sub.setAlignment(Qt.AlignCenter)
         layout.addWidget(sub)
 
         # ── Privacy notice: screen text leaves the machine ──
-        privacy = QLabel(
+        privacy = QLabel(tr(
             "Распознанный текст выделенной области отправляется выбранному провайдеру. "
             "Бесплатные модели OpenRouter могут сохранять запросы. Не переводите пароли "
             "и личные данные или используйте локальную модель NLLB (Настройки → Бэкенд перевода)."
-        )
+        ))
         privacy.setTextFormat(Qt.PlainText)
         privacy.setWordWrap(True)
         privacy.setStyleSheet(self._css("color: #c9a86a; font-size: 9pt;"))
@@ -76,8 +77,8 @@ class FirstRunDialog(QDialog):
         provider_row.setSpacing(16)
 
         self._radio_group = QButtonGroup(self)
-        self._radio_or = QRadioButton("OpenRouter (бесплатно)")
-        self._radio_ant = QRadioButton("Anthropic (платно)")
+        self._radio_or = QRadioButton(tr("OpenRouter (бесплатно)"))
+        self._radio_ant = QRadioButton(tr("Anthropic (платно)"))
         self._radio_or.setChecked(True)
         self._radio_group.addButton(self._radio_or, 0)
         self._radio_group.addButton(self._radio_ant, 1)
@@ -100,7 +101,7 @@ class FirstRunDialog(QDialog):
         # ── Key input ──
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.Password)
-        self._key_input.setPlaceholderText("Вставьте API-ключ…")
+        self._key_input.setPlaceholderText(tr("Вставьте API-ключ…"))
         self._key_input.setStyleSheet(
             "QLineEdit {"
             "  background: #2a2a3e; color: #e0e0e0; border: 1px solid #444;"
@@ -122,7 +123,7 @@ class FirstRunDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
 
-        self._btn_save = QPushButton("Проверить и сохранить")
+        self._btn_save = QPushButton(tr("Проверить и сохранить"))
         self._btn_save.setEnabled(False)
         self._btn_save.setStyleSheet(
             "QPushButton {"
@@ -133,7 +134,7 @@ class FirstRunDialog(QDialog):
             "QPushButton:hover { background: #4a7de0; }"
             "QPushButton:disabled { background: #3a3a5c; color: #666; }"
         )
-        self._btn_cancel = QPushButton("Отмена")
+        self._btn_cancel = QPushButton(tr("Отмена"))
         self._btn_cancel.setStyleSheet(
             "QPushButton {"
             "  background: transparent; color: #999; border: 1px solid #444;"
@@ -164,11 +165,11 @@ class FirstRunDialog(QDialog):
     def _update_link(self) -> None:
         if self._current_provider() == "openrouter":
             url = "https://openrouter.ai/keys"
-            text = f'<a href="{url}" style="color:#6ba3f7;">Получить ключ на openrouter.ai →</a>'
+            caption = tr("Получить ключ на openrouter.ai →")
         else:
             url = "https://console.anthropic.com/settings/keys"
-            text = f'<a href="{url}" style="color:#6ba3f7;">Получить ключ на console.anthropic.com →</a>'
-        self._link_label.setText(text)
+            caption = tr("Получить ключ на console.anthropic.com →")
+        self._link_label.setText(f'<a href="{url}" style="color:#6ba3f7;">{caption}</a>')
 
     def _on_key_changed(self, text: str) -> None:
         self._btn_save.setEnabled(bool(text.strip()))
@@ -193,21 +194,21 @@ class FirstRunDialog(QDialog):
 
         provider = self._current_provider()
         self._btn_save.setEnabled(False)
-        self._set_status("Проверяем ключ…")
+        self._set_status(tr("Проверяем ключ…"))
         QApplication.processEvents()
 
         from translate.llm_client import validate_api_key, reset_client
         try:
             validate_api_key(provider, key)
         except Exception as e:
-            self._set_status(f"Ошибка: {e}", error=True)
+            self._set_status(tr("Ошибка: {error}", error=e), error=True)
             self._btn_save.setEnabled(True)
             return
 
         settings.set_api_key(provider, key)
         reset_client()
 
-        self._set_status("✓ Ключ работает! Сохранено.")
+        self._set_status(tr("✓ Ключ работает! Сохранено."))
         QApplication.processEvents()
 
         # Brief delay so the user sees the success message.

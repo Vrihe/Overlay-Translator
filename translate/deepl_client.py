@@ -22,6 +22,7 @@ import urllib.parse
 import urllib.request
 
 import settings
+from i18n import tr
 from translate.lang_codes import normalize_source_lang, normalize_target_lang
 
 _logger = logging.getLogger("translator.deepl")
@@ -44,7 +45,7 @@ def translate(
     api_key = settings.get_api_key("deepl") or os.getenv("DEEPL_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "DeepL API key missing! Укажите ключ в Настройках."
+            tr("DeepL API key missing! Укажите ключ в Настройках.")
         )
 
     # ── Endpoint selection ───────────────────────────────
@@ -89,23 +90,23 @@ def translate(
             pass
         if exc.code == 403:
             raise RuntimeError(
-                "DeepL: ключ недействителен или заблокирован (403 Forbidden)."
+                tr("DeepL: ключ недействителен или заблокирован (403 Forbidden).")
             ) from exc
         if exc.code == 456:
             raise RuntimeError(
-                "DeepL: превышена квота символов. Проверьте лимит вашего тарифа."
+                tr("DeepL: превышена квота символов. Проверьте лимит вашего тарифа.")
             ) from exc
         raise RuntimeError(
-            f"DeepL API вернул ошибку {exc.code}: {detail}"
+            tr("DeepL API вернул ошибку {code}: {detail}", code=exc.code, detail=detail)
         ) from exc
     except (urllib.error.URLError, OSError) as exc:
         raise RuntimeError(
-            f"Не удалось подключиться к DeepL API: {exc}"
+            tr("Не удалось подключиться к DeepL API: {error}", error=exc)
         ) from exc
 
     translations = result.get("translations", [])
     if not translations:
-        raise RuntimeError("DeepL API вернул пустой ответ.")
+        raise RuntimeError(tr("DeepL API вернул пустой ответ."))
 
     item = translations[0]
     detected = item.get("detected_source_language", "").lower()

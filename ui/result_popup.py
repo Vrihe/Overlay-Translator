@@ -20,6 +20,7 @@ from PyQt5.QtCore import (
 from PyQt5.QtGui import QColor, QPainter, QPainterPath, QCursor
 
 import config
+from i18n import tr
 
 
 class ResultPopup(QWidget):
@@ -161,22 +162,23 @@ class ResultPopup(QWidget):
         header_row.setContentsMargins(0, 0, 0, 2)
         header_row.setSpacing(6)
 
-        from translate.domain_manager import load_domain_profile
-        domain_profile = load_domain_profile(config.ACTIVE_DOMAIN)
-        domain_display_name = domain_profile.get("display_name", "Общий")
+        from translate.domain_manager import display_name_of, load_domain_profile
+        domain_display_name = display_name_of(load_domain_profile(config.ACTIVE_DOMAIN))
 
         if self._is_loading:
-            self._loading_label = self._make_label(f"Переводим ({domain_display_name})...", size=10, color="#a0a0c0", bold=True)
+            self._loading_label = self._make_label(
+                tr("Переводим ({context})...", context=domain_display_name), size=10, color="#a0a0c0", bold=True
+            )
             header_row.addWidget(self._loading_label)
             self._start_dots_animation()
         else:
-            title_text = "Ошибка" if self._is_error else "Перевод"
+            title_text = tr("Ошибка") if self._is_error else tr("Перевод")
             title_color = "#ff6b6b" if self._is_error else "#8888aa"
             header_lbl = QLabel(title_text)
             header_lbl.setStyleSheet(f"color: {title_color}; font-size: 9.5pt; font-weight: 600; background: transparent;")
             header_row.addWidget(header_lbl)
 
-            domain_badge = QLabel(f"•  Контекст: {domain_display_name}")
+            domain_badge = QLabel(tr("•  Контекст: {context}", context=domain_display_name))
             domain_badge.setTextFormat(Qt.PlainText)
             domain_badge.setStyleSheet("color: #777799; font-size: 8.5pt; font-family: 'Segoe UI'; background: transparent;")
             header_row.addWidget(domain_badge)
@@ -189,7 +191,7 @@ class ResultPopup(QWidget):
             self._btn_tts = QPushButton("🔊")
             self._btn_tts.setFixedSize(22, 22)
             self._btn_tts.setCursor(Qt.PointingHandCursor)
-            self._btn_tts.setToolTip("Озвучить перевод")
+            self._btn_tts.setToolTip(tr("Озвучить перевод"))
             _action_btn_base = (
                 "QPushButton {"
                 "  color: #777799; background: transparent; border: none;"
@@ -205,7 +207,7 @@ class ResultPopup(QWidget):
             self._btn_copy = QPushButton("📋")
             self._btn_copy.setFixedSize(22, 22)
             self._btn_copy.setCursor(Qt.PointingHandCursor)
-            self._btn_copy.setToolTip("Скопировать перевод")
+            self._btn_copy.setToolTip(tr("Скопировать перевод"))
             self._btn_copy.setStyleSheet(_action_btn_base)
             self._btn_copy.clicked.connect(self._on_copy_translation)
             header_row.addWidget(self._btn_copy)
@@ -213,7 +215,7 @@ class ResultPopup(QWidget):
         self._btn_close = QPushButton("✕")
         self._btn_close.setFixedSize(20, 20)
         self._btn_close.setCursor(Qt.PointingHandCursor)
-        self._btn_close.setToolTip("Закрыть окно")
+        self._btn_close.setToolTip(tr("Закрыть окно"))
         self._btn_close.setStyleSheet(
             "QPushButton {"
             "  color: #777799; background: transparent; border: none;"
@@ -356,12 +358,11 @@ class ResultPopup(QWidget):
             if self._dots_timer is not None:
                 self._dots_timer.stop()
             return
-        from translate.domain_manager import load_domain_profile
-        domain_profile = load_domain_profile(config.ACTIVE_DOMAIN)
-        domain_display_name = domain_profile.get("display_name", "Общий")
+        from translate.domain_manager import display_name_of, load_domain_profile
+        domain_display_name = display_name_of(load_domain_profile(config.ACTIVE_DOMAIN))
         self._dots_count = (self._dots_count % 3) + 1
         dots = "." * self._dots_count
-        self._loading_label.setText(f"Переводим ({domain_display_name}){dots}")
+        self._loading_label.setText(tr("Переводим ({context})", context=domain_display_name) + dots)
 
     # ── In-place content update ──────────────────────────
 
@@ -676,7 +677,7 @@ def show_result(
             existing_popup.hide()
             existing_popup.deleteLater()
 
-        title = "Ошибка перевода" if is_error else "Перевод"
+        title = tr("Ошибка перевода") if is_error else tr("Перевод")
         msg = f"{translated_text}\n\n⚠ {notice}" if notice else translated_text
 
         if tray_icon is not None and hasattr(tray_icon, "showMessage"):

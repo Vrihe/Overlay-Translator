@@ -20,6 +20,7 @@ import urllib.parse
 import urllib.request
 
 import settings
+from i18n import tr
 from translate.lang_codes import normalize_source_lang, normalize_target_lang
 
 _logger = logging.getLogger("translator.google")
@@ -65,16 +66,16 @@ def _translate_official(
         except Exception:
             pass
         raise RuntimeError(
-            f"Google Cloud Translation API вернул ошибку {exc.code}: {detail}"
+            tr("Google Cloud Translation API вернул ошибку {code}: {detail}", code=exc.code, detail=detail)
         ) from exc
     except (urllib.error.URLError, OSError) as exc:
         raise RuntimeError(
-            f"Не удалось подключиться к Google Cloud Translation API: {exc}"
+            tr("Не удалось подключиться к Google Cloud Translation API: {error}", error=exc)
         ) from exc
 
     translations = result.get("data", {}).get("translations", [])
     if not translations:
-        raise RuntimeError("Google Cloud Translation API вернул пустой ответ.")
+        raise RuntimeError(tr("Google Cloud Translation API вернул пустой ответ."))
 
     item = translations[0]
     detected = item.get("detectedSourceLanguage", source or "").lower()
@@ -105,11 +106,11 @@ def _translate_free(
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         raise RuntimeError(
-            f"Google Translate (Web RPC) вернул ошибку {exc.code}."
+            tr("Google Translate (Web RPC) вернул ошибку {code}.", code=exc.code)
         ) from exc
     except (urllib.error.URLError, OSError) as exc:
         raise RuntimeError(
-            f"Не удалось подключиться к Google Translate: {exc}"
+            tr("Не удалось подключиться к Google Translate: {error}", error=exc)
         ) from exc
 
     data = json.loads(raw)
@@ -120,7 +121,7 @@ def _translate_free(
         seg[0] for seg in segments if isinstance(seg, list) and seg[0]
     )
     if not translated:
-        raise RuntimeError("Google Translate вернул пустой ответ.")
+        raise RuntimeError(tr("Google Translate вернул пустой ответ."))
 
     # data[2] holds the detected source language code (e.g. "en").
     detected = ""

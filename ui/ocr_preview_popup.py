@@ -9,6 +9,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QRect, QPoint
 from PyQt5.QtGui import QColor, QPainter, QPainterPath
 
+from i18n import tr
+
 
 class OcrPreviewPopup(QWidget):
     """Floating dialog to view and edit OCR-recognized text prior to sending to LLM."""
@@ -50,7 +52,7 @@ class OcrPreviewPopup(QWidget):
 
         # Header bar
         header_row = QHBoxLayout()
-        lbl_title = QLabel("✏️ Редактирование OCR-текста")
+        lbl_title = QLabel(tr("✏️ Редактирование OCR-текста"))
         lbl_title.setStyleSheet("color: #7ca5f5; font-weight: 600; font-size: 10pt; font-family: 'Segoe UI'; border: none;")
         header_row.addWidget(lbl_title)
         header_row.addStretch()
@@ -84,7 +86,7 @@ class OcrPreviewPopup(QWidget):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
-        self._btn_cancel = QPushButton("Отмена")
+        self._btn_cancel = QPushButton(tr("Отмена"))
         self._btn_cancel.setCursor(Qt.PointingHandCursor)
         self._btn_cancel.setStyleSheet(
             "QPushButton {"
@@ -96,7 +98,7 @@ class OcrPreviewPopup(QWidget):
         self._btn_cancel.clicked.connect(self._on_cancel)
         btn_row.addWidget(self._btn_cancel)
 
-        self._btn_translate = QPushButton("Перевести ↵")
+        self._btn_translate = QPushButton(tr("Перевести ↵"))
         self._btn_translate.setCursor(Qt.PointingHandCursor)
         self._btn_translate.setStyleSheet(
             "QPushButton {"

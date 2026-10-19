@@ -20,6 +20,7 @@ from PyQt5.QtGui import QIcon
 
 from tray.icon_gen import create_tray_icon
 import config
+from i18n import tr
 
 # C2: Quick language switch — same list as settings_dialog to stay in sync.
 _QUICK_LANGS = [
@@ -89,24 +90,24 @@ class TrayIcon(QSystemTrayIcon):
         )
 
         # ── Show Window ──
-        self.act_show_window = QAction("Показать окно")
+        self.act_show_window = QAction(tr("Показать окно"))
         menu.addAction(self.act_show_window)
 
         menu.addSeparator()
 
         # ── Translate ──
-        self.act_translate = QAction(f"Перевести  ({config.HOTKEY.upper()})")
+        self.act_translate = QAction(tr("Перевести  ({hotkey})", hotkey=config.HOTKEY.upper()))
         menu.addAction(self.act_translate)
 
         # ── D2: Live Monitor ──
-        self.act_live_monitor = QAction("▶ Живой мониторинг области")
+        self.act_live_monitor = QAction(tr("▶ Живой мониторинг области"))
         self.act_live_monitor.setCheckable(True)
         menu.addAction(self.act_live_monitor)
 
         # ── Region Presets submenu ──
-        self._presets_menu = QMenu("📋 Пресеты регионов")
+        self._presets_menu = QMenu(tr("📋 Пресеты регионов"))
         self._presets_menu.setStyleSheet(menu.styleSheet())
-        self.act_presets = QAction("Управление пресетами…")
+        self.act_presets = QAction(tr("Управление пресетами…"))
         self._presets_menu.addAction(self.act_presets)
         self._presets_menu.addSeparator()
         self._preset_quick_actions: list[QAction] = []
@@ -116,7 +117,7 @@ class TrayIcon(QSystemTrayIcon):
         menu.addSeparator()
 
         # ── C2: Quick language submenu ──
-        self._lang_menu = QMenu("🌐 Язык перевода")
+        self._lang_menu = QMenu(tr("🌐 Язык перевода"))
         self._lang_menu.setStyleSheet(menu.styleSheet())
         self._lang_actions: dict[str, QAction] = {}
         for code, label in _QUICK_LANGS:
@@ -131,17 +132,17 @@ class TrayIcon(QSystemTrayIcon):
         menu.addSeparator()
 
         # ── Settings ──
-        self.act_settings = QAction(f"Настройки  ({config.SETTINGS_HOTKEY.upper()})")
+        self.act_settings = QAction(tr("Настройки  ({hotkey})", hotkey=config.SETTINGS_HOTKEY.upper()))
         menu.addAction(self.act_settings)
 
         # ── History ──
-        self.act_history = QAction("История переводов")
+        self.act_history = QAction(tr("История переводов"))
         menu.addAction(self.act_history)
 
         menu.addSeparator()
 
         # ── Exit ──
-        self.act_exit = QAction("Выход")
+        self.act_exit = QAction(tr("Выход"))
         menu.addAction(self.act_exit)
 
         self.setContextMenu(menu)
@@ -166,7 +167,7 @@ class TrayIcon(QSystemTrayIcon):
         label = next((l for c, l in _QUICK_LANGS if c == lang_code), lang_code)
         self.showMessage(
             "Overlay Translator",
-            f"Язык перевода: {label}",
+            tr("Язык перевода: {language}", language=label),
             QSystemTrayIcon.Information,
             2000,
         )

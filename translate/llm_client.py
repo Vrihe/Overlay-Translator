@@ -21,6 +21,7 @@ import time
 
 import config
 import settings
+from i18n import tr
 from cache.store import get_cached, save_to_cache
 from translate.domain_manager import load_domain_profile
 from translate.error_classification import is_retryable
@@ -162,8 +163,8 @@ def validate_api_key(provider: str, key: str) -> None:
             return
     except Exception as exc:
         if type(exc).__name__ in ("AuthenticationError", "PermissionDeniedError"):
-            raise RuntimeError(f"Ключ отклонён провайдером {provider}.") from exc
-        raise RuntimeError(f"Не удалось проверить ключ: {exc}") from exc
+            raise RuntimeError(tr("Ключ отклонён провайдером {provider}.", provider=provider)) from exc
+        raise RuntimeError(tr("Не удалось проверить ключ: {error}", error=exc)) from exc
     raise ValueError(f"Unknown provider: {provider!r}")
 
 
@@ -236,17 +237,18 @@ def _call_provider(
             },
         )
         if not response or not getattr(response, "choices", None):
-            raise RuntimeError(f"OpenRouter API не вернул варианты ответа ({response=}).")
+            raise RuntimeError(tr("OpenRouter API не вернул варианты ответа ({response}).", response=f"{response=}"))
         choice = response.choices[0]
         msg = getattr(choice, "message", None)
         content = getattr(msg, "content", None)
         if not content and hasattr(msg, "reasoning"):
             content = getattr(msg, "reasoning", None)
         if not content:
-            raise RuntimeError(
-                f"Модель '{model}' вернула пустой текст ответа на OpenRouter. "
-                "Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках."
-            )
+            raise RuntimeError(tr(
+                "Модель '{model}' вернула пустой текст ответа на OpenRouter. "
+                "Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках.",
+                model=model,
+            ))
         return content.strip()
 
     if provider == "anthropic":
@@ -266,7 +268,7 @@ def _call_provider(
                     on_chunk("".join(chunks))
             result = "".join(chunks).strip()
             if not result:
-                raise RuntimeError("Anthropic API (stream) вернул пустой текст ответа.")
+                raise RuntimeError(tr("Anthropic API (stream) вернул пустой текст ответа."))
             return result
         else:
             message = client.messages.create(
@@ -276,7 +278,7 @@ def _call_provider(
                 messages=[{"role": "user", "content": user_prompt}],
             )
             if not message or not getattr(message, "content", None):
-                raise RuntimeError("Anthropic API не вернул текст ответа.")
+                raise RuntimeError(tr("Anthropic API не вернул текст ответа."))
             return message.content[0].text.strip()
 
     raise ValueError(f"Unknown provider: {provider!r}")
@@ -298,10 +300,10 @@ def _call_with_resilience(
     """
     chain = get_provider_chain()
     if not chain:
-        raise RuntimeError(
+        raise RuntimeError(tr(
             "Нет доступных провайдеров — проверьте, что задан хотя бы один API-ключ "
             "(Anthropic или OpenRouter) в Настройках."
-        )
+        ))
 
     errors: dict[str, Exception] = {}
     max_retries = getattr(config, "MAX_RETRIES_PER_PROVIDER", 2)
@@ -340,7 +342,7 @@ def _call_with_resilience(
                 break
 
     summary = "; ".join(f"{k}: {type(v).__name__}: {v}" for k, v in errors.items())
-    raise RuntimeError(f"Все провайдеры недоступны. Детали: {summary}")
+    raise RuntimeError(tr("Все провайдеры недоступны. Детали: {details}", details=summary))
 
 
 def _build_system_prompt(domain_id: str, target_lang: str, source_lang: str | None = None) -> str:

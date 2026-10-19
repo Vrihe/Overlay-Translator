@@ -20,6 +20,7 @@ import urllib.request
 
 import settings
 from settings import config_manager
+from i18n import tr
 from translate.lang_codes import normalize_source_lang, normalize_target_lang
 
 _logger = logging.getLogger("translator.azure")
@@ -44,7 +45,7 @@ def translate(
     api_key = settings.get_api_key("azure") or os.getenv("AZURE_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "Azure Translator API key missing! Укажите ключ в Настройках."
+            tr("Azure Translator API key missing! Укажите ключ в Настройках.")
         )
     region = config_manager.get("azure_region") or "global"
 
@@ -84,27 +85,27 @@ def translate(
             pass
         if exc.code == 401:
             raise RuntimeError(
-                "Azure Translator: ключ недействителен или регион указан неверно (401)."
+                tr("Azure Translator: ключ недействителен или регион указан неверно (401).")
             ) from exc
         if exc.code == 403:
             raise RuntimeError(
-                "Azure Translator: доступ запрещён (403). Проверьте подписку."
+                tr("Azure Translator: доступ запрещён (403). Проверьте подписку.")
             ) from exc
         raise RuntimeError(
-            f"Azure Translator API вернул ошибку {exc.code}: {detail}"
+            tr("Azure Translator API вернул ошибку {code}: {detail}", code=exc.code, detail=detail)
         ) from exc
     except (urllib.error.URLError, OSError) as exc:
         raise RuntimeError(
-            f"Не удалось подключиться к Azure Translator API: {exc}"
+            tr("Не удалось подключиться к Azure Translator API: {error}", error=exc)
         ) from exc
 
     if not result or not isinstance(result, list):
-        raise RuntimeError("Azure Translator API вернул пустой ответ.")
+        raise RuntimeError(tr("Azure Translator API вернул пустой ответ."))
 
     entry = result[0]
     translations = entry.get("translations", [])
     if not translations:
-        raise RuntimeError("Azure Translator API вернул пустой ответ.")
+        raise RuntimeError(tr("Azure Translator API вернул пустой ответ."))
 
     translated = translations[0].get("text", "")
 

@@ -13,6 +13,7 @@ Stored keys:
   • llm_model             — model identifier for OpenRouter / Anthropic
   • hotkey                — keyboard combo string
   • popup_timeout_sec     — auto-close delay for the result popup
+  • ui_language           — interface language: "auto" | "ru" | "en" (see i18n/)
 """
 
 import json
@@ -73,6 +74,7 @@ DEFAULTS: dict[str, Any] = {
     "notification_type": "popup",          # "popup" | "windows_toast"
     "ocr_languages": ["en", "ru"],
     "active_domain": "general",
+    "ui_language": "auto",                 # "auto" | "ru" | "en" (applied after a restart)
 }
 
 # ── In-memory cache ──────────────────────────────────────
