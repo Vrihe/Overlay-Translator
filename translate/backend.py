@@ -40,6 +40,21 @@ BACKEND_DEEPL = "deepl"
 BACKEND_AZURE = "azure"
 BACKEND_NLLB = "nllb"
 
+#: Set of all valid backend identifiers.
+_VALID_BACKENDS = {BACKEND_API, BACKEND_GOOGLE, BACKEND_DEEPL, BACKEND_AZURE, BACKEND_NLLB}
+
+#: Set of NMT (fast, non-LLM) backends handled via simple HTTP clients.
+_NMT_BACKENDS = {BACKEND_GOOGLE, BACKEND_DEEPL, BACKEND_AZURE}
+
+#: (id, human label) — consumed by ui/settings_dialog.
+BACKENDS: list[tuple[str, str]] = [
+    (BACKEND_API,    "LLM (OpenRouter / Anthropic)"),
+    (BACKEND_GOOGLE, "Google Translate"),
+    (BACKEND_DEEPL,  "DeepL API"),
+    (BACKEND_AZURE,  "Microsoft Azure Translator"),
+    (BACKEND_NLLB,   "Локальная модель (NLLB-200)"),
+]
+
 _logger = logging.getLogger("translator.backend")
 
 # Per-thread one-shot notice, consumed by the UI right after a translation call.
