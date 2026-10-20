@@ -1,15 +1,15 @@
 """
 tray/icon_gen.py — generate a simple tray icon pixmap on the fly.
 
-Creates a 64×64 icon with a stylised "T" on a rounded gradient square
-so the project doesn't depend on external asset files.
+Creates a 64×64 icon: a flat square tile in the palette accent with an
+``on_accent`` "T" (HUD theme, ui/theme.py), so the project doesn't depend on
+external asset files.
 """
 
 from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtGui import (
-    QPixmap, QPainter, QLinearGradient, QColor,
-    QFont, QIcon, QPainterPath, QPen,
-)
+from PyQt5.QtGui import QPixmap, QPainter, QFont, QIcon, QPen
+
+from ui import theme
 
 
 def create_tray_icon() -> QIcon:
@@ -20,20 +20,17 @@ def create_tray_icon() -> QIcon:
 
     p = QPainter(pix)
     p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.TextAntialiasing)
 
-    # Rounded-rect background with a gradient.
-    path = QPainterPath()
-    path.addRoundedRect(2, 2, size - 4, size - 4, 14, 14)
-
-    grad = QLinearGradient(0, 0, size, size)
-    grad.setColorAt(0.0, QColor("#6366f1"))   # indigo
-    grad.setColorAt(1.0, QColor("#06b6d4"))   # cyan
-    p.fillPath(path, grad)
+    # Flat square tile.
+    p.fillRect(2, 2, size - 4, size - 4, theme.qcolor("accent"))
 
     # "T" letter.
-    p.setPen(QPen(QColor(255, 255, 255, 230), 0))
-    p.setFont(QFont("Segoe UI", 34, QFont.Bold))
-    p.drawText(QRect(0, -2, size, size), Qt.AlignCenter, "T")
+    font = QFont(theme.display_family(), 34)
+    font.setWeight(QFont.Bold)
+    p.setPen(QPen(theme.qcolor("on_accent"), 0))
+    p.setFont(font)
+    p.drawText(QRect(0, -1, size, size), Qt.AlignCenter, "T")
 
     p.end()
     return QIcon(pix)

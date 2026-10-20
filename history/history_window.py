@@ -5,6 +5,7 @@ Features:
   • Displays all cached translation entries from SQLite (cache/store.py) in a QTableWidget.
   • Columns: Date/Time, Language, Original text (truncated to 50 chars with '...'), Translation.
   • Live search filter line edit for filtering original text or translation.
+  • Context filter chips ("Все" + every domain present in the records).
   • "Clear history" button with QMessageBox confirmation.
   • HistoryWidget(QWidget): Reusable history viewer widget for dialogs or tabs.
 """
@@ -14,13 +15,15 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
-    QMessageBox, QWidget, QFileDialog,
+    QMessageBox, QWidget, QFileDialog, QButtonGroup, QFrame,
 )
 from PyQt5.QtCore import Qt
 
 import config
 import cache.store as store
 from i18n import tr
+from ui import icons, theme
+from ui.hud_widgets import page_title
 
 
 class HistoryWidget(QWidget):
@@ -30,6 +33,7 @@ class HistoryWidget(QWidget):
         super().__init__(parent)
 
         self._all_records: list[dict] = []
+        self._domain_filter: str | None = None  # None = all contexts
 
         self._build_ui()
         self.reload()
@@ -39,130 +43,169 @@ class HistoryWidget(QWidget):
 
     @staticmethod
     def _css(extra: str = "") -> str:
-        return f"font-family: 'Segoe UI'; background: transparent; {extra}"
-
-    _INPUT_CSS = (
-        "QLineEdit {"
-        "  background: #2a2a3e; color: #e0e0e0; border: 1px solid #444;"
-        "  border-radius: 6px; padding: 6px 12px;"
-        "  font-family: 'Segoe UI'; font-size: 10pt;"
-        "}"
-        "QLineEdit:focus {"
-        "  border-color: #5b8def;"
-        "}"
-    )
-
-    _TABLE_CSS = (
-        "QTableWidget {"
-        "  background-color: #1c1c2a; color: #e0e0e0; gridline-color: #2a2a3e;"
-        "  border: 1px solid #3a3a4e; border-radius: 8px;"
-        "  font-family: 'Segoe UI'; font-size: 9.5pt;"
-        "  outline: none;"
-        "}"
-        "QTableWidget::item {"
-        "  background-color: #1c1c2a; color: #e0e0e0; padding: 6px 8px;"
-        "}"
-        "QTableWidget::item:alternate {"
-        "  background-color: #25253a; color: #e0e0e0;"
-        "}"
-        "QTableWidget::item:hover {"
-        "  background-color: #2e2e46;"
-        "}"
-        "QTableWidget::item:selected {"
-        "  background-color: #3e3e60; color: #ffffff;"
-        "}"
-        "QHeaderView::section {"
-        "  background-color: #151522; color: #aaa; padding: 8px 10px;"
-        "  border: none; border-bottom: 1px solid #3a3a4e;"
-        "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 600;"
-        "}"
-        "QTableWidget QTableCornerButton::section {"
-        "  background-color: #151522; border: none;"
-        "}"
-    )
+        return f"font-family: '{theme.body_family()}'; background: transparent; {extra}"
 
     # ── Build UI ─────────────────────────────────────────
 
     def _build_ui(self) -> None:
+        p = theme.current()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        # ── Header row (Search input) ──
+        # ── Header row: title + export / clear ──
         header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        header_layout.addWidget(page_title(tr("История")))
         header_layout.addStretch()
 
-        self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText(tr("🔍 Поиск по оригиналу или переводу..."))
-        self._search_input.setFixedWidth(280)
-        self._search_input.setStyleSheet(self._INPUT_CSS)
-        header_layout.addWidget(self._search_input)
+        # C3: Export button
+        self._btn_export = QPushButton(tr("Экспорт .txt"))
+        self._btn_export.setCursor(Qt.PointingHandCursor)
+        self._btn_export.setStyleSheet(theme.btn_secondary("7px 14px", 9))
+        self._btn_export.clicked.connect(self._on_export_history)
+        header_layout.addWidget(self._btn_export)
 
+        self._btn_clear = QPushButton(tr("Очистить"))
+        self._btn_clear.setCursor(Qt.PointingHandCursor)
+        self._btn_clear.setStyleSheet(theme.btn_danger("7px 14px", 9))
+        header_layout.addWidget(self._btn_clear)
         layout.addLayout(header_layout)
+
+        # ── Toolbar: search + context filter chips ──
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(6)
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText(tr("Поиск по оригиналу или переводу..."))
+        self._search_input.addAction(icons.icon("search", p.muted, 14), QLineEdit.LeadingPosition)
+        self._search_input.setMinimumWidth(200)
+        self._search_input.setMaximumWidth(320)
+        self._search_input.setStyleSheet(theme.input_css(9.5, "6px 8px"))
+        toolbar.addWidget(self._search_input, 1)
+        toolbar.addSpacing(6)
+
+        self._chips_layout = QHBoxLayout()
+        self._chips_layout.setSpacing(6)
+        toolbar.addLayout(self._chips_layout)
+        toolbar.addStretch()
+        self._chip_group = QButtonGroup(self)
+        self._chip_group.setExclusive(True)
+        self._chip_group.buttonClicked.connect(self._on_chip_clicked)
+        layout.addLayout(toolbar)
 
         # ── Table Widget ──
         self._table = QTableWidget()
         self._table.setColumnCount(4)
-        self._table.setHorizontalHeaderLabels([tr("Дата / Время"), tr("Язык"), tr("Оригинал"), tr("Перевод")])
-        self._table.setStyleSheet(self._TABLE_CSS)
-        self._table.setAlternatingRowColors(True)
+        self._table.setHorizontalHeaderLabels(
+            [tr("Дата / Время").upper(), tr("Язык").upper(), tr("Оригинал").upper(), tr("Перевод").upper()]
+        )
+        self._table.setStyleSheet(theme.table_css())
+        self._table.setAlternatingRowColors(False)
+        self._table.setShowGrid(False)
         self._table.verticalHeader().setVisible(False)
+        self._table.verticalHeader().setDefaultSectionSize(34)
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._table.setFocusPolicy(Qt.StrongFocus)
 
         # Column resize policies
         h_header = self._table.horizontalHeader()
+        h_header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        h_header.setHighlightSections(False)
         h_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         h_header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         h_header.setSectionResizeMode(2, QHeaderView.Interactive)
         h_header.setSectionResizeMode(3, QHeaderView.Stretch)
         self._table.setColumnWidth(2, 220)
 
-        layout.addWidget(self._table, 1)
-
-        # ── Bottom row (Count + Clear button) ──
-        bottom_layout = QHBoxLayout()
-
-        self._count_label = QLabel(tr("Всего записей: {count}", count=0))
-        self._count_label.setStyleSheet(self._css("color: #888899; font-size: 9.5pt;"))
-        bottom_layout.addWidget(self._count_label)
-
-        bottom_layout.addStretch()
-
-        # C3: Export button
-        self._btn_export = QPushButton(tr("💾 Экспорт .txt"))
-        self._btn_export.setStyleSheet(
-            "QPushButton {"
-            "  background: #1e2f4a; color: #7ca5f5; border: 1px solid #3a5a9a;"
-            "  border-radius: 6px; padding: 7px 16px;"
-            "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 500;"
-            "}"
-            "QPushButton:hover { background: #253b5e; color: #a0c0ff; }"
-            "QPushButton:disabled { background: #1a1e2e; color: #445; border-color: #2a3a5a; }"
+        # ── Footer strip under the table: count + "stored locally" ──
+        table_box = QVBoxLayout()
+        table_box.setSpacing(0)
+        table_box.addWidget(self._table, 1)
+        footer = QFrame()
+        footer.setObjectName("historyFooter")
+        footer.setStyleSheet(
+            f"#historyFooter {{ background: {p.rail}; border: 1px solid {p.line}; border-top: none; }}"
         )
-        self._btn_export.clicked.connect(self._on_export_history)
-        bottom_layout.addWidget(self._btn_export)
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(12, 7, 12, 7)
 
-        self._btn_clear = QPushButton(tr("🗑 Очистить историю"))
-        self._btn_clear.setStyleSheet(
+        self._count_label = QLabel(tr("Показано записей: {count}", count=0))
+        self._count_label.setFont(theme.body_font(8, medium=True, spacing=110))
+        self._count_label.setStyleSheet(f"color: {p.muted}; background: transparent;")
+        footer_layout.addWidget(self._count_label)
+        footer_layout.addStretch()
+
+        local_lbl = QLabel(tr("Хранится локально").upper())
+        local_lbl.setFont(theme.body_font(8, medium=True, spacing=110))
+        local_lbl.setStyleSheet(f"color: {p.muted}; background: transparent;")
+        footer_layout.addWidget(local_lbl)
+        table_box.addWidget(footer)
+
+        layout.addLayout(table_box, 1)
+
+    # ── Context filter chips ─────────────────────────────
+
+    def _chip_css(self) -> str:
+        p = theme.current()
+        return (
             "QPushButton {"
-            "  background: #3a2228; color: #ff6b6b; border: 1px solid #5a2c35;"
-            "  border-radius: 6px; padding: 7px 16px;"
-            "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 500;"
+            f"  background: transparent; color: {p.text_soft}; border: 1px solid {p.line};"
+            "  border-radius: 0; padding: 5px 10px;"
+            f"  font-family: '{theme.body_family()}'; font-size: 8.5pt;"
             "}"
-            "QPushButton:hover { background: #502730; color: #ff8585; }"
-            "QPushButton:disabled { background: #2a1a1e; color: #664444; border-color: #3a2025; }"
+            f"QPushButton:hover {{ color: {p.text}; border-color: {p.dim}; }}"
+            f"QPushButton:focus {{ border-color: {p.accent}; }}"
+            f"QPushButton:checked {{ color: {p.accent}; border-color: {p.dim}; background: {p.tint}; }}"
         )
-        bottom_layout.addWidget(self._btn_clear)
 
-        layout.addLayout(bottom_layout)
+    def _rebuild_chips(self) -> None:
+        """One chip per context present in the history, plus "all"."""
+        for btn in self._chip_group.buttons():
+            self._chip_group.removeButton(btn)
+            btn.hide()
+            btn.deleteLater()
+
+        present = []
+        for rec in self._all_records:
+            dom = rec.get("domain_id") or "general"
+            if dom not in present:
+                present.append(dom)
+        if len(present) < 2:
+            self._domain_filter = None
+            return  # a single context: nothing to filter
+        if self._domain_filter not in present:
+            self._domain_filter = None
+
+        try:
+            from translate.domain_manager import list_available_domains
+            names = {d["id"]: d["display_name"] for d in list_available_domains()}
+        except Exception:
+            names = {}
+
+        css = self._chip_css()
+        for dom in [None] + present:
+            label = tr("Все") if dom is None else names.get(dom, dom)
+            btn = QPushButton(label.upper())
+            btn.setCheckable(True)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setStyleSheet(css)
+            btn.setProperty("domain", dom)
+            btn.setChecked(dom == self._domain_filter)
+            self._chip_group.addButton(btn)
+            self._chips_layout.addWidget(btn)
+
+    def _on_chip_clicked(self, btn) -> None:
+        self._domain_filter = btn.property("domain")
+        self._apply_filters()
 
     # ── Load Data ────────────────────────────────────────
 
     def reload(self) -> None:
         """Fetch records from store and populate the table."""
         self._all_records = store.get_all_history()
-        self._populate_table(self._all_records)
+        self._rebuild_chips()
+        self._apply_filters()
 
     def _populate_table(self, records: list[dict]) -> None:
         self._table.setRowCount(0)
@@ -173,19 +216,20 @@ class HistoryWidget(QWidget):
             ts = rec.get("timestamp", 0)
             dt_str = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts else "—"
             item_dt = QTableWidgetItem(dt_str)
-            item_dt.setTextAlignment(Qt.AlignCenter)
+            item_dt.setForeground(theme.qcolor("muted"))
 
             # 2. Language
             src = rec.get("source_lang", config.SOURCE_LANG).upper()
             tgt = rec.get("target_lang", config.TARGET_LANG).upper()
             item_lang = QTableWidgetItem(f"{src} → {tgt}")
-            item_lang.setTextAlignment(Qt.AlignCenter)
+            item_lang.setForeground(theme.qcolor("accent"))
 
             # 3. Original text (truncated to 50 chars with ...)
             orig_full = rec.get("source_text", "")
             orig_short = orig_full[:50] + ("..." if len(orig_full) > 50 else "")
             item_orig = QTableWidgetItem(orig_short)
             item_orig.setToolTip(orig_full)
+            item_orig.setForeground(theme.qcolor("text_soft"))
 
             # 4. Translated text
             trans_full = rec.get("translated_text", "")
@@ -198,7 +242,7 @@ class HistoryWidget(QWidget):
             self._table.setItem(row_idx, 3, item_trans)
 
         self._displayed_records = records
-        self._count_label.setText(tr("Всего записей: {count}", count=len(records)))
+        self._count_label.setText(tr("Показано записей: {count}", count=len(records)).upper())
         self._btn_clear.setEnabled(len(self._all_records) > 0)
         self._btn_export.setEnabled(len(records) > 0)
 
@@ -257,13 +301,18 @@ class HistoryWidget(QWidget):
 
     # ── Filter search ────────────────────────────────────
 
-    def _on_search_changed(self, text: str) -> None:
-        query = text.strip().lower()
-        if not query:
-            filtered = self._all_records
-        else:
+    def _on_search_changed(self, _text: str = "") -> None:
+        self._apply_filters()
+
+    def _apply_filters(self) -> None:
+        """Search text and context chip combined."""
+        query = self._search_input.text().strip().lower()
+        filtered = self._all_records
+        if self._domain_filter is not None:
+            filtered = [r for r in filtered if (r.get("domain_id") or "general") == self._domain_filter]
+        if query:
             filtered = [
-                r for r in self._all_records
+                r for r in filtered
                 if query in r.get("source_text", "").lower()
                 or query in r.get("translated_text", "").lower()
             ]

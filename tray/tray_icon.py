@@ -21,6 +21,7 @@ from PyQt5.QtGui import QIcon
 from tray.icon_gen import create_tray_icon
 import config
 from i18n import tr
+from ui import theme
 
 # C2: Quick language switch — same list as settings_dialog to stay in sync.
 _QUICK_LANGS = [
@@ -62,32 +63,7 @@ class TrayIcon(QSystemTrayIcon):
 
     def _build_menu(self) -> None:
         menu = QMenu()
-        menu.setStyleSheet(
-            """
-            QMenu {
-                background: #1e1e2e;
-                color: #e0e0e0;
-                border: 1px solid #333;
-                padding: 4px 0;
-                font-family: 'Segoe UI';
-                font-size: 10pt;
-            }
-            QMenu::item {
-                padding: 6px 28px 6px 16px;
-            }
-            QMenu::item:selected {
-                background: #3a3a5c;
-            }
-            QMenu::item:checked {
-                color: #6fcf97;
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #333;
-                margin: 4px 8px;
-            }
-            """
-        )
+        menu.setStyleSheet(theme.menu_css())
 
         # ── Show Window ──
         self.act_show_window = QAction(tr("Показать окно"))
@@ -100,12 +76,12 @@ class TrayIcon(QSystemTrayIcon):
         menu.addAction(self.act_translate)
 
         # ── D2: Live Monitor ──
-        self.act_live_monitor = QAction(tr("▶ Живой мониторинг области"))
+        self.act_live_monitor = QAction(tr("Живой мониторинг области"))
         self.act_live_monitor.setCheckable(True)
         menu.addAction(self.act_live_monitor)
 
         # ── Region Presets submenu ──
-        self._presets_menu = QMenu(tr("📋 Пресеты регионов"))
+        self._presets_menu = QMenu(tr("Пресеты регионов"))
         self._presets_menu.setStyleSheet(menu.styleSheet())
         self.act_presets = QAction(tr("Управление пресетами…"))
         self._presets_menu.addAction(self.act_presets)
@@ -117,7 +93,7 @@ class TrayIcon(QSystemTrayIcon):
         menu.addSeparator()
 
         # ── C2: Quick language submenu ──
-        self._lang_menu = QMenu(tr("🌐 Язык перевода"))
+        self._lang_menu = QMenu(tr("Язык перевода"))
         self._lang_menu.setStyleSheet(menu.styleSheet())
         self._lang_actions: dict[str, QAction] = {}
         for code, label in _QUICK_LANGS:

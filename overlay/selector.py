@@ -9,9 +9,10 @@ are always in the global screen coordinate system.
 
 from PyQt5.QtWidgets import QWidget, QApplication
 from PyQt5.QtCore import Qt, QRect, QPoint, pyqtSignal
-from PyQt5.QtGui import QPainter, QColor, QPen, QFont, QCursor
+from PyQt5.QtGui import QPainter, QColor, QPen, QCursor
 
 from i18n import tr
+from ui import theme
 
 
 def _virtual_desktop_geometry() -> QRect:
@@ -40,14 +41,22 @@ class RegionSelector(QWidget):
     selection_cancelled = pyqtSignal()
 
     # ── Visual tunables ──────────────────────────────────
+    # Accent-coloured selection / border come from the palette at construction
+    # (ui/theme.py), not at import, so the configured theme is used.
     _OVERLAY_COLOR = QColor(0, 0, 0, 120)        # dark semi-transparent bg
-    _SELECTION_FILL = QColor(0, 174, 255, 30)     # light blue fill inside rect
-    _BORDER_COLOR = QColor(0, 174, 255, 220)      # bright blue border
-    _BORDER_WIDTH = 2
+    _SELECTION_ALPHA = 30                         # accent fill inside rect
+    _BORDER_ALPHA = 220                           # accent border
+    _BORDER_WIDTH = 1
+    _BRACKET_LEN = 8                              # HUD corner brackets
+    _BRACKET_WIDTH = 2
     _HINT_COLOR = QColor(255, 255, 255, 180)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._selection_fill = theme.qcolor("accent", self._SELECTION_ALPHA)
+        self._border_color = theme.qcolor("accent", self._BORDER_ALPHA)
+        self._bracket_color = theme.qcolor("accent")
 
         self._origin = QPoint()       # mouse-down point (widget coords)
         self._current = QPoint()      # current mouse position
@@ -200,12 +209,15 @@ class RegionSelector(QWidget):
             )
 
             # Light fill inside the selected rectangle.
-            painter.fillRect(sel, self._SELECTION_FILL)
+            painter.fillRect(sel, self._selection_fill)
 
             # Border around the selection.
-            pen = QPen(self._BORDER_COLOR, self._BORDER_WIDTH)
+            painter.setRenderHint(QPainter.Antialiasing, False)
+            pen = QPen(self._border_color, self._BORDER_WIDTH)
             painter.setPen(pen)
             painter.drawRect(sel)
+            self._draw_brackets(painter, sel)
+            painter.setRenderHint(QPainter.Antialiasing)
 
             # Size label near the bottom-right corner of the selection.
             g_tl = self._to_global(sel.topLeft())
@@ -213,7 +225,7 @@ class RegionSelector(QWidget):
             w = g_br.x() - g_tl.x()
             h = g_br.y() - g_tl.y()
             label = f"{w} × {h}"
-            painter.setFont(QFont("Segoe UI", 10))
+            painter.setFont(theme.body_font(9.5))
             painter.setPen(QColor(255, 255, 255, 210))
             label_rect = painter.fontMetrics().boundingRect(label)
             lx = sel.right() - label_rect.width() - 6
@@ -229,7 +241,7 @@ class RegionSelector(QWidget):
             painter.fillRect(full, self._OVERLAY_COLOR)
 
             hint_text = tr("Выделите область для перевода\nEsc — отмена")
-            hint_font = QFont("Segoe UI", 14)
+            hint_font = theme.body_font(13)
             painter.setFont(hint_font)
             fm = painter.fontMetrics()
 
@@ -251,13 +263,26 @@ class RegionSelector(QWidget):
             by = hr.y() + (hr.height() - th) // 2
             backdrop = QRect(bx, by, tw, th)
 
-            # Semi-transparent dark pill behind the text.
+            # Semi-transparent dark plate behind the text.
             painter.setBrush(QColor(0, 0, 0, 170))
             painter.setPen(Qt.NoPen)
-            painter.drawRoundedRect(backdrop, 12, 12)
+            painter.drawRect(backdrop)
 
             # Draw the hint text.
             painter.setPen(self._HINT_COLOR)
             painter.drawText(backdrop, Qt.AlignCenter, hint_text)
 
         painter.end()
+
+    def _draw_brackets(self, painter: QPainter, sel: QRect) -> None:
+        """Short accent strokes on the four corners of the selection."""
+        n = min(self._BRACKET_LEN, sel.width() // 2, sel.height() // 2)
+        if n <= 0:
+            return
+        pen = QPen(self._bracket_color, self._BRACKET_WIDTH)
+        pen.setCapStyle(Qt.SquareCap)
+        painter.setPen(pen)
+        l, t, r, b = sel.left(), sel.top(), sel.right(), sel.bottom()
+        for x, y, dx, dy in ((l, t, 1, 1), (r, t, -1, 1), (l, b, 1, -1), (r, b, -1, -1)):
+            painter.drawLine(x, y, x + dx * n, y)
+            painter.drawLine(x, y, x, y + dy * n)

@@ -14,6 +14,7 @@ Stored keys:
   • hotkey                — keyboard combo string
   • popup_timeout_sec     — auto-close delay for the result popup
   • ui_language           — interface language: "auto" | "ru" | "en" (see i18n/)
+  • ui_theme              — colour scheme: "amber" | "cyan" | "crimson" (see ui/theme.py)
 """
 
 import json
@@ -75,6 +76,7 @@ DEFAULTS: dict[str, Any] = {
     "ocr_languages": ["en", "ru"],
     "active_domain": "general",
     "ui_language": "auto",                 # "auto" | "ru" | "en" (applied after a restart)
+    "ui_theme": "amber",                   # "amber" | "cyan" | "crimson" (applied after a restart)
 }
 
 # ── In-memory cache ──────────────────────────────────────

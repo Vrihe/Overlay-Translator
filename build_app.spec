@@ -53,6 +53,8 @@ a = Analysis(
     binaries=[],    # no heavy binaries — provided by the deps cache
     datas=[
         (str(ROOT / 'translate' / 'domain_profiles'), 'translate/domain_profiles'),
+        # Bundled UI fonts (JetBrains Mono, OFL); resolved via sys._MEIPASS in ui/theme.py.
+        (str(ROOT / 'assets' / 'fonts'), 'assets/fonts'),
     ],
     hiddenimports=[
         # PyQt5 (lightweight, only what app uses)
@@ -68,6 +70,7 @@ a = Analysis(
         'cache', 'cache.store',
         'ui', 'ui.main_window', 'ui.result_popup',
         'ui.first_run_dialog', 'ui.settings_dialog',
+        'ui.theme', 'ui.icons', 'ui.hud_widgets',
         'history', 'history.history_window',
         'tray', 'tray.tray_icon', 'tray.icon_gen',
         'updater', 'updater.check_update',

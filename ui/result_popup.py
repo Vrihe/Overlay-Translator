@@ -2,25 +2,27 @@
 ui/result_popup.py — lightweight floating popup and notification helper.
 
 Design goals:
-  • Non-intrusive — compact, semi-transparent, instant appearance
+  • Non-intrusive — compact, near-opaque HUD card (1 px accent frame), instant appearance
   • Resizable & Draggable — stretchable from all 4 edges & 4 corners (max 850x550, min 300x80)
-  • Clean header with close button ("✕") — window remains open on focus loss or window body clicks
+  • Clean header with icon buttons (speak / copy / close) — window remains open on focus
+    loss or window body clicks
   • Strict screen bounds — wrapped in QScrollArea, never exceeds monitor bounds
-  • Dismissable — close button ("✕"), Escape key, or 10s fallback timeout
+  • Dismissable — close button, Escape key, or 10s fallback timeout
 """
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
-    QScrollArea, QScrollBar, QFrame, QApplication, QGraphicsDropShadowEffect, QSystemTrayIcon,
+    QScrollArea, QScrollBar, QFrame, QApplication, QSystemTrayIcon,
 )
 from PyQt5.QtCore import (
-    Qt, QTimer, QPoint, QRect, QEvent,
+    Qt, QTimer, QPoint, QRect, QEvent, QSize,
     QPropertyAnimation, QEasingCurve,
 )
-from PyQt5.QtGui import QColor, QPainter, QPainterPath, QCursor
+from PyQt5.QtGui import QColor, QPainter, QPen, QCursor
 
 import config
 from i18n import tr
+from ui import icons, theme
 
 
 class ResultPopup(QWidget):
@@ -34,7 +36,9 @@ class ResultPopup(QWidget):
     _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
     _FADE_DURATION = 150          # ms for smooth fade-out on close
     _MARGIN = 10                  # gap between popup and selection edge
-    _BG_OPACITY = 0.92            # card background opacity
+    _BG_OPACITY = 0.96            # card background opacity
+    _ICON_SIZE = 14               # header icon buttons
+
 
     def __init__(
         self,
@@ -164,68 +168,46 @@ class ResultPopup(QWidget):
 
         from translate.domain_manager import display_name_of, load_domain_profile
         domain_display_name = display_name_of(load_domain_profile(config.ACTIVE_DOMAIN))
+        p = theme.current()
 
         if self._is_loading:
-            self._loading_label = self._make_label(
-                tr("Переводим ({context})...", context=domain_display_name), size=10, color="#a0a0c0", bold=True
+            self._loading_label = QLabel(
+                tr("Переводим ({context})...", context=domain_display_name)
             )
+            self._loading_label.setTextFormat(Qt.PlainText)
+            self._loading_label.setFont(theme.body_font(9, medium=True, spacing=106))
+            self._loading_label.setStyleSheet(f"color: {p.text_soft}; background: transparent;")
             header_row.addWidget(self._loading_label)
             self._start_dots_animation()
         else:
             title_text = tr("Ошибка") if self._is_error else tr("Перевод")
-            title_color = "#ff6b6b" if self._is_error else "#8888aa"
-            header_lbl = QLabel(title_text)
-            header_lbl.setStyleSheet(f"color: {title_color}; font-size: 9.5pt; font-weight: 600; background: transparent;")
+            header_lbl = QLabel(title_text.upper())
+            header_lbl.setFont(theme.display_font(9.5, spacing=118))
+            header_lbl.setStyleSheet(
+                f"color: {p.error if self._is_error else p.accent}; background: transparent;"
+            )
             header_row.addWidget(header_lbl)
 
-            domain_badge = QLabel(tr("•  Контекст: {context}", context=domain_display_name))
+            domain_badge = QLabel(f"·  {domain_display_name}")
             domain_badge.setTextFormat(Qt.PlainText)
-            domain_badge.setStyleSheet("color: #777799; font-size: 8.5pt; font-family: 'Segoe UI'; background: transparent;")
+            domain_badge.setStyleSheet(theme.text_css(p.muted, 8.5))
             header_row.addWidget(domain_badge)
 
         header_row.addStretch()
 
         # C1 & D3: Copy and TTS buttons (visible only in final, non-error state)
         if not self._is_loading and not self._is_error and self._translated:
-            # D3: Speech synthesis button (🔊)
-            self._btn_tts = QPushButton("🔊")
-            self._btn_tts.setFixedSize(22, 22)
-            self._btn_tts.setCursor(Qt.PointingHandCursor)
-            self._btn_tts.setToolTip(tr("Озвучить перевод"))
-            _action_btn_base = (
-                "QPushButton {"
-                "  color: #777799; background: transparent; border: none;"
-                "  font-size: 11pt; border-radius: 4px;"
-                "}"
-                "QPushButton:hover { color: #a0c4ff; background: rgba(255,255,255,0.10); }"
-            )
-            self._btn_tts.setStyleSheet(_action_btn_base)
+            # D3: Speech synthesis button
+            self._btn_tts = self._icon_button("speaker", tr("Озвучить перевод"))
             self._btn_tts.clicked.connect(self._on_speak_translation)
             header_row.addWidget(self._btn_tts)
 
-            # C1: Copy to clipboard button (📋)
-            self._btn_copy = QPushButton("📋")
-            self._btn_copy.setFixedSize(22, 22)
-            self._btn_copy.setCursor(Qt.PointingHandCursor)
-            self._btn_copy.setToolTip(tr("Скопировать перевод"))
-            self._btn_copy.setStyleSheet(_action_btn_base)
+            # C1: Copy to clipboard button
+            self._btn_copy = self._icon_button("copy", tr("Скопировать перевод"))
             self._btn_copy.clicked.connect(self._on_copy_translation)
             header_row.addWidget(self._btn_copy)
 
-        self._btn_close = QPushButton("✕")
-        self._btn_close.setFixedSize(20, 20)
-        self._btn_close.setCursor(Qt.PointingHandCursor)
-        self._btn_close.setToolTip(tr("Закрыть окно"))
-        self._btn_close.setStyleSheet(
-            "QPushButton {"
-            "  color: #777799; background: transparent; border: none;"
-            "  font-family: 'Segoe UI', sans-serif; font-size: 10pt; font-weight: bold;"
-            "  border-radius: 4px;"
-            "}"
-            "QPushButton:hover {"
-            "  color: #ff6b6b; background: rgba(255, 255, 255, 0.12);"
-            "}"
-        )
+        self._btn_close = self._icon_button("close", tr("Закрыть окно"), danger=True)
         self._btn_close.clicked.connect(self._fade_out_and_close)
         header_row.addWidget(self._btn_close)
 
@@ -237,20 +219,7 @@ class ResultPopup(QWidget):
         self._scroll_area.setFrameShape(QFrame.NoFrame)
         self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._scroll_area.setStyleSheet(
-            "QScrollArea { background: transparent; border: none; }"
-            "QScrollBar:vertical {"
-            "  background: transparent; width: 6px; margin: 0px; border-radius: 3px;"
-            "}"
-            "QScrollBar::handle:vertical {"
-            "  background: rgba(255, 255, 255, 0.25); min-height: 20px; border-radius: 3px;"
-            "}"
-            "QScrollBar::handle:vertical:hover {"
-            "  background: rgba(255, 255, 255, 0.4);"
-            "}"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,"
-            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
-            "  background: none; height: 0px;"
-            "}"
+            "QScrollArea { background: transparent; border: none; }" + theme.scrollbar_css()
         )
 
         scroll_content = QWidget()
@@ -261,40 +230,42 @@ class ResultPopup(QWidget):
 
         if not self._is_loading:
             if self._is_error:
-                err = self._make_label(self._translated, size=11, color="#ff6b6b")
+                err = self._make_label(self._translated, size=10.5, color=p.error)
                 content_layout.addWidget(err)
             else:
-                tl = self._make_label(self._translated, size=12, color="#e8e8e8", bold=True)
+                tl = self._make_label(self._translated, size=11, color=p.text, bold=True)
                 content_layout.addWidget(tl)
 
             # Backend notice (e.g. local NLLB model unavailable → API was used).
             # Kept out of self._translated so copy/TTS still yield the clean text.
             if self._notice:
-                note = self._make_label(f"⚠ {self._notice}", size=8, color="#ffb347")
+                note = self._make_label(f"⚠ {self._notice}", size=8, color=p.warn)
                 content_layout.addWidget(note)
 
         self._scroll_area.setWidget(scroll_content)
         card_layout.addWidget(self._scroll_area)
         layout.addWidget(self._card)
 
-        # Subtle shadow
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setOffset(0, 3)
-        shadow.setColor(QColor(0, 0, 0, 80))
-        self._card.setGraphicsEffect(shadow)
+    def _icon_button(self, name: str, tooltip: str, *, danger: bool = False) -> QPushButton:
+        p = theme.current()
+        btn = QPushButton()
+        btn.setFixedSize(24, 24)
+        btn.setIconSize(QSize(self._ICON_SIZE, self._ICON_SIZE))
+        btn.setIcon(icons.icon(name, p.muted, self._ICON_SIZE,
+                               active_color=p.error if danger else p.text_soft))
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setToolTip(tooltip)
+        btn.setStyleSheet(theme.btn_icon(danger=danger))
+        return btn
 
     @staticmethod
-    def _make_label(text: str, *, size: int = 12, color: str = "#fff", bold: bool = False) -> QLabel:
+    def _make_label(text: str, *, size: float = 12, color: str = "", bold: bool = False) -> QLabel:
         label = QLabel(text)
         # OCR text and LLM output are untrusted: never let Qt render them as HTML.
         label.setTextFormat(Qt.PlainText)
         label.setWordWrap(True)
-        weight = "600" if bold else "normal"
         label.setStyleSheet(
-            f"color: {color}; font-size: {size}pt; font-weight: {weight}; "
-            f"font-family: 'Segoe UI', sans-serif; background: transparent; "
-            f"padding: 2px 0;"
+            theme.text_css(color or theme.current().text, size, bold=bold) + " padding: 2px 0;"
         )
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
@@ -321,26 +292,14 @@ class ResultPopup(QWidget):
         btn = getattr(self, "_btn_copy", None)
         if btn is None:
             return
-        btn.setText("✓")
-        btn.setStyleSheet(
-            "QPushButton {"
-            "  color: #6fcf97; background: transparent; border: none;"
-            "  font-size: 10pt; font-weight: bold; border-radius: 4px;"
-            "}"
-        )
+        btn.setIcon(icons.icon("check", theme.current().ok, self._ICON_SIZE))
         QTimer.singleShot(1500, lambda: self._reset_copy_btn(btn))
 
     def _reset_copy_btn(self, btn: QPushButton) -> None:
         """Restore copy button to default state after feedback delay."""
         try:
-            btn.setText("📋")
-            btn.setStyleSheet(
-                "QPushButton {"
-                "  color: #777799; background: transparent; border: none;"
-                "  font-size: 11pt; border-radius: 4px;"
-                "}"
-                "QPushButton:hover { color: #a0c4ff; background: rgba(255,255,255,0.10); }"
-            )
+            p = theme.current()
+            btn.setIcon(icons.icon("copy", p.muted, self._ICON_SIZE, active_color=p.text_soft))
         except RuntimeError:
             pass  # widget already deleted
 
@@ -582,31 +541,26 @@ class ResultPopup(QWidget):
         else:
             super().keyPressEvent(event)
 
-    # ── Rounded card background with true alpha ──────────
+    # ── Square HUD card with true alpha ──────────────────
 
     def paintEvent(self, _event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
 
         painter.setCompositionMode(QPainter.CompositionMode_Clear)
         painter.fillRect(self.rect(), Qt.transparent)
         painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
 
-        path = QPainterPath()
-        r = self.rect().adjusted(4, 3, -4, -4)
-        path.addRoundedRect(r.x(), r.y(), r.width(), r.height(), 10, 10)
+        r = self.rect().adjusted(4, 4, -5, -5)
+        painter.fillRect(r, theme.qcolor("bg", int(255 * self._BG_OPACITY)))
 
         if self._is_loading:
-            bg = QColor(25, 30, 45, int(255 * self._BG_OPACITY))
+            border = theme.qcolor("dim")
         elif self._is_error:
-            bg = QColor(40, 20, 20, int(255 * self._BG_OPACITY))
+            border = theme.qcolor("error")
         else:
-            bg = QColor(28, 28, 36, int(255 * self._BG_OPACITY))
-
-        painter.fillPath(path, bg)
-
-        painter.setPen(QColor(255, 255, 255, 15))
-        painter.drawPath(path)
+            border = theme.qcolor("accent")
+        painter.setPen(QPen(border, 1))
+        painter.drawRect(r)
         painter.end()
 
     # ── Positioning ──────────────────────────────────────

@@ -57,7 +57,7 @@ Overlay-Translator/
 │   └── hsv_filter.py       #   Optional HSV filter for coloured text
 │
 ├── overlay/
-│   └── selector.py         #   RegionSelector — full-screen selection frame
+│   └── selector.py         #   RegionSelector — full-screen selection frame (accent + corner brackets)
 │
 ├── translate/              # Translation and language logic
 │   ├── backend.py          #   * Dispatcher: picks the API or the local model
@@ -81,11 +81,13 @@ Overlay-Translator/
 │   └── region_presets.py   #   Screen-region presets + their hotkeys
 │
 ├── ui/                     # PyQt5 widgets
-│   ├── main_window.py      #   MainWindow with sidebar (Home/History/Settings)
+│   ├── main_window.py      #   MainWindow with a nav rail (Home/Settings/History)
 │   ├── settings_dialog.py  #   * SettingsWidget — all settings; ProfileEditorDialog
 │   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize)
 │   ├── first_run_dialog.py #   First-run wizard (API key entry)
-│   ├── theme.py            #   App-wide dark styling for QMessageBox / QInputDialog
+│   ├── theme.py            #   * HUD palettes (UI_THEME), fonts, all stylesheet builders
+│   ├── icons.py            #   Stroke icons drawn with QPainterPath (no emoji / QtSvg)
+│   ├── hud_widgets.py      #   NavButton, Panel, FieldLabel, Chip, Segmented, Switch(Row)
 │   ├── wheel_guard.py      #   Wheel over a closed combo / spin box scrolls the page instead
 │   ├── ocr_preview_popup.py#   Preview/edit OCR text before translating
 │   └── region_presets_dialog.py # Manage presets and their hotkeys
@@ -109,7 +111,9 @@ Overlay-Translator/
 ├── docs/
 │   └── baseline_eval.md    #   NLLB quality reference point before fine-tuning
 ├── data/                   # Exported datasets (gitignored — user data)
-└── assets/icon.ico         # Application icon
+└── assets/
+    ├── icon.ico            # Application icon
+    └── fonts/              # JetBrains Mono Regular/Medium (SIL OFL, LICENSE.txt)
 ```
 
 **Not edited / not versioned** (see `.gitignore`):
@@ -376,16 +380,51 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   Confidence threshold: `EASYOCR_CONFIDENCE_THRESHOLD` (the env names kept their old prefix).
 
 ### `ui/`
-- `MainWindow` (sidebar: `PAGE_HOME` / `PAGE_HISTORY` / `PAGE_SETTINGS`),
+- **Look ("HUD" theme)** — near-black surfaces, square corners, 1 px borders, monospace
+  body text, caps letter-spaced captions, one accent colour. `ui/theme.py` is the single
+  source of truth: `Palette` tokens (`accent`, `on_accent`, `dim`, `tint`, `bg`, `panel`,
+  `rail`, `line`, `active`, `outer` + shared `text`, `text_soft`, `muted`, `nav_idle`,
+  `ok`, `error`, `warn`), `PALETTES` = amber / cyan / crimson, `current()` (reads
+  `config.UI_THEME` once per run, unknown value → amber), style builders (`btn_primary`,
+  `btn_secondary`, `btn_accent`, `btn_danger`, `btn_icon`, `input_css`, `combo_css`,
+  `check_css`, `group_css`, `panel_css(object_name)`, `chip_css`, `table_css`, `list_css`,
+  `menu_css`, `label_css(kind)`, `text_css`, …) and `apply_app_theme(app)` (fonts, default
+  font, QPalette, app-wide sheet for stock dialogs, menus incl. the tray menu, tooltips,
+  scrollbars). No UI module hard-codes a colour. Qt sheets have no letter-spacing /
+  text-transform: caps are applied to the translated string for display only
+  (`tr("…").upper()`), spacing through `theme.display_font()` / `theme.body_font()`.
+  Combo / spin arrows are `icons` chevrons rendered once per run to
+  `%APPDATA%\translator-overlay\cache\ui_icons\*.png` (`theme.icon_url`), because
+  sheets only take images from files.
+- **Fonts** — display: Bahnschrift SemiBold (ships with Windows 10 1709+, has Cyrillic;
+  fallback Segoe UI Semibold); body: JetBrains Mono, bundled in `assets/fonts/` and loaded
+  with `QFontDatabase.addApplicationFont` (fallback Consolas). Frozen builds find the folder
+  under `sys._MEIPASS` (`build_app.spec` datas).
+- `ui/icons.py` — 24×24 stroke icons (home, sliders, clock, upload, copy, speaker, close,
+  chevrons, arrow, search, globe, check, keyboard) drawn with `QPainterPath`;
+  `icon(name, color)`, `pixmap(...)`, `paint(painter, ...)`.
+- `ui/hud_widgets.py` — presentation-only widgets: `NavButton` (rail item, accent bar when
+  active), `Panel(title)` (`panel.body` / `panel.header`), `FieldLabel`, `Chip(kind)`,
+  `Segmented(options)` (`changed(data)`), `Switch` (real checkable button, painted) and
+  `SwitchRow` (switch + label with the QCheckBox API used by the settings), `page_title()`.
+- `MainWindow` (72 px nav rail: `PAGE_HOME` / `PAGE_SETTINGS` / `PAGE_HISTORY`),
   `show_and_switch(page)`, `set_tray_icon(tray)`; workers `_TextTranslateWorker`,
-  `_ImageTranslateWorker`, `_UpdateCheckWorker`.
+  `_ImageTranslateWorker`, `_UpdateCheckWorker`. Home: status chips (online, language
+  pair, hotkey), "Перевод текста" panel, "Из скриншота" panel with a drop zone (file
+  dialog or drag-and-drop of an image file; one image at a time), "Последние" panel (the
+  3 newest `cache.store.get_all_history` records, refreshed on page switch and after a
+  translation; never logged). Columns stack below 760 px width.
 - `SettingsWidget` — all settings; methods `_build_ui()`, `_load_current()`,
   `_on_save()`, `reload()`, `_css(extra)`; constants `_SOURCE_LANGUAGES`,
-  `_TARGET_LANGUAGES`, `_ENGINES`, `_OPENROUTER_MODELS`, `_MODEL_HINTS`.
-  Sections: "API-ключ и провайдеры" (API key and providers), "Бэкенд перевода"
-  (translation backend), "Перевод" (translation), custom profiles,
-  "Интерфейс" (interface language), notifications, updates.
-  Styling: dark theme, `QGroupBox` + `self._INPUT_CSS` / `self._GROUP_CSS`.
+  `_TARGET_LANGUAGES`, `_ENGINES`, `_UI_THEMES`, `_OPENROUTER_MODELS`, `_MODEL_HINTS`.
+  Section list (`_section_list`) + `_section_stack` with one scroll page per section
+  (`_SECTIONS`): "Перевод" (API key and providers, backend, fast-translator keys,
+  translation, custom profiles), "Хоткеи" (read-only overview), "Распознавание" (OCR
+  acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
+  (language, colour scheme, about/updates); a fixed bottom bar holds "Сохранить".
+  The "Облако / Локально" segmented control drives `_backend_combo` (it remembers the last
+  cloud backend); the auto-detect switch drives `_src_lang_combo` (the combo is what is
+  saved). "Проверить" next to the API key validates it without saving.
 - **Stylesheets on page ancestors must be selector-scoped** (`#pageStack { … }`, not a bare
   `background: …;`). A bare rule cascades into every descendant, including a `QMessageBox`
   opened from the page, and ancestor rules beat the app-wide sheet in `ui/theme.py`: the
@@ -395,7 +434,11 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `QComboBox` / `QAbstractSpinBox` never changes its value; it goes to the nearest scroll
   area's viewport, so long pages scroll past controls. An open combo list still scrolls.
 - `ResultPopup(...)` — frameless window, streaming updates via `update_content()`,
-  auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the edges, TTS, copy.
+  auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the edges, TTS, copy. Square
+  card with a 1 px accent frame (`dim` while loading, `error` on error), icon buttons.
+- `overlay/selector.py` — selection fill / border use the palette accent (alpha 30 / 220,
+  read at construction, not at import) plus 8 px corner brackets.
+- `tray/icon_gen.py` — flat accent tile with an `on_accent` "T" (also the window icon).
 
 ---
 
@@ -487,6 +530,8 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
    (`i18n.current_language()`), so a change applies after a restart. `"auto"` picks Russian
    for a Russian/Ukrainian/Belarusian Windows UI language, otherwise English.
+   **Colour scheme** — `settings.json` → `ui_theme`: `"amber"` (default) | `"cyan"` |
+   `"crimson"` (`config.UI_THEME`), set next to the language; also applied after a restart.
    UI strings stay Russian in the code, wrapped in `tr("…")` (`N_("…")` marks module-level
    constants that are translated where shown); placeholders go through keyword arguments,
    `tr("Ошибка: {error}", error=e)`, never f-strings. The English text lives in `i18n/en.py`;
@@ -584,6 +629,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
+| `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

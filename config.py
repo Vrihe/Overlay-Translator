@@ -206,6 +206,15 @@ class _LiveConfig:
         from settings.config_manager import set_value
         set_value("llm_max_tokens", value)
 
+    @property
+    def UI_THEME(self):
+        return _cfg("ui_theme")
+
+    @UI_THEME.setter
+    def UI_THEME(self, value):
+        from settings.config_manager import set_value
+        set_value("ui_theme", value)
+
     # ── Static (from .env / hardcoded) ───────────────────
 
     MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))

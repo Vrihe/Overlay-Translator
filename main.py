@@ -145,22 +145,24 @@ def _hide_console() -> None:
 
 def _create_splash() -> QSplashScreen:
     """Create a branded splash screen shown during app initialization."""
-    from PyQt5.QtGui import QPixmap, QColor, QPainter, QFont
+    from PyQt5.QtGui import QPixmap, QPainter, QPen
+    from ui import theme
 
     pix = QPixmap(440, 160)
-    pix.fill(QColor("#1c1c24"))
+    pix.fill(theme.qcolor("bg"))
     painter = QPainter(pix)
     painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(QPen(theme.qcolor("line"), 1))
+    painter.drawRect(pix.rect().adjusted(0, 0, -1, -1))
+    painter.fillRect(0, 0, pix.width(), 2, theme.qcolor("accent"))
 
-    painter.setPen(QColor("#a78bfa"))
-    title_font = QFont("Segoe UI", 20, QFont.Bold)
-    painter.setFont(title_font)
-    painter.drawText(pix.rect().adjusted(0, -30, 0, 0), Qt.AlignCenter, "Translator Overlay")
+    painter.setPen(theme.qcolor("text"))
+    painter.setFont(theme.display_font(20, spacing=108))
+    painter.drawText(pix.rect().adjusted(0, -30, 0, 0), Qt.AlignCenter, "TRANSLATOR OVERLAY")
 
-    painter.setPen(QColor("#6b7280"))
-    sub_font = QFont("Segoe UI", 10)
-    painter.setFont(sub_font)
-    painter.drawText(pix.rect().adjusted(0, 40, 0, 0), Qt.AlignCenter, "Loading...")
+    painter.setPen(theme.qcolor("muted"))
+    painter.setFont(theme.body_font(9, medium=True, spacing=120))
+    painter.drawText(pix.rect().adjusted(0, 40, 0, 0), Qt.AlignCenter, "LOADING...")
     painter.end()
 
     return QSplashScreen(pix, Qt.WindowStaysOnTopHint)
