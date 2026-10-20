@@ -449,7 +449,10 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `QComboBox` / `QAbstractSpinBox` never changes its value; it goes to the nearest scroll
   area's viewport, so long pages scroll past controls. An open combo list still scrolls.
 - `ResultPopup(...)` — frameless window, streaming updates via `update_content()`,
-  auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the edges, TTS, copy. Square
+  auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the edges, TTS, copy. Streaming
+  chunks go to `show_partial()` (a wrapped body label; the header keeps "Переводим…").
+  A size dragged by hand is kept in `ResultPopup._remembered_size` for this run and used by
+  later updates and popups (text wraps to it); otherwise the popup fits the wrapped text. Square
   card with a 1 px accent frame (`dim` while loading, `error` on error), icon buttons.
 - `overlay/selector.py` — selection fill / border use the palette accent (alpha 30 / 220,
   read at construction, not at import) plus 8 px corner brackets.

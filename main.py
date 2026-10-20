@@ -647,13 +647,11 @@ class TranslatorApp:
                 return
             if not partial_text.strip():
                 return
-            # Reuse the loading label to show the live translation preview.
-            lbl = getattr(popup, "_loading_label", None)
-            if lbl is not None:
-                try:
-                    lbl.setText(partial_text)
-                except RuntimeError:
-                    pass  # popup was deleted between the signal emit and the slot
+            # The popup body shows the live text; its header keeps "Переводим…".
+            try:
+                popup.show_partial(partial_text)
+            except RuntimeError:
+                pass  # popup was deleted between the signal emit and the slot
         except Exception:
             logging.debug("Ignored error in _on_partial_translation", exc_info=True)
 

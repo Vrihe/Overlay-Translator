@@ -3,7 +3,10 @@ ui/result_popup.py — lightweight floating popup and notification helper.
 
 Design goals:
   • Non-intrusive — compact, near-opaque HUD card (1 px accent frame), instant appearance
-  • Resizable & Draggable — stretchable from all 4 edges & 4 corners (max 850x550, min 300x80)
+  • Resizable & Draggable — stretchable from all 4 edges & 4 corners (max 850x550, min 300x80);
+    a size set by hand is kept for later updates and popups (text wraps to it)
+  • Streaming — partial text goes to the body (``show_partial``), the header keeps
+    "Переводим…"
   • Clean header with icon buttons (speak / copy / close) — window remains open on focus
     loss or window body clicks
   • Strict screen bounds — wrapped in QScrollArea, never exceeds monitor bounds
@@ -39,6 +42,9 @@ class ResultPopup(QWidget):
     _BG_OPACITY = 0.96            # card background opacity
     _ICON_SIZE = 14               # header icon buttons
 
+    # Size the user last dragged a popup to (this run); None = fit the content.
+    _remembered_size: QSize | None = None
+
 
     def __init__(
         self,
@@ -61,6 +67,7 @@ class ResultPopup(QWidget):
         self._closing = False
         self._scroll_area: QScrollArea | None = None
         self._btn_close: QPushButton | None = None
+        self._stream_label: QLabel | None = None
 
         self._dots_count = 3
         self._dots_timer: QTimer | None = None
@@ -227,8 +234,15 @@ class ResultPopup(QWidget):
         content_layout = QVBoxLayout(scroll_content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(4)
+        content_layout.setAlignment(Qt.AlignTop)
 
-        if not self._is_loading:
+        if self._is_loading:
+            # Live streaming text (show_partial); hidden until the first chunk.
+            self._stream_label = self._make_label("", size=11, color=p.text, bold=True)
+            self._stream_label.setVisible(False)
+            content_layout.addWidget(self._stream_label)
+        else:
+            self._stream_label = None
             if self._is_error:
                 err = self._make_label(self._translated, size=10.5, color=p.error)
                 content_layout.addWidget(err)
@@ -323,6 +337,24 @@ class ResultPopup(QWidget):
         dots = "." * self._dots_count
         self._loading_label.setText(tr("Переводим ({context})", context=domain_display_name) + dots)
 
+    # ── Streaming preview ────────────────────────────────
+
+    def show_partial(self, text: str) -> None:
+        """Show the translation as it streams in (loading state only)."""
+        if self._closing or not self._is_loading or self._stream_label is None:
+            return
+        self._stream_label.setText(text)
+        if not self._stream_label.isVisible():
+            self._stream_label.setVisible(True)
+            self._install_click_filter(self._stream_label)
+        if ResultPopup._remembered_size is None:
+            saved_pos = self.pos()
+            self._fit_and_adjust_size()
+            self.move(saved_pos)
+        if self._scroll_area is not None:  # follow the newest text
+            bar = self._scroll_area.verticalScrollBar()
+            bar.setValue(bar.maximum())
+
     # ── In-place content update ──────────────────────────
 
     def update_content(self, source_text: str, translated_text: str, *,
@@ -355,11 +387,16 @@ class ResultPopup(QWidget):
         self.update()
 
     def _fit_and_adjust_size(self) -> None:
-        """Calculate and set exact window size fitting the content perfectly."""
+        """Size the window: the size the user dragged to, otherwise fit the content."""
         self.setMinimumSize(self._MIN_WIDTH + 8, self._MIN_HEIGHT + 8)
         self.setMaximumSize(self._MAX_WIDTH + 8, self._MAX_HEIGHT + 8)
         if self._scroll_area is not None:
             self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        remembered = ResultPopup._remembered_size
+        if remembered is not None:
+            self.resize(remembered)  # labels word-wrap to it; the scroll area takes the rest
+            return
 
         self.layout().activate()
         self._card.layout().activate()
@@ -370,6 +407,17 @@ class ResultPopup(QWidget):
         w = max(self._MIN_WIDTH + 8, min(self._MAX_WIDTH + 8, hint.width()))
         h = max(self._MIN_HEIGHT + 8, min(self._MAX_HEIGHT + 8, hint.height()))
         self.resize(w, h)
+
+        # QScrollArea's size hint ignores word wrap: grow to the wrapped text height.
+        content = self._scroll_area.widget() if self._scroll_area is not None else None
+        if content is not None:
+            self.layout().activate()
+            viewport = self._scroll_area.viewport()
+            needed = (content.heightForWidth(viewport.width()) if content.hasHeightForWidth()
+                      else content.sizeHint().height())
+            if needed > viewport.height():
+                h = min(self._MAX_HEIGHT + 8, self.height() + needed - viewport.height())
+                self.resize(w, h)
 
     # ── Edge detection & Mouse Resizing / Dragging ────────
 
@@ -443,6 +491,7 @@ class ResultPopup(QWidget):
             new_h = proposed_h
 
         self.setGeometry(new_x, new_y, new_w, new_h)
+        ResultPopup._remembered_size = QSize(new_w, new_h)
 
     # ── Click & Drag & Resize event filter ────────────────
 
