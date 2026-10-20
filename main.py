@@ -730,10 +730,33 @@ class TranslatorApp:
             self._close_popup()
             self._main_window.closeEvent = lambda e: e.accept()
             self._main_window.close()
-            self._tray.hide()
+            self._remove_tray_icon()
             self.app.quit()
         except Exception:
             logging.exception("Error during app shutdown")
+
+    def _remove_tray_icon(self) -> None:
+        """Take the icon off the notification area before the process ends.
+
+        main() ends with os._exit(), which skips the QSystemTrayIcon destructor; a
+        hidden-but-alive icon could stay in the tray until the mouse passed over it.
+        Exit is clicked inside the tray menu, so close that menu first, then hide and
+        destroy the icon (the destructor sends NIM_DELETE) while the event loop runs.
+        """
+        tray = getattr(self, "_tray", None)
+        if tray is None:
+            return
+        try:
+            menu = tray.contextMenu()
+            if menu is not None:
+                menu.hide()
+            tray.hide()
+            QApplication.processEvents()
+            from PyQt5 import sip
+            sip.delete(tray)
+        except Exception:
+            logging.exception("Failed to remove the tray icon")
+        self._tray = None
 
     # ── Run ──────────────────────────────────────────────
 

@@ -178,6 +178,9 @@ Overlay-Translator/
   `keyboard` low-level hook thread and Qt window procedures could fire during module teardown
   and crashed ~1 exit in 3 (`0xC000041D` / access violation, also with EasyOCR). Nothing is
   saved at exit (no `atexit`), so new exit-time persistence must run before `os._exit`.
+  Because destructors are skipped too, `_quit` → `_remove_tray_icon()` closes the tray menu,
+  hides the icon and `sip.delete`s it while the event loop still runs, so the icon leaves
+  the notification area at once instead of lingering until hovered.
 
 ### `config.py` — config facade
 Unusual trick: at the end of the module, `sys.modules[__name__] = _LiveConfig()`,
