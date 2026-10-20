@@ -12,6 +12,7 @@ Every request is logged to the file specified by ``config.LOG_FILE``.
 
 import logging
 import os
+import re
 from logging.handlers import RotatingFileHandler
 import threading
 import time
@@ -174,6 +175,23 @@ def _dynamic_max_tokens(text: str) -> int:
     return max(250, config_max)
 
 
+# Reasoning models may put their chain of thought inline in the answer.
+_THINK_BLOCK = re.compile(r"<think(?:ing)?>.*?</think(?:ing)?>", re.DOTALL | re.IGNORECASE)
+_THINK_OPEN = re.compile(r"<think(?:ing)?>", re.IGNORECASE)
+
+# OpenRouter: keep reasoning tokens out of the response (they are never a translation).
+_NO_REASONING = {"include_reasoning": False}
+
+
+def _strip_reasoning(text: str) -> str:
+    """Drop <think>…</think> blocks; an unclosed one (mid-stream) hides everything after it."""
+    text = _THINK_BLOCK.sub("", text)
+    m = _THINK_OPEN.search(text)
+    if m:
+        text = text[:m.start()]
+    return text
+
+
 def _call_provider(
     client,
     provider: str,
@@ -199,23 +217,22 @@ def _call_provider(
                         "HTTP-Referer": "https://github.com/your-username/overlay-translator",
                         "X-Title": "Overlay Translator",
                     },
-                    extra_body={"include_reasoning": False},
+                    extra_body=_NO_REASONING,
                     stream=True,
                 )
                 chunks: list[str] = []
                 for chunk in stream:
                     if not chunk.choices:
                         continue
-                    delta = chunk.choices[0].delta
-                    text = (
-                        getattr(delta, "content", None)
-                        or getattr(delta, "reasoning", None)
-                        or getattr(delta, "reasoning_content", None)
-                    )
+                    # Only the answer: reasoning deltas (delta.reasoning /
+                    # reasoning_content) are the model's thinking, not a translation.
+                    text = getattr(chunk.choices[0].delta, "content", None)
                     if text:
                         chunks.append(text)
-                        on_chunk("".join(chunks))
-                result = "".join(chunks).strip()
+                        visible = _strip_reasoning("".join(chunks)).strip()
+                        if visible:
+                            on_chunk(visible)
+                result = _strip_reasoning("".join(chunks)).strip()
                 if result:
                     return result
             except Exception as stream_err:
@@ -235,21 +252,22 @@ def _call_provider(
                 "HTTP-Referer": "https://github.com/your-username/overlay-translator",
                 "X-Title": "Overlay Translator",
             },
+            extra_body=_NO_REASONING,
         )
         if not response or not getattr(response, "choices", None):
             raise RuntimeError(tr("OpenRouter API не вернул варианты ответа ({response}).", response=f"{response=}"))
         choice = response.choices[0]
         msg = getattr(choice, "message", None)
-        content = getattr(msg, "content", None)
-        if not content and hasattr(msg, "reasoning"):
-            content = getattr(msg, "reasoning", None)
+        # Never fall back to msg.reasoning: when a reasoning model spends the token
+        # budget on thinking, that text would be shown as the "translation".
+        content = _strip_reasoning(getattr(msg, "content", None) or "").strip()
         if not content:
             raise RuntimeError(tr(
                 "Модель '{model}' вернула пустой текст ответа на OpenRouter. "
                 "Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках.",
                 model=model,
             ))
-        return content.strip()
+        return content
 
     if provider == "anthropic":
         # A4: use dynamic ceiling instead of hard-coded 2048

@@ -249,6 +249,11 @@ Internals: `_get_client_for(provider)` (lazy import of `openai`/`anthropic`),
 `_call_with_resilience(...)` (retry with exponential backoff + fallback along the
 provider chain), `_build_system_prompt(domain_id, target_lang, source_lang)` with a cache,
 request coalescing via `_in_flight` (two identical concurrent requests → one API call).
+Reasoning models: only `content` is ever a translation. OpenRouter calls send
+`include_reasoning: false`; streamed `reasoning` deltas and a reply's `message.reasoning`
+are ignored, and `_strip_reasoning()` removes inline `<think>…</think>` blocks (an unclosed
+one hides the rest while streaming). A reply with no answer left (the model spent its token
+budget thinking) raises the "empty response" error instead of showing the thinking.
 
 ### `translate/nllb_backend.py` — offline backend ★
 `class NllbBackend` with the same public interface as `llm_client`, plus
