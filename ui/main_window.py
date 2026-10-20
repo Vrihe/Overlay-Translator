@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QTextEdit, QFileDialog, QStackedWidget,
     QFrame, QComboBox, QBoxLayout, QScrollArea, QSizePolicy,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, QEvent, pyqtSignal
 from PyQt5.QtGui import QFont
 
 import logging
@@ -24,7 +24,7 @@ from datetime import datetime
 import config
 from i18n import tr
 from tray.icon_gen import create_tray_icon
-from ui import icons, theme
+from ui import icons, theme, title_bar
 from ui.hud_widgets import Chip, FieldLabel, NavButton, Panel, page_title
 
 
@@ -528,8 +528,16 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Translator Overlay")
         self.setWindowIcon(create_tray_icon())
-        self.resize(920, 620)
-        self.setMinimumSize(700, 450)
+        # Own title bar in the palette colours (Windows 10 cannot colour the native one);
+        # ui/title_bar.py restores the native frame behaviour (snap, resize, animations).
+        self._custom_frame = title_bar.ENABLED
+        self._title_bar = None
+        if self._custom_frame:
+            self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        # Sizes are for the content; the custom title bar sits inside the window.
+        extra = title_bar.HEIGHT if self._custom_frame else 0
+        self.resize(920, 620 + extra)
+        self.setMinimumSize(700, 450 + extra)
 
         p = theme.current()
         self.setStyleSheet(f"QMainWindow {{ background: {p.bg}; }}" + theme.scrollbar_css())
@@ -538,6 +546,8 @@ class MainWindow(QMainWindow):
         self._update_worker = None
 
         self._build_ui()
+        if self._custom_frame:
+            title_bar.install_native_frame(self)
         self._connect_signals()
         self.switch_to_page(self.PAGE_HOME)
 
@@ -586,11 +596,20 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         p = theme.current()
         central = QWidget()
+        central.setObjectName("windowFrame")
         self.setCentralWidget(central)
+        self._frame_layout = QVBoxLayout(central)
+        self._frame_layout.setContentsMargins(0, 0, 0, 0)
+        self._frame_layout.setSpacing(0)
+        if self._custom_frame:
+            self._title_bar = title_bar.TitleBar(self, "Translator Overlay")
+            self._frame_layout.addWidget(self._title_bar)
+            self._sync_frame()
 
-        root = QHBoxLayout(central)
+        root = QHBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+        self._frame_layout.addLayout(root, 1)
 
         # ── Navigation rail ──────────────────────────────
         rail = QFrame()
@@ -694,6 +713,31 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(self._stack, 1)
         root.addWidget(right_container, 1)
+
+    # ── Custom frame (Windows) ───────────────────────────
+
+    def nativeEvent(self, event_type, message):
+        if self._custom_frame:
+            handled = title_bar.native_event(self, self._title_bar, message)
+            if handled is not None:
+                return handled
+        return super().nativeEvent(event_type, message)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.WindowStateChange and self._custom_frame:
+            self._sync_frame()
+        super().changeEvent(event)
+
+    def _sync_frame(self):
+        """1 px outline while windowed (no native border left); none when maximised."""
+        p = theme.current()
+        maximized = self.isMaximized()
+        self._frame_layout.setContentsMargins(*(0 if maximized else 1,) * 4)
+        self.centralWidget().setStyleSheet(
+            f"#windowFrame {{ background: {p.line if not maximized else p.bg}; }}"
+        )
+        if self._title_bar is not None:
+            self._title_bar.sync_state()
 
     # ── Signals ──────────────────────────────────────────
 

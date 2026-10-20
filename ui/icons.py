@@ -61,6 +61,19 @@ def _close(p: QPainterPath) -> None:
     _poly(p, (18, 6), (6, 18))
 
 
+def _minimize(p: QPainterPath) -> None:
+    _poly(p, (6, 12), (18, 12))
+
+
+def _maximize(p: QPainterPath) -> None:
+    p.addRect(QRectF(6, 6, 12, 12))
+
+
+def _restore(p: QPainterPath) -> None:
+    p.addRect(QRectF(5, 9, 10, 10))
+    _poly(p, (9, 9), (9, 5), (19, 5), (19, 15), (15, 15))
+
+
 def _chevron_down(p: QPainterPath) -> None:
     _poly(p, (6, 9), (12, 15), (18, 9))
 
@@ -104,6 +117,9 @@ _SHAPES = {
     "copy": _copy,
     "speaker": _speaker,
     "close": _close,
+    "minimize": _minimize,
+    "maximize": _maximize,
+    "restore": _restore,
     "chevron_down": _chevron_down,
     "chevron_up": _chevron_up,
     "arrow_right": _arrow_right,

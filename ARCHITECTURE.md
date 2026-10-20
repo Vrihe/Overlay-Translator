@@ -88,6 +88,7 @@ Overlay-Translator/
 │   ├── theme.py            #   * HUD palettes (UI_THEME), fonts, all stylesheet builders
 │   ├── icons.py            #   Stroke icons drawn with QPainterPath (no emoji / QtSvg)
 │   ├── hud_widgets.py      #   NavButton, Panel, FieldLabel, Chip, Segmented, Switch(Row)
+│   ├── title_bar.py        #   Main window's own title bar + native frame messages (Windows)
 │   ├── wheel_guard.py      #   Wheel over a closed combo / spin box scrolls the page instead
 │   ├── ocr_preview_popup.py#   Preview/edit OCR text before translating
 │   └── region_presets_dialog.py # Manage presets and their hotkeys
@@ -407,6 +408,16 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   active), `Panel(title)` (`panel.body` / `panel.header`), `FieldLabel`, `Chip(kind)`,
   `Segmented(options)` (`changed(data)`), `Switch` (real checkable button, painted) and
   `SwitchRow` (switch + label with the QCheckBox API used by the settings), `page_title()`.
+- **Title bars** — `ui/title_bar.py`: the main window is `FramelessWindowHint` but gets its
+  native `WS_CAPTION | WS_THICKFRAME | …` styles back (`install_native_frame`);
+  `MainWindow.nativeEvent` → `title_bar.native_event` answers `WM_NCCALCSIZE` (whole window
+  is client area; a maximised window is inset by the frame thickness) and `WM_NCHITTEST`
+  (resize edges, `HTCAPTION` for the `TitleBar` strip outside its buttons). So Aero Snap,
+  drag, double-click maximise, the system menu and the min/max animations stay native while
+  the strip uses the palette (`rail`, accent `//`). Window sizes add `title_bar.HEIGHT`.
+  Other framed windows (dialogs, stock dialogs) keep the native bar, switched to dark mode by
+  `theme.apply_title_bar` (an app event filter on first Show); on Windows 11 DWM also takes
+  the palette caption/text/border colours.
 - `MainWindow` (72 px nav rail: `PAGE_HOME` / `PAGE_SETTINGS` / `PAGE_HISTORY`),
   `show_and_switch(page)`, `set_tray_icon(tray)`; workers `_TextTranslateWorker`,
   `_ImageTranslateWorker`, `_UpdateCheckWorker`. Home: status chips (online, language

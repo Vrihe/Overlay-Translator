@@ -19,8 +19,9 @@ import sys
 from dataclasses import dataclass, fields
 from pathlib import Path
 
+from PyQt5.QtCore import QEvent, QObject, Qt
 from PyQt5.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QWidget
 
 DEFAULT_THEME = "amber"
 
@@ -563,8 +564,57 @@ def app_css() -> str:
     return stock_dialog_css() + menu_css() + tooltip_css() + scrollbar_css()
 
 
+# ── Native title bar ─────────────────────────────────────
+
+_DWMWA_USE_IMMERSIVE_DARK_MODE = 20         # Windows 10 20H1+ (19 on older builds)
+_DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19
+_DWMWA_BORDER_COLOR = 34                     # 34-36: Windows 11 only
+_DWMWA_CAPTION_COLOR = 35
+_DWMWA_TEXT_COLOR = 36
+
+
+def apply_title_bar(widget: QWidget) -> None:
+    """Dark native title bar; on Windows 11 also the palette's caption / text / border colours.
+
+    Windows 10 only supports the dark mode switch, so there the bar is the system
+    dark grey. Any failure (other OS, old Windows) leaves the default bar.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        dwm = ctypes.windll.dwmapi
+        hwnd = ctypes.c_void_p(int(widget.winId()))
+        on = ctypes.c_int(1)
+        for attr in (_DWMWA_USE_IMMERSIVE_DARK_MODE, _DWMWA_USE_IMMERSIVE_DARK_MODE_OLD):
+            if dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(on), ctypes.sizeof(on)) == 0:
+                break
+        p = current()
+        for attr, token in ((_DWMWA_CAPTION_COLOR, "rail"), (_DWMWA_TEXT_COLOR, "text"),
+                            (_DWMWA_BORDER_COLOR, "line")):
+            c = QColor(getattr(p, token))
+            colorref = ctypes.c_uint(c.red() | (c.green() << 8) | (c.blue() << 16))
+            dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(colorref), ctypes.sizeof(colorref))
+    except Exception:
+        pass
+
+
+class _TitleBarFilter(QObject):
+    """Applies ``apply_title_bar`` to every framed top-level window when it is first shown
+    (main window, dialogs, QMessageBox / QInputDialog / QFileDialog)."""
+
+    def eventFilter(self, obj, event):
+        if (event.type() == QEvent.Show and isinstance(obj, QWidget) and obj.isWindow()
+                and not obj.windowFlags() & Qt.FramelessWindowHint
+                and not obj.property("_hudTitleBar")):
+            obj.setProperty("_hudTitleBar", True)
+            apply_title_bar(obj)
+        return False
+
+
 def apply_app_theme(app: QApplication) -> None:
-    """Load fonts, set the default font / palette and install the app-wide sheet."""
+    """Load fonts, set the default font / palette, install the app-wide sheet
+    and the dark native title bar for every window."""
     load_fonts()
     p = current()
     app.setFont(body_font(9.5))
@@ -586,3 +636,6 @@ def apply_app_theme(app: QApplication) -> None:
     app.setPalette(pal)
 
     app.setStyleSheet(app_css())
+
+    app._hud_title_bar_filter = _TitleBarFilter(app)  # keep a reference
+    app.installEventFilter(app._hud_title_bar_filter)
