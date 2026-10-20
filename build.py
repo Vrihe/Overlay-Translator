@@ -52,14 +52,20 @@ from pathlib import Path
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def generate_icon(icon_path: Path) -> None:
-    """Generate placeholder .ico file using Pillow if missing."""
+    """Generate the app .ico with Pillow: the HUD tile (flat square, amber accent from
+    ui/theme.py's default palette, dark "T"), matching tray/icon_gen.py."""
     try:
-        from PIL import Image, ImageDraw
+        from PIL import Image, ImageDraw, ImageFont
         icon_path.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGBA", (256, 256), color=(0, 0, 0, 0))
         d = ImageDraw.Draw(img)
-        d.rounded_rectangle([8, 8, 248, 248], radius=40, fill=(99, 102, 241))
-        d.text((128, 120), "T", fill=(255, 255, 255), anchor="mm", font_size=150)
+        d.rectangle([8, 8, 247, 247], fill=(0xff, 0xb0, 0x20))         # accent
+        try:
+            font = ImageFont.truetype("bahnschrift.ttf", 170)
+            font.set_variation_by_name("Bold")
+        except Exception:
+            font = ImageFont.load_default(size=170)
+        d.text((128, 132), "T", fill=(0x1a, 0x12, 0x00), anchor="mm", font=font)  # on_accent
         img.save(
             icon_path,
             format="ICO",

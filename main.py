@@ -782,9 +782,19 @@ def _has_any_api_key() -> bool:
     )
 
 
+def _set_app_user_model_id() -> None:
+    """Own taskbar identity: without it a source run is grouped under python.exe
+    and shows Python's icon instead of the window icon."""
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Vrihe.TranslatorOverlay")
+    except Exception:
+        pass
+
+
 def main() -> None:
     try:
         _hide_console()
+        _set_app_user_model_id()
 
         app = QApplication(sys.argv)
         from ui.theme import apply_app_theme
