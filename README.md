@@ -314,7 +314,7 @@ python scripts/test_nllb_translation.py --model models/nllb-200-ct2-int8
 2. Under **Бэкенд перевода** (Translation backend), select **Локальная модель (NLLB)** (Local model). The status line shows whether the model was found.
 3. Optional: press **Загрузить модель** (Load model) to load it into memory right away (1–3 s).
    This button only loads the model; it does **not** switch the backend.
-4. Press **Сохранить** (Save). Only this persists the backend choice (`translation_backend` in `settings.json`).
+4. The choice is saved immediately (`translation_backend` in `settings.json`); there is nothing else to press.
 
 If the local model is selected but cannot be loaded (missing files, broken install), the request
 goes through the API backend instead, and the result popup says why. An error during a translation

@@ -168,7 +168,7 @@ class HistoryWidget(QWidget):
 
         present = []
         for rec in self._all_records:
-            dom = rec.get("domain_id") or "general"
+            dom = self._context_of(rec)
             if dom not in present:
                 present.append(dom)
         if len(present) < 2:
@@ -194,6 +194,11 @@ class HistoryWidget(QWidget):
             btn.setChecked(dom == self._domain_filter)
             self._chip_group.addButton(btn)
             self._chips_layout.addWidget(btn)
+
+    @staticmethod
+    def _context_of(rec: dict) -> str:
+        """Context profile of a record; NMT entries are cached as "<domain>|<backend>"."""
+        return (rec.get("domain_id") or "general").split("|", 1)[0] or "general"
 
     def _on_chip_clicked(self, btn) -> None:
         self._domain_filter = btn.property("domain")
@@ -309,7 +314,7 @@ class HistoryWidget(QWidget):
         query = self._search_input.text().strip().lower()
         filtered = self._all_records
         if self._domain_filter is not None:
-            filtered = [r for r in filtered if (r.get("domain_id") or "general") == self._domain_filter]
+            filtered = [r for r in filtered if self._context_of(r) == self._domain_filter]
         if query:
             filtered = [
                 r for r in filtered

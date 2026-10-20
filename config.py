@@ -79,7 +79,7 @@ class _LiveConfig:
 
     @property
     def TRANSLATION_BACKEND(self):
-        """Which translator runs: "api" (cloud LLM) or "nllb" (local model)."""
+        """Which translator runs: "google" (default), "api" (cloud LLM), "deepl", "azure", "nllb"."""
         return _cfg("translation_backend")
 
     @TRANSLATION_BACKEND.setter

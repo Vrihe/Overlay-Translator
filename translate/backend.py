@@ -85,11 +85,33 @@ def clear_notice() -> None:
 # ── Backend selection ────────────────────────────────────
 
 
+#: Used when nothing (or something unknown) is configured: works without any key.
+DEFAULT_BACKEND = BACKEND_GOOGLE
+
+
 def get_active_backend() -> str:
-    """Return the configured backend id, defaulting to the API on bad input."""
-    value = (getattr(config, "TRANSLATION_BACKEND", BACKEND_API) or BACKEND_API)
+    """Return the configured backend id, defaulting to keyless Google on bad input."""
+    value = (getattr(config, "TRANSLATION_BACKEND", DEFAULT_BACKEND) or DEFAULT_BACKEND)
     value = str(value).strip().lower()
-    return value if value in _VALID_BACKENDS else BACKEND_API
+    return value if value in _VALID_BACKENDS else DEFAULT_BACKEND
+
+
+def needs_llm_key() -> bool:
+    """True when the LLM backend is selected but no OpenRouter / Anthropic key exists.
+
+    Only then does the app ask for a key on start; Google (the default), DeepL, Azure
+    and the local model do not need an LLM key.
+    """
+    if get_active_backend() != BACKEND_API:
+        return False
+    import os
+    import settings
+    return not (
+        settings.get_api_key("openrouter")
+        or settings.get_api_key("anthropic")
+        or os.environ.get("OPENROUTER_API_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+    )
 
 
 def _api_fallback_notice(exc: Exception) -> str:

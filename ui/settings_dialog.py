@@ -503,7 +503,7 @@ class SettingsWidget(QWidget):
 
         self._backend_seg = Segmented([(tr("Облако (API)"), "cloud"), (tr("Локально (NLLB)"), "nllb")])
         self._backend_seg.changed.connect(self._on_backend_segment)
-        self._last_cloud_backend = "api"
+        self._last_cloud_backend = "google"  # keyless; replaced by the last cloud choice
         backend_layout.addWidget(self._backend_seg)
 
         # Backend combo (replaces the old pair of radio buttons).
@@ -1262,7 +1262,8 @@ class SettingsWidget(QWidget):
     def _load_current(self) -> None:
 
         # Translation backend (combo box).
-        current_backend = getattr(config, "TRANSLATION_BACKEND", "api") or "api"
+        from translate.backend import get_active_backend
+        current_backend = get_active_backend()
         for i in range(self._backend_combo.count()):
             if self._backend_combo.itemData(i) == current_backend:
                 self._backend_combo.setCurrentIndex(i)
@@ -1471,11 +1472,11 @@ class SettingsWidget(QWidget):
         else:
             new_model = combo_data or "openai/gpt-oss-20b:free"
 
-        from translate.backend import BACKEND_API
+        from translate.backend import DEFAULT_BACKEND
 
         cfg = config_manager.load_config()
         old = dict(cfg)
-        cfg["translation_backend"] = self._backend_combo.currentData() or BACKEND_API
+        cfg["translation_backend"] = self._backend_combo.currentData() or DEFAULT_BACKEND
         cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"

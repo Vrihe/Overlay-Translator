@@ -818,18 +818,6 @@ class TranslatorApp:
             return 1
 
 
-# ── API key check ────────────────────────────────────────
-
-def _has_any_api_key() -> bool:
-    """Return True if an API key is available from keyring or env vars."""
-    return bool(
-        settings.get_api_key("openrouter")
-        or settings.get_api_key("anthropic")
-        or os.environ.get("OPENROUTER_API_KEY")
-        or os.environ.get("ANTHROPIC_API_KEY")
-    )
-
-
 def _set_app_user_model_id() -> None:
     """Own taskbar identity: without it a source run is grouped under python.exe
     and shows Python's icon instead of the window icon."""
@@ -858,9 +846,10 @@ def main() -> None:
         splash.show()
         app.processEvents()
 
-        # ── First-run: ask for API key if none is configured ─
-        if not _has_any_api_key():
-            logging.info("No API keys found. Prompting first-run dialog.")
+        # ── First-run: ask for an LLM key only if the LLM backend has none ─
+        from translate.backend import needs_llm_key
+        if needs_llm_key():
+            logging.info("LLM backend selected without an API key. Prompting first-run dialog.")
             splash.close()  # hide splash before interactive dialog
             from ui.first_run_dialog import FirstRunDialog
             dlg = FirstRunDialog()

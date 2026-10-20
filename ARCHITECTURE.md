@@ -548,7 +548,10 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    + a property in `config._LiveConfig` + a control in `ui/settings_dialog.SettingsWidget`
    (`_build_ui` → `_load_current` → `_on_save`).
 2. **Translation backend choice** — `settings.json`:
-   - `translation_backend`: `"api"` (default) | `"nllb"`;
+   - `translation_backend`: `"google"` (default: keyless `client=gtx` endpoint, or the official
+     Cloud API when a Google key is saved) | `"api"` (LLM) | `"deepl"` | `"azure"` | `"nllb"`;
+     unknown values fall back to Google (`backend.DEFAULT_BACKEND`). The first-run key dialog
+     only appears when the LLM backend is selected without a key (`backend.needs_llm_key()`);
    - `nllb_model_path`: explicit path to the CTranslate2 directory (`""` = auto-discovery).
    Changed in "Настройки → Бэкенд перевода" (Settings → Translation backend), which
    also has the "Загрузить модель" (Load model) button with a progress indicator and
@@ -636,10 +639,6 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
 - Not covered by tests: the UI layer, `cache/store.py`, `main.py`, `capture/`, `tts/`,
   `updater/`, `translate/backend.py`, `translate/nllb_backend.py` (only its device
   selection / CPU fallback is covered, by `tests/test_cuda_support.py`).
-- **The backend choice is saved only by "Сохранить" (Save).** "Загрузить модель" (Load model)
-  persists just `nllb_model_path` (and rewrites the file with the old `translation_backend`),
-  while its status line suggests the local model is active. Leaving the page then
-  makes `reload()` show "API" again. This is a UX bug and has not been fixed yet.
 - **Open: the app crashed once after the second NLLB translation** (2026-09-23 21:32,
   WER: `Qt5Core.dll`, `0xc0000409` subcode 7 = `qFatal` → `abort()`), after
   `NLLB OK` had been logged. Not reproduced headless. Main suspect:
@@ -758,7 +757,7 @@ runs before and after fine-tuning with the same `--seed` is meaningful.
 path field, and the "Загрузить модель" (Load model) button with a progress indicator.
 The choice is stored in `settings.json` (`translation_backend`, `nllb_model_path`)
 and survives a restart.
-Only the "Сохранить" (Save) button writes `translation_backend`; see the known issue in section 7.
+The choice is saved as soon as it is made (settings autosave).
 The status line shows the device the model actually runs on (`Device: CUDA/CPU`)
 and, after a CPU fallback, the reason.
 
