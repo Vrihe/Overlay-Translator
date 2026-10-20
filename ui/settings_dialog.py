@@ -357,19 +357,22 @@ class SettingsWidget(QWidget):
         return grp, lay
 
     def _build_pages(self) -> dict[str, QVBoxLayout]:
-        """Section list on the left, one scrollable page per section on the right."""
+        """Section list + save button on the left, one scrollable page per section on the right."""
         p = theme.current()
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        body = QHBoxLayout()
+        body = QHBoxLayout(self)
         body.setContentsMargins(24, 0, 16, 16)
         body.setSpacing(16)
-        root.addLayout(body, 1)
+
+        # Left column: the save button sits right under the sections, so it is
+        # visible as soon as the page opens, whatever section is scrolled.
+        self._side = QWidget()
+        self._side.setFixedWidth(170)
+        side = QVBoxLayout(self._side)
+        side.setContentsMargins(0, 0, 0, 0)
+        side.setSpacing(12)
+        body.addWidget(self._side)
 
         self._section_list = QListWidget()
-        self._section_list.setFixedWidth(170)
         self._section_list.setStyleSheet(
             theme.list_css()
             + f"QListWidget {{ background: {p.rail}; }}"
@@ -378,7 +381,14 @@ class SettingsWidget(QWidget):
         self._section_list.setFont(theme.body_font(8.5, medium=True, spacing=112))
         self._section_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._section_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        body.addWidget(self._section_list, 0, Qt.AlignTop)
+        side.addWidget(self._section_list)
+
+        self._btn_save = QPushButton(tr("Сохранить").upper())
+        self._btn_save.setCursor(Qt.PointingHandCursor)
+        self._btn_save.setFont(theme.display_font(10, spacing=112))
+        self._btn_save.setStyleSheet(theme.btn_primary("9px 12px", 10))
+        side.addWidget(self._btn_save)
+        side.addStretch()
 
         self._section_stack = QStackedWidget()
         self._section_stack.setObjectName("settingsStack")
@@ -406,22 +416,6 @@ class SettingsWidget(QWidget):
             self._section_list.sizeHintForRow(0) * self._section_list.count() + 2)
         self._section_list.currentRowChanged.connect(self._section_stack.setCurrentIndex)
         self._section_list.setCurrentRow(0)
-
-        # Fixed bottom bar with the save button.
-        bar = QFrame()
-        bar.setObjectName("settingsBar")
-        bar.setStyleSheet(
-            f"#settingsBar {{ background: {p.rail}; border: none; border-top: 1px solid {p.line}; }}"
-        )
-        bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(24, 10, 24, 10)
-        bar_layout.addStretch()
-        self._btn_save = QPushButton(tr("Сохранить").upper())
-        self._btn_save.setCursor(Qt.PointingHandCursor)
-        self._btn_save.setFont(theme.display_font(10, spacing=112))
-        self._btn_save.setStyleSheet(theme.btn_primary("8px 26px", 10))
-        bar_layout.addWidget(self._btn_save)
-        root.addWidget(bar)
         return pages
 
     # ── Build UI ─────────────────────────────────────────
@@ -818,7 +812,7 @@ class SettingsWidget(QWidget):
 
     def resizeEvent(self, event):
         # Narrow windows: give the section pages the room the section list takes.
-        self._section_list.setFixedWidth(150 if event.size().width() < 700 else 170)
+        self._side.setFixedWidth(150 if event.size().width() < 700 else 170)
         super().resizeEvent(event)
 
     # ── Backend segment / auto language / key check ─────

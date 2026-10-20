@@ -421,7 +421,8 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   (`_SECTIONS`): "Перевод" (API key and providers, backend, fast-translator keys,
   translation, custom profiles), "Хоткеи" (read-only overview), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
-  (language, colour scheme, about/updates); a fixed bottom bar holds "Сохранить".
+  (language, colour scheme, about/updates); "Сохранить" sits in the left column under the
+  section list, so it is visible on every section without scrolling.
   The "Облако / Локально" segmented control drives `_backend_combo` (it remembers the last
   cloud backend); the auto-detect switch drives `_src_lang_combo` (the combo is what is
   saved). "Проверить" next to the API key validates it without saving.
