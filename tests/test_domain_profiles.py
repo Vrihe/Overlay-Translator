@@ -11,6 +11,7 @@ import config
 from cache import store
 from translate.domain_manager import load_domain_profile, list_available_domains
 from translate.llm_client import _build_system_prompt, translate
+from tests.store_isolation import isolate_store
 
 
 class TestDomainProfiles(unittest.TestCase):
@@ -27,7 +28,7 @@ class TestDomainProfiles(unittest.TestCase):
         profile = load_domain_profile("game")
         self.assertEqual(profile["id"], "game")
         self.assertEqual(profile["display_name"], "Игры")
-        self.assertIn("игровую терминологию", profile["system_prompt"])
+        self.assertIn("gaming terminology", profile["system_prompt"])
         self.assertTrue(len(profile["few_shot_examples"]) >= 2)
 
     def test_load_domain_profile_fallback_on_invalid(self):
@@ -37,9 +38,10 @@ class TestDomainProfiles(unittest.TestCase):
     def test_build_system_prompt_includes_few_shots(self):
         prompt = _build_system_prompt("game", "ru", "en")
         self.assertIn("Critical Hit Chance", prompt)
-        self.assertIn("Few-Shot Examples", prompt)
+        self.assertIn("Examples:", prompt)
 
     def test_domain_cache_separation(self):
+        isolate_store(self)
         text = "Unique Domain Test String 123"
         store.save_to_cache(text, "en", "ru", "Игровой перевод 123", domain_id="game")
         store.save_to_cache(text, "en", "ru", "Документационный перевод 123", domain_id="documentation")

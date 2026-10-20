@@ -47,25 +47,39 @@ def _mock_engine(items):
 
 
 class TestOCRPreprocessing(unittest.TestCase):
-    """Test image preprocessing for OCR."""
+    """Test image preprocessing for OCR.
+
+    preprocess() pads every side by max(8, min(24, 10 % of the short side)) so edge
+    glyphs are not clipped, then upscales small crops when scale == 1
+    (x3 below 100 px high, x2 below 250 px high or 500 px wide).
+    """
 
     def test_preprocess_returns_numpy_array(self):
         img = Image.new("RGB", (100, 50), color="white")
         processed = preprocess(img, scale=2)
         self.assertIsInstance(processed, np.ndarray)
-        self.assertEqual(processed.shape, (100, 200, 3))  # 2x height, 2x width, 3 channels
+        # 8 px padding → 116×66, then the explicit 2x scale.
+        self.assertEqual(processed.shape, (132, 232, 3))
 
-    def test_preprocess_no_scaling(self):
+    def test_preprocess_pads_and_upscales_small_crop(self):
         img = Image.new("RGB", (80, 40), color="red")
         processed = preprocess(img, scale=1)
         self.assertIsInstance(processed, np.ndarray)
-        self.assertEqual(processed.shape, (40, 80, 3))
+        # 8 px padding → 96×56; under 100 px high → auto 3x.
+        self.assertEqual(processed.shape, (168, 288, 3))
+
+    def test_preprocess_large_crop_is_only_padded(self):
+        img = Image.new("RGB", (600, 300), color="white")
+        processed = preprocess(img, scale=1)
+        # 24 px padding (10 % capped at 24) → 648×348; big enough, no upscale.
+        self.assertEqual(processed.shape, (348, 648, 3))
 
     def test_preprocess_converts_grayscale_to_rgb(self):
         img = Image.new("L", (80, 40), color=128)
         processed = preprocess(img, scale=1)
         self.assertIsInstance(processed, np.ndarray)
-        self.assertEqual(processed.shape, (40, 80, 3))
+        self.assertEqual(processed.ndim, 3)
+        self.assertEqual(processed.shape[2], 3)
 
 
 class TestBoundingBoxSorting(unittest.TestCase):

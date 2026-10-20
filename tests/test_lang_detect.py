@@ -96,59 +96,41 @@ class TestCacheCompositeKey(unittest.TestCase):
     """
 
     def setUp(self):
-        """Use a fresh in-memory approach: patch _DB_PATH to a temp file."""
-        import tempfile
-        self._tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self._tmp.close()
-        self._original_db = None
-
-    def tearDown(self):
-        os.unlink(self._tmp.name)
+        """Every cache read/write goes to a throw-away DB (never the real history)."""
+        from tests.store_isolation import isolate_store
+        isolate_store(self)
 
     def test_different_source_lang_not_cached_together(self):
         """Same text + different source_lang → different cache entries."""
         from cache import store
 
-        # Patch the DB path to use our temp file.
-        original = store._DB_PATH
-        store._DB_PATH = self._tmp.name
+        text = "Hello world"
 
-        try:
-            text = "Hello world"
+        store.save_to_cache(text, "en", "ru", "Привет мир")
+        store.save_to_cache(text, "de", "ru", "Hallo Welt (de→ru)")
 
-            store.save_to_cache(text, "en", "ru", "Привет мир")
-            store.save_to_cache(text, "de", "ru", "Hallo Welt (de→ru)")
+        result_en = store.get_cached(text, "en", "ru")
+        result_de = store.get_cached(text, "de", "ru")
 
-            result_en = store.get_cached(text, "en", "ru")
-            result_de = store.get_cached(text, "de", "ru")
-
-            self.assertEqual(result_en, "Привет мир")
-            self.assertEqual(result_de, "Hallo Welt (de→ru)")
-            self.assertNotEqual(result_en, result_de)
-        finally:
-            store._DB_PATH = original
+        self.assertEqual(result_en, "Привет мир")
+        self.assertEqual(result_de, "Hallo Welt (de→ru)")
+        self.assertNotEqual(result_en, result_de)
 
     def test_different_target_lang_not_cached_together(self):
         """Same text + same source + different target_lang → distinct."""
         from cache import store
 
-        original = store._DB_PATH
-        store._DB_PATH = self._tmp.name
+        text = "Hello world"
 
-        try:
-            text = "Hello world"
+        store.save_to_cache(text, "en", "ru", "Привет мир")
+        store.save_to_cache(text, "en", "de", "Hallo Welt")
 
-            store.save_to_cache(text, "en", "ru", "Привет мир")
-            store.save_to_cache(text, "en", "de", "Hallo Welt")
+        result_ru = store.get_cached(text, "en", "ru")
+        result_de = store.get_cached(text, "en", "de")
 
-            result_ru = store.get_cached(text, "en", "ru")
-            result_de = store.get_cached(text, "en", "de")
-
-            self.assertEqual(result_ru, "Привет мир")
-            self.assertEqual(result_de, "Hallo Welt")
-            self.assertNotEqual(result_ru, result_de)
-        finally:
-            store._DB_PATH = original
+        self.assertEqual(result_ru, "Привет мир")
+        self.assertEqual(result_de, "Hallo Welt")
+        self.assertNotEqual(result_ru, result_de)
 
 
 # ── Factory tests ────────────────────────────────────────

@@ -643,10 +643,6 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
   `app.log` (`qInstallMessageHandler` in `main.py`); `faulthandler` writes all
   thread stacks to `%APPDATA%\translator-overlay\crash.log`; worker/inference
   DEBUG logs in `ui/main_window.py` and `nllb_backend._raw_translate`.
-- Two tests in `tests/test_domain_profiles.py` were already failing before the NLLB work
-  (they check old texts of the `game` profile), and three more test files do not import
-  without `pytest` in the environment. The three `preprocess` tests in `tests/test_ocr.py`
-  fail too: they predate the padding and auto-upscale in `preprocess()`.
 - The hard-coded `HTTP-Referer` in the OpenRouter headers points to a placeholder repository.
 
 ---
@@ -665,6 +661,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |
+| `tests/test_popup_size.py` | saved popup size parsing/clamping, written once when a resize drag ends |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:
