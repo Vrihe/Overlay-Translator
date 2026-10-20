@@ -295,17 +295,37 @@ class SettingsWidget(QWidget):
     """Reusable settings form widget."""
 
     settings_saved = pyqtSignal()
+    # Restart-only settings were saved and the user chose to restart now.
+    restart_requested = pyqtSignal()
+
+    # Most settings save themselves (debounced) as soon as a control changes; the
+    # ones below only take effect after a restart, so "Сохранить" lights up for them.
+    _AUTOSAVE_DELAY_MS = 400
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        self._loading = True
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setSingleShot(True)
+        self._autosave_timer.setInterval(self._AUTOSAVE_DELAY_MS)
+        self._autosave_timer.timeout.connect(self._autosave)
+
         self._build_ui()
         self._load_current()
         self._connect_signals()
+        self._loading = False
+        self._update_restart_state()
 
     def reload(self) -> None:
         """Re-load current config values into the form."""
-        self._load_current()
+        self._flush_autosave()
+        self._loading = True
+        try:
+            self._load_current()
+        finally:
+            self._loading = False
+        self._update_restart_state()
 
     # ── Shared styles ────────────────────────────────────
 
@@ -387,7 +407,12 @@ class SettingsWidget(QWidget):
         self._btn_save.setCursor(Qt.PointingHandCursor)
         self._btn_save.setFont(theme.display_font(10, spacing=112))
         self._btn_save.setStyleSheet(theme.btn_primary("9px 12px", 10))
+        self._btn_save.setToolTip(tr("Остальные настройки сохраняются автоматически."))
         side.addWidget(self._btn_save)
+        self._save_hint = QLabel("")
+        self._save_hint.setWordWrap(True)
+        self._save_hint.setStyleSheet(theme.label_css("caption"))
+        side.addWidget(self._save_hint)
         side.addStretch()
 
         self._section_stack = QStackedWidget()
@@ -458,6 +483,11 @@ class SettingsWidget(QWidget):
         self._btn_check_key.setStyleSheet(theme.btn_accent("7px 14px", 9))
         self._btn_check_key.clicked.connect(self._on_check_llm_key)
         key_row.addWidget(self._btn_check_key)
+        self._btn_save_key = QPushButton(tr("Сохранить"))
+        self._btn_save_key.setCursor(Qt.PointingHandCursor)
+        self._btn_save_key.setStyleSheet(theme.btn_accent("7px 14px", 9))
+        self._btn_save_key.clicked.connect(self._on_save_llm_key)
+        key_row.addWidget(self._btn_save_key)
         key_layout.addLayout(self._field_row(tr("API-ключ"), key_row))
 
         self._key_status = QLabel("")
@@ -901,7 +931,7 @@ class SettingsWidget(QWidget):
             self._key_status.setText(tr("Ошибка: {error}", error=e))
             self._key_status.setStyleSheet(self._status_css("error"))
         else:
-            self._key_status.setText(tr("✓ Ключ {provider} работает. Нажмите «Сохранить».", provider=provider))
+            self._key_status.setText(tr("✓ Ключ {provider} работает.", provider=provider))
             self._key_status.setStyleSheet(self._status_css("ok"))
         finally:
             self._btn_check_key.setEnabled(True)
@@ -1199,6 +1229,9 @@ class SettingsWidget(QWidget):
 
     def _on_load_nllb_clicked(self) -> None:
         """Persist the path, then load the model in the background with an indicator."""
+        worker = getattr(self, "_nllb_worker", None)
+        if worker is not None and worker.isRunning():
+            return  # already warming up
         config_manager.set_value("nllb_model_path", self._nllb_path_edit.text().strip())
 
         from translate.nllb_backend import reset_client as reset_nllb
@@ -1343,6 +1376,30 @@ class SettingsWidget(QWidget):
         self._btn_save.clicked.connect(self._on_save)
         self._btn_check_update.clicked.connect(self._on_check_update)
 
+        # Autosave: every control whose setting applies without a restart.
+        for combo in (self._backend_combo, self._ocr_gpu_combo, self._domain_combo,
+                      self._src_lang_combo, self._lang_combo, self._engine_combo,
+                      self._model_combo):
+            combo.currentIndexChanged.connect(self._schedule_autosave)
+        for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
+            button.toggled.connect(self._schedule_autosave)
+        for switch in (self._chk_fallback, self._chk_streaming, self._chk_compact_prompt,
+                       self._chk_ocr_preview):
+            switch.toggled.connect(self._schedule_autosave)
+        for spin in (self._tokens_spin, self._timeout_spin):
+            spin.valueChanged.connect(self._schedule_autosave)
+        for edit in (self._nllb_path_edit, self._custom_model_edit, self._azure_region_input):
+            edit.editingFinished.connect(self._schedule_autosave)
+
+        # Restart-only settings light up the save button instead.
+        self._ui_lang_combo.currentIndexChanged.connect(self._update_restart_state)
+        self._theme_combo.currentIndexChanged.connect(self._update_restart_state)
+
+    def hideEvent(self, event):
+        # Leaving the page (or hiding the window) must not drop a pending change.
+        self._flush_autosave()
+        super().hideEvent(event)
+
     def _on_check_update(self) -> None:
         import webbrowser
         from updater.check_update import check_for_update
@@ -1370,91 +1427,19 @@ class SettingsWidget(QWidget):
 
     # ── Save ─────────────────────────────────────────────
 
-    def _on_save(self) -> None:
-        key_text = self._key_input.text().strip()
-        provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
+    def _schedule_autosave(self, *_args) -> None:
+        if not self._loading:
+            self._autosave_timer.start()  # restarts the debounce window
 
-        # ── Update API key (if a new one was entered) ────
-        if key_text:
-            self._btn_save.setEnabled(False)
-            self._key_status.setText(tr("Проверяем ключ…"))
-            self._key_status.setStyleSheet(self._status_css())
-            QApplication.processEvents()
+    def _flush_autosave(self) -> None:
+        if self._autosave_timer.isActive():
+            self._autosave_timer.stop()
+            self._autosave()
 
-            # Check before storing, so a rejected key never replaces a working one.
-            from translate.llm_client import validate_api_key
-            try:
-                validate_api_key(provider, key_text)
-            except Exception as e:
-                self._key_status.setText(tr("Ошибка: {error}", error=e))
-                self._key_status.setStyleSheet(self._status_css("error"))
-                self._btn_save.setEnabled(True)
-                return
-
-            settings.set_api_key(provider, key_text)
-            reset_client()
-            self._key_status.setText(tr("✓ Ключ {provider} обновлён!", provider=provider))
-            self._key_status.setStyleSheet(self._status_css("ok"))
-            self._key_input.clear()
-            self._btn_save.setEnabled(True)
-
-        # ── Update config_manager values ─────────────────
+    def _autosave(self) -> None:
+        """Write every setting that applies without a restart."""
         try:
-            primary_choice = "openrouter" if self._radio_or.isChecked() else "anthropic"
-            settings.save_primary_provider(primary_choice)
-            settings.set_fallback_enabled(self._chk_fallback.isChecked())
-
-            new_domain = self._domain_combo.currentData()
-            new_src_lang = self._src_lang_combo.currentData()
-            new_lang = self._lang_combo.currentData()
-            new_engine = self._engine_combo.currentData()
-            # LLM model
-            combo_data = self._model_combo.currentData()
-            if combo_data == "__custom__":
-                new_model = self._custom_model_edit.text().strip() or "openai/gpt-oss-20b:free"
-            else:
-                new_model = combo_data or "openai/gpt-oss-20b:free"
-            new_timeout = self._timeout_spin.value()
-
-            from translate.backend import BACKEND_API, BACKEND_NLLB
-
-            new_backend = self._backend_combo.currentData() or BACKEND_API
-            new_nllb_path = self._nllb_path_edit.text().strip()
-            backend_switched_to_nllb = (
-                new_backend == BACKEND_NLLB
-                and getattr(config, "TRANSLATION_BACKEND", BACKEND_API) != BACKEND_NLLB
-            )
-
-            cfg = config_manager.load_config()
-            cfg["translation_backend"] = new_backend
-            cfg["nllb_model_path"] = new_nllb_path
-            cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
-            cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
-            cfg["primary_provider"] = primary_choice
-            cfg["enable_fallback"] = self._chk_fallback.isChecked()
-            cfg["enable_streaming"] = self._chk_streaming.isChecked()
-            cfg["compact_prompt"] = self._chk_compact_prompt.isChecked()
-            cfg["enable_ocr_preview"] = self._chk_ocr_preview.isChecked()
-            cfg["llm_max_tokens"] = self._tokens_spin.value()
-            cfg["active_domain"] = new_domain or cfg.get("active_domain", "general")
-            cfg["source_language"] = new_src_lang or cfg.get("source_language", "auto")
-            cfg["target_language"] = new_lang or cfg["target_language"]
-            cfg["translation_engine"] = new_engine or cfg["translation_engine"]
-            if new_model:
-                cfg["llm_model"] = new_model
-            cfg["popup_timeout_sec"] = new_timeout
-            cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
-            new_ui_lang = self._ui_lang_combo.currentData() or "auto"
-            ui_lang_changed = new_ui_lang != cfg.get("ui_language", "auto")
-            cfg["ui_language"] = new_ui_lang
-            new_theme = self._theme_combo.currentData() or "amber"
-            theme_changed = new_theme != cfg.get("ui_theme", "amber")
-            cfg["ui_theme"] = new_theme
-            config_manager.save_config(cfg)
-
-            # Reset both backends so the new model/provider/path is picked up.
-            from translate.backend import reset as reset_backends
-            reset_backends()
+            changed = self._save_instant_settings()
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -1462,20 +1447,144 @@ class SettingsWidget(QWidget):
                 tr("Не удалось сохранить настройки:\n{error}", error=e)
             )
             return
+        if not changed:
+            return
 
-        restart_notes = []
-        if ui_lang_changed:
-            restart_notes.append(tr("Язык интерфейса изменится после перезапуска приложения."))
-        if theme_changed:
-            restart_notes.append(tr("Цветовая схема изменится после перезапуска приложения."))
-        if restart_notes:
-            QMessageBox.information(self, tr("Интерфейс"), "\n".join(restart_notes))
-
+        from translate.backend import BACKEND_NLLB
         # Freshly switched to the local model → warm it up with a visible indicator
         # instead of making the user wait on their first hotkey press.
-        if backend_switched_to_nllb:
+        if "translation_backend" in changed and config.TRANSLATION_BACKEND == BACKEND_NLLB:
             self._on_load_nllb_clicked()
         else:
             self._refresh_nllb_status()
-
         self.settings_saved.emit()
+
+    def _save_instant_settings(self) -> set[str]:
+        """Persist the form's no-restart settings; return the keys that changed."""
+        primary_choice = "openrouter" if self._radio_or.isChecked() else "anthropic"
+        settings.save_primary_provider(primary_choice)
+        settings.set_fallback_enabled(self._chk_fallback.isChecked())
+
+        combo_data = self._model_combo.currentData()
+        if combo_data == "__custom__":
+            new_model = self._custom_model_edit.text().strip() or "openai/gpt-oss-20b:free"
+        else:
+            new_model = combo_data or "openai/gpt-oss-20b:free"
+
+        from translate.backend import BACKEND_API
+
+        cfg = config_manager.load_config()
+        old = dict(cfg)
+        cfg["translation_backend"] = self._backend_combo.currentData() or BACKEND_API
+        cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
+        cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
+        cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
+        cfg["primary_provider"] = primary_choice
+        cfg["enable_fallback"] = self._chk_fallback.isChecked()
+        cfg["enable_streaming"] = self._chk_streaming.isChecked()
+        cfg["compact_prompt"] = self._chk_compact_prompt.isChecked()
+        cfg["enable_ocr_preview"] = self._chk_ocr_preview.isChecked()
+        cfg["llm_max_tokens"] = self._tokens_spin.value()
+        cfg["active_domain"] = self._domain_combo.currentData() or cfg.get("active_domain", "general")
+        cfg["source_language"] = self._src_lang_combo.currentData() or cfg.get("source_language", "auto")
+        cfg["target_language"] = self._lang_combo.currentData() or cfg["target_language"]
+        cfg["translation_engine"] = self._engine_combo.currentData() or cfg["translation_engine"]
+        cfg["llm_model"] = new_model
+        cfg["popup_timeout_sec"] = self._timeout_spin.value()
+        cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
+
+        changed = {k for k in cfg if cfg[k] != old.get(k)}
+        if not changed:
+            return changed
+        config_manager.save_config(cfg)
+
+        # New model/provider/prompt options → fresh LLM clients (cheap). The local model
+        # is only dropped when its backend or path changes (reloading it costs seconds).
+        reset_client()
+        if changed & {"translation_backend", "nllb_model_path"}:
+            from translate.backend import reset as reset_backends
+            reset_backends()
+        return changed
+
+    # ── Restart-only settings ────────────────────────────
+
+    def _pending_restart_settings(self) -> dict[str, str]:
+        """Restart-only values in the form that differ from settings.json."""
+        pending = {}
+        ui_lang = self._ui_lang_combo.currentData() or "auto"
+        if ui_lang != (config_manager.get("ui_language") or "auto"):
+            pending["ui_language"] = ui_lang
+        ui_theme = self._theme_combo.currentData() or "amber"
+        if ui_theme != (config_manager.get("ui_theme") or "amber"):
+            pending["ui_theme"] = ui_theme
+        return pending
+
+    def _update_restart_state(self, *_args) -> None:
+        """Light up "Сохранить" only while a restart-only setting is changed."""
+        pending = bool(self._pending_restart_settings())
+        self._btn_save.setEnabled(pending)
+        self._save_hint.setText(tr("Применится после перезапуска") if pending else "")
+        self._save_hint.setVisible(pending)
+
+    def _on_save(self) -> None:
+        """Save the restart-only settings and offer to restart now."""
+        self._flush_autosave()
+        pending = self._pending_restart_settings()
+        if not pending:
+            return
+        try:
+            cfg = config_manager.load_config()
+            cfg.update(pending)
+            config_manager.save_config(cfg)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                tr("Ошибка сохранения"),
+                tr("Не удалось сохранить настройки:\n{error}", error=e)
+            )
+            return
+        self._update_restart_state()
+
+        reply = QMessageBox.question(
+            self,
+            tr("Перезапуск"),
+            tr("Язык интерфейса и цветовая схема применяются после перезапуска.\n"
+               "Перезапустить приложение сейчас?"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        if reply == QMessageBox.Yes:
+            self.restart_requested.emit()
+
+    # ── LLM API key ──────────────────────────────────────
+
+    def _on_save_llm_key(self) -> None:
+        """Validate the typed key with its provider, then store it in the keyring."""
+        key_text = self._key_input.text().strip()
+        if not key_text:
+            self._key_status.setText(tr("Введите ключ."))
+            self._key_status.setStyleSheet(self._status_css("error"))
+            return
+        provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
+
+        self._btn_save_key.setEnabled(False)
+        self._key_status.setText(tr("Проверяем ключ…"))
+        self._key_status.setStyleSheet(self._status_css())
+        QApplication.processEvents()
+
+        # Check before storing, so a rejected key never replaces a working one.
+        from translate.llm_client import validate_api_key
+        try:
+            validate_api_key(provider, key_text)
+        except Exception as e:
+            self._key_status.setText(tr("Ошибка: {error}", error=e))
+            self._key_status.setStyleSheet(self._status_css("error"))
+            return
+        finally:
+            self._btn_save_key.setEnabled(True)
+
+        settings.set_api_key(provider, key_text)
+        reset_client()
+        self._key_status.setText(tr("✓ Ключ {provider} обновлён!", provider=provider))
+        self._key_status.setStyleSheet(self._status_css("ok"))
+        self._key_input.clear()

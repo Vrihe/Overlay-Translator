@@ -69,11 +69,39 @@ import faulthandler
 _crash_log = open(os.path.join(os.path.dirname(_log_file_path), "crash.log"), "a", encoding="utf-8")
 faulthandler.enable(file=_crash_log, all_threads=True)
 
+# ── Restart hand-over ────────────────────────────────────
+# A restart (settings → "Сохранить" for restart-only options) launches the new
+# copy with --wait-pid <old pid>; it waits here for the old process to exit, so
+# the single-instance check below does not just re-activate the closing window.
+_WAIT_PID_FLAG = "--wait-pid"
+
+
+def _wait_for_previous_instance(timeout_ms: int = 15000) -> None:
+    if _WAIT_PID_FLAG not in sys.argv:
+        return
+    i = sys.argv.index(_WAIT_PID_FLAG)
+    try:
+        pid = int(sys.argv[i + 1])
+    except (IndexError, ValueError):
+        pid = 0
+    del sys.argv[i:i + 2]
+    if not pid or sys.platform != "win32":
+        return
+    import ctypes as _ctypes
+    k32 = _ctypes.windll.kernel32
+    handle = k32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+    if handle:
+        k32.WaitForSingleObject(handle, timeout_ms)
+        k32.CloseHandle(handle)
+    logging.info(f"Restarted after process {pid} exited.")
+
+
 # ── Single instance ──────────────────────────────────────
 # Checked before Qt loads so a duplicate launch exits immediately: a second
 # copy would add a second tray icon and register every global hotkey twice.
 _instance_guard = None
 if __name__ == "__main__":
+    _wait_for_previous_instance()
     from single_instance import SingleInstance
 
     _instance_guard = SingleInstance()
@@ -321,6 +349,7 @@ class TranslatorApp:
 
         # ── Show main window on startup ──────────────────
         self._main_window.set_tray_icon(self._tray)
+        self._main_window.restart_requested.connect(self._restart)
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
@@ -732,6 +761,25 @@ class TranslatorApp:
             self.app.quit()
         except Exception:
             logging.exception("Error during app shutdown")
+
+    def _restart(self) -> None:
+        """Start a fresh copy (it waits for this process to exit), then quit."""
+        import subprocess
+        args = [a for a in sys.argv[1:] if a != _WAIT_PID_FLAG]
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, *args]
+        else:
+            cmd = [sys.executable, os.path.abspath(sys.argv[0]), *args]
+        cmd += [_WAIT_PID_FLAG, str(os.getpid())]
+        try:
+            flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.Popen(cmd, creationflags=flags, close_fds=True,
+                             cwd=os.path.dirname(os.path.abspath(sys.argv[0])))
+            logging.info("Restarting the application...")
+        except Exception:
+            logging.exception("Failed to start a new instance; not quitting")
+            return
+        self._quit()
 
     def _remove_tray_icon(self) -> None:
         """Take the icon off the notification area before the process ends.

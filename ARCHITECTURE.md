@@ -173,6 +173,9 @@ Overlay-Translator/
   `_on_ocr_preview_requested`, `_toggle_live_monitoring`, `_register_preset_hotkeys`,
   `_on_partial_translation`, `_on_translation_finished`, `_show_result`, `_show_error`,
   `_quit`, `run`.
+- Restart: `TranslatorApp._restart()` (settings → "Сохранить" for restart-only options)
+  starts a detached copy with `--wait-pid <pid>` and quits; `_wait_for_previous_instance()`
+  in the new copy waits for that process before the single-instance check.
 - `main()` sets an explicit AppUserModelID (`Vrihe.TranslatorOverlay`) before Qt starts, so a
   source run gets its own taskbar button with the window icon instead of Python's.
 - `main()` — splash → first-run wizard (if there are no keys) → `TranslatorApp(app).run()` →
@@ -437,11 +440,20 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   (`_SECTIONS`): "Перевод" (API key and providers, backend, fast-translator keys,
   translation, custom profiles), "Хоткеи" (read-only overview), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
-  (language, colour scheme, about/updates); "Сохранить" sits in the left column under the
-  section list, so it is visible on every section without scrolling.
+  (language, colour scheme, about/updates).
+  **Saving**: every no-restart setting saves itself — a change starts a 400 ms debounce
+  (`_schedule_autosave` → `_autosave` → `_save_instant_settings`, which writes only when a
+  value differs and returns the changed keys); line edits save on `editingFinished`; a
+  pending change is flushed on `reload()` / `hideEvent`. LLM clients are reset on any change,
+  the NLLB model only when `translation_backend` / `nllb_model_path` change; switching to
+  NLLB starts the warm-up (never twice). Restart-only settings (`ui_language`, `ui_theme`)
+  are not autosaved: changing them enables "Сохранить" (left column, under the section list)
+  with an "applies after a restart" hint; `_on_save` writes them and offers a restart
+  (`restart_requested` → `MainWindow.restart_requested` → `TranslatorApp._restart`).
+  API keys stay explicit: "Проверить" validates, "Сохранить" validates and stores in keyring.
   The "Облако / Локально" segmented control drives `_backend_combo` (it remembers the last
   cloud backend); the auto-detect switch drives `_src_lang_combo` (the combo is what is
-  saved). "Проверить" next to the API key validates it without saving.
+  saved).
 - **Stylesheets on page ancestors must be selector-scoped** (`#pageStack { … }`, not a bare
   `background: …;`). A bare rule cascades into every descendant, including a `QMessageBox`
   opened from the page, and ancestor rules beat the app-wide sheet in `ui/theme.py`: the
@@ -561,9 +573,9 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    `domain_manager.display_name_of()`; custom profile names, LLM prompts and few-shot
    examples are not translated.
 
-After settings are saved, `SettingsWidget._on_save` calls
-`translate.backend.reset()`. It resets both the LLM clients and the loaded NLLB
-model, so a new provider/model/path is picked up on the next request.
+Settings autosave (see `ui/` → `SettingsWidget`): any change resets the LLM clients
+(`llm_client.reset_client`); `translate.backend.reset()`, which also drops the loaded NLLB
+model, runs only when the backend or the model path changes.
 
 ---
 
@@ -652,6 +664,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
+| `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

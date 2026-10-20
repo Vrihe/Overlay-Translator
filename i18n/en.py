@@ -256,7 +256,6 @@ MESSAGES: dict[str, str] = {
     "Ключи не заданы в Keyring (используются переменные из .env)": "No keys in the keyring (using variables from .env)",
     "✓ У вас установлена актуальная версия (v{version}).": "✓ You have the latest version (v{version}).",
     "✓ Ключ {provider} обновлён!": "✓ {provider} key updated!",
-    "Язык интерфейса изменится после перезапуска приложения.": "The interface language will change after the app restarts.",
     "Не удалось сохранить профиль:\n{error}": "Could not save the profile:\n{error}",
     "Пока модель недоступна, перевод будет выполняться через API.":
         "Until the model is available, translation goes through the API.",
@@ -384,9 +383,13 @@ MESSAGES: dict[str, str] = {
     "Циан": "Cyan",
     "Малиновый": "Crimson",
     "Язык и цветовая схема применяются после перезапуска приложения.": "The language and colour scheme apply after the app restarts.",
-    "Цветовая схема изменится после перезапуска приложения.": "The colour scheme will change after the app restarts.",
     "Загрузка локальной модели… (около 600 МБ, 1–5 с)": "Loading the local model… (about 600 MB, 1–5 s)",
-    '✓ Ключ {provider} работает. Нажмите «Сохранить».': '✓ The {provider} key works. Press "Save".',
+    "✓ Ключ {provider} работает.": "✓ The {provider} key works.",
+    "Остальные настройки сохраняются автоматически.": "Other settings are saved automatically.",
+    "Применится после перезапуска": "Applies after a restart",
+    "Перезапуск": "Restart",
+    "Язык интерфейса и цветовая схема применяются после перезапуска.\nПерезапустить приложение сейчас?":
+        "The interface language and colour scheme apply after a restart.\nRestart the app now?",
     "Доступна новая версия {version}. ": "Version {version} is available. ",
     "Размер попапа": "Popup size",
     "Сбросить размер": "Reset size",

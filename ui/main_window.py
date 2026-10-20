@@ -518,6 +518,9 @@ class MainWindow(QMainWindow):
 
     _RAIL_WIDTH = 72
 
+    # Settings asked for a restart (restart-only options were saved).
+    restart_requested = pyqtSignal()
+
     # Page indices
     PAGE_HOME = 0
     PAGE_SETTINGS = 1
@@ -799,6 +802,7 @@ class MainWindow(QMainWindow):
         if getattr(self, "_tray_icon", None) is not None and hasattr(self._tray_icon, "rebuild_lang_menu"):
             self._settings_widget.settings_saved.connect(self._tray_icon.rebuild_lang_menu)
         self._settings_widget.settings_saved.connect(self._home_page.refresh_status)
+        self._settings_widget.restart_requested.connect(self.restart_requested)
         vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)
