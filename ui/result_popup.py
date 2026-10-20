@@ -4,7 +4,8 @@ ui/result_popup.py — lightweight floating popup and notification helper.
 Design goals:
   • Non-intrusive — compact, near-opaque HUD card (1 px accent frame), instant appearance
   • Resizable & Draggable — stretchable from all 4 edges & 4 corners (max 850x550, min 300x80);
-    a size set by hand is kept for later updates and popups (text wraps to it)
+    a size set by hand is saved (``config.POPUP_SIZE``) and reused by later updates,
+    popups and launches (text wraps to it)
   • Streaming — partial text goes to the body (``show_partial``), the header keeps
     "Переводим…"
   • Clean header with icon buttons (speak / copy / close) — window remains open on focus
@@ -42,9 +43,6 @@ class ResultPopup(QWidget):
     _BG_OPACITY = 0.96            # card background opacity
     _ICON_SIZE = 14               # header icon buttons
 
-    # Size the user last dragged a popup to (this run); None = fit the content.
-    _remembered_size: QSize | None = None
-
 
     def __init__(
         self,
@@ -77,6 +75,7 @@ class ResultPopup(QWidget):
         self._start_geom: QRect | None = None
         self._is_dragging = False
         self._resize_edge: str | None = None
+        self._resized = False
 
         self._setup_window()
         self._build_ui()
@@ -347,7 +346,7 @@ class ResultPopup(QWidget):
         if not self._stream_label.isVisible():
             self._stream_label.setVisible(True)
             self._install_click_filter(self._stream_label)
-        if ResultPopup._remembered_size is None:
+        if self.saved_size() is None:
             saved_pos = self.pos()
             self._fit_and_adjust_size()
             self.move(saved_pos)
@@ -393,7 +392,7 @@ class ResultPopup(QWidget):
         if self._scroll_area is not None:
             self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        remembered = ResultPopup._remembered_size
+        remembered = self.saved_size()
         if remembered is not None:
             self.resize(remembered)  # labels word-wrap to it; the scroll area takes the rest
             return
@@ -491,7 +490,34 @@ class ResultPopup(QWidget):
             new_h = proposed_h
 
         self.setGeometry(new_x, new_y, new_w, new_h)
-        ResultPopup._remembered_size = QSize(new_w, new_h)
+        self._resized = True
+
+    # ── Saved size (config.POPUP_SIZE) ───────────────────
+
+    @classmethod
+    def saved_size(cls) -> QSize | None:
+        """The size the user dragged a popup to, clamped to the limits; None = fit text."""
+        return cls._parse_size(getattr(config, "POPUP_SIZE", None))
+
+    @classmethod
+    def _parse_size(cls, value) -> QSize | None:
+        try:
+            w, h = (int(v) for v in value)
+        except (TypeError, ValueError):
+            return None  # None / malformed hand-edited value
+        w = max(cls._MIN_WIDTH + 8, min(cls._MAX_WIDTH + 8, w))
+        h = max(cls._MIN_HEIGHT + 8, min(cls._MAX_HEIGHT + 8, h))
+        return QSize(w, h)
+
+    def _finish_resize(self) -> None:
+        """Persist the size once a resize drag ends (not on every mouse move)."""
+        if not self._resized:
+            return
+        self._resized = False
+        try:
+            config.POPUP_SIZE = [self.width(), self.height()]
+        except Exception:
+            pass  # settings file not writable: the size still applies to this popup
 
     # ── Click & Drag & Resize event filter ────────────────
 
@@ -541,6 +567,7 @@ class ResultPopup(QWidget):
                 self._is_dragging = False
         elif event.type() == QEvent.MouseButtonRelease:
             if event.button() == Qt.LeftButton:
+                self._finish_resize()
                 self._resize_edge = None
                 self.setCursor(Qt.OpenHandCursor)
                 self._is_dragging = False
@@ -576,6 +603,7 @@ class ResultPopup(QWidget):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self._finish_resize()
             self._resize_edge = None
             self.setCursor(Qt.OpenHandCursor)
             self._is_dragging = False

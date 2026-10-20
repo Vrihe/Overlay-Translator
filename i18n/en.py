@@ -388,4 +388,9 @@ MESSAGES: dict[str, str] = {
     "Загрузка локальной модели… (около 600 МБ, 1–5 с)": "Loading the local model… (about 600 MB, 1–5 s)",
     '✓ Ключ {provider} работает. Нажмите «Сохранить».': '✓ The {provider} key works. Press "Save".',
     "Доступна новая версия {version}. ": "Version {version} is available. ",
+    "Размер попапа": "Popup size",
+    "Сбросить размер": "Reset size",
+    "Подстраивается под текст. Растяните попап за край, чтобы задать свой размер.":
+        "Fits the text. Drag an edge of the popup to set your own size.",
+    "Сохранён: {width} × {height}": "Saved: {width} × {height}",
 }

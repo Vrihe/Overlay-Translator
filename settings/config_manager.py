@@ -15,6 +15,7 @@ Stored keys:
   • popup_timeout_sec     — auto-close delay for the result popup
   • ui_language           — interface language: "auto" | "ru" | "en" (see i18n/)
   • ui_theme              — colour scheme: "amber" | "cyan" | "crimson" (see ui/theme.py)
+  • popup_size            — [width, height] the result popup was dragged to (None = fit text)
 """
 
 import json
@@ -72,6 +73,7 @@ DEFAULTS: dict[str, Any] = {
     "llm_max_tokens": 350,                 # int: max completion tokens (50 - 2000)
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
+    "popup_size": None,                    # [w, h] set by dragging the popup edges; None = fit text
     "notification_type": "popup",          # "popup" | "windows_toast"
     "ocr_languages": ["en", "ru"],
     "active_domain": "general",

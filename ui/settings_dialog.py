@@ -776,6 +776,20 @@ class SettingsWidget(QWidget):
         notify_layout.addSpacing(4)
         notify_layout.addLayout(self._field(tr("Автоскрытие попапа (сек):"), self._timeout_spin))
 
+        # Popup size: set by dragging the popup's edges, remembered across launches.
+        size_row = QHBoxLayout()
+        size_row.setSpacing(8)
+        self._popup_size_lbl = QLabel("")
+        self._popup_size_lbl.setWordWrap(True)
+        self._popup_size_lbl.setStyleSheet(self._status_css())
+        size_row.addWidget(self._popup_size_lbl, 1)
+        self._btn_reset_popup_size = QPushButton(tr("Сбросить размер"))
+        self._btn_reset_popup_size.setCursor(Qt.PointingHandCursor)
+        self._btn_reset_popup_size.setStyleSheet(theme.btn_secondary("6px 12px", 8.5))
+        self._btn_reset_popup_size.clicked.connect(self._on_reset_popup_size)
+        size_row.addWidget(self._btn_reset_popup_size, 0, Qt.AlignTop)
+        notify_layout.addLayout(self._field_row(tr("Размер попапа"), size_row))
+
         pages["popup"].addWidget(grp_notify)
 
         # ── About & Updates section ──
@@ -814,6 +828,21 @@ class SettingsWidget(QWidget):
         # Narrow windows: give the section pages the room the section list takes.
         self._side.setFixedWidth(150 if event.size().width() < 700 else 170)
         super().resizeEvent(event)
+
+    # ── Popup size ───────────────────────────────────────
+
+    def _refresh_popup_size(self) -> None:
+        from ui.result_popup import ResultPopup
+        size = ResultPopup.saved_size()
+        if size is None:
+            self._popup_size_lbl.setText(tr("Подстраивается под текст. Растяните попап за край, чтобы задать свой размер."))
+        else:
+            self._popup_size_lbl.setText(tr("Сохранён: {width} × {height}", width=size.width(), height=size.height()))
+        self._btn_reset_popup_size.setEnabled(size is not None)
+
+    def _on_reset_popup_size(self) -> None:
+        config.POPUP_SIZE = None
+        self._refresh_popup_size()
 
     # ── Backend segment / auto language / key check ─────
 
@@ -1288,8 +1317,9 @@ class SettingsWidget(QWidget):
         self._chk_ocr_preview.setChecked(bool(getattr(config, "ENABLE_OCR_PREVIEW", False)))
         self._tokens_spin.setValue(int(getattr(config, "LLM_MAX_TOKENS", 350)))
 
-        # Popup timeout.
+        # Popup timeout and saved size.
         self._timeout_spin.setValue(config.POPUP_TIMEOUT_SEC)
+        self._refresh_popup_size()
 
         # Interface language and colour scheme.
         idx_ui = self._ui_lang_combo.findData(config_manager.get("ui_language"))

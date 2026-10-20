@@ -207,6 +207,15 @@ class _LiveConfig:
         set_value("llm_max_tokens", value)
 
     @property
+    def POPUP_SIZE(self):
+        return _cfg("popup_size")
+
+    @POPUP_SIZE.setter
+    def POPUP_SIZE(self, value):
+        from settings.config_manager import set_value
+        set_value("popup_size", value)
+
+    @property
     def UI_THEME(self):
         return _cfg("ui_theme")
 
