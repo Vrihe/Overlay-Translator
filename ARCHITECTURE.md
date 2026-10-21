@@ -63,6 +63,7 @@ Overlay-Translator/
 │   ├── backend.py          #   * Dispatcher: picks the API or the local model
 │   ├── llm_client.py       #   * Translation backend via the cloud API
 │   ├── nllb_backend.py     #   * Offline backend: NLLB-200 (CTranslate2 int8)
+│   ├── nllb_models.py      #   Published NLLB builds (HF tags): list, match local copies, download
 │   ├── chat_glossary.py    #   Expands English game-chat terms before NLLB (wts, gg wp, lf2m)
 │   ├── glossary/game_en.json  # Term list, exported by training/game_abbreviations.py
 │   ├── cuda_support.py     #   Locates cuBLAS for optional GPU inference
@@ -127,10 +128,13 @@ Overlay-Translator/
 - User data: `%APPDATA%\translator-overlay\`
   (`settings.json`, `region_presets.json`, `cache/translations.db`,
   `logs/translator.log`, `app.log`, `crash.log`, custom domain profiles).
-- NLLB models: `D:\projects\overlay-translator\models\` on the developer machine
-  (`nllb-200-distilled-600M` — original HF checkpoint, 2.31 GiB, needed for fine-tuning;
-  `nllb-200-ct2-int8` — CTranslate2 int8, 621 MiB, used by the app).
-  Outside the repository, never committed.
+- NLLB models: `<project>/models/` by default (git-ignored, never committed):
+  `nllb-200-distilled-600M` — original HF checkpoint, 2.31 GiB, needed for fine-tuning;
+  `nllb-200-ct2-int8` — CTranslate2 int8, 621 MiB, used by the app.
+  To keep them elsewhere, set `NLLB_BASE_MODEL_DIR` (HF checkpoint, read by
+  `training/finetune_lora.py`, `merge_lora.py`, `translate_phrases.py`) and
+  `NLLB_MODEL_DIR` (CT2 model, read by the app and `scripts/test_nllb_translation.py`),
+  or pass `--model` / `--base`.
 - Published model: Hugging Face Hub repo
   [`Alhite/overlay-translator-nllb-int8`](https://huggingface.co/Alhite/overlay-translator-nllb-int8)
   (public, CC-BY-NC-4.0). Tag `v0-base` = the plain int8 conversion before fine-tuning.
@@ -729,7 +733,7 @@ limitations and the CC-BY-NC-4.0 license inherited from NLLB-200.
 A one-off step; needs `transformers` + `torch` from `requirements-dev.txt`.
 
 ```bash
-ct2-transformers-converter   --model  D:/projects/overlay-translator/models/nllb-200-distilled-600M   --output_dir D:/projects/overlay-translator/models/nllb-200-ct2-int8   --quantization int8   --copy_files tokenizer.json tokenizer_config.json special_tokens_map.json                sentencepiece.bpe.model generation_config.json
+ct2-transformers-converter   --model  models/nllb-200-distilled-600M   --output_dir models/nllb-200-ct2-int8   --quantization int8   --copy_files tokenizer.json tokenizer_config.json special_tokens_map.json                sentencepiece.bpe.model generation_config.json
 ```
 
 Result: 2.31 GiB (fp32) → 621 MiB (int8), −73.8%.
@@ -768,8 +772,14 @@ runs before and after fine-tuning with the same `--seed` is meaningful.
 
 ### Switching the backend in the app
 "Настройки → Бэкенд перевода" (Settings → Translation backend): radio buttons
-"API (Anthropic / OpenRouter)" and "Локальная модель (NLLB)" (Local model), the model
-path field, and the "Загрузить модель" (Load model) button with a progress indicator.
+"API (Anthropic / OpenRouter)" and "Локальная модель (NLLB)" (Local model), the
+"Версия модели" (Model version) combo, the model path field (only for "Свой путь…"), and the "Загрузить модель" (Load model) button with a progress indicator.
+The version combo lists every tag of `NLLB_HF_REPO_ID` (`translate/nllb_models.py`, stdlib
+HTTP only, so it works in the frozen app): a tag already on disk (matched by the
+`.hf-version.json` marker or by directory name, e.g. `nllb-v1-abbr-ct2-int8`) selects that
+path; a missing one turns the button into "Скачать" (Download), which fetches the tag's commit
+into `models/nllb-<tag>` (per-user `models` in the frozen app) with SHA-256 checks on LFS
+files. "Автовыбор" (Auto) keeps the path empty → auto-discovery.
 The choice is stored in `settings.json` (`translation_backend`, `nllb_model_path`)
 and survives a restart.
 The choice is saved as soon as it is made (settings autosave).

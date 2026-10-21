@@ -145,12 +145,34 @@ def explicit_model_dir() -> Path | None:
     return None
 
 
-def _auto_model_dirs() -> list[Path]:
-    """Default locations searched when no explicit path is configured."""
-    candidates = [
-        Path(config._PROJECT_DIR) / "models" / MODEL_DIRNAME,
-        Path(config.USER_DATA_DIR) / "models" / MODEL_DIRNAME,
+def _is_complete(path: Path) -> bool:
+    return path.is_dir() and all((path / name).is_file() for name in _REQUIRED_FILES)
+
+
+def _models_roots() -> list[Path]:
+    return [
+        Path(config._PROJECT_DIR) / "models",
+        Path(config.USER_DATA_DIR) / "models",
     ]
+
+
+def _auto_model_dirs() -> list[Path]:
+    """Default locations searched when no explicit path is configured.
+
+    Per ``models`` root: the canonical directory first, then every other
+    complete CTranslate2 build found there, most recently updated first (so a
+    newer fine-tune wins over an older one).
+    """
+    candidates: list[Path] = []
+    for root in _models_roots():
+        candidates.append(root / MODEL_DIRNAME)
+        try:
+            others = [p for p in root.iterdir()
+                      if p.name != MODEL_DIRNAME and _is_complete(p)]
+        except OSError:
+            others = []
+        others.sort(key=lambda p: (p / "model.bin").stat().st_mtime, reverse=True)
+        candidates.extend(others)
 
     seen: set[str] = set()
     unique: list[Path] = []
@@ -160,10 +182,6 @@ def _auto_model_dirs() -> list[Path]:
             seen.add(key)
             unique.append(path)
     return unique
-
-
-def _is_complete(path: Path) -> bool:
-    return path.is_dir() and all((path / name).is_file() for name in _REQUIRED_FILES)
 
 
 def missing_files(path: Path) -> list[str]:

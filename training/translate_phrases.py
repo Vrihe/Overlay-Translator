@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -41,7 +42,9 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IN_JSONL = _PROJECT_ROOT / "data" / "interim" / "abbr_phrases.jsonl"
 OUT_JSONL = _PROJECT_ROOT / "data" / "interim" / "abbr_translations.jsonl"
-DEFAULT_MODEL = Path(r"D:\projects\overlay-translator\models\nllb-200-distilled-600M")
+# fp32 HF checkpoint; override with --model or the NLLB_BASE_MODEL_DIR env var
+DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR")
+                     or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
 
 # Target languages of the fine-tune -> NLLB (FLORES-200) codes.
 LANGS = {

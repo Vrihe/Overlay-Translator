@@ -1,0 +1,92 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check the [open issues](https://github.com/Vrihe/Overlay-Translator/issues) first.
+        **Never paste API keys.** Remove them from logs and screenshots.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Press Ctrl+Shift+R
+        2. Select text in ...
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - OCR (text not recognized / wrong text)
+        - Translation (cloud backend)
+        - Translation (local NLLB model)
+        - Popup / region selector
+        - Hotkeys
+        - Settings / first-run setup
+        - Tray / startup / crash
+        - Standalone build (PyInstaller)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: run-mode
+    attributes:
+      label: How do you run the app?
+      options:
+        - From source (run.bat / python main.py)
+        - Standalone build
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version or commit
+      placeholder: "1.0.0 or 58ee2fd"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 23H2"
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: GPU and Python version (if relevant)
+      placeholder: "RTX 3060, driver 560.xx, Python 3.13"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant lines from `%APPDATA%\translator-overlay\app.log` and, after a crash,
+        `%APPDATA%\translator-overlay\crash.log`. `run.bat --console` also shows the log live.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: The selected region and the popup help a lot with OCR and layout bugs.

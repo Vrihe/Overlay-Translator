@@ -100,6 +100,49 @@ class _NllbPreloadWorker(QThread):
         self.finished_with_status.emit(ok, message)
 
 
+class _NllbVersionsWorker(QThread):
+    """Fetch the list of published NLLB builds (HF tags) off the UI thread."""
+
+    finished_with_versions = pyqtSignal(object, str)  # (list[RemoteVersion] | None, error)
+
+    def run(self) -> None:
+        from translate.nllb_models import list_remote_versions
+        try:
+            self.finished_with_versions.emit(list_remote_versions(), "")
+        except Exception as e:
+            self.finished_with_versions.emit(None, str(e))
+
+
+class _NllbDownloadWorker(QThread):
+    """Download one NLLB build from the HF Hub, reporting progress in percent."""
+
+    progress_changed = pyqtSignal(int, int, int)  # (percent, done MiB, total MiB)
+    finished_with_status = pyqtSignal(bool, str)  # (ok, model path | error | "" if cancelled)
+
+    def __init__(self, version, parent=None):
+        super().__init__(parent)
+        import threading
+        self.version = version
+        self.cancel = threading.Event()
+        self._last_percent = -1
+
+    def _on_progress(self, done: int, total: int) -> None:
+        percent = done * 100 // total if total else 0
+        if percent != self._last_percent:
+            self._last_percent = percent
+            self.progress_changed.emit(percent, done >> 20, total >> 20)
+
+    def run(self) -> None:
+        from translate.nllb_models import DownloadCancelled, download_version
+        try:
+            path = download_version(self.version, progress=self._on_progress, cancel=self.cancel)
+            self.finished_with_status.emit(True, str(path))
+        except DownloadCancelled:
+            self.finished_with_status.emit(False, "")
+        except Exception as e:
+            self.finished_with_status.emit(False, str(e))
+
+
 class _ExampleRowWidget(QWidget):
     """Row widget containing source text, translation text, and a remove button."""
 
@@ -520,13 +563,36 @@ class SettingsWidget(QWidget):
         nllb_inner.setContentsMargins(0, 4, 0, 0)
         nllb_inner.setSpacing(8)
 
-        # Optional explicit model path (empty = auto-discover).
+        # Model build: every tag of the HF repo, local copies, auto or a custom path.
+        self._nllb_remote_versions = None  # list[RemoteVersion] once fetched
+        self._nllb_versions_error = ""
+        self._nllb_versions_worker = None
+        self._nllb_download_worker = None
+        version_row = QHBoxLayout()
+        self._nllb_version_combo = QComboBox()
+        self._nllb_version_combo.setStyleSheet(self._INPUT_CSS)
+        self._nllb_version_combo.currentIndexChanged.connect(self._on_nllb_version_changed)
+        self._btn_nllb_refresh = QPushButton("↻")
+        self._btn_nllb_refresh.setCursor(Qt.PointingHandCursor)
+        self._btn_nllb_refresh.setToolTip(tr("Обновить список версий с Hugging Face"))
+        self._btn_nllb_refresh.setFixedWidth(32)
+        self._btn_nllb_refresh.setStyleSheet(self._INPUT_CSS)
+        self._btn_nllb_refresh.clicked.connect(self._fetch_nllb_versions)
+        version_row.addWidget(self._nllb_version_combo, 1)
+        version_row.addWidget(self._btn_nllb_refresh)
+        nllb_inner.addLayout(self._field_row(tr("Версия модели:"), version_row))
+
+        # Explicit model path, shown only for the "custom path" entry.
+        self._nllb_path_widget = QWidget()
+        nllb_path_layout = QVBoxLayout(self._nllb_path_widget)
+        nllb_path_layout.setContentsMargins(0, 0, 0, 0)
         self._nllb_path_edit = QLineEdit()
         self._nllb_path_edit.setPlaceholderText(
             tr("оставьте пустым для автопоиска (…/models/nllb-200-ct2-int8)")
         )
         self._nllb_path_edit.setStyleSheet(self._INPUT_CSS)
-        nllb_inner.addLayout(self._field(tr("Путь к модели:"), self._nllb_path_edit))
+        nllb_path_layout.addLayout(self._field(tr("Путь к модели:"), self._nllb_path_edit))
+        nllb_inner.addWidget(self._nllb_path_widget)
 
         status_row = QHBoxLayout()
         self._nllb_status = QLabel("")
@@ -1186,6 +1252,18 @@ class SettingsWidget(QWidget):
         if not use_nllb:
             return
 
+        if self._nllb_remote_versions is None and not self._nllb_versions_error:
+            self._fetch_nllb_versions()
+        if self._nllb_download_worker is not None:
+            return  # the download progress owns the status line
+
+        kind, value = self._nllb_version_combo.currentData() or ("auto", None)
+        if kind == "remote":
+            self._set_nllb_status(
+                tr("Версия {tag} ещё не скачана. Нажмите «Скачать» (~600 МБ).", tag=value.tag)
+            )
+            return
+
         from translate.nllb_backend import get_backend, resolve_model_dir
 
         backend = get_backend()
@@ -1227,11 +1305,123 @@ class SettingsWidget(QWidget):
                 reset_nllb()
         self._refresh_nllb_status()
 
+    # ── NLLB model versions ──
+
+    def _fetch_nllb_versions(self) -> None:
+        if self._nllb_versions_worker is not None:
+            return
+        self._btn_nllb_refresh.setEnabled(False)
+        self._nllb_versions_worker = _NllbVersionsWorker(self)
+        self._nllb_versions_worker.finished_with_versions.connect(self._on_nllb_versions_fetched)
+        self._nllb_versions_worker.start()
+
+    def _on_nllb_versions_fetched(self, versions, error: str) -> None:
+        self._nllb_versions_worker = None
+        self._btn_nllb_refresh.setEnabled(True)
+        if versions is not None:
+            self._nllb_remote_versions = versions
+        self._nllb_versions_error = error
+        self._populate_nllb_versions(self._nllb_path_edit.text().strip())
+
+    def _populate_nllb_versions(self, select_path: str) -> None:
+        """Fill the version combo and select the entry matching *select_path*."""
+        from pathlib import Path
+        from translate.nllb_models import list_local_models, match_local
+
+        local = list_local_models()
+        combo = self._nllb_version_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(tr("Автовыбор (самая свежая на диске)"), ("auto", None))
+
+        matched: set[Path] = set()
+        for version in self._nllb_remote_versions or []:
+            copy = match_local(version.tag, local)
+            if copy is not None:
+                matched.add(copy.path)
+                combo.addItem(tr("{tag} — скачана", tag=version.tag), ("local", str(copy.path)))
+            else:
+                combo.addItem(tr("{tag} — скачать (~600 МБ)", tag=version.tag), ("remote", version))
+        for model in local:
+            if model.path not in matched:
+                combo.addItem(tr("{name} — локальная", name=model.tag or model.path.name),
+                              ("local", str(model.path)))
+        if self._nllb_versions_error:
+            combo.addItem(tr("⚠ Список версий с Hugging Face недоступен"), ("error", None))
+            combo.model().item(combo.count() - 1).setEnabled(False)
+        combo.addItem(tr("Свой путь…"), ("custom", None))
+
+        index = 0
+        if select_path:
+            index = combo.count() - 1  # custom, unless it is one of the known copies
+            wanted = str(Path(select_path).resolve()).lower()
+            for i in range(combo.count()):
+                kind, value = combo.itemData(i)
+                if kind == "local" and str(Path(value).resolve()).lower() == wanted:
+                    index = i
+                    break
+        combo.setCurrentIndex(index)
+        combo.blockSignals(False)
+        self._on_nllb_version_changed()
+
+    def _on_nllb_version_changed(self, _index=None) -> None:
+        kind, value = self._nllb_version_combo.currentData() or ("auto", None)
+        self._nllb_path_widget.setVisible(kind == "custom")
+        if kind == "local":
+            self._nllb_path_edit.setText(value)
+        elif kind == "auto":
+            self._nllb_path_edit.clear()
+        if self._nllb_download_worker is None:
+            self._btn_load_nllb.setText(tr("Скачать") if kind == "remote" else tr("Загрузить модель"))
+        self._on_backend_changed()
+
+    def _start_nllb_download(self, version) -> None:
+        self._nllb_version_combo.setEnabled(False)
+        self._btn_nllb_refresh.setEnabled(False)
+        self._btn_load_nllb.setText(tr("Отмена"))
+        self._set_nllb_status(tr("⏳ Скачивание {tag}…", tag=version.tag))
+        self._nllb_download_worker = _NllbDownloadWorker(version, self)
+        self._nllb_download_worker.progress_changed.connect(
+            lambda pct, done, total: self._set_nllb_status(
+                tr("⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)",
+                   tag=version.tag, done=done, total=total, pct=pct)
+            )
+        )
+        self._nllb_download_worker.finished_with_status.connect(self._on_nllb_download_done)
+        self._nllb_download_worker.start()
+
+    def _on_nllb_download_done(self, ok: bool, result: str) -> None:
+        self._nllb_download_worker = None
+        self._nllb_version_combo.setEnabled(True)
+        self._btn_nllb_refresh.setEnabled(True)
+        if ok:
+            self._populate_nllb_versions(result)
+            self._on_load_nllb_clicked()  # persist the new path and warm the model up
+            return
+        self._on_nllb_version_changed()
+        if result:
+            self._set_nllb_status(tr("⚠ Не удалось скачать модель: {error}", error=result),
+                                  kind="warn")
+        else:
+            self._set_nllb_status(tr("Скачивание отменено."))
+
     def _on_load_nllb_clicked(self) -> None:
-        """Persist the path, then load the model in the background with an indicator."""
+        """Persist the path, then load the model in the background with an indicator.
+
+        For a build that is not on disk yet the button downloads it instead, and
+        cancels a running download.
+        """
+        if self._nllb_download_worker is not None:
+            self._nllb_download_worker.cancel.set()
+            return
+        kind, value = self._nllb_version_combo.currentData() or ("auto", None)
+        if kind == "remote":
+            self._start_nllb_download(value)
+            return
         worker = getattr(self, "_nllb_worker", None)
         if worker is not None and worker.isRunning():
             return  # already warming up
+
         config_manager.set_value("nllb_model_path", self._nllb_path_edit.text().strip())
 
         from translate.nllb_backend import reset_client as reset_nllb
@@ -1269,7 +1459,7 @@ class SettingsWidget(QWidget):
                 self._backend_combo.setCurrentIndex(i)
                 break
         self._nllb_path_edit.setText(getattr(config, "NLLB_MODEL_PATH", "") or "")
-        self._refresh_nllb_status()
+        self._populate_nllb_versions(self._nllb_path_edit.text().strip())
 
         # NMT key statuses (Google / DeepL / Azure).
         self._refresh_nmt_key_status()
@@ -1380,7 +1570,7 @@ class SettingsWidget(QWidget):
         # Autosave: every control whose setting applies without a restart.
         for combo in (self._backend_combo, self._ocr_gpu_combo, self._domain_combo,
                       self._src_lang_combo, self._lang_combo, self._engine_combo,
-                      self._model_combo):
+                      self._model_combo, self._nllb_version_combo):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
             button.toggled.connect(self._schedule_autosave)
@@ -1454,7 +1644,10 @@ class SettingsWidget(QWidget):
         from translate.backend import BACKEND_NLLB
         # Freshly switched to the local model → warm it up with a visible indicator
         # instead of making the user wait on their first hotkey press.
-        if "translation_backend" in changed and config.TRANSLATION_BACKEND == BACKEND_NLLB:
+        nllb_kind, _ = self._nllb_version_combo.currentData() or ("auto", None)
+        if ("translation_backend" in changed and config.TRANSLATION_BACKEND == BACKEND_NLLB
+                and nllb_kind != "remote"):  # never start a download on save
+
             self._on_load_nllb_clicked()
         else:
             self._refresh_nllb_status()

@@ -15,7 +15,7 @@ Reference point for comparison after fine-tuning. Re-run this same script with t
 | Parameter | Value |
 |---|---|
 | Run date | 2026-09-23 |
-| Model | `D:\projects\overlay-translator\models\nllb-200-ct2-int8` |
+| Model | `models/nllb-200-ct2-int8` |
 | Quantization | int8, CTranslate2, CPU |
 | Dataset | `data\history_pairs.jsonl` |
 | Pairs in dataset | 7 (usable: 7) |
