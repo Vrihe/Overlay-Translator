@@ -203,6 +203,18 @@ python build.py
 > - To launch or distribute the application, **extract / copy the entire `TranslatorOverlay` folder** and run `dist/TranslatorOverlay/TranslatorOverlay.exe`.
 > - Do not copy `TranslatorOverlay.exe` alone out of the folder, as it relies on adjacent DLLs and bundled dependencies.
 
+### Installer (single Setup.exe)
+With [Inno Setup 6](https://jrsoftware.org/isinfo.php) installed (`winget install JRSoftware.InnoSetup`):
+```powershell
+python build.py --installer       # build, then pack into an installer
+python build.py --installer-only  # only pack the existing dist/TranslatorOverlay/
+```
+The result is `dist/installer/TranslatorOverlay-Setup-<version>.exe`. It installs for the current
+user without admin rights (or for all users, chosen on the first page), adds a Start menu shortcut,
+and optionally a desktop shortcut and start with Windows. Uninstalling keeps
+`%APPDATA%\translator-overlay\` (settings, history, downloaded models).
+If `ISCC.exe` is not found automatically, set the `ISCC` environment variable to its path.
+
 ### User Data & Persistence
 Settings (`settings.json`), translation history/cache database (`translations.db`), and logs are automatically stored in the user's roaming AppData directory:
 `%APPDATA%\translator-overlay\`

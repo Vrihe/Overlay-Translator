@@ -45,6 +45,7 @@ Overlay-Translator/
 ├── build.py / build.bat    # PyInstaller build scripts
 ├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (--admin elevates)
 ├── build*.spec             # Spec files (layered build: app + deps)
+├── installer/TranslatorOverlay.iss  # Inno Setup script: dist/TranslatorOverlay/ → Setup.exe (build.py --installer)
 ├── _deps_stub.py           # Stub for the layered dependency build
 ├── pyi_rth_onnxruntime.py  # Runtime hook: import onnxruntime before PyInstaller's PyQt5 hook
 │
@@ -583,7 +584,14 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
 4. **Keyring** — the working store for API keys (`settings.set_api_key`).
 5. **`translate/domain_profiles/*.json`** — system prompts and few-shot examples per domain.
 6. **`region_presets.json`** — saved regions and their individual hotkeys.
-7. **`build*.spec` / `build.py`** — PyInstaller build parameters.
+7. **`build*.spec` / `build.py`** — PyInstaller build parameters. `build.py --installer`
+   (or `--installer-only` for an existing `dist/TranslatorOverlay/`) then runs Inno Setup 6
+   (`ISCC.exe`: `$ISCC`, PATH or the default install dirs) on `installer/TranslatorOverlay.iss`
+   with `/DAppVersion=` from `config.APP_VERSION` → `dist/installer/TranslatorOverlay-Setup-<version>.exe`.
+   Per-user install by default (no admin, `%LOCALAPPDATA%\Programs`), all-users optional;
+   `AppMutex` = the `single_instance` mutex, shortcuts carry main.py's AppUserModelID,
+   optional desktop icon and autostart (`HKA\…\Run`). User data in `%APPDATA%` is left on
+   uninstall. `tests/test_build_installer.py` keeps these values in step with the app.
 8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
    (`i18n.current_language()`), so a change applies after a restart. `"auto"` picks Russian

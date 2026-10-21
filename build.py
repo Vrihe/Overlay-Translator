@@ -5,6 +5,10 @@ Usage:
     python build.py               — smart build (uses deps cache when possible)
     python build.py --clean       — full clean rebuild, refreshes deps cache
     python build.py --cache-info  — print current cache fingerprint and exit
+    python build.py --installer   — build, then pack dist/TranslatorOverlay/ into
+                                    dist/installer/TranslatorOverlay-Setup-<version>.exe
+                                    with Inno Setup 6 (installer/TranslatorOverlay.iss)
+    python build.py --installer-only — only pack the existing dist/TranslatorOverlay/
 
 How it works (optimization 2.1 — layered build):
   The build is split into two independent layers:
@@ -294,6 +298,52 @@ def precompile_sources(root: Path) -> None:
         print(f"skipped ({e}).")
 
 
+# ── Installer (Inno Setup) ────────────────────────────────────────────────────
+
+_ISS_SCRIPT = Path('installer') / 'TranslatorOverlay.iss'
+
+
+def find_iscc() -> Path | None:
+    """Locate the Inno Setup 6 compiler: $ISCC, PATH, then the default install dirs."""
+    candidates = []
+    if os.environ.get('ISCC'):
+        candidates.append(Path(os.environ['ISCC']))
+    on_path = shutil.which('ISCC')
+    if on_path:
+        candidates.append(Path(on_path))
+    for base in (os.environ.get('ProgramFiles(x86)'), os.environ.get('ProgramFiles'),
+                 os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs')):
+        if base:
+            candidates.append(Path(base) / 'Inno Setup 6' / 'ISCC.exe')
+    return next((c for c in candidates if c.is_file()), None)
+
+
+def app_version(root: Path) -> str:
+    """APP_VERSION from config.py, read as text (importing config would load .env)."""
+    import re
+    match = re.search(r'^\s*APP_VERSION\s*=\s*["\']([^"\']+)["\']',
+                      (root / 'config.py').read_text(encoding='utf-8'), re.MULTILINE)
+    if match is None:
+        raise RuntimeError("APP_VERSION not found in config.py")
+    return match.group(1)
+
+
+def build_installer(root: Path) -> Path:
+    """Compile installer/TranslatorOverlay.iss; return the Setup.exe path."""
+    iscc = find_iscc()
+    if iscc is None:
+        raise RuntimeError(
+            "Inno Setup 6 compiler (ISCC.exe) not found. Install it "
+            "(winget install JRSoftware.InnoSetup) or set the ISCC environment variable."
+        )
+    version = app_version(root)
+    cmd = [str(iscc), f'/DAppVersion={version}', str(root / _ISS_SCRIPT)]
+    print(f"  > {' '.join(cmd)}")
+    if subprocess.run(cmd).returncode != 0:
+        raise RuntimeError("Inno Setup failed to compile the installer")
+    return root / 'dist' / 'installer' / f'TranslatorOverlay-Setup-{version}.exe'
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -319,6 +369,18 @@ def main() -> None:
         print(f"Deps fingerprint : {fingerprint}")
         print(f"Cache directory  : {cache_dir}")
         print(f"Cache exists     : {cache_exists}")
+        return
+
+    if '--installer-only' in sys.argv:
+        # Pack the existing dist/TranslatorOverlay/ without rebuilding it.
+        if not (root / 'dist' / 'TranslatorOverlay' / 'TranslatorOverlay.exe').exists():
+            print("[ERROR] dist/TranslatorOverlay/TranslatorOverlay.exe not found — run python build.py first.")
+            sys.exit(1)
+        try:
+            print(f"  ✓ Installer: {build_installer(root)}")
+        except RuntimeError as exc:
+            print(f"\n[ERROR] {exc}")
+            sys.exit(1)
         return
 
     print("=" * 60)
@@ -373,6 +435,15 @@ def main() -> None:
     print(f"  EXE    : {out_exe}")
     print("\n  Running post-build cleanup…")
     post_build_cleanup(dist_dir)
+
+    if '--installer' in sys.argv:
+        print("\n  Building installer (Inno Setup)…")
+        try:
+            setup_exe = build_installer(root)
+        except RuntimeError as exc:
+            print(f"\n[ERROR] {exc}")
+            sys.exit(1)
+        print(f"  ✓ Installer: {setup_exe}")
 
 
 if __name__ == '__main__':
