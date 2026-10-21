@@ -2,6 +2,7 @@
 # The "tests" job is a required status check of the main branch ruleset:
 # a pull request cannot be merged while it is red. It only gathers the
 # results of the jobs below, so adding a job does not touch the ruleset.
+# Lint and the Windows tests must pass; the Linux tests are informational.
 
 name: CI
 
@@ -44,6 +45,9 @@ jobs:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    # The app is Windows-only, so only Windows can block a merge;
+    # Linux shows how portable the tests are and may stay red.
+    continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
       matrix:
@@ -51,9 +55,11 @@ jobs:
         include:
           - os: windows-latest
             requirements: requirements.txt
+            optional: false
           # onnxruntime-directml has no Linux wheels: use the CPU runtime there.
           - os: ubuntu-latest
             requirements: requirements-cpu.txt
+            optional: true
     env:
       PYTHONUTF8: "1"
       QT_QPA_PLATFORM: offscreen
