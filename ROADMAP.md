@@ -20,7 +20,7 @@
 - [ ] Убрать устаревшее из README: структура `translator-overlay/`, `settings.py`, описание popup «original + translation», `your-username` в clone-команде
 - [x] Убрать из `requirements-train.txt` привязку к китайскому зеркалу и локальные пути; вынести в комментарий «как установить CUDA torch»
 - [x] Убрать хардкод `D:\projects\overlay-translator\...` из `training/finetune_lora.py` и docs (заменить на аргумент или переменную окружения)
-- [ ] Включить защиту ветки `main` (PR + зелёный CI)
+- [x] Включить защиту ветки `main` (PR + зелёный CI)
 
 **Критерий готовности:** в `git shortlog -sn` два человека; в репозитории нет путей `D:\`; README не противоречит коду.
 
@@ -314,7 +314,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 - [ ] Remove outdated parts of the README: the `translator-overlay/` tree, `settings.py`, the "original + translation" popup description, `your-username` in the clone command
 - [x] Drop the Chinese mirror and local paths from `requirements-train.txt`; move "how to install CUDA torch" into a comment
 - [x] Remove the hardcoded `D:\projects\overlay-translator\...` from `training/finetune_lora.py` and the docs (replace with an argument or an environment variable)
-- [ ] Protect the `main` branch (PR + green CI)
+- [x] Protect the `main` branch (PR + green CI)
 
 **Done when:** `git shortlog -sn` shows two people; the repository has no `D:\` paths; the README does not contradict the code.
 
