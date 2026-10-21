@@ -1,0 +1,113 @@
+# Builds the Windows installer and drafts a GitHub release.
+#
+#   git tag v1.1.0 && git push origin v1.1.0   → tests, build, draft release with Setup.exe
+#   Actions → Release → Run workflow             → same build, installer as an artifact only
+#
+# The tag must equal "v" + APP_VERSION in config.py and CHANGELOG.md needs a
+# "## [X.Y.Z]" section: it becomes the release notes. The release is created as a
+# draft; a maintainer checks it and publishes it by hand.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Check the tag against APP_VERSION and CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python build.py --check-tag "${{ github.ref_name }}"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest tests/ -q
+
+      - name: Install Inno Setup
+        run: |
+          if (-not (Get-Command ISCC -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      # The heavy dependency layer (build_deps.spec, ~15 min) is cached by build.py in
+      # _build_cache/<fingerprint>; restoring it makes a rebuild take minutes.
+      - name: Dependency layer fingerprint
+        id: deps
+        run: '"fingerprint=$(python build.py --fingerprint)" >> $env:GITHUB_OUTPUT'
+
+      - name: Restore dependency layer
+        uses: actions/cache@v4
+        with:
+          path: _build_cache/${{ steps.deps.outputs.fingerprint }}
+          key: deps-layer-${{ runner.os }}-${{ steps.deps.outputs.fingerprint }}
+
+      - name: Build app and installer
+        run: python build.py --installer
+
+      - name: Checksum and release notes
+        id: files
+        run: |
+          $version = python -c "import build, pathlib; print(build.app_version(pathlib.Path('.')))"
+          $setup = "dist/installer/TranslatorOverlay-Setup-$version.exe"
+          $sha = (Get-FileHash $setup -Algorithm SHA256).Hash
+          "$sha  TranslatorOverlay-Setup-$version.exe" | Out-File -Encoding ascii "$setup.sha256"
+          python build.py --release-notes release-notes.md --sha256 $sha
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TranslatorOverlay-Setup-${{ steps.files.outputs.version }}
+          path: |
+            ${{ steps.files.outputs.setup }}
+            ${{ steps.files.outputs.setup }}.sha256
+            release-notes.md
+          retention-days: 14
+
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          SETUP: ${{ steps.files.outputs.setup }}
+          VERSION: ${{ steps.files.outputs.version }}
+        run: |
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # A re-run replaces the files of the existing (draft) release.
+            gh release upload $env:TAG $env:SETUP "$env:SETUP.sha256" --clobber
+          } else {
+            gh release create $env:TAG $env:SETUP "$env:SETUP.sha256" --draft --verify-tag `
+              --title "Translator Overlay $env:VERSION" --notes-file release-notes.md
+          }

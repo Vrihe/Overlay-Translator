@@ -46,6 +46,8 @@ Overlay-Translator/
 ├── install.bat / download_model.bat / run.bat  # Dev quick start: .venv + deps, NLLB model, launch (--admin elevates)
 ├── build*.spec             # Spec files (layered build: app + deps)
 ├── installer/TranslatorOverlay.iss  # Inno Setup script: dist/TranslatorOverlay/ → Setup.exe (build.py --installer)
+├── .github/workflows/release.yml   # v* tag → tests, build, installer, draft GitHub release
+├── CHANGELOG.md            # Keep a Changelog; the X.Y.Z section becomes the release notes
 ├── _deps_stub.py           # Stub for the layered dependency build
 ├── pyi_rth_onnxruntime.py  # Runtime hook: import onnxruntime before PyInstaller's PyQt5 hook
 │
@@ -592,6 +594,12 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    `AppMutex` = the `single_instance` mutex, shortcuts carry main.py's AppUserModelID,
    optional desktop icon and autostart (`HKA\…\Run`). User data in `%APPDATA%` is left on
    uninstall. `tests/test_build_installer.py` keeps these values in step with the app.
+   **Release pipeline** — `.github/workflows/release.yml` on a `v*` tag (windows-latest):
+   `build.py --check-tag` (tag == `v` + `APP_VERSION`, `CHANGELOG.md` has that section) →
+   `pytest` (offscreen Qt) → Inno Setup via choco if missing → deps layer restored from
+   `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → `.sha256`
+   and `build.py --release-notes` (changelog section + install steps) → draft release
+   (re-runs `--clobber` the files). Manual runs only upload an artifact. Process: CONTRIBUTING.md.
 8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
    (`i18n.current_language()`), so a change applies after a restart. `"auto"` picks Russian

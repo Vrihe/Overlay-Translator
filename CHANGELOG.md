@@ -1,0 +1,44 @@
+# Changelog
+
+All notable changes to Translator Overlay are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+A release is tagged `vX.Y.Z`, where `X.Y.Z` equals `APP_VERSION` in `config.py`;
+the section for that version becomes the GitHub release notes.
+
+## [Unreleased]
+
+### Added
+- `release.yml` workflow: a `vX.Y.Z` tag runs the tests, builds the app and the installer
+  on GitHub Actions and creates a draft release with `Setup.exe` and its SHA-256.
+
+### Fixed
+- `build.py` precompiled no sources (the exclude pattern was passed as a string).
+
+## [1.0.0] - 2026-10-21
+
+First public release.
+
+### Added
+- Hotkey translation: select a region (Ctrl+Shift+R), the text is recognised and shown
+  translated in a popup next to it. Ctrl+Shift+O opens the settings.
+- Translation backends: keyless Google Translate (default), DeepL and Microsoft Azure
+  Translator with your own key, LLMs through OpenRouter or Anthropic with domain profiles
+  and streaming, and the local NLLB-200 model that works fully offline.
+- NLLB model version picker in the settings: lists the Hugging Face tags, matches local
+  builds and downloads missing ones with a SHA-256 check.
+- Offline OCR (RapidOCR on ONNX Runtime), on the GPU through DirectML when available.
+- Region presets with their own hotkeys, live monitoring of a region, translation history.
+- Result popup: copy, read aloud, drag and resize; the size is remembered.
+- Russian and English interface, HUD-style themes.
+- Inno Setup installer: per-user install without admin rights, Start menu shortcut,
+  optional desktop shortcut and start with Windows; user data is kept on uninstall.
+- Update check against GitHub Releases at launch.
+
+### Security
+- The text you translate is not written to the logs (only its length) unless
+  `OVERLAY_LOG_TEXT` is set.
+
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Vrihe/Overlay-Translator/releases/tag/v1.0.0

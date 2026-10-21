@@ -88,6 +88,25 @@ reason for the change is not obvious.
 - A maintainer reviews it. Expect questions and requests for changes; that is
   part of the process, not a rejection.
 
+## Releasing (maintainers)
+
+Versions follow [SemVer](https://semver.org/): patch for fixes, minor for new features.
+
+1. Move the `[Unreleased]` entries in `CHANGELOG.md` into a new `## [X.Y.Z] - YYYY-MM-DD`
+   section and update the links at the bottom.
+2. Set `APP_VERSION = "X.Y.Z"` in `config.py`, commit, and push to `main`.
+3. Tag and push: `git tag -a vX.Y.Z -m "Translator Overlay X.Y.Z"` and
+   `git push origin vX.Y.Z`.
+4. The `Release` workflow checks that the tag matches `APP_VERSION` and the changelog,
+   runs the tests, builds the installer and creates a **draft** release with
+   `TranslatorOverlay-Setup-X.Y.Z.exe`, its `.sha256` and the changelog section as notes.
+5. Install the draft's setup on a clean Windows (Windows Sandbox is enough), check
+   install → first launch → translation → uninstall, then publish the release.
+
+`python build.py --check-tag vX.Y.Z` runs the same check locally before you tag.
+The workflow can also be started by hand (Actions → Release → Run workflow): it builds
+the installer as an artifact without creating a release.
+
 ## Reporting security problems
 
 Do not open a public issue for a vulnerability (for example a way to leak the

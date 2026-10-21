@@ -89,6 +89,98 @@ class TestBuildInstaller(unittest.TestCase):
                 build.build_installer(ROOT)
 
 
+_CHANGELOG = """# Changelog
+
+## [Unreleased]
+
+### Added
+- Something new.
+
+## [1.2.0] - 2026-11-01
+
+### Fixed
+- A bug.
+
+## [1.1.0] - 2026-10-30
+
+### Added
+- A feature.
+
+[Unreleased]: https://example.invalid/compare/v1.2.0...HEAD
+[1.2.0]: https://example.invalid/v1.2.0
+"""
+
+
+class TestReleaseHelpers(unittest.TestCase):
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        (self.root / "CHANGELOG.md").write_text(_CHANGELOG, encoding="utf-8")
+        self._version("1.2.0")
+
+    def _version(self, version: str) -> None:
+        (self.root / "config.py").write_text(f'class C:\n    APP_VERSION = "{version}"\n',
+                                             encoding="utf-8")
+
+    def test_section_stops_at_the_next_version(self):
+        self.assertEqual(build.changelog_section(self.root, "1.2.0"), "### Fixed\n- A bug.")
+
+    def test_last_section_stops_at_the_link_list(self):
+        self.assertEqual(build.changelog_section(self.root, "1.1.0"), "### Added\n- A feature.")
+
+    def test_missing_section_is_empty(self):
+        self.assertEqual(build.changelog_section(self.root, "9.9.9"), "")
+        self.assertEqual(build.changelog_section(self.root, "1.2"), "")
+
+    def test_matching_tag_passes(self):
+        self.assertEqual(build.check_release_tag(self.root, "v1.2.0"), "1.2.0")
+
+    def test_tag_must_equal_app_version(self):
+        for tag in ("v1.1.0", "1.2.0", "v1.2.0-rc1"):
+            with self.assertRaisesRegex(RuntimeError, "does not match"):
+                build.check_release_tag(self.root, tag)
+
+    def test_version_needs_a_changelog_section(self):
+        self._version("1.3.0")
+        with self.assertRaisesRegex(RuntimeError, "CHANGELOG"):
+            build.check_release_tag(self.root, "v1.3.0")
+
+    def test_version_must_be_semver(self):
+        self._version("1.2")
+        with self.assertRaisesRegex(RuntimeError, "X.Y.Z"):
+            build.check_release_tag(self.root, "v1.2")
+
+    def test_release_notes(self):
+        notes = build.release_notes(self.root, "1.2.0", "ab" * 32)
+        self.assertTrue(notes.startswith("### Fixed\n- A bug.\n"))
+        self.assertIn("TranslatorOverlay-Setup-1.2.0.exe", notes)
+        self.assertIn("Run anyway", notes)
+        self.assertIn("AB" * 32, notes)
+        self.assertNotIn("SHA-256", build.release_notes(self.root, "1.2.0"))
+
+
+class TestRepositoryReleaseState(unittest.TestCase):
+    """The real CHANGELOG.md and release.yml stay usable for the next release."""
+
+    def test_current_version_is_releasable(self):
+        version = build.app_version(ROOT)
+        self.assertEqual(build.check_release_tag(ROOT, f"v{version}"), version)
+
+    def test_changelog_has_an_unreleased_section(self):
+        self.assertRegex((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+                         r"(?m)^## \[Unreleased\]$")
+
+    def test_workflow_uses_existing_build_flags(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        build_py = (ROOT / "build.py").read_text(encoding="utf-8")
+        flags = set(re.findall(r"build\.py (--[a-z-]+)", workflow))
+        self.assertTrue(flags)
+        for flag in flags:
+            self.assertIn(f"'{flag}'", build_py, flag)
+
+
 class TestIssScript(unittest.TestCase):
     """Values the script duplicates from the app must not drift."""
 

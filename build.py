@@ -10,6 +10,13 @@ Usage:
                                     with Inno Setup 6 (installer/TranslatorOverlay.iss)
     python build.py --installer-only — only pack the existing dist/TranslatorOverlay/
 
+Release helpers (used by .github/workflows/release.yml, nothing is built):
+    python build.py --fingerprint            — print the deps fingerprint (CI cache key)
+    python build.py --check-tag vX.Y.Z       — fail unless the tag equals v + APP_VERSION
+                                               and CHANGELOG.md has a section for it
+    python build.py --release-notes OUT.md   — write the release notes for APP_VERSION
+                                               (CHANGELOG section + install steps)
+
 How it works (optimization 2.1 — layered build):
   The build is split into two independent layers:
 
@@ -47,6 +54,7 @@ Subsequent builds (same deps):
 import hashlib
 import importlib.metadata
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -284,7 +292,7 @@ def precompile_sources(root: Path) -> None:
     workers = max(1, multiprocessing.cpu_count())
     print(f"  Precompiling Python sources ({workers} CPU workers)… ", end="", flush=True)
     try:
-        rx = r"(\.venv|venv|_build_cache|dist|build|\.git)"
+        rx = re.compile(r"(\.venv|venv|_build_cache|dist|build|\.git)")  # compileall needs a regex object
         compileall.compile_dir(
             str(root),
             maxlevels=10,
@@ -320,7 +328,6 @@ def find_iscc() -> Path | None:
 
 def app_version(root: Path) -> str:
     """APP_VERSION from config.py, read as text (importing config would load .env)."""
-    import re
     match = re.search(r'^\s*APP_VERSION\s*=\s*["\']([^"\']+)["\']',
                       (root / 'config.py').read_text(encoding='utf-8'), re.MULTILINE)
     if match is None:
@@ -344,10 +351,84 @@ def build_installer(root: Path) -> Path:
     return root / 'dist' / 'installer' / f'TranslatorOverlay-Setup-{version}.exe'
 
 
+# ── Release helpers (.github/workflows/release.yml) ───────────────────────────
+
+_SEMVER = re.compile(r'^\d+\.\d+\.\d+$')
+
+
+def changelog_section(root: Path, version: str) -> str:
+    """Body of the ``## [version]`` section of CHANGELOG.md; '' when there is none."""
+    text = (root / 'CHANGELOG.md').read_text(encoding='utf-8')
+    match = re.search(
+        rf'^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|^\[[^\]]+\]: |\Z)',
+        text, re.MULTILINE | re.DOTALL,
+    )
+    return match.group(1).strip() if match else ''
+
+
+def check_release_tag(root: Path, tag: str) -> str:
+    """Return APP_VERSION when *tag* is ``v<APP_VERSION>`` and CHANGELOG.md covers it."""
+    version = app_version(root)
+    if not _SEMVER.match(version):
+        raise RuntimeError(f"APP_VERSION {version!r} is not X.Y.Z")
+    if tag != f'v{version}':
+        raise RuntimeError(f"Tag {tag!r} does not match APP_VERSION {version} (expected v{version})")
+    if not changelog_section(root, version):
+        raise RuntimeError(f"CHANGELOG.md has no '## [{version}]' section")
+    return version
+
+
+def release_notes(root: Path, version: str, sha256: str = '') -> str:
+    """GitHub release notes: the CHANGELOG section plus download and install steps."""
+    setup = f'TranslatorOverlay-Setup-{version}.exe'
+    lines = [
+        changelog_section(root, version),
+        '',
+        '## Install',
+        '',
+        f'1. Download **{setup}** below (Windows 10 / 11, 64-bit) and run it. It installs '
+        'for your user without admin rights.',
+        '2. Windows SmartScreen may say "Windows protected your PC": the installer is not '
+        'code-signed. Click **More info → Run anyway**.',
+        '3. Updating: run the new setup over the old version; settings, history and models '
+        'in `%APPDATA%\\translator-overlay\\` are kept.',
+    ]
+    if sha256:
+        lines += ['', f'SHA-256 of `{setup}`: `{sha256.upper()}`']
+    return '\n'.join(lines) + '\n'
+
+
+def _arg_after(flag: str) -> str:
+    """The command-line value that follows *flag*."""
+    i = sys.argv.index(flag)
+    if i + 1 >= len(sys.argv):
+        print(f"[ERROR] {flag} needs a value")
+        sys.exit(2)
+    return sys.argv[i + 1]
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     root = Path(__file__).resolve().parent
+
+    # ── Release helpers: answer and exit, nothing is built ───────────────────
+    try:
+        if '--fingerprint' in sys.argv:
+            print(deps_fingerprint(root))
+            return
+        if '--check-tag' in sys.argv:
+            print(f"Tag OK: version {check_release_tag(root, _arg_after('--check-tag'))}")
+            return
+        if '--release-notes' in sys.argv:
+            out = Path(_arg_after('--release-notes'))
+            sha = _arg_after('--sha256') if '--sha256' in sys.argv else ''
+            out.write_text(release_notes(root, app_version(root), sha), encoding='utf-8')
+            print(f"Release notes written to {out}")
+            return
+    except RuntimeError as exc:
+        print(f"[ERROR] {exc}")
+        sys.exit(1)
 
     # ── Precompile (2.4) ─────────────────────────────────────────────────────
     precompile_sources(root)
