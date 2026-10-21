@@ -5,9 +5,11 @@ GPU inference is an optional speed-up for the local NLLB backend. CTranslate2's
 Windows wheels ship without CUDA; the only extra library NLLB actually needs is
 cuBLAS (``cublas64_12.dll`` + ``cublasLt64_12.dll``, CUDA 12.x). It can come from:
 
-  1. The ``nvidia-cublas-cu12`` pip wheel      → <site-packages>/nvidia/cublas/bin
-  2. A CUDA Toolkit install pointed to by env  → %CUDA_PATH%\\bin, %CUDA_PATH_V12_*%\\bin
-  3. A CUDA Toolkit in its default location    → C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.*\\bin
+  1. The app's own download (settings button)  → %APPDATA%\\translator-overlay\\cuda
+     (``translate/cuda_download.py``)
+  2. The ``nvidia-cublas-cu12`` pip wheel      → <site-packages>/nvidia/cublas/bin
+  3. A CUDA Toolkit install pointed to by env  → %CUDA_PATH%\\bin, %CUDA_PATH_V12_*%\\bin
+  4. A CUDA Toolkit in its default location    → C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.*\\bin
 
 CTranslate2 resolves cuBLAS with a plain ``LoadLibrary`` call, which searches
 ``PATH`` but ignores ``os.add_dll_directory``. The directory is therefore
@@ -35,6 +37,13 @@ _DEFAULT_TOOLKIT_ROOT = Path(r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUD
 
 # Directories already registered in this process, so repeated loads stay idempotent.
 _registered: set[str] = set()
+
+
+def _downloaded_dirs() -> list[Path]:
+    """cuBLAS fetched by the app itself (``cuda_download.cuda_dir()``)."""
+    from translate.cuda_download import cuda_dir
+
+    return [cuda_dir()]
 
 
 def _pip_wheel_dirs() -> list[Path]:
@@ -71,7 +80,7 @@ def candidate_dirs() -> list[Path]:
     """Every directory that may hold cuBLAS, in priority order, without duplicates."""
     seen: set[str] = set()
     unique: list[Path] = []
-    for path in [*_pip_wheel_dirs(), *_toolkit_env_dirs(), *_toolkit_default_dirs()]:
+    for path in [*_downloaded_dirs(), *_pip_wheel_dirs(), *_toolkit_env_dirs(), *_toolkit_default_dirs()]:
         key = os.path.normcase(str(path))
         if key not in seen:
             seen.add(key)
@@ -116,6 +125,8 @@ def prepare_cuda_libraries() -> Path | None:
 def cublas_missing_hint() -> str:
     """Explain where cuBLAS was searched for and how to install it."""
     searched = "\n".join(f"  • {path}" for path in candidate_dirs())
-    return f"{CUBLAS_DLL} not found (pip install nvidia-cublas-cu12, or install CUDA Toolkit 12.x)\nSearched:\n" + (
-        searched or "  (no candidate directories)"
+    return (
+        f"{CUBLAS_DLL} not found (download it in the NLLB settings, pip install "
+        "nvidia-cublas-cu12, or install CUDA Toolkit 12.x)"
+        "\nSearched:\n" + (searched or "  (no candidate directories)")
     )

@@ -72,6 +72,7 @@ Overlay-Translator/
 │   ├── chat_glossary.py    #   Expands English game-chat terms before NLLB (wts, gg wp, lf2m)
 │   ├── glossary/game_en.json  # Term list, exported by training/game_abbreviations.py
 │   ├── cuda_support.py     #   Locates cuBLAS for optional GPU inference
+│   ├── cuda_download.py    #   Downloads cuBLAS (PyPI wheel, SHA-256) into %APPDATA%\…\cuda
 │   ├── domain_manager.py   #   Domain profiles (prompts + few-shot)
 │   ├── lang_detect.py      #   Language detection, "same language" fast path
 │   ├── error_classification.py  # Whether a provider error is retryable
@@ -333,8 +334,11 @@ How it differs from the API path:
   is called once with the final text, so the UI behaves the same way.
 - With `source_language=auto` the source language is detected offline via `langid`.
 - Runtime dependencies are only `ctranslate2` + `sentencepiece`, no torch or transformers.
-- **GPU is optional** (`device=None` → `NLLB_DEVICE` env → `"auto"`). In auto/cuda mode
-  `translate/cuda_support.py` locates `cublas64_12.dll` (pip wheel `nvidia-cublas-cu12`,
+- **GPU is optional**. `get_backend()` passes `NLLB_DEVICE` env, else `config.NLLB_DEVICE`
+  (`settings.json` → `nllb_device`: `"auto"` | `"cpu"`, Settings → Device), to `NllbBackend`;
+  `device=None` there means `"auto"`. In auto/cuda mode
+  `translate/cuda_support.py` locates `cublas64_12.dll` (the app's own download in
+  `%APPDATA%\translator-overlay\cuda`, pip wheel `nvidia-cublas-cu12`,
   then `CUDA_PATH*`, then the default toolkit dir) and prepends it to `PATH`, because
   CTranslate2 loads cuBLAS via plain `LoadLibrary` and ignores `os.add_dll_directory`.
   cuBLAS loads lazily, so a tiny warm-up translation verifies the GPU. Any failure → CPU
@@ -352,13 +356,28 @@ find_cublas_dir() -> Path | None    # first dir containing cublas64_12.dll
 prepare_cuda_libraries() -> Path | None  # prepend that dir to PATH once (Windows only)
 cublas_missing_hint() -> str        # user-facing "not found, install …, searched: …"
 ```
-Search order: `<sys.path entry or _MEIPASS>/nvidia/cublas/bin` (pip wheel
+Search order: `cuda_download.cuda_dir()` (`%APPDATA%\translator-overlay\cuda`) →
+`<sys.path entry or _MEIPASS>/nvidia/cublas/bin` (pip wheel
 `nvidia-cublas-cu12`, see `requirements-gpu.txt`) → `%CUDA_PATH%\bin`,
 `%CUDA_PATH_V12_*%\bin` → `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.*\bin`.
 Only cuBLAS is needed for NLLB; cuDNN/cudart are not. Called only from
 `NllbBackend._create_cuda_translator`. The CPU fallback policy lives in
 `NllbBackend._create_translator`: a missing GPU in `auto` mode is logged at INFO
 with no user notice; every other CUDA failure logs a WARNING and leaves a notice.
+
+### `translate/cuda_download.py` — cuBLAS for the installed app
+```python
+driver_cuda_version() -> int | None   # nvcuda.dll cuDriverGetVersion (12080 = 12.8); no GPU work
+gpu_offer(driver_version, cublas_found) -> "none" | "old_driver" | "download" | "ready"
+download_cublas(*, dest=None, progress=None, cancel=None) -> Path
+```
+The installer ships no CUDA. The settings page (NLLB section, `_refresh_cuda_row`) shows
+the offer only with an NVIDIA driver; "Скачать для видеокарты" runs `CudaDownloadWorker`
+(`ui/nllb_workers.py`): the pinned `nvidia-cublas-cu12` (`WHEEL_VERSION`) Windows wheel
+from PyPI (~530 MB), checked against PyPI's SHA-256, its `nvidia/cublas/bin/*.dll` unpacked
+flat into `<dest>.part`, which replaces `cuda_dir()` only when complete (a failed or
+cancelled download leaves the old copy). Afterwards the NLLB backend is reset and warmed
+up again, now on the GPU. Standard library only (no pip in the frozen app).
 
 ### `translate/domain_manager.py`
 `load_domain_profile(domain_id) -> dict`, `list_available_domains() -> list[dict]`,
@@ -626,8 +645,8 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    also has the "Загрузить модель" (Load model) button with a progress indicator and
    a model-availability status. The `NLLB_MODEL_DIR` environment variable overrides
    the path without editing settings.
-   `NLLB_DEVICE` (`auto` by default | `cuda` | `cpu`) picks the inference device; it is
-   env-only and has no UI control.
+   `nllb_device` (`"auto"` by default | `"cpu"`, Settings → Device; `config.NLLB_DEVICE`)
+   picks the inference device; the `NLLB_DEVICE` env var (`auto` | `cuda` | `cpu`) overrides it.
    **Model build version**: `config.NLLB_HF_REPO_ID` + `config.NLLB_HF_REVISION`
    (default `Alhite/overlay-translator-nllb-int8` @ the commit SHA of tag `v0-base`, env-overridable) — the only
    place that pins which weights `scripts/download_model.py` fetches.
@@ -763,6 +782,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
 | `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook |
 | `tests/test_app_hotkeys.py` | app hotkeys: Qt sequence → keyboard name, validation (single key, clashes with the other hotkey / presets), `SETTINGS_HOTKEY` env override, the settings page saving / rejecting an edit and pausing the hooks on focus |
+| `tests/test_cuda_download.py` | GPU offer states, cuBLAS wheel checksum / DLL-only unpacking / cleanup on failure and cancel, search order, NLLB device setting vs env |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |

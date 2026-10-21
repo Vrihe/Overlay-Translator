@@ -149,6 +149,17 @@ class _LiveConfig:
         set_value("nllb_model_path", value)
 
     @property
+    def NLLB_DEVICE(self):
+        """NLLB device: 'auto' (NVIDIA GPU when cuBLAS is found, else CPU) or 'cpu'."""
+        return _cfg("nllb_device")
+
+    @NLLB_DEVICE.setter
+    def NLLB_DEVICE(self, value):
+        from settings.config_manager import set_value
+
+        set_value("nllb_device", value)
+
+    @property
     def OCR_GPU_MODE(self):
         """OCR device mode: 'auto' (DirectML GPU when available) or 'cpu'; legacy 'gpu' = 'auto'."""
         return _cfg("ocr_gpu_mode")

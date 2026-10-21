@@ -392,6 +392,19 @@ MESSAGES: dict[str, str] = {
     "Добавьте Ctrl, Alt, Shift или Win: одна обычная клавиша срабатывала бы при наборе текста.": "Add Ctrl, Alt, Shift or Win: a single ordinary key would fire while you type.",
     "Комбинация '{hotkey}' уже занята для другого действия.": "'{hotkey}' is already used for the other action.",
     "Комбинация '{hotkey}' уже назначена пресету «{name}».": "'{hotkey}' is already assigned to the preset \"{name}\".",
+    "Устройство:": "Device:",
+    "Авто (видеокарта NVIDIA, если доступна)": "Auto (NVIDIA GPU when available)",
+    "Только процессор": "CPU only",
+    "Скачать для видеокарты": "Download for the GPU",
+    "На видеокарте NVIDIA перевод в несколько раз быстрее. Нужна библиотека cuBLAS: "
+    "~530 МБ загрузки, ~740 МБ на диске.": "Translation is several times faster on an NVIDIA GPU. It needs the cuBLAS library: "
+    "~530 MB to download, ~740 MB on disk.",
+    "✓ Библиотека CUDA найдена: модель работает на видеокарте NVIDIA.": "✓ CUDA library found: the model runs on the NVIDIA GPU.",
+    "Библиотека CUDA есть, но выбрано «Только процессор»: видеокарта не используется.": "The CUDA library is there, but \"CPU only\" is selected: the GPU is not used.",
+    "Драйвер NVIDIA слишком старый для CUDA 12. Обновите драйвер, чтобы переводить на видеокарте.": "The NVIDIA driver is too old for CUDA 12. Update the driver to translate on the GPU.",
+    "⏳ Скачивание cuBLAS…": "⏳ Downloading cuBLAS…",
+    "⏳ Скачивание cuBLAS: {done} / {total} МБ ({pct}%)": "⏳ Downloading cuBLAS: {done} / {total} MB ({pct}%)",
+    "⚠ Не удалось скачать cuBLAS: {error}": "⚠ Could not download cuBLAS: {error}",
     # ── ui/setup_wizard.py ──
     "Назад": "Back",
     "Далее": "Next",
