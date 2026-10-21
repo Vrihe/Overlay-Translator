@@ -13,6 +13,10 @@ the section for that version becomes the GitHub release notes.
 - Releases carry only `Setup.exe`; its SHA-256 is in the release notes instead of a
   separate `.sha256` file.
 
+### Fixed
+- Google, DeepL and Azure translations are now served from the cache when the source
+  language is auto-detected; before, the same text was sent to the service every time.
+
 ## [1.1.0] - 2026-10-21
 
 ### Added
