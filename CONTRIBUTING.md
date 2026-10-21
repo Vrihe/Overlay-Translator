@@ -55,6 +55,8 @@ Never commit real keys, `.env`, models, caches or the `history/` and `data/` con
 7. Add or update tests in `tests/` for logic you change. Tests use
    `unittest.TestCase` and must not need a GPU, network access, API keys or a
    downloaded model: mock them, as the existing tests do.
+   A test that truly needs a real model or a GPU gets `@pytest.mark.slow`:
+   CI skips it, run it locally with `pytest -m slow`.
 
 ## Running tests
 

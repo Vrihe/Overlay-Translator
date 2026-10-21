@@ -1,6 +1,7 @@
-# Runs the test suite on every pull request and on pushes to main.
+# Lint and tests on every pull request and on pushes to main.
 # The "tests" job is a required status check of the main branch ruleset:
-# a pull request cannot be merged while it is red.
+# a pull request cannot be merged while it is red. It only gathers the
+# results of the jobs below, so adding a job does not touch the ruleset.
 
 name: CI
 
@@ -18,10 +19,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
-    name: tests
-    runs-on: windows-latest
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Same version as requirements-dev.txt and .pre-commit-config.yaml.
+      - name: Install ruff
+        run: python -m pip install ruff==0.17.1
+
+      - name: Ruff lint
+        run: ruff check --output-format=github .
+
+      - name: Ruff format
+        run: ruff format --check .
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            requirements: requirements.txt
+          # onnxruntime-directml has no Linux wheels: use the CPU runtime there.
+          - os: ubuntu-latest
+            requirements: requirements-cpu.txt
     env:
       PYTHONUTF8: "1"
       QT_QPA_PLATFORM: offscreen
@@ -33,12 +65,30 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: ${{ matrix.requirements }}
+
+      # Shared libraries the PyQt5 wheel needs for the offscreen platform plugin.
+      - name: Install Qt system libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest
+          python -m pip install -r ${{ matrix.requirements }} "pytest>=8"
 
+      # Tests marked slow need a real model or a GPU.
       - name: Run tests
-        run: python -m pytest tests/ -q
+        run: python -m pytest tests/ -q -m "not slow"
+
+  tests:
+    name: tests
+    if: always()
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the results
+        run: |
+          echo "lint: ${{ needs.lint.result }}, test: ${{ needs.test.result }}"
+          test "${{ needs.lint.result }}" = success
+          test "${{ needs.test.result }}" = success
