@@ -45,6 +45,11 @@ def _get_user_data_dir() -> Path:
     return path
 
 
+# A module-level literal so pyproject.toml (setuptools) and build.py can read
+# the version without importing config.
+APP_VERSION = "1.1.0"
+
+
 class _LiveConfig:
     """Descriptor-based config so module-level reads always
     reflect the latest settings.json values."""
@@ -222,7 +227,7 @@ class _LiveConfig:
     OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "poolside/laguna-s-2.1:free")
     ANTHROPIC_DETECT_MODEL = os.environ.get("ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414")
 
-    APP_VERSION = "1.1.0"
+    APP_VERSION = APP_VERSION
     GITHUB_REPO = os.environ.get("GITHUB_REPO", "Vrihe/Overlay-Translator")
 
     # ─── Local NLLB model on the Hugging Face Hub ───────────

@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "translator-overlay"
+description = "Screen region translator for Windows: OCR + Google / DeepL / Azure / LLM or an offline NLLB model"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "MODEL_LICENSE.md"]
+requires-python = ">=3.10"
+authors = [{ name = "Kyrylo Bankovskyi" }, { name = "Oleksandr" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "Environment :: Win32 (MS Windows)",
+    "Topic :: Text Processing :: Linguistic",
+]
+# The version lives in config.APP_VERSION (read by build.py and the release workflow);
+# the runtime dependencies live in requirements.txt (install.bat, PyInstaller, CI).
+dynamic = ["version", "dependencies"]
+
+[project.optional-dependencies]
+# Keep in sync with the tool section of requirements-dev.txt (transformers stays there only).
+dev = ["pytest>=8", "pytest-cov>=5", "ruff==0.17.1", "mypy>=1.10", "pre-commit>=3.7", "sacrebleu>=2.4.0"]
+
+[project.urls]
+Homepage = "https://github.com/Vrihe/Overlay-Translator"
+Issues = "https://github.com/Vrihe/Overlay-Translator/issues"
+Changelog = "https://github.com/Vrihe/Overlay-Translator/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+py-modules = ["main", "config", "single_instance"]
+
+[tool.setuptools.packages.find]
+include = ["cache*", "capture*", "history*", "i18n*", "ocr*", "overlay*", "settings*",
+           "translate*", "tray*", "tts*", "ui*", "updater*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "config.APP_VERSION" }
+dependencies = { file = ["requirements.txt"] }
+
+# ── ruff ────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["checkpoints", "data", "models", "_build_cache", ".venv-train", ".hf-cache", ".train-cache"]
+
+[tool.ruff.format]
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "UP",       # pyupgrade
+]
+ignore = [
+    "E501",     # line length is the formatter's job; long strings and URLs stay as they are
+    "B905",     # zip() without strict=: the zipped sequences are built to the same length
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cache", "capture", "config", "history", "i18n", "ocr", "overlay", "settings",
+                     "single_instance", "translate", "tray", "tts", "ui", "updater"]
+
+# ── pytest / coverage ───────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: needs a real model or a GPU; skipped in CI (run with: pytest -m slow)",
+]
+
+[tool.coverage.run]
+source = ["translate", "cache", "settings"]
+relative_files = true
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+skip_covered = true
+
+# ── mypy ────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.10"
+files = ["translate", "cache", "settings", "i18n"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true

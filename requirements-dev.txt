@@ -1,5 +1,12 @@
 -r requirements.txt
-pytest>=7.0.0
+
+# Tools: tests, coverage, lint/format, type check, git hooks.
+# Keep in sync with [project.optional-dependencies].dev in pyproject.toml.
+pytest>=8
+pytest-cov>=5
+ruff==0.17.1
+mypy>=1.10
+pre-commit>=3.7
 
 # Needed only to convert the HF NLLB checkpoint to CTranslate2
 # (scripts/test_nllb_translation.py and the app runtime do NOT need these):
