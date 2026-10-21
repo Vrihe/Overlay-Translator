@@ -2,7 +2,8 @@
 tests/test_title_bar.py — a click on the drawn caption activates the main window first,
 so the native caption drag starts even while the result popup is the active window.
 
-No window is created: native_event runs on a hand-built MSG with user32 mocked.
+No window is created: native_event runs on a hand-built MSG with user32 mocked
+(created on the fly off Windows, where ctypes has no windll).
 """
 
 import ctypes
@@ -20,7 +21,7 @@ def _native_event(message: int, l_param: int):
     msg.hWnd = 0x1234
     msg.message = message
     msg.lParam = l_param
-    with mock.patch.object(title_bar.ctypes, "windll") as windll:
+    with mock.patch.object(title_bar.ctypes, "windll", create=True) as windll:
         result = title_bar.native_event(mock.Mock(), None, ctypes.addressof(msg))
     return result, windll.user32
 
@@ -53,7 +54,7 @@ class TestTitleBarPoint(unittest.TestCase):
             pt = ctypes.cast(pt_ref, ctypes.POINTER(wintypes.POINT)).contents
             pt.x, pt.y = origin
 
-        with mock.patch.object(title_bar.ctypes, "windll") as windll:
+        with mock.patch.object(title_bar.ctypes, "windll", create=True) as windll:
             windll.user32.ClientToScreen.side_effect = client_to_screen
             with mock.patch.object(title_bar.ctypes, "byref", side_effect=ctypes.pointer):
                 return title_bar._title_bar_point(window, bar, msg)

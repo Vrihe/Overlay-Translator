@@ -23,6 +23,7 @@ from settings.region_presets import (
     update_preset_hotkey,
     validate_hotkey,
 )
+from tests.keyboard_stub import stub_key_names
 
 
 class _PresetsTestCase(unittest.TestCase):
@@ -37,6 +38,7 @@ class _PresetsTestCase(unittest.TestCase):
         self.addCleanup(patcher.stop)
         set_language("ru")  # the assertions match the Russian messages
         self.addCleanup(set_language, None)
+        stub_key_names(self)
 
 
 # ── Basic CRUD ───────────────────────────────────────────

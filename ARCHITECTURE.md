@@ -770,9 +770,11 @@ coverage and ruff settings live in `pyproject.toml`:
 - `pytest -m "not slow"` is what CI runs; a test that needs a real model or a GPU
   is marked `@pytest.mark.slow`.
 - `pytest --cov` measures `translate/`, `cache/` and `settings/` and fails below 60 %.
-- CI (`.github/workflows/ci.yml`): ruff, then the tests on Windows (required) and
-  Linux (informational); pushes to `main` publish the coverage badge data to the
-  `badges` branch.
+- CI (`.github/workflows/ci.yml`): ruff, then the tests on Windows and Linux (both
+  required); pushes to `main` publish the coverage badge data to the `badges` branch.
+- Off Windows, tests that validate hotkey strings stub the key name lookup
+  (`tests/keyboard_stub.py`: the `keyboard` library needs root on Linux), and tests of
+  WinAPI calls mock `ctypes.windll` with `create=True` or are skipped.
 
 ---
 

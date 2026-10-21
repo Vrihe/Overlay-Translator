@@ -10,6 +10,7 @@ import base64
 import hashlib
 import io
 import json
+import sys
 import tempfile
 import threading
 import unittest
@@ -129,6 +130,7 @@ class TestLaunch(unittest.TestCase):
             self.assertIn(f"'{arg}'", script)
         self.assertLess(script.index("Wait-Process"), script.index("Start-Process"))
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows process creation flags")
     def test_launch_starts_a_hidden_encoded_powershell(self):
         with mock.patch.object(install_update.subprocess, "Popen") as popen:
             install_update.launch_installer(Path(r"C:\Temp\Setup.exe"), pid=7)

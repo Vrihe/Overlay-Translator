@@ -13,6 +13,7 @@ from unittest import mock
 import config
 from settings import hotkeys
 from settings.hotkeys import SETTINGS, TRANSLATE, from_key_sequence, validate_app_hotkey
+from tests.keyboard_stub import stub_key_names
 from tests.settings_widget_case import SettingsWidgetCase
 
 
@@ -54,6 +55,9 @@ class TestFromKeySequence(unittest.TestCase):
 
 
 class TestValidateAppHotkey(unittest.TestCase):
+    def setUp(self):
+        stub_key_names(self)
+
     def test_valid_combination_is_normalised(self):
         with _current(), _presets():
             self.assertEqual(validate_app_hotkey("Ctrl+Alt+T", TRANSLATE), "ctrl+alt+t")
@@ -114,6 +118,7 @@ class TestHotkeyEditing(SettingsWidgetCase):
 
     def setUp(self):
         super().setUp()
+        stub_key_names(self)
         self.changed = mock.Mock()
         self.widget.hotkeys_changed.connect(self.changed)
 
