@@ -10,6 +10,8 @@ the section for that version becomes the GitHub release notes.
 ## [Unreleased]
 
 ### Added
+- Updates are checked every 30 minutes while the app runs, not only at launch; each new
+  version is announced once.
 - Documentation site (https://vrihe.github.io/Overlay-Translator/): installation, configuration,
   the local model, privacy, FAQ, how it works, training and reproducing the experiments.
 - GPU acceleration for the offline model without a CUDA install: with an NVIDIA driver,
@@ -18,9 +20,15 @@ the section for that version becomes the GitHub release notes.
 - Settings → local model → Device: "Auto" or "CPU only" (keeps the GPU free, e.g. for games).
 
 ### Changed
+- The popup can stay up to 10 minutes before it hides itself (was 1 minute), with a hint
+  next to the setting.
 - The README now starts with what the app does and a 3-step install; the details moved to the docs.
 
 ### Fixed
+- A popup of a region (live monitoring, a region bind) that you dragged somewhere came
+  back to its default place when the next popup for that region opened; it now opens
+  where you put it.
+- A new popup auto-hide time applied only after a restart; it applies at once now.
 - Google, DeepL and Azure translations are now served from the cache when the source
   language is auto-detected; before, the same text was sent to the service every time.
 

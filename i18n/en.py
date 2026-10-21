@@ -373,6 +373,13 @@ MESSAGES: dict[str, str] = {
     "Средняя (рекомендуется)": "Medium (recommended)",
     "Низкая — только заметные изменения": "Low — only noticeable changes",
     "Область автоматически проверяется каждые {seconds} сек.": "The area is checked automatically every {seconds} s.",
+    # ── Settings → Popup ──
+    "Через сколько секунд попап с переводом скрывается сам: от 3 секунд до 10 минут (600 сек). "
+    "Раньше закрывает крестик или Esc; при мониторинге отсчёт начинается заново с каждым обновлением.": (
+        "How many seconds the translation popup stays before it hides itself: 3 seconds to "
+        "10 minutes (600 s). The cross or Esc closes it earlier; during monitoring the count "
+        "starts over with every update."
+    ),
     # ── One-click update (ui/main_window.py, updater/install_update.py) ──
     "Обновить": "Update",
     "Скачивание обновления {version}…": "Downloading update {version}…",

@@ -131,7 +131,7 @@ except Exception:
     logging.exception("onnxruntime failed to load; OCR will be unavailable")
 
 import keyboard
-from PyQt5.QtCore import QObject, QRect, Qt, QThread, QTimer, QtMsgType, pyqtSignal, qInstallMessageHandler
+from PyQt5.QtCore import QObject, QPoint, QRect, Qt, QThread, QTimer, QtMsgType, pyqtSignal, qInstallMessageHandler
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 
 
@@ -202,6 +202,13 @@ def _create_splash() -> QSplashScreen:
 
 
 # ── Bridge: keyboard thread → Qt main thread ─────────────
+
+
+def _anchor_key(anchor: QRect | None) -> tuple[int, int, int, int] | None:
+    """A region's identity for remembering where its popup was dragged to."""
+    if anchor is None:
+        return None
+    return anchor.x(), anchor.y(), anchor.width(), anchor.height()
 
 
 class HotkeyBridge(QObject):
@@ -400,6 +407,9 @@ class TranslatorApp:
         self._last_manual_seq = 0  # id of the newest request the user made (not live)
         self._pending_request = None  # the newest request waiting for a running worker
         self._retired_workers: set = set()  # replaced workers kept alive until they finish
+        # Where the user dragged a popup to, per region (anchor rect): the next popup for
+        # that region (live monitoring, a preset bind) opens there, not at the default spot.
+        self._user_popup_pos: dict[tuple[int, int, int, int], QPoint] = {}
         self._presets_dialog = None  # RegionPresetsDialog instance (if open)
         self._preset_hotkeys: list[str] = []
         self._preset_bridges: list[HotkeyBridge] = []
@@ -521,7 +531,11 @@ class TranslatorApp:
 
         if config.NOTIFICATION_TYPE == "popup" and not live:
             self._close_popup()
-            self._set_popup(ResultPopup(anchor=anchor, is_loading=True))
+            loading = ResultPopup(anchor=anchor, is_loading=True)
+            position = self._user_popup_pos.get(_anchor_key(anchor))
+            if position is not None:
+                loading.place_at(position)
+            self._set_popup(loading)
             self._popup.show()
             QApplication.processEvents()
 
@@ -857,6 +871,7 @@ class TranslatorApp:
                 tray_icon=self._tray,
                 existing_popup=self._popup,
                 activate=activate,
+                position=self._user_popup_pos.get(_anchor_key(anchor)),
             )
             self._set_popup(popup)
         except Exception:
@@ -874,6 +889,7 @@ class TranslatorApp:
                 tray_icon=self._tray,
                 existing_popup=self._popup,
                 activate=activate,
+                position=self._user_popup_pos.get(_anchor_key(anchor)),
             )
             self._set_popup(popup)
         except Exception:
@@ -895,6 +911,9 @@ class TranslatorApp:
         if popup is not None and popup is not self._popup:
             popup.destroyed.connect(lambda _obj=None, p=popup: self._on_popup_destroyed(p))
             popup.stop_monitoring_clicked.connect(self._stop_live_monitoring)
+            key = _anchor_key(popup._anchor)
+            if key is not None:
+                popup.moved_by_user.connect(lambda pos, k=key: self._user_popup_pos.__setitem__(k, pos))
         self._popup = popup
 
     def _on_popup_destroyed(self, popup) -> None:

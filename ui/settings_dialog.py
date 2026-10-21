@@ -962,11 +962,21 @@ class SettingsWidget(QWidget):
 
         # Popup timeout
         self._timeout_spin = QSpinBox()
-        self._timeout_spin.setRange(3, 60)
+        self._timeout_spin.setRange(3, 600)  # up to 10 minutes
         self._timeout_spin.setSuffix(tr(" сек"))
         self._timeout_spin.setStyleSheet(self._INPUT_CSS)
+        timeout_hint = tr(
+            "Через сколько секунд попап с переводом скрывается сам: от 3 секунд до 10 минут "
+            "(600 сек). Раньше закрывает крестик или Esc; при мониторинге отсчёт начинается "
+            "заново с каждым обновлением."
+        )
+        self._timeout_spin.setToolTip(timeout_hint)
         notify_layout.addSpacing(4)
         notify_layout.addLayout(self._field(tr("Автоскрытие попапа (сек):"), self._timeout_spin))
+        lbl_timeout_hint = QLabel(timeout_hint)
+        lbl_timeout_hint.setWordWrap(True)
+        lbl_timeout_hint.setStyleSheet(theme.label_css("caption"))
+        notify_layout.addWidget(lbl_timeout_hint)
 
         # Popup size: set by dragging the popup's edges, remembered across launches.
         size_row = QHBoxLayout()

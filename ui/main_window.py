@@ -13,7 +13,7 @@ import os
 import webbrowser
 from datetime import datetime
 
-from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QEvent, Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QBoxLayout,
@@ -571,6 +571,7 @@ class MainWindow(QMainWindow):
     """Main application window with a navigation rail."""
 
     _RAIL_WIDTH = 72
+    _UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000
 
     # Settings asked for a restart (restart-only options were saved).
     restart_requested = pyqtSignal()
@@ -615,21 +616,30 @@ class MainWindow(QMainWindow):
         self._connect_signals()
         self.switch_to_page(self.PAGE_HOME)
 
-        # Check for updates in background on launch
+        # Check for updates in the background on launch, then every 30 minutes: the app
+        # often stays in the tray for days.
         self._start_update_check()
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(self._UPDATE_CHECK_INTERVAL_MS)
+        self._update_timer.timeout.connect(self._start_update_check)
+        self._update_timer.start()
 
     def set_tray_icon(self, tray_icon):
         """Pass system tray icon reference to MainWindow for notifications."""
         self._tray_icon = tray_icon
 
     def _start_update_check(self):
-        """Launch background thread to check for updates."""
+        """Launch background thread to check for updates (not while one runs or an update downloads)."""
+        if self._update_worker is not None or getattr(self, "_update_install_worker", None) is not None:
+            return
         self._update_worker = _UpdateCheckWorker()
         self._update_worker.update_done.connect(self._on_update_check_finished)
         self._update_worker.start()
 
     def _on_update_check_finished(self, has_update: bool, version: str, url: str):
         self._update_worker = None
+        if has_update and url and version == getattr(self, "_update_version", None):
+            return  # already offered: the banner stays, no second notification
         if has_update and url:
             from updater.install_update import can_self_update
 
