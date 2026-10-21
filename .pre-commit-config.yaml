@@ -23,4 +23,6 @@ repos:
         args: [--maxkb=1024]
       - id: check-merge-conflict
       - id: check-yaml
+        # mkdocs.yml uses a !!python/name tag; --unsafe checks the syntax only.
+        args: [--unsafe]
       - id: check-toml

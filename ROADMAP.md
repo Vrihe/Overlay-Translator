@@ -256,11 +256,11 @@
 
 - [x] Интерфейс на английском и русском (i18n через `QTranslator` или простой словарь), выбор языка в настройках
 - [ ] Демо-GIF (до 10 МБ) и скриншоты в README: офлайн-перевод `lf2m`, `wts … pm me`, live-режим
-- [ ] README: первым экраном — ценность и установка в 3 шага; ниже — режимы, приватность, FAQ, ограничения
-- [ ] Раздел «Как это работает» с диаграммой пайплайна (OCR → glossary → NLLB → popup) и MLOps-диаграммой (data → train → eval → registry → app)
-- [ ] `docs/` как сайт (GitHub Pages / MkDocs): установка, настройка, обучение, воспроизведение экспериментов
-- [ ] Страница «Приватность»: что уходит в API, что остаётся локально, как работает логирование
-- [ ] Обработка типовых проблем в FAQ: нет GPU, антивирус, нет прав на хоткеи
+- [x] README: первым экраном — ценность и установка в 3 шага; ниже — режимы, приватность, FAQ, ограничения
+- [x] Раздел «Как это работает» с диаграммой пайплайна (OCR → glossary → NLLB → popup) и MLOps-диаграммой (data → train → eval → registry → app)
+- [x] `docs/` как сайт (GitHub Pages / MkDocs): установка, настройка, обучение, воспроизведение экспериментов
+- [x] Страница «Приватность»: что уходит в API, что остаётся локально, как работает логирование
+- [x] Обработка типовых проблем в FAQ: нет GPU, антивирус, нет прав на хоткеи
 
 **Критерий готовности:** новый пользователь и новый разработчик находят всё нужное в README и docs без вопросов вам.
 
@@ -592,11 +592,11 @@ The app, product and documentation, user feedback, publication. It depends on th
 
 - [x] English and Russian interface (i18n via `QTranslator` or a simple dictionary), language choice in settings
 - [ ] Demo GIF (up to 10 MB) and screenshots in the README: offline translation of `lf2m`, `wts … pm me`, live mode
-- [ ] README: the first screen shows the value and a 3-step install; below — modes, privacy, FAQ, limitations
-- [ ] A "How it works" section with a pipeline diagram (OCR → glossary → NLLB → popup) and an MLOps diagram (data → train → eval → registry → app)
-- [ ] `docs/` as a site (GitHub Pages / MkDocs): installation, configuration, training, reproducing experiments
-- [ ] A "Privacy" page: what goes to the API, what stays local, how logging works
-- [ ] Common problems in the FAQ: no GPU, antivirus, no rights for hotkeys
+- [x] README: the first screen shows the value and a 3-step install; below — modes, privacy, FAQ, limitations
+- [x] A "How it works" section with a pipeline diagram (OCR → glossary → NLLB → popup) and an MLOps diagram (data → train → eval → registry → app)
+- [x] `docs/` as a site (GitHub Pages / MkDocs): installation, configuration, training, reproducing experiments
+- [x] A "Privacy" page: what goes to the API, what stays local, how logging works
+- [x] Common problems in the FAQ: no GPU, antivirus, no rights for hotkeys
 
 **Done when:** a new user and a new developer find everything they need in the README and docs without asking you.
 

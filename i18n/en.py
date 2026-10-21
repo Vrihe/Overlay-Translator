@@ -79,8 +79,8 @@ MESSAGES: dict[str, str] = {
     "Каталог модели {path} неполон — отсутствуют файлы: {files}": "The model directory {path} is incomplete — missing files: {files}",
     "Не удалось загрузить локальную модель из {path}: {error}": "Failed to load the local model from {path}: {error}",
     "Сбой инференса NLLB: {error}": "NLLB inference failed: {error}",
-    "Скачайте готовую модель командой python scripts/download_model.py или укажите путь к ней в Настройках (см. README, раздел про NLLB).": "Download the prebuilt model with python scripts/download_model.py "
-    "or set its path in Settings (see the NLLB section of the README).",
+    "Скачайте готовую модель командой python scripts/download_model.py или укажите путь к ней в Настройках (см. docs/local-model.md).": "Download the prebuilt model with python scripts/download_model.py "
+    "or set its path in Settings (see docs/local-model.md).",
     "Не установлены пакеты для локального перевода. Выполните: pip install ctranslate2 sentencepiece": "The packages for local translation are not installed. Run: pip install ctranslate2 sentencepiece",
     "Локальная модель NLLB не найдена.\n": "The local NLLB model was not found.\n",
     # ── tray/tray_icon.py ──
