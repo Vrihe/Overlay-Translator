@@ -9,6 +9,13 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+- Documentation site (https://vrihe.github.io/Overlay-Translator/): installation, configuration,
+  the local model, privacy, FAQ, how it works, training and reproducing the experiments.
+
+### Changed
+- The README now starts with what the app does and a 3-step install; the details moved to the docs.
+
 ### Fixed
 - Google, DeepL and Azure translations are now served from the cache when the source
   language is auto-detected; before, the same text was sent to the service every time.

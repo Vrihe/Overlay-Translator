@@ -326,7 +326,7 @@ class NllbBackend:
                     + "\n\n"
                     + tr(
                         "Скачайте готовую модель командой python scripts/download_model.py "
-                        "или укажите путь к ней в Настройках (см. README, раздел про NLLB)."
+                        "или укажите путь к ней в Настройках (см. docs/local-model.md)."
                     )
                 )
             if not _is_complete(model_dir):
