@@ -27,8 +27,9 @@ class TestFindIscc(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
         # No real install may leak in: each test points these at its temp dir.
-        hidden = {"ISCC", "ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"}
-        env = {k: v for k, v in os.environ.items() if k not in hidden}
+        # Case-insensitive: Windows env names are, and CI runners spell them in capitals.
+        hidden = {"ISCC", "PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"}
+        env = {k: v for k, v in os.environ.items() if k.upper() not in hidden}
         for patcher in (mock.patch.dict(os.environ, env, clear=True),
                         mock.patch.object(shutil, "which", return_value=None)):
             patcher.start()
