@@ -6,12 +6,20 @@ The user picks a provider, enters a key, and the dialog checks it with that
 provider before saving it to keyring.
 """
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QRadioButton, QButtonGroup, QWidget, QApplication,
-)
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QPen
+from PyQt5.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QRadioButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 import settings
 from i18n import tr
@@ -29,10 +37,7 @@ class FirstRunDialog(QDialog):
 
         self.setWindowTitle(tr("Translator Overlay — Настройка"))
         self.setFixedWidth(self._WIDTH)
-        self.setWindowFlags(
-            Qt.Dialog
-            | Qt.WindowCloseButtonHint
-        )
+        self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self._build_ui()
@@ -68,11 +73,13 @@ class FirstRunDialog(QDialog):
         layout.addWidget(sub)
 
         # ── Privacy notice: screen text leaves the machine ──
-        privacy = QLabel(tr(
-            "Распознанный текст выделенной области отправляется выбранному провайдеру. "
-            "Бесплатные модели OpenRouter могут сохранять запросы. Не переводите пароли "
-            "и личные данные или используйте локальную модель NLLB (Настройки → Бэкенд перевода)."
-        ))
+        privacy = QLabel(
+            tr(
+                "Распознанный текст выделенной области отправляется выбранному провайдеру. "
+                "Бесплатные модели OpenRouter могут сохранять запросы. Не переводите пароли "
+                "и личные данные или используйте локальную модель NLLB (Настройки → Бэкенд перевода)."
+            )
+        )
         privacy.setTextFormat(Qt.PlainText)
         privacy.setWordWrap(True)
         privacy.setStyleSheet(
@@ -188,7 +195,8 @@ class FirstRunDialog(QDialog):
         self._set_status(tr("Проверяем ключ…"))
         QApplication.processEvents()
 
-        from translate.llm_client import validate_api_key, reset_client
+        from translate.llm_client import reset_client, validate_api_key
+
         try:
             validate_api_key(provider, key)
         except Exception as e:

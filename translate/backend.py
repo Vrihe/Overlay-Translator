@@ -49,11 +49,11 @@ _NMT_BACKENDS = {BACKEND_GOOGLE, BACKEND_DEEPL, BACKEND_AZURE}
 
 #: (id, human label) — consumed by ui/settings_dialog, which passes labels through tr().
 BACKENDS: list[tuple[str, str]] = [
-    (BACKEND_API,    "LLM (OpenRouter / Anthropic)"),
+    (BACKEND_API, "LLM (OpenRouter / Anthropic)"),
     (BACKEND_GOOGLE, "Google Translate"),
-    (BACKEND_DEEPL,  "DeepL API"),
-    (BACKEND_AZURE,  "Microsoft Azure Translator"),
-    (BACKEND_NLLB,   N_("Локальная модель (NLLB-200)")),
+    (BACKEND_DEEPL, "DeepL API"),
+    (BACKEND_AZURE, "Microsoft Azure Translator"),
+    (BACKEND_NLLB, N_("Локальная модель (NLLB-200)")),
 ]
 
 _logger = logging.getLogger("translator.backend")
@@ -91,7 +91,7 @@ DEFAULT_BACKEND = BACKEND_GOOGLE
 
 def get_active_backend() -> str:
     """Return the configured backend id, defaulting to keyless Google on bad input."""
-    value = (getattr(config, "TRANSLATION_BACKEND", DEFAULT_BACKEND) or DEFAULT_BACKEND)
+    value = getattr(config, "TRANSLATION_BACKEND", DEFAULT_BACKEND) or DEFAULT_BACKEND
     value = str(value).strip().lower()
     return value if value in _VALID_BACKENDS else DEFAULT_BACKEND
 
@@ -105,7 +105,9 @@ def needs_llm_key() -> bool:
     if get_active_backend() != BACKEND_API:
         return False
     import os
+
     import settings
+
     return not (
         settings.get_api_key("openrouter")
         or settings.get_api_key("anthropic")
@@ -153,12 +155,15 @@ def _get_nmt_client(backend: str):
     """Lazy-import and return the NMT client module for *backend*."""
     if backend == BACKEND_GOOGLE:
         from translate import google_client
+
         return google_client
     if backend == BACKEND_DEEPL:
         from translate import deepl_client
+
         return deepl_client
     if backend == BACKEND_AZURE:
         from translate import azure_client
+
         return azure_client
     raise ValueError(f"Unknown NMT backend: {backend!r}")
 
@@ -183,6 +188,7 @@ def _nmt_translate(
     # ── Cache lookup (L1 in-memory ~0 ms, L2 SQLite ~1-5 ms) ─
     try:
         from cache.store import get_cached
+
         cached = get_cached(text, cache_src, tgt, domain_id=cache_domain)
         if cached:
             _logger.debug("NMT cache hit (%s): %d chars", backend, len(cached))
@@ -201,11 +207,14 @@ def _nmt_translate(
         on_chunk(translated)
 
     # Persist to the SQLite cache, keyed by backend to avoid cross-contamination.
+    # Saved under the same source key as the lookup above ("_auto" when detected),
+    # like llm_client and nllb_backend, or the next lookup would always miss.
     try:
         from cache.store import save_to_cache
+
         save_to_cache(
             text,
-            detected or cache_src,
+            cache_src,
             tgt,
             translated,
             domain_id=cache_domain,
@@ -233,23 +242,36 @@ def translate(
     # ── NMT backends (Google / DeepL / Azure) ────────────
     if backend in _NMT_BACKENDS:
         _detected, translated = _nmt_translate(
-            backend, text, target_lang, source_lang, domain_id, on_chunk,
+            backend,
+            text,
+            target_lang,
+            source_lang,
+            domain_id,
+            on_chunk,
         )
         return translated
 
     # ── Local NLLB model ─────────────────────────────────
     if backend == BACKEND_NLLB and _nllb_ready():
         from translate import nllb_backend
+
         return nllb_backend.translate(
-            text, target_lang=target_lang, source_lang=source_lang,
-            domain_id=domain_id, on_chunk=on_chunk,
+            text,
+            target_lang=target_lang,
+            source_lang=source_lang,
+            domain_id=domain_id,
+            on_chunk=on_chunk,
         )
 
     # ── Cloud LLM (API) — default / fallback ─────────────
     from translate.llm_client import translate as api_translate
+
     return api_translate(
-        text, target_lang=target_lang, source_lang=source_lang,
-        domain_id=domain_id, on_chunk=on_chunk,
+        text,
+        target_lang=target_lang,
+        source_lang=source_lang,
+        domain_id=domain_id,
+        on_chunk=on_chunk,
     )
 
 
@@ -266,20 +288,33 @@ def detect_and_translate(
     # ── NMT backends (Google / DeepL / Azure) ────────────
     if backend in _NMT_BACKENDS:
         return _nmt_translate(
-            backend, text, target_lang, None, domain_id, on_chunk,
+            backend,
+            text,
+            target_lang,
+            None,
+            domain_id,
+            on_chunk,
         )
 
     # ── Local NLLB model ─────────────────────────────────
     if backend == BACKEND_NLLB and _nllb_ready():
         from translate import nllb_backend
+
         return nllb_backend.detect_and_translate(
-            text, target_lang=target_lang, domain_id=domain_id, on_chunk=on_chunk,
+            text,
+            target_lang=target_lang,
+            domain_id=domain_id,
+            on_chunk=on_chunk,
         )
 
     # ── Cloud LLM (API) — default / fallback ─────────────
     from translate.llm_client import detect_and_translate as api_detect_and_translate
+
     return api_detect_and_translate(
-        text, target_lang=target_lang, domain_id=domain_id, on_chunk=on_chunk,
+        text,
+        target_lang=target_lang,
+        domain_id=domain_id,
+        on_chunk=on_chunk,
     )
 
 
@@ -288,8 +323,8 @@ def detect_and_translate(
 
 _NMT_LABELS = {
     BACKEND_GOOGLE: "Google Translate",
-    BACKEND_DEEPL:  "DeepL API",
-    BACKEND_AZURE:  "Microsoft Azure Translator",
+    BACKEND_DEEPL: "DeepL API",
+    BACKEND_AZURE: "Microsoft Azure Translator",
 }
 
 
@@ -332,6 +367,7 @@ def reset() -> None:
     reset_api()
     try:
         from translate.nllb_backend import reset_client as reset_nllb
+
         reset_nllb()
     except Exception:
         _logger.exception("Failed to reset the NLLB backend (non-fatal)")

@@ -124,8 +124,7 @@ SUPPORTED_LANGS = frozenset(NLLB_LANG_CODES)
 MODEL_DIRNAME = "nllb-200-ct2-int8"
 
 #: Files a usable CTranslate2 NLLB build must contain.
-_REQUIRED_FILES = ("model.bin", "config.json", "shared_vocabulary.json",
-                   "sentencepiece.bpe.model")
+_REQUIRED_FILES = ("model.bin", "config.json", "shared_vocabulary.json", "sentencepiece.bpe.model")
 
 
 def explicit_model_dir() -> Path | None:
@@ -167,8 +166,7 @@ def _auto_model_dirs() -> list[Path]:
     for root in _models_roots():
         candidates.append(root / MODEL_DIRNAME)
         try:
-            others = [p for p in root.iterdir()
-                      if p.name != MODEL_DIRNAME and _is_complete(p)]
+            others = [p for p in root.iterdir() if p.name != MODEL_DIRNAME and _is_complete(p)]
         except OSError:
             others = []
         others.sort(key=lambda p: (p / "model.bin").stat().st_mtime, reverse=True)
@@ -214,7 +212,8 @@ def describe_model_location() -> str:
         if explicit.is_dir():
             return tr(
                 "Указанный каталог {path} не содержит модель — отсутствуют файлы: {files}",
-                path=explicit, files=", ".join(missing_files(explicit)),
+                path=explicit,
+                files=", ".join(missing_files(explicit)),
             )
         return tr("Указанный каталог не существует: {path}", path=explicit)
 
@@ -331,31 +330,37 @@ class NllbBackend:
                     )
                 )
             if not _is_complete(model_dir):
-                raise NllbModelUnavailable(tr(
-                    "Каталог модели {path} неполон — отсутствуют файлы: {files}",
-                    path=model_dir, files=", ".join(missing_files(model_dir)),
-                ))
+                raise NllbModelUnavailable(
+                    tr(
+                        "Каталог модели {path} неполон — отсутствуют файлы: {files}",
+                        path=model_dir,
+                        files=", ".join(missing_files(model_dir)),
+                    )
+                )
 
             try:
                 import ctranslate2
                 import sentencepiece as spm
             except ImportError as exc:
-                raise NllbModelUnavailable(tr(
-                    "Не установлены пакеты для локального перевода. "
-                    "Выполните: pip install ctranslate2 sentencepiece"
-                )) from exc
+                raise NllbModelUnavailable(
+                    tr(
+                        "Не установлены пакеты для локального перевода. "
+                        "Выполните: pip install ctranslate2 sentencepiece"
+                    )
+                ) from exc
 
             t0 = time.perf_counter()
             translator, device, compute_type = self._create_translator(ctranslate2, model_dir)
             try:
-                sp = spm.SentencePieceProcessor(
-                    model_file=str(model_dir / "sentencepiece.bpe.model")
-                )
+                sp = spm.SentencePieceProcessor(model_file=str(model_dir / "sentencepiece.bpe.model"))
             except Exception as exc:
-                raise NllbModelUnavailable(tr(
-                    "Не удалось загрузить локальную модель из {path}: {error}",
-                    path=model_dir, error=exc,
-                )) from exc
+                raise NllbModelUnavailable(
+                    tr(
+                        "Не удалось загрузить локальную модель из {path}: {error}",
+                        path=model_dir,
+                        error=exc,
+                    )
+                ) from exc
 
             self._translator = translator
             self._sp = sp
@@ -364,7 +369,11 @@ class NllbBackend:
             self._load_seconds = time.perf_counter() - t0
             _logger.info(
                 "NLLB loaded from %s in %.2fs (device=%s, compute=%s, threads=%d)",
-                model_dir, self._load_seconds, device, compute_type, self._intra_threads,
+                model_dir,
+                self._load_seconds,
+                device,
+                compute_type,
+                self._intra_threads,
             )
 
     def _create_translator(self, ctranslate2, model_dir: Path):
@@ -396,10 +405,13 @@ class NllbBackend:
                 intra_threads=self._intra_threads,
             )
         except Exception as exc:
-            raise NllbModelUnavailable(tr(
-                "Не удалось загрузить локальную модель из {path}: {error}",
-                path=model_dir, error=exc,
-            )) from exc
+            raise NllbModelUnavailable(
+                tr(
+                    "Не удалось загрузить локальную модель из {path}: {error}",
+                    path=model_dir,
+                    error=exc,
+                )
+            ) from exc
         return translator, "cpu", self._compute_type
 
     def _create_cuda_translator(self, ctranslate2, model_dir: Path):
@@ -419,13 +431,17 @@ class NllbBackend:
 
         try:
             translator = ctranslate2.Translator(
-                str(model_dir), device="cuda", compute_type=self._gpu_compute_type,
+                str(model_dir),
+                device="cuda",
+                compute_type=self._gpu_compute_type,
             )
             # cuBLAS is loaded on the first GPU matmul, not by the constructor,
             # so only a real (tiny) translation shows whether CUDA works.
             translator.translate_batch(
-                [["eng_Latn", "▁ok", "</s>"]], target_prefix=[["rus_Cyrl"]],
-                beam_size=1, max_decoding_length=4,
+                [["eng_Latn", "▁ok", "</s>"]],
+                target_prefix=[["rus_Cyrl"]],
+                beam_size=1,
+                max_decoding_length=4,
             )
         except Exception as exc:
             raise _CudaUnavailable(f"CUDA initialisation failed: {exc}", notify=True) from exc
@@ -455,7 +471,10 @@ class NllbBackend:
             inflight = self._inflight
         _logger.debug(
             "NLLB inference start | thread=%s | translator=%#x | device=%s | in-flight=%d",
-            threading.current_thread().name, id(self._translator), self._active_device, inflight,
+            threading.current_thread().name,
+            id(self._translator),
+            self._active_device,
+            inflight,
         )
         try:
             results = self._translator.translate_batch(
@@ -478,10 +497,13 @@ class NllbBackend:
     def _flores(lang: str) -> str:
         code = NLLB_LANG_CODES.get((lang or "").strip().lower())
         if code is None:
-            raise NllbTranslationError(tr(
-                "Язык '{lang}' не поддерживается локальной моделью NLLB. Доступны: {langs}",
-                lang=lang, langs=", ".join(sorted(SUPPORTED_LANGS)),
-            ))
+            raise NllbTranslationError(
+                tr(
+                    "Язык '{lang}' не поддерживается локальной моделью NLLB. Доступны: {langs}",
+                    lang=lang,
+                    langs=", ".join(sorted(SUPPORTED_LANGS)),
+                )
+            )
         return code
 
     @staticmethod
@@ -489,6 +511,7 @@ class NllbBackend:
         """Namespace cache keys so local output stays separable from API output."""
         if getattr(config, "NLLB_GLOSSARY", True):
             from translate.chat_glossary import glossary_version
+
             return f"{domain_id}|glossary{glossary_version()}|nllb"
         return f"{domain_id}|nllb"
 
@@ -506,8 +529,12 @@ class NllbBackend:
         # invents a sentence for a bare "[1]".
         if not re.search(r"[^\W\d_]", re.sub(r"\[\d+\]", "", prepared.text)):
             return text
-        _logger.debug("Glossary | expanded=%s | protected=%s | text=%s",
-                      prepared.expanded, list(prepared.restore.values()), loggable(prepared.text, 120))
+        _logger.debug(
+            "Glossary | expanded=%s | protected=%s | text=%s",
+            prepared.expanded,
+            list(prepared.restore.values()),
+            loggable(prepared.text, 120),
+        )
         restored = chat_glossary.restore(self._raw_translate(prepared.text, src_code, tgt_code), prepared)
         if restored is None:
             _logger.info("Glossary placeholder lost, retranslating unmasked | text=%s", loggable(text))
@@ -554,6 +581,7 @@ class NllbBackend:
 
         # Same-language fast path — identical semantics to the API backend.
         from translate.lang_detect import is_same_language
+
         is_same, known = is_same_language(text, target_lang, source_lang=source_lang)
         if is_same:
             _logger.info("NLLB FAST PATH (same language) | src=%s == tgt=%s", known, target_lang)
@@ -589,7 +617,11 @@ class NllbBackend:
 
         _logger.info(
             "NLLB OK | %s->%s | %.2fs | src=%s | result=%s",
-            src_code, tgt_code, elapsed, loggable(text), loggable(translation),
+            src_code,
+            tgt_code,
+            elapsed,
+            loggable(text),
+            loggable(translation),
         )
 
         save_to_cache(text, source_lang, target_lang, translation, domain_id=cache_domain)
@@ -618,6 +650,7 @@ class NllbBackend:
             domain_id = getattr(config, "ACTIVE_DOMAIN", "general")
 
         from translate.lang_detect import is_same_language
+
         is_same, known = is_same_language(text, target_lang, source_lang="auto")
         if is_same:
             _logger.info("NLLB FAST PATH (same language, auto) | detected=%s", known)
@@ -650,7 +683,11 @@ class NllbBackend:
 
         _logger.info(
             "NLLB OK (auto) | %s->%s | %.2fs | src=%s | result=%s",
-            src_code, tgt_code, elapsed, loggable(text), loggable(translation),
+            src_code,
+            tgt_code,
+            elapsed,
+            loggable(text),
+            loggable(translation),
         )
 
         save_to_cache(text, "_auto", target_lang, translation, domain_id=cache_domain)
@@ -675,23 +712,35 @@ def get_backend() -> NllbBackend:
     return _backend
 
 
-def translate(text: str, target_lang: str | None = None, source_lang: str | None = None,
-              domain_id: str | None = None, on_chunk=None) -> str:
+def translate(
+    text: str,
+    target_lang: str | None = None,
+    source_lang: str | None = None,
+    domain_id: str | None = None,
+    on_chunk=None,
+) -> str:
     try:
         return get_backend().translate(
-            text, target_lang=target_lang, source_lang=source_lang,
-            domain_id=domain_id, on_chunk=on_chunk,
+            text,
+            target_lang=target_lang,
+            source_lang=source_lang,
+            domain_id=domain_id,
+            on_chunk=on_chunk,
         )
     except Exception:
         _logger.exception("NLLB translate() failed | text=%s", loggable(text, 120))
         raise
 
 
-def detect_and_translate(text: str, target_lang: str | None = None,
-                         domain_id: str | None = None, on_chunk=None) -> tuple[str, str]:
+def detect_and_translate(
+    text: str, target_lang: str | None = None, domain_id: str | None = None, on_chunk=None
+) -> tuple[str, str]:
     try:
         return get_backend().detect_and_translate(
-            text, target_lang=target_lang, domain_id=domain_id, on_chunk=on_chunk,
+            text,
+            target_lang=target_lang,
+            domain_id=domain_id,
+            on_chunk=on_chunk,
         )
     except Exception:
         _logger.exception("NLLB detect_and_translate() failed | text=%s", loggable(text, 120))

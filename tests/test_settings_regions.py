@@ -10,23 +10,28 @@ import unittest
 from unittest import mock
 
 from capture.live_monitor import (
-    MAX_INTERVAL_SEC, MIN_INTERVAL_SEC, SENSITIVITY_THRESHOLDS, LiveMonitor, threshold_for,
+    MAX_INTERVAL_SEC,
+    MIN_INTERVAL_SEC,
+    SENSITIVITY_THRESHOLDS,
+    LiveMonitor,
+    threshold_for,
 )
 from tests.settings_widget_case import SettingsWidgetCase
 
 
 def setUpModule():
     import i18n
+
     i18n.set_language("ru")
 
 
 def tearDownModule():
     import i18n
+
     i18n.set_language(None)
 
 
 class TestLiveMonitorSettings(unittest.TestCase):
-
     def test_sensitivity_thresholds(self):
         self.assertLess(threshold_for("high"), threshold_for("medium"))
         self.assertLess(threshold_for("medium"), threshold_for("low"))
@@ -45,7 +50,6 @@ class TestLiveMonitorSettings(unittest.TestCase):
 
 
 class TestRegionsPage(SettingsWidgetCase):
-
     presets = [
         {"name": "Чат", "x1": 10, "y1": 20, "x2": 610, "y2": 220, "hotkey": "ctrl+alt+1"},
         {"name": "Квесты", "x1": 0, "y1": 0, "x2": 300, "y2": 100, "hotkey": None},

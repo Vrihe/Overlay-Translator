@@ -28,20 +28,20 @@ _MA_ACTIVATE = 1
 _HTCAPTION = 2
 # (left, right, top, bottom) → hit-test code
 _HIT_CODES = {
-    (True, False, False, False): 10,   # HTLEFT
-    (False, True, False, False): 11,   # HTRIGHT
-    (False, False, True, False): 12,   # HTTOP
-    (True, False, True, False): 13,    # HTTOPLEFT
-    (False, True, True, False): 14,    # HTTOPRIGHT
-    (False, False, False, True): 15,   # HTBOTTOM
-    (True, False, False, True): 16,    # HTBOTTOMLEFT
-    (False, True, False, True): 17,    # HTBOTTOMRIGHT
+    (True, False, False, False): 10,  # HTLEFT
+    (False, True, False, False): 11,  # HTRIGHT
+    (False, False, True, False): 12,  # HTTOP
+    (True, False, True, False): 13,  # HTTOPLEFT
+    (False, True, True, False): 14,  # HTTOPRIGHT
+    (False, False, False, True): 15,  # HTBOTTOM
+    (True, False, False, True): 16,  # HTBOTTOMLEFT
+    (False, True, False, True): 17,  # HTBOTTOMRIGHT
 }
 _RESIZE_BORDER = 6  # logical px
 
 _GWL_STYLE = -16
 _WS_FRAME_STYLES = (
-    0x00C00000    # WS_CAPTION
+    0x00C00000  # WS_CAPTION
     | 0x00040000  # WS_THICKFRAME
     | 0x00080000  # WS_SYSMENU
     | 0x00020000  # WS_MINIMIZEBOX
@@ -118,15 +118,13 @@ def native_event(window: QWidget, title_bar: "TitleBar", message) -> tuple[bool,
             u.GetCursorPos(ctypes.byref(pt))
             u.GetWindowRect(msg.hWnd, ctypes.byref(rc))
             b = max(1, int(_RESIZE_BORDER * window.devicePixelRatioF()))
-            key = (pt.x < rc.left + b, pt.x >= rc.right - b,
-                   pt.y < rc.top + b, pt.y >= rc.bottom - b)
+            key = (pt.x < rc.left + b, pt.x >= rc.right - b, pt.y < rc.top + b, pt.y >= rc.bottom - b)
             code = _HIT_CODES.get(key)
             if code is not None:
                 return True, code
         if title_bar is not None and title_bar.isVisible():
             local = _title_bar_point(window, title_bar, msg)
-            if title_bar.rect().contains(local) and not isinstance(
-                    title_bar.childAt(local), QAbstractButton):
+            if title_bar.rect().contains(local) and not isinstance(title_bar.childAt(local), QAbstractButton):
                 return True, _HTCAPTION
     return None
 
@@ -140,7 +138,7 @@ def _title_bar_point(window: QWidget, title_bar: "TitleBar", msg) -> QPoint:
     and put the drag strip that much too low. The message's own screen point minus
     the native client origin has no such cache.
     """
-    x = ctypes.c_short(msg.lParam & 0xFFFF).value          # GET_X_LPARAM: signed, multi-monitor
+    x = ctypes.c_short(msg.lParam & 0xFFFF).value  # GET_X_LPARAM: signed, multi-monitor
     y = ctypes.c_short((msg.lParam >> 16) & 0xFFFF).value
     origin = wintypes.POINT(0, 0)
     ctypes.windll.user32.ClientToScreen(msg.hWnd, ctypes.byref(origin))
@@ -159,9 +157,7 @@ class TitleBar(QWidget):
         self.setObjectName("hudTitleBar")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFixedHeight(HEIGHT)
-        self.setStyleSheet(
-            f"#hudTitleBar {{ background: {p.rail}; border: none; border-bottom: 1px solid {p.line}; }}"
-        )
+        self.setStyleSheet(f"#hudTitleBar {{ background: {p.rail}; border: none; border-bottom: 1px solid {p.line}; }}")
 
         row = QHBoxLayout(self)
         row.setContentsMargins(14, 0, 0, 1)

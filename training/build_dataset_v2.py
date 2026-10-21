@@ -60,7 +60,7 @@ def flores_pools(seed: int, n_sentences: int) -> dict[str, list[int]]:
     rng.shuffle(ids)
     n_train = round(len(ids) * FLORES_POOLS["train"])
     n_val = round(len(ids) * FLORES_POOLS["val"])
-    return {"train": ids[:n_train], "val": ids[n_train:n_train + n_val], "test": ids[n_train + n_val:]}
+    return {"train": ids[:n_train], "val": ids[n_train : n_train + n_val], "test": ids[n_train + n_val :]}
 
 
 def main() -> int:
@@ -85,13 +85,22 @@ def main() -> int:
             if not tr["keep_ok"]:
                 dropped[p["split"]] += 1
                 continue
-            pairs[p["split"]].append({
-                "src": p["short"], "tgt": tr["text"], "lang": lang, "tgt_code": LANGS[lang], "kind": "abbr",
-                "abbrs": sorted({*map(str.lower, p["keep_terms"]), *p["expanded"]}), "mode": p["mode"],
-                "keep_terms": p["keep_terms"], "origin": p["origin"], "set": "v2"})
+            pairs[p["split"]].append(
+                {
+                    "src": p["short"],
+                    "tgt": tr["text"],
+                    "lang": lang,
+                    "tgt_code": LANGS[lang],
+                    "kind": "abbr",
+                    "abbrs": sorted({*map(str.lower, p["keep_terms"]), *p["expanded"]}),
+                    "mode": p["mode"],
+                    "keep_terms": p["keep_terms"],
+                    "origin": p["origin"],
+                    "set": "v2",
+                }
+            )
     if missing:
-        print(f"{missing} phrase translations are missing; run training/translate_phrases.py first",
-              file=sys.stderr)
+        print(f"{missing} phrase translations are missing; run training/translate_phrases.py first", file=sys.stderr)
         return 1
 
     # More FLORES from the train pool only; v1 train already holds part of it.
@@ -107,10 +116,19 @@ def main() -> int:
     need = round(n_abbr * args.general_share / (1 - args.general_share)) - len(used)
     if need > len(candidates):
         print(f"only {len(candidates)} more general pairs available, need {need}", file=sys.stderr)
-    for i, lang in candidates[:max(need, 0)]:
-        pairs["train"].append({"src": flores["eng_Latn"][i], "tgt": flores[LANGS[lang]][i], "lang": lang,
-                               "tgt_code": LANGS[lang], "kind": "general", "abbrs": [], "mode": None,
-                               "flores_id": i})
+    for i, lang in candidates[: max(need, 0)]:
+        pairs["train"].append(
+            {
+                "src": flores["eng_Latn"][i],
+                "tgt": flores[LANGS[lang]][i],
+                "lang": lang,
+                "tgt_code": LANGS[lang],
+                "kind": "general",
+                "abbrs": [],
+                "mode": None,
+                "flores_id": i,
+            }
+        )
 
     # v2 test phrases must not be trained on in any spelling
     test_src = {r["src"].lower() for r in pairs["test"]} | {r["src"].lower() for r in v1["test"]}

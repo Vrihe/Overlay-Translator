@@ -6,23 +6,40 @@ Provides:
   • ProfileEditorDialog: modal QDialog for creating and editing custom domain profiles.
 """
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QRadioButton, QButtonGroup, QComboBox,
-    QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
-    QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem, QStackedWidget,
-    QKeySequenceEdit,
-)
-from PyQt5.QtCore import QEvent, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QKeySequence
-
 import html
 from typing import Any
+
+from PyQt5.QtCore import QEvent, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QKeySequence
+from PyQt5.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QComboBox,
+    QDialog,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QKeySequenceEdit,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QSpinBox,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 import config
 import settings
+from i18n import N_, UI_LANGUAGES, tr
 from settings import config_manager
 from translate.llm_client import reset_client
-from i18n import N_, UI_LANGUAGES, tr
 from ui import icons, theme
 from ui.hud_widgets import FieldLabel, Segmented, SwitchRow
 from ui.nllb_workers import NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
@@ -63,32 +80,32 @@ _TARGET_LANGUAGES = [
 ]
 
 _UI_THEMES = [
-    ("amber",   N_("Янтарь")),
-    ("cyan",    N_("Циан")),
+    ("amber", N_("Янтарь")),
+    ("cyan", N_("Циан")),
     ("crimson", N_("Малиновый")),
 ]
 
 _ENGINES = [
-    ("llm_text",   N_("OCR → LLM (текстовый)")),
+    ("llm_text", N_("OCR → LLM (текстовый)")),
     ("llm_vision", N_("LLM Vision (картинка)")),
-    ("api",        "OCR → Google/DeepL API"),
+    ("api", "OCR → Google/DeepL API"),
 ]
 
 # B1: Preset list of OpenRouter models requested by user.
 # (model_id, display_name) — model_id is used as QComboBox itemData.
 _OPENROUTER_MODELS: list[tuple[str, str]] = [
-    ("openai/gpt-oss-20b:free",      "GPT OSS 20B (free)"),
-    ("google/gemma-4-31b-it:free",  "Google Gemma 4 31B (free)"),
-    ("poolside/laguna-s-2.1:free",  "Poolside Laguna S 2.1 (free)"),
-    ("__custom__",                  N_("Другая модель...")),
+    ("openai/gpt-oss-20b:free", "GPT OSS 20B (free)"),
+    ("google/gemma-4-31b-it:free", "Google Gemma 4 31B (free)"),
+    ("poolside/laguna-s-2.1:free", "Poolside Laguna S 2.1 (free)"),
+    ("__custom__", N_("Другая модель...")),
 ]
 
 # B3: Short hints shown below the model combo for preset models.
 _MODEL_HINTS: dict[str, str] = {
-    "openai/gpt-oss-20b:free":      N_("✶ Бесплатно · Базовая открытая модель"),
-    "google/gemma-4-31b-it:free":  N_("✶ Бесплатно · Новая мощная открытая модель Google"),
-    "poolside/laguna-s-2.1:free":  N_("✶ Бесплатно · Быстрая компактная модель для перевода"),
-    "__custom__":                  N_("Впишите точный ID модели с сайта openrouter.ai"),
+    "openai/gpt-oss-20b:free": N_("✶ Бесплатно · Базовая открытая модель"),
+    "google/gemma-4-31b-it:free": N_("✶ Бесплатно · Новая мощная открытая модель Google"),
+    "poolside/laguna-s-2.1:free": N_("✶ Бесплатно · Быстрая компактная модель для перевода"),
+    "__custom__": N_("Впишите точный ID модели с сайта openrouter.ai"),
 }
 
 
@@ -177,11 +194,13 @@ class ProfileEditorDialog(QDialog):
         layout.addWidget(FieldLabel(tr("Инструкция для ИИ (system_prompt):").rstrip(":")))
 
         self._prompt_input = QTextEdit()
-        self._prompt_input.setPlaceholderText(tr(
-            "Опишите роль ИИ и правила перевода терминов, напр.:\n"
-            "Ты опытный переводчик фэнтези игр. Переводи игровые термины (HP -> ОЗ, Mana -> Мана). "
-            "Сохраняй геймерский сленг и атмосферу."
-        ))
+        self._prompt_input.setPlaceholderText(
+            tr(
+                "Опишите роль ИИ и правила перевода терминов, напр.:\n"
+                "Ты опытный переводчик фэнтези игр. Переводи игровые термины (HP -> ОЗ, Mana -> Мана). "
+                "Сохраняй геймерский сленг и атмосферу."
+            )
+        )
         self._prompt_input.setStyleSheet(theme.input_css(9.5, "8px 10px"))
         self._prompt_input.setFixedHeight(120)
         layout.addWidget(self._prompt_input)
@@ -270,6 +289,7 @@ class ProfileEditorDialog(QDialog):
 
         try:
             from translate.domain_manager import save_custom_profile
+
             save_custom_profile(
                 display_name=name,
                 system_prompt=prompt,
@@ -278,9 +298,7 @@ class ProfileEditorDialog(QDialog):
             )
             self.accept()
         except Exception as e:
-            QMessageBox.critical(
-                self, tr("Ошибка сохранения"), tr("Не удалось сохранить профиль:\n{error}", error=e)
-            )
+            QMessageBox.critical(self, tr("Ошибка сохранения"), tr("Не удалось сохранить профиль:\n{error}", error=e))
 
 
 class SettingsWidget(QWidget):
@@ -340,7 +358,7 @@ class SettingsWidget(QWidget):
         """Status line colour by role: muted | ok | error | warn | accent."""
         return theme.text_css(getattr(theme.current(), kind), 9)
 
-    _INPUT_CSS = ""   # set in _build_ui from ui/theme.py (needs the loaded fonts)
+    _INPUT_CSS = ""  # set in _build_ui from ui/theme.py (needs the loaded fonts)
     _GROUP_CSS = ""
 
     # Settings sections: (title, page key). Group boxes are placed on the pages in
@@ -397,9 +415,7 @@ class SettingsWidget(QWidget):
 
         self._section_list = QListWidget()
         self._section_list.setStyleSheet(
-            theme.list_css()
-            + f"QListWidget {{ background: {p.rail}; }}"
-            + "QListWidget::item { padding: 10px 12px; }"
+            theme.list_css() + f"QListWidget {{ background: {p.rail}; }}" + "QListWidget::item { padding: 10px 12px; }"
         )
         self._section_list.setFont(theme.body_font(8.5, medium=True, spacing=112))
         self._section_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -440,8 +456,7 @@ class SettingsWidget(QWidget):
             scroll.setWidget(page)
             self._section_stack.addWidget(scroll)
             pages[key] = lay
-        self._section_list.setFixedHeight(
-            self._section_list.sizeHintForRow(0) * self._section_list.count() + 2)
+        self._section_list.setFixedHeight(self._section_list.sizeHintForRow(0) * self._section_list.count() + 2)
         self._section_list.currentRowChanged.connect(self._section_stack.setCurrentIndex)
         self._section_list.setCurrentRow(0)
         return pages
@@ -478,7 +493,9 @@ class SettingsWidget(QWidget):
         key_row.setSpacing(8)
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.Password)
-        self._key_input.setPlaceholderText(tr("Новый API-ключ для выбранного провайдера (оставьте пустым, если не меняется)"))
+        self._key_input.setPlaceholderText(
+            tr("Новый API-ключ для выбранного провайдера (оставьте пустым, если не меняется)")
+        )
         self._key_input.setStyleSheet(self._INPUT_CSS)
         key_row.addWidget(self._key_input, 1)
         self._btn_check_key = QPushButton(tr("Проверить"))
@@ -511,6 +528,7 @@ class SettingsWidget(QWidget):
 
         # Backend combo (replaces the old pair of radio buttons).
         from translate.backend import BACKENDS as _ALL_BACKENDS
+
         self._backend_combo = QComboBox()
         self._backend_combo.setStyleSheet(self._INPUT_CSS)
         for bid, blabel in _ALL_BACKENDS:
@@ -547,9 +565,7 @@ class SettingsWidget(QWidget):
         nllb_path_layout = QVBoxLayout(self._nllb_path_widget)
         nllb_path_layout.setContentsMargins(0, 0, 0, 0)
         self._nllb_path_edit = QLineEdit()
-        self._nllb_path_edit.setPlaceholderText(
-            tr("оставьте пустым для автопоиска (…/models/nllb-200-ct2-int8)")
-        )
+        self._nllb_path_edit.setPlaceholderText(tr("оставьте пустым для автопоиска (…/models/nllb-200-ct2-int8)"))
         self._nllb_path_edit.setStyleSheet(self._INPUT_CSS)
         nllb_path_layout.addLayout(self._field(tr("Путь к модели:"), self._nllb_path_edit))
         nllb_inner.addWidget(self._nllb_path_widget)
@@ -605,8 +621,8 @@ class SettingsWidget(QWidget):
 
         # ── Google API Key ──
         (self._google_key_input, self._btn_save_google, self._btn_test_google) = _key_block(
-            "Google API Key", tr("Необязательно — без ключа работает через бесплатный Web RPC"),
-            "AIza...", "google")
+            "Google API Key", tr("Необязательно — без ключа работает через бесплатный Web RPC"), "AIza...", "google"
+        )
         self._google_key_status = QLabel("")
         self._google_key_status.setWordWrap(True)
         self._google_key_status.setStyleSheet(self._status_css())
@@ -614,8 +630,8 @@ class SettingsWidget(QWidget):
 
         # ── DeepL API Key ──
         (self._deepl_key_input, self._btn_save_deepl, self._btn_test_deepl) = _key_block(
-            "DeepL API Key", tr("Free или Pro ключ (суффикс :fx = Free)"),
-            "xxxxxxxx-xxxx-...:fx", "deepl")
+            "DeepL API Key", tr("Free или Pro ключ (суффикс :fx = Free)"), "xxxxxxxx-xxxx-...:fx", "deepl"
+        )
         self._deepl_key_status = QLabel("")
         self._deepl_key_status.setWordWrap(True)
         self._deepl_key_status.setStyleSheet(self._status_css())
@@ -623,7 +639,8 @@ class SettingsWidget(QWidget):
 
         # ── Azure Translator Key + Region ──
         (self._azure_key_input, self._btn_save_azure, self._btn_test_azure) = _key_block(
-            "Azure Translator Key", "", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "azure")
+            "Azure Translator Key", "", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "azure"
+        )
         self._azure_region_input = QLineEdit()
         self._azure_region_input.setPlaceholderText("global")
         self._azure_region_input.setStyleSheet(self._INPUT_CSS)
@@ -666,6 +683,7 @@ class SettingsWidget(QWidget):
         self._domain_combo = QComboBox()
         self._domain_combo.setStyleSheet(self._INPUT_CSS)
         from translate.domain_manager import list_available_domains
+
         for d in list_available_domains():
             self._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
         trans_layout.addLayout(self._field(tr("Контекст перевода:"), self._domain_combo))
@@ -733,7 +751,9 @@ class SettingsWidget(QWidget):
 
         # Compact prompt switch
         self._chk_compact_prompt = SwitchRow(tr("Компактный системный промпт (ускорение отклика)"))
-        self._chk_compact_prompt.setToolTip(tr("Сокращает служебные инструкции запроса, ускоряя начало ответа модели на ~30–50%"))
+        self._chk_compact_prompt.setToolTip(
+            tr("Сокращает служебные инструкции запроса, ускоряя начало ответа модели на ~30–50%")
+        )
         trans_layout.addWidget(self._chk_compact_prompt)
 
         # Max tokens row
@@ -772,15 +792,22 @@ class SettingsWidget(QWidget):
 
         # ── Hotkeys section: click a field, press the new combination ──
         from settings import hotkeys as app_hotkeys
+
         grp_hotkeys, hotkeys_layout = self._group(tr("Хоткеи"))
-        lbl_hk_how = QLabel(tr("Щёлкните поле и нажмите новое сочетание. Пока поле активно, "
-                               "глобальные хоткеи приложения не срабатывают."))
+        lbl_hk_how = QLabel(
+            tr(
+                "Щёлкните поле и нажмите новое сочетание. Пока поле активно, "
+                "глобальные хоткеи приложения не срабатывают."
+            )
+        )
         lbl_hk_how.setWordWrap(True)
         lbl_hk_how.setStyleSheet(theme.label_css("caption"))
         hotkeys_layout.addWidget(lbl_hk_how)
         self._hotkey_edits: dict[str, QKeySequenceEdit] = {}
-        for role, caption in ((app_hotkeys.TRANSLATE, tr("Перевод области")),
-                              (app_hotkeys.SETTINGS, tr("Окно настроек"))):
+        for role, caption in (
+            (app_hotkeys.TRANSLATE, tr("Перевод области")),
+            (app_hotkeys.SETTINGS, tr("Окно настроек")),
+        ):
             edit = QKeySequenceEdit()
             edit.setStyleSheet(self._INPUT_CSS)
             edit.setToolTip(tr("Щёлкните и нажмите сочетание клавиш"))
@@ -807,9 +834,13 @@ class SettingsWidget(QWidget):
 
         # ── Regions: saved screen regions with their binds ──
         grp_regions, regions_layout = self._group(tr("Регионы"))
-        lbl_regions = QLabel(tr("Сохранённые области экрана. Бинд переводит область сразу, без "
-                                "выделения. «Мониторинг» следит за выбранной областью; в "
-                                "«Управлении» — переименовать, удалить или назначить бинд."))
+        lbl_regions = QLabel(
+            tr(
+                "Сохранённые области экрана. Бинд переводит область сразу, без "
+                "выделения. «Мониторинг» следит за выбранной областью; в "
+                "«Управлении» — переименовать, удалить или назначить бинд."
+            )
+        )
         lbl_regions.setWordWrap(True)
         lbl_regions.setStyleSheet(theme.label_css("caption"))
         regions_layout.addWidget(lbl_regions)
@@ -843,10 +874,15 @@ class SettingsWidget(QWidget):
 
         # ── Live monitoring of a region ──
         from capture.live_monitor import MAX_INTERVAL_SEC, MIN_INTERVAL_SEC
+
         grp_live, live_layout = self._group(tr("Живой мониторинг"))
-        lbl_live = QLabel(tr("Мониторинг переводит область снова, когда в ней меняется текст. "
-                             "Запускается кнопкой выше или из меню трея; новые значения "
-                             "действуют со следующего запуска."))
+        lbl_live = QLabel(
+            tr(
+                "Мониторинг переводит область снова, когда в ней меняется текст. "
+                "Запускается кнопкой выше или из меню трея; новые значения "
+                "действуют со следующего запуска."
+            )
+        )
         lbl_live.setWordWrap(True)
         lbl_live.setStyleSheet(theme.label_css("caption"))
         live_layout.addWidget(lbl_live)
@@ -928,9 +964,7 @@ class SettingsWidget(QWidget):
         grp_about, about_layout = self._group(tr("О программе и обновления"), spacing=8)
 
         ver_row = QHBoxLayout()
-        self._lbl_ver = QLabel(
-            tr("Версия приложения: v{version}", version=getattr(config, "APP_VERSION", "1.0.0"))
-        )
+        self._lbl_ver = QLabel(tr("Версия приложения: v{version}", version=getattr(config, "APP_VERSION", "1.0.0")))
         self._lbl_ver.setStyleSheet(theme.text_css(p.text, 9.5))
         ver_row.addWidget(self._lbl_ver)
         ver_row.addStretch()
@@ -973,9 +1007,12 @@ class SettingsWidget(QWidget):
 
     def _refresh_popup_size(self) -> None:
         from ui.result_popup import ResultPopup
+
         size = ResultPopup.saved_size()
         if size is None:
-            self._popup_size_lbl.setText(tr("Подстраивается под текст. Растяните попап за край, чтобы задать свой размер."))
+            self._popup_size_lbl.setText(
+                tr("Подстраивается под текст. Растяните попап за край, чтобы задать свой размер.")
+            )
         else:
             self._popup_size_lbl.setText(tr("Сохранён: {width} × {height}", width=size.width(), height=size.height()))
         self._btn_reset_popup_size.setEnabled(size is not None)
@@ -989,6 +1026,7 @@ class SettingsWidget(QWidget):
     def _on_backend_segment(self, choice) -> None:
         """The "cloud / local" segmented control drives the backend combo."""
         from translate.backend import BACKEND_NLLB
+
         on_nllb = self._backend_combo.currentData() == BACKEND_NLLB
         if (choice == "nllb") == on_nllb:
             return
@@ -999,6 +1037,7 @@ class SettingsWidget(QWidget):
 
     def _sync_backend_segment(self) -> None:
         from translate.backend import BACKEND_NLLB
+
         current = self._backend_combo.currentData()
         if current and current != BACKEND_NLLB:
             self._last_cloud_backend = current
@@ -1035,6 +1074,7 @@ class SettingsWidget(QWidget):
         self._key_status.setStyleSheet(self._status_css())
         QApplication.processEvents()
         from translate.llm_client import validate_api_key
+
         try:
             validate_api_key(provider, key_text)
         except Exception as e:
@@ -1056,6 +1096,7 @@ class SettingsWidget(QWidget):
                 w.deleteLater()
 
         from translate.domain_manager import list_available_domains
+
         all_domains = list_available_domains()
         custom_domains = [d for d in all_domains if d.get("is_custom")]
 
@@ -1101,6 +1142,7 @@ class SettingsWidget(QWidget):
     def _refresh_all_domain_combos(self):
         """Re-populate domain combos in SettingsWidget and MainWindow."""
         from translate.domain_manager import list_available_domains
+
         self._domain_combo.blockSignals(True)
         self._domain_combo.clear()
         for d in list_available_domains():
@@ -1129,6 +1171,7 @@ class SettingsWidget(QWidget):
 
     def _on_edit_profile(self, domain_id: str):
         from translate.domain_manager import load_domain_profile
+
         data = load_domain_profile(domain_id)
         dlg = ProfileEditorDialog(self, data)
         if dlg.exec_() == QDialog.Accepted:
@@ -1141,13 +1184,15 @@ class SettingsWidget(QWidget):
             tr("Подтверждение удаления"),
             tr(
                 "Вы действительно хотите удалить пользовательский профиль '{name}' ({id})?",
-                name=display_name, id=domain_id,
+                name=display_name,
+                id=domain_id,
             ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
             from translate.domain_manager import delete_custom_profile
+
             delete_custom_profile(domain_id)
             if config.ACTIVE_DOMAIN == domain_id:
                 config.ACTIVE_DOMAIN = "general"
@@ -1176,6 +1221,7 @@ class SettingsWidget(QWidget):
     def _detect_gpu_info() -> str:
         """Return a human-readable string about GPU support for OCR."""
         from ocr.engine import _dml_available
+
         if _dml_available():
             return tr("✓ DirectML доступен — OCR может работать на видеокарте")
         return tr("DirectML недоступен — OCR будет работать на CPU")
@@ -1183,7 +1229,7 @@ class SettingsWidget(QWidget):
     def _on_model_changed(self, index: int) -> None:
         """Show a short hint below the combo and toggle the custom model field."""
         model_id = self._model_combo.itemData(index)
-        is_custom = (model_id == "__custom__")
+        is_custom = model_id == "__custom__"
         if hasattr(self, "_custom_model_row_widget"):
             self._custom_model_row_widget.setVisible(is_custom)
         hint = _MODEL_HINTS.get(str(model_id), "")
@@ -1195,16 +1241,16 @@ class SettingsWidget(QWidget):
         """Return the status QLabel for the given NMT provider."""
         return {
             "google": self._google_key_status,
-            "deepl":  self._deepl_key_status,
-            "azure":  self._azure_key_status,
+            "deepl": self._deepl_key_status,
+            "azure": self._azure_key_status,
         }[provider]
 
     def _nmt_key_input(self, provider: str) -> QLineEdit:
         """Return the key QLineEdit for the given NMT provider."""
         return {
             "google": self._google_key_input,
-            "deepl":  self._deepl_key_input,
-            "azure":  self._azure_key_input,
+            "deepl": self._deepl_key_input,
+            "azure": self._azure_key_input,
         }[provider]
 
     def _save_nmt_key(self, provider: str) -> None:
@@ -1248,6 +1294,7 @@ class SettingsWidget(QWidget):
 
         try:
             from translate.backend import _get_nmt_client
+
             client = _get_nmt_client(provider)
             detected, translated = client.translate("Hello world", target_lang="ru")
             status.setText(f"✓ {detected} → ru: «{translated}»")
@@ -1260,8 +1307,8 @@ class SettingsWidget(QWidget):
         """Update NMT key status labels based on what's stored in keyring."""
         _nmt_providers = [
             ("google", self._google_key_status, "Google"),
-            ("deepl",  self._deepl_key_status,  "DeepL"),
-            ("azure",  self._azure_key_status,   "Azure"),
+            ("deepl", self._deepl_key_status, "DeepL"),
+            ("azure", self._azure_key_status, "Azure"),
         ]
         for provider, label, name in _nmt_providers:
             has_key = bool(settings.get_api_key(provider))
@@ -1292,6 +1339,7 @@ class SettingsWidget(QWidget):
         """List the saved regions: name, size and bind."""
         try:
             from settings.region_presets import load_presets
+
             presets = load_presets()
         except Exception:
             presets = []
@@ -1325,9 +1373,12 @@ class SettingsWidget(QWidget):
             self._btn_monitor_region.setText(tr("Мониторинг"))
             self._btn_monitor_region.setEnabled(has_region)
         interval = self._live_interval_spin.value() if hasattr(self, "_live_interval_spin") else 10
-        self._btn_monitor_region.setToolTip(tr(
-            "Переводить выбранную область снова, когда в ней меняется текст "
-            "(проверка каждые {seconds} сек).", seconds=interval))
+        self._btn_monitor_region.setToolTip(
+            tr(
+                "Переводить выбранную область снова, когда в ней меняется текст (проверка каждые {seconds} сек).",
+                seconds=interval,
+            )
+        )
 
     def _on_monitor_region_clicked(self) -> None:
         if self._monitoring_active:
@@ -1336,14 +1387,16 @@ class SettingsWidget(QWidget):
         item = self._regions_list.currentItem()
         preset = item.data(Qt.UserRole) if item is not None else None
         if preset:
-            self.monitor_region_requested.emit(preset.get("x1", 0), preset.get("y1", 0),
-                                               preset.get("x2", 0), preset.get("y2", 0))
+            self.monitor_region_requested.emit(
+                preset.get("x1", 0), preset.get("y1", 0), preset.get("x2", 0), preset.get("y2", 0)
+            )
 
     # ── App hotkeys ──────────────────────────────────────
 
     def _show_saved_hotkeys(self) -> None:
         """Put the saved combinations into the hotkey fields."""
         from settings import hotkeys as app_hotkeys
+
         for role, edit in self._hotkey_edits.items():
             edit.blockSignals(True)
             edit.setKeySequence(QKeySequence(app_hotkeys.current(role).upper()))
@@ -1351,12 +1404,14 @@ class SettingsWidget(QWidget):
 
     def _on_hotkey_edited(self, role: str) -> None:
         from settings import hotkeys as app_hotkeys
+
         text = self._hotkey_edits[role].keySequence().toString()
         self._apply_hotkey(role, app_hotkeys.from_key_sequence(text))
 
     def _apply_hotkey(self, role: str, hotkey: str) -> None:
         """Validate and save *hotkey*; on an error show it and put the saved one back."""
         from settings import hotkeys as app_hotkeys
+
         if hotkey == app_hotkeys.current(role):
             self._show_saved_hotkeys()
             return
@@ -1385,6 +1440,7 @@ class SettingsWidget(QWidget):
     def _refresh_nllb_status(self) -> None:
         """Show whether the local model is present, without loading it."""
         from translate.backend import BACKEND_NLLB
+
         self._sync_backend_segment()
         use_nllb = self._backend_combo.currentData() == BACKEND_NLLB
         self._nllb_container.setVisible(use_nllb)
@@ -1399,26 +1455,21 @@ class SettingsWidget(QWidget):
 
         kind, value = self._nllb_version_combo.currentData() or ("auto", None)
         if kind == "remote":
-            self._set_nllb_status(
-                tr("Версия {tag} ещё не скачана. Нажмите «Скачать» (~600 МБ).", tag=value.tag)
-            )
+            self._set_nllb_status(tr("Версия {tag} ещё не скачана. Нажмите «Скачать» (~600 МБ).", tag=value.tag))
             return
 
         from translate.nllb_backend import get_backend, resolve_model_dir
 
         backend = get_backend()
         if backend.is_loaded:
-            self._set_nllb_status(
-                tr("✓ Модель загружена в память: {path}", path=backend.model_dir), kind="ok"
-            )
+            self._set_nllb_status(tr("✓ Модель загружена в память: {path}", path=backend.model_dir), kind="ok")
             return
 
         found = resolve_model_dir()
         if found is not None:
             self._set_nllb_status(
                 tr(
-                    "✓ Модель найдена: {path}\nБудет загружена при первом переводе "
-                    "(или нажмите «Загрузить модель»).",
+                    "✓ Модель найдена: {path}\nБудет загружена при первом переводе (или нажмите «Загрузить модель»).",
                     path=found,
                 ),
                 kind="ok",
@@ -1437,11 +1488,13 @@ class SettingsWidget(QWidget):
     def _on_backend_changed(self, _index=None) -> None:
         """React to backend combo change: show/hide NLLB block, refresh status."""
         from translate.backend import BACKEND_NLLB
+
         if self._backend_combo.currentData() == BACKEND_NLLB:
             path_text = self._nllb_path_edit.text().strip()
             if path_text != (getattr(config, "NLLB_MODEL_PATH", "") or ""):
                 # Preview the typed path without persisting it yet.
                 from translate.nllb_backend import reset_client as reset_nllb
+
                 reset_nllb()
         self._refresh_nllb_status()
 
@@ -1466,6 +1519,7 @@ class SettingsWidget(QWidget):
     def _populate_nllb_versions(self, select_path: str) -> None:
         """Fill the version combo and select the entry matching *select_path*."""
         from pathlib import Path
+
         from translate.nllb_models import list_local_models, match_local
 
         local = list_local_models()
@@ -1484,8 +1538,7 @@ class SettingsWidget(QWidget):
                 combo.addItem(tr("{tag} — скачать (~600 МБ)", tag=version.tag), ("remote", version))
         for model in local:
             if model.path not in matched:
-                combo.addItem(tr("{name} — локальная", name=model.tag or model.path.name),
-                              ("local", str(model.path)))
+                combo.addItem(tr("{name} — локальная", name=model.tag or model.path.name), ("local", str(model.path)))
         if self._nllb_versions_error:
             combo.addItem(tr("⚠ Список версий с Hugging Face недоступен"), ("error", None))
             combo.model().item(combo.count() - 1).setEnabled(False)
@@ -1523,8 +1576,13 @@ class SettingsWidget(QWidget):
         self._nllb_download_worker = NllbDownloadWorker(version, self)
         self._nllb_download_worker.progress_changed.connect(
             lambda pct, done, total: self._set_nllb_status(
-                tr("⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)",
-                   tag=version.tag, done=done, total=total, pct=pct)
+                tr(
+                    "⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)",
+                    tag=version.tag,
+                    done=done,
+                    total=total,
+                    pct=pct,
+                )
             )
         )
         self._nllb_download_worker.finished_with_status.connect(self._on_nllb_download_done)
@@ -1540,8 +1598,7 @@ class SettingsWidget(QWidget):
             return
         self._on_nllb_version_changed()
         if result:
-            self._set_nllb_status(tr("⚠ Не удалось скачать модель: {error}", error=result),
-                                  kind="warn")
+            self._set_nllb_status(tr("⚠ Не удалось скачать модель: {error}", error=result), kind="warn")
         else:
             self._set_nllb_status(tr("Скачивание отменено."))
 
@@ -1565,6 +1622,7 @@ class SettingsWidget(QWidget):
         config_manager.set_value("nllb_model_path", self._nllb_path_edit.text().strip())
 
         from translate.nllb_backend import reset_client as reset_nllb
+
         reset_nllb()
 
         self._btn_load_nllb.setEnabled(False)
@@ -1577,13 +1635,13 @@ class SettingsWidget(QWidget):
 
     def _on_nllb_preload_done(self, ok: bool, message: str) -> None:
         from translate.backend import BACKEND_NLLB
+
         self._btn_load_nllb.setEnabled(self._backend_combo.currentData() == BACKEND_NLLB)
         if ok:
             self._set_nllb_status(f"✓ {message}", kind="ok")
         else:
             self._set_nllb_status(
-                f"⚠ {message}\n\n"
-                + tr("Пока модель недоступна, перевод будет выполняться через API."),
+                f"⚠ {message}\n\n" + tr("Пока модель недоступна, перевод будет выполняться через API."),
                 kind="warn",
             )
 
@@ -1593,6 +1651,7 @@ class SettingsWidget(QWidget):
 
         # Translation backend (combo box).
         from translate.backend import get_active_backend
+
         current_backend = get_active_backend()
         for i in range(self._backend_combo.count()):
             if self._backend_combo.itemData(i) == current_backend:
@@ -1696,8 +1755,7 @@ class SettingsWidget(QWidget):
         self.refresh_regions()
         self._live_interval_spin.setValue(int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10))
         sensitivity = getattr(config, "LIVE_SENSITIVITY", "medium") or "medium"
-        self._live_sensitivity_combo.setCurrentIndex(
-            max(0, self._live_sensitivity_combo.findData(sensitivity)))
+        self._live_sensitivity_combo.setCurrentIndex(max(0, self._live_sensitivity_combo.findData(sensitivity)))
 
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":
@@ -1713,14 +1771,21 @@ class SettingsWidget(QWidget):
         self._btn_setup_wizard.clicked.connect(self._on_setup_wizard)
 
         # Autosave: every control whose setting applies without a restart.
-        for combo in (self._backend_combo, self._ocr_gpu_combo, self._domain_combo,
-                      self._src_lang_combo, self._lang_combo, self._engine_combo,
-                      self._model_combo, self._nllb_version_combo, self._live_sensitivity_combo):
+        for combo in (
+            self._backend_combo,
+            self._ocr_gpu_combo,
+            self._domain_combo,
+            self._src_lang_combo,
+            self._lang_combo,
+            self._engine_combo,
+            self._model_combo,
+            self._nllb_version_combo,
+            self._live_sensitivity_combo,
+        ):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
             button.toggled.connect(self._schedule_autosave)
-        for switch in (self._chk_fallback, self._chk_streaming, self._chk_compact_prompt,
-                       self._chk_ocr_preview):
+        for switch in (self._chk_fallback, self._chk_streaming, self._chk_compact_prompt, self._chk_ocr_preview):
             switch.toggled.connect(self._schedule_autosave)
         for spin in (self._tokens_spin, self._timeout_spin, self._live_interval_spin):
             spin.valueChanged.connect(self._schedule_autosave)
@@ -1739,15 +1804,16 @@ class SettingsWidget(QWidget):
     def _on_setup_wizard(self) -> None:
         """Run the first-run wizard again; it saves its choice, so reload the form."""
         from ui.setup_wizard import SetupWizard
+
         self._flush_autosave()
         if SetupWizard(self).exec_() == SetupWizard.Accepted:
             from translate.nllb_backend import reset_client as reset_nllb
+
             reset_nllb()
             self.reload()
             self.settings_saved.emit()
 
     def _on_check_update(self) -> None:
-        import webbrowser
         from updater.check_update import check_for_update
 
         self._btn_check_update.setEnabled(False)
@@ -1762,7 +1828,8 @@ class SettingsWidget(QWidget):
             self._update_status_lbl.setText(
                 tr("Доступна новая версия {version}. ", version=html.escape(version))
                 + f'<a href="{html.escape(url)}" style="color:{theme.current().accent};">'
-                + tr("Скачать обновление →") + "</a>"
+                + tr("Скачать обновление →")
+                + "</a>"
             )
             self._update_status_lbl.setStyleSheet(self._status_css("ok"))
             self._update_status_lbl.setOpenExternalLinks(True)
@@ -1787,22 +1854,19 @@ class SettingsWidget(QWidget):
         try:
             changed = self._save_instant_settings()
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                tr("Ошибка сохранения"),
-                tr("Не удалось сохранить настройки:\n{error}", error=e)
-            )
+            QMessageBox.critical(self, tr("Ошибка сохранения"), tr("Не удалось сохранить настройки:\n{error}", error=e))
             return
         if not changed:
             return
 
         from translate.backend import BACKEND_NLLB
+
         # Freshly switched to the local model → warm it up with a visible indicator
         # instead of making the user wait on their first hotkey press.
         nllb_kind, _ = self._nllb_version_combo.currentData() or ("auto", None)
-        if ("translation_backend" in changed and config.TRANSLATION_BACKEND == BACKEND_NLLB
-                and nllb_kind != "remote"):  # never start a download on save
-
+        if (
+            "translation_backend" in changed and config.TRANSLATION_BACKEND == BACKEND_NLLB and nllb_kind != "remote"
+        ):  # never start a download on save
             self._on_load_nllb_clicked()
         else:
             self._refresh_nllb_status()
@@ -1854,6 +1918,7 @@ class SettingsWidget(QWidget):
         reset_client()
         if changed & {"translation_backend", "nllb_model_path"}:
             from translate.backend import reset as reset_backends
+
             reset_backends()
         return changed
 
@@ -1888,19 +1953,14 @@ class SettingsWidget(QWidget):
             cfg.update(pending)
             config_manager.save_config(cfg)
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                tr("Ошибка сохранения"),
-                tr("Не удалось сохранить настройки:\n{error}", error=e)
-            )
+            QMessageBox.critical(self, tr("Ошибка сохранения"), tr("Не удалось сохранить настройки:\n{error}", error=e))
             return
         self._update_restart_state()
 
         reply = QMessageBox.question(
             self,
             tr("Перезапуск"),
-            tr("Язык интерфейса и цветовая схема применяются после перезапуска.\n"
-               "Перезапустить приложение сейчас?"),
+            tr("Язык интерфейса и цветовая схема применяются после перезапуска.\nПерезапустить приложение сейчас?"),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )
@@ -1925,6 +1985,7 @@ class SettingsWidget(QWidget):
 
         # Check before storing, so a rejected key never replaces a working one.
         from translate.llm_client import validate_api_key
+
         try:
             validate_api_key(provider, key_text)
         except Exception as e:

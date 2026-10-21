@@ -30,10 +30,14 @@ from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # fp32 HF checkpoint; override with --base or the NLLB_BASE_MODEL_DIR env var
-DEFAULT_BASE = Path(os.environ.get("NLLB_BASE_MODEL_DIR")
-                    or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
-TOKENIZER_FILES = ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
-                   "sentencepiece.bpe.model", "generation_config.json"]
+DEFAULT_BASE = Path(os.environ.get("NLLB_BASE_MODEL_DIR") or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
+TOKENIZER_FILES = [
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "sentencepiece.bpe.model",
+    "generation_config.json",
+]
 
 
 def main() -> int:

@@ -1,0 +1,26 @@
+# Git hooks: run `pre-commit install` once, then they run on every commit.
+# Check the whole tree by hand: pre-commit run --all-files
+# The ruff version must match the one pinned in requirements-dev.txt and pyproject.toml.
+
+# Vendored third-party files stay byte-for-byte as shipped.
+exclude: ^assets/fonts/
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml

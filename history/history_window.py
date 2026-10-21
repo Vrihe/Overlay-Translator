@@ -12,15 +12,25 @@ Features:
 
 from datetime import datetime
 
-from PyQt5.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
-    QMessageBox, QWidget, QFileDialog, QButtonGroup, QFrame,
-)
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QButtonGroup,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-import config
 import cache.store as store
+import config
 from i18n import tr
 from ui import icons, theme
 from ui.hud_widgets import page_title
@@ -179,6 +189,7 @@ class HistoryWidget(QWidget):
 
         try:
             from translate.domain_manager import list_available_domains
+
             names = {d["id"]: d["display_name"] for d in list_available_domains()}
         except Exception:
             names = {}
@@ -298,7 +309,8 @@ class HistoryWidget(QWidget):
                 tr("Экспорт завершён"),
                 tr(
                     "Успешно экспортировано записей: {count}\nФайл: {path}",
-                    count=len(records), path=file_path,
+                    count=len(records),
+                    path=file_path,
                 ),
             )
         except Exception as e:
@@ -317,9 +329,9 @@ class HistoryWidget(QWidget):
             filtered = [r for r in filtered if self._context_of(r) == self._domain_filter]
         if query:
             filtered = [
-                r for r in filtered
-                if query in r.get("source_text", "").lower()
-                or query in r.get("translated_text", "").lower()
+                r
+                for r in filtered
+                if query in r.get("source_text", "").lower() or query in r.get("translated_text", "").lower()
             ]
         self._populate_table(filtered)
 

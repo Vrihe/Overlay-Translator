@@ -33,8 +33,8 @@ import shutil
 import threading
 from pathlib import Path
 
-from PIL import Image
 import numpy as np
+from PIL import Image
 
 import config
 from translate.privacy import loggable
@@ -42,7 +42,7 @@ from translate.privacy import loggable
 # ── Singleton state ───────────────────────────────────────────────────────────
 _reader = None
 _reader_lock = threading.Lock()  # guards singleton initialization across QThreads
-_infer_lock = threading.Lock()   # serialises inference on the shared engine
+_infer_lock = threading.Lock()  # serialises inference on the shared engine
 
 # Track whether the current engine runs on the GPU (for the CPU fallback).
 _reader_on_gpu: bool = False
@@ -124,12 +124,14 @@ def _should_use_gpu() -> bool:
 
 # ── Model files ───────────────────────────────────────────────────────────────
 
+
 def _model_dir() -> Path:
     """Writable model directory, seeded from the models shipped with rapidocr."""
     target = Path(config.USER_DATA_DIR) / "ocr_models"
     target.mkdir(parents=True, exist_ok=True)
     try:
         import rapidocr
+
         bundled = Path(rapidocr.__file__).parent / "models"
         for name in _MODEL_FILES:
             src, dst = bundled / name, target / name
@@ -165,23 +167,30 @@ def _build_engine(use_gpu: bool):
 
     logging.info(
         "Initializing RapidOCR engine (DirectML=%s, rec=%s, threads=%d / %d, models=%s)",
-        use_gpu, rec_lang.value, max_threads, cpu_count, model_dir,
+        use_gpu,
+        rec_lang.value,
+        max_threads,
+        cpu_count,
+        model_dir,
     )
-    return RapidOCR(params={
-        "Global.log_level": "warning",
-        "Global.model_root_dir": str(model_dir),
-        # Screen text is never upside down: skip the angle classifier.
-        "Global.use_cls": False,
-        "Global.text_score": float(getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)),
-        "EngineConfig.onnxruntime.use_dml": use_gpu,
-        "EngineConfig.onnxruntime.intra_op_num_threads": max_threads,
-        "Rec.ocr_version": OCRVersion.PPOCRV5,
-        "Rec.lang_type": rec_lang,
-        "Rec.model_type": ModelType.MOBILE,
-    })
+    return RapidOCR(
+        params={
+            "Global.log_level": "warning",
+            "Global.model_root_dir": str(model_dir),
+            # Screen text is never upside down: skip the angle classifier.
+            "Global.use_cls": False,
+            "Global.text_score": float(getattr(config, "EASYOCR_CONFIDENCE_THRESHOLD", 0.25)),
+            "EngineConfig.onnxruntime.use_dml": use_gpu,
+            "EngineConfig.onnxruntime.intra_op_num_threads": max_threads,
+            "Rec.ocr_version": OCRVersion.PPOCRV5,
+            "Rec.lang_type": rec_lang,
+            "Rec.model_type": ModelType.MOBILE,
+        }
+    )
 
 
 # ── Singleton reader ──────────────────────────────────────────────────────────
+
 
 def get_reader():
     """Return the singleton RapidOCR engine, initializing it on first use.
@@ -191,7 +200,7 @@ def get_reader():
     """
     global _reader, _reader_on_gpu
     if _reader is None:
-        with _reader_lock:       # only one thread enters initialization at a time
+        with _reader_lock:  # only one thread enters initialization at a time
             if _reader is None:  # re-check under lock (double-checked locking)
                 use_gpu = _should_use_gpu()
                 try:
@@ -227,6 +236,7 @@ def _fallback_to_cpu() -> None:
 
 
 # ── Preprocessing ─────────────────────────────────────────────────────────────
+
 
 def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
     """Enhanced preprocessing for screen OCR: handles thin, small, and low-contrast UI fonts."""
@@ -272,6 +282,7 @@ def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
 
     if getattr(config, "OCR_USE_HSV_FILTER", False):
         from ocr.hsv_filter import apply_hsv_filter
+
         img = apply_hsv_filter(img)
 
     return np.array(img)
@@ -279,26 +290,29 @@ def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
 
 # ── Result sorting ────────────────────────────────────────────────────────────
 
+
 def _sort_results(results: list) -> str:
     """Sort EasyOCR results top-to-bottom, left-to-right based on bounding box coordinates."""
     items = []
-    for bbox, text, prob in results:
+    for bbox, text, _prob in results:
         text_str = text.strip() if isinstance(text, str) else ""
         if not text_str:
             continue
         xs = [pt[0] for pt in bbox]
         ys = [pt[1] for pt in bbox]
-        min_x, max_x = min(xs), max(xs)
+        min_x = min(xs)
         min_y, max_y = min(ys), max(ys)
         center_y = (min_y + max_y) / 2.0
         height = max_y - min_y
-        items.append({
-            "text": text_str,
-            "min_x": min_x,
-            "min_y": min_y,
-            "center_y": center_y,
-            "height": height,
-        })
+        items.append(
+            {
+                "text": text_str,
+                "min_x": min_x,
+                "min_y": min_y,
+                "center_y": center_y,
+                "height": height,
+            }
+        )
 
     if not items:
         return ""
@@ -330,6 +344,7 @@ def _sort_results(results: list) -> str:
 
 # ── Strip helpers (1.6) ───────────────────────────────────────────────────────
 
+
 def _prepare_strip(strip_img: Image.Image, y_offset: int):
     """Pre-process one horizontal strip and check whether it contains any content.
 
@@ -344,7 +359,7 @@ def _prepare_strip(strip_img: Image.Image, y_offset: int):
     # Text on any background produces visible contrast (std > threshold).
     gray = np.array(strip_img.convert("L"), dtype=np.float32)
     if gray.std() < _BLANK_STD_THRESHOLD:
-        return None, y_offset   # blank strip — skip OCR entirely
+        return None, y_offset  # blank strip — skip OCR entirely
 
     img_np = preprocess(strip_img)
     return img_np, y_offset
@@ -354,10 +369,7 @@ def _to_results(output) -> list:
     """Convert a RapidOCROutput into [(bbox, text, score), …] (bbox = 4 [x, y] points)."""
     if output is None or output.boxes is None or output.txts is None:
         return []
-    return [
-        (box.tolist(), text, float(score))
-        for box, text, score in zip(output.boxes, output.txts, output.scores)
-    ]
+    return [(box.tolist(), text, float(score)) for box, text, score in zip(output.boxes, output.txts, output.scores)]
 
 
 def _safe_readtext(reader, img_np) -> list:
@@ -391,10 +403,7 @@ def _filter_confident(results: list) -> list:
 def _extract_single(image: Image.Image) -> str:
     """Run OCR on the image as a single piece (small/medium images)."""
     processed = preprocess(image)
-    img_np = (
-        processed if isinstance(processed, np.ndarray)
-        else np.array(processed.convert("RGB"))
-    )
+    img_np = processed if isinstance(processed, np.ndarray) else np.array(processed.convert("RGB"))
     reader = get_reader()
     logging.debug("Running OCR (single pass)...")
     results = _safe_readtext(reader, img_np)
@@ -428,10 +437,7 @@ def _extract_strips(image: Image.Image) -> str:
         slices.append((y, min(y + _STRIP_HEIGHT_PX, h)))
         y += _STRIP_HEIGHT_PX
 
-    logging.debug(
-        f"OCR strip mode: {len(slices)} strips of ≤{_STRIP_HEIGHT_PX}px "
-        f"from {w}×{h} image"
-    )
+    logging.debug(f"OCR strip mode: {len(slices)} strips of ≤{_STRIP_HEIGHT_PX}px from {w}×{h} image")
 
     # ── Step 1–2: Parallel preprocessing + blank detection ────────────────────
     def prep(bounds: tuple[int, int]):
@@ -443,7 +449,7 @@ def _extract_strips(image: Image.Image) -> str:
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         prepared = list(pool.map(prep, slices))
 
-    active  = [(arr, off) for arr, off in prepared if arr is not None]
+    active = [(arr, off) for arr, off in prepared if arr is not None]
     skipped = len(prepared) - len(active)
     logging.debug(f"Strip preprocessing done: {len(active)} active, {skipped} blank/skipped.")
 
@@ -468,6 +474,7 @@ def _extract_strips(image: Image.Image) -> str:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def extract_text(image: Image.Image) -> str:
     """Run OCR on *image* (PIL Image) and return sorted recognised text.

@@ -18,8 +18,13 @@ SETTING_KEYS = {TRANSLATE: "hotkey", SETTINGS: "settings_hotkey"}
 
 # Qt key names that the keyboard library spells differently.
 _QT_TO_KEYBOARD = {
-    "meta": "windows", "pgup": "page up", "pgdown": "page down", "del": "delete",
-    "ins": "insert", "return": "enter", "backspace": "backspace",
+    "meta": "windows",
+    "pgup": "page up",
+    "pgdown": "page down",
+    "del": "delete",
+    "ins": "insert",
+    "return": "enter",
+    "backspace": "backspace",
 }
 _FUNCTION_KEY = re.compile(r"f([1-9]|1\d|2[0-4])")
 
@@ -41,12 +46,14 @@ def from_key_sequence(text: str) -> str:
 
 def current(role: str) -> str:
     import config
+
     value = config.HOTKEY if role == TRANSLATE else config.SETTINGS_HOTKEY
     return str(value or "").strip().lower()
 
 
 def default(role: str) -> str:
     from settings.config_manager import DEFAULTS
+
     return DEFAULTS[SETTING_KEYS[role]]
 
 
@@ -62,27 +69,33 @@ def validate_app_hotkey(hotkey: str, role: str) -> str:
         raise ValueError(tr("Нажмите сочетание клавиш."))
     try:
         import keyboard
+
         keyboard.parse_hotkey(hk)
     except Exception as exc:
-        raise ValueError(tr("Некорректная комбинация клавиш: '{hotkey}'. ({error})",
-                            hotkey=hotkey, error=exc))
+        raise ValueError(tr("Некорректная комбинация клавиш: '{hotkey}'. ({error})", hotkey=hotkey, error=exc)) from exc
 
     if "+" not in hk and not _FUNCTION_KEY.fullmatch(hk):
-        raise ValueError(tr("Добавьте Ctrl, Alt, Shift или Win: одна обычная клавиша "
-                            "срабатывала бы при наборе текста."))
+        raise ValueError(
+            tr("Добавьте Ctrl, Alt, Shift или Win: одна обычная клавиша срабатывала бы при наборе текста.")
+        )
 
     other = SETTINGS if role == TRANSLATE else TRANSLATE
     if hk == current(other):
-        raise ValueError(tr("Комбинация '{hotkey}' уже занята для другого действия.",
-                            hotkey=hk.upper()))
+        raise ValueError(tr("Комбинация '{hotkey}' уже занята для другого действия.", hotkey=hk.upper()))
 
     try:
         from settings.region_presets import load_presets
+
         presets = load_presets()
     except Exception:
         presets = []
     for preset in presets:
         if (preset.get("hotkey") or "").strip().lower() == hk:
-            raise ValueError(tr("Комбинация '{hotkey}' уже назначена пресету «{name}».",
-                                hotkey=hk.upper(), name=preset.get("name", "")))
+            raise ValueError(
+                tr(
+                    "Комбинация '{hotkey}' уже назначена пресету «{name}».",
+                    hotkey=hk.upper(),
+                    name=preset.get("name", ""),
+                )
+            )
     return hk

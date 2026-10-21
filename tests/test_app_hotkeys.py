@@ -13,23 +13,25 @@ from unittest import mock
 import config
 from settings import hotkeys
 from settings.hotkeys import SETTINGS, TRANSLATE, from_key_sequence, validate_app_hotkey
+from tests.keyboard_stub import stub_key_names
 from tests.settings_widget_case import SettingsWidgetCase
 
 
 def setUpModule():
     # Messages are matched in Russian whatever the machine's UI language setting is.
     import i18n
+
     i18n.set_language("ru")
 
 
 def tearDownModule():
     import i18n
+
     i18n.set_language(None)
 
 
 def _current(translate="ctrl+shift+r", settings="ctrl+shift+o"):
-    return mock.patch.object(hotkeys, "current",
-                             side_effect=lambda role: translate if role == TRANSLATE else settings)
+    return mock.patch.object(hotkeys, "current", side_effect=lambda role: translate if role == TRANSLATE else settings)
 
 
 def _presets(*items):
@@ -37,11 +39,10 @@ def _presets(*items):
 
 
 class TestFromKeySequence(unittest.TestCase):
-
     def test_conversions(self):
         cases = {
             "Ctrl+Shift+R": "ctrl+shift+r",
-            "Ctrl+Shift+R, Ctrl+A": "ctrl+shift+r",   # only the first chord
+            "Ctrl+Shift+R, Ctrl+A": "ctrl+shift+r",  # only the first chord
             "Meta+T": "windows+t",
             "Ctrl+PgUp": "ctrl+page up",
             "Alt+Del": "alt+delete",
@@ -54,6 +55,8 @@ class TestFromKeySequence(unittest.TestCase):
 
 
 class TestValidateAppHotkey(unittest.TestCase):
+    def setUp(self):
+        stub_key_names(self)
 
     def test_valid_combination_is_normalised(self):
         with _current(), _presets():
@@ -90,13 +93,13 @@ class TestValidateAppHotkey(unittest.TestCase):
 
 
 class TestSettingsHotkeyValue(unittest.TestCase):
-
     def test_settings_hotkey_comes_from_settings_json(self):
         env = {k: v for k, v in os.environ.items() if k.upper() != "SETTINGS_HOTKEY"}
         # config replaces itself in sys.modules, so its reads are patched at the source.
-        with mock.patch.dict(os.environ, env, clear=True), \
-                mock.patch("settings.config_manager.get",
-                           side_effect=lambda key: {"settings_hotkey": "ctrl+alt+s"}[key]):
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("settings.config_manager.get", side_effect=lambda key: {"settings_hotkey": "ctrl+alt+s"}[key]),
+        ):
             self.assertEqual(config.SETTINGS_HOTKEY, "ctrl+alt+s")
 
     def test_env_var_overrides(self):
@@ -105,6 +108,7 @@ class TestSettingsHotkeyValue(unittest.TestCase):
 
     def test_defaults(self):
         from settings.config_manager import DEFAULTS
+
         self.assertEqual(DEFAULTS["hotkey"], "ctrl+shift+r")
         self.assertEqual(DEFAULTS["settings_hotkey"], "ctrl+shift+o")
 
@@ -114,6 +118,7 @@ class TestHotkeyEditing(SettingsWidgetCase):
 
     def setUp(self):
         super().setUp()
+        stub_key_names(self)
         self.changed = mock.Mock()
         self.widget.hotkeys_changed.connect(self.changed)
 
@@ -139,6 +144,7 @@ class TestHotkeyEditing(SettingsWidgetCase):
     def test_focus_pauses_and_resumes_the_global_hotkeys(self):
         from PyQt5.QtCore import QEvent
         from PyQt5.QtGui import QFocusEvent
+
         capture = mock.Mock()
         self.widget.hotkey_capture.connect(capture)
         edit = self.widget._hotkey_edits[SETTINGS]

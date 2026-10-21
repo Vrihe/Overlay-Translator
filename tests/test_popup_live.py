@@ -22,16 +22,17 @@ _APP = QApplication.instance() or QApplication(sys.argv[:1])
 
 def setUpModule():
     import i18n
+
     i18n.set_language("ru")
 
 
 def tearDownModule():
     import i18n
+
     i18n.set_language(None)
 
 
 class TestCaptureExclusion(unittest.TestCase):
-
     def setUp(self):
         self.popup = ResultPopup("src", "перевод")
         self.addCleanup(self.popup.deleteLater)
@@ -55,14 +56,15 @@ class TestCaptureExclusion(unittest.TestCase):
 
 
 class TestLiveUpdate(unittest.TestCase):
-
     def setUp(self):
         self.popup = ResultPopup(is_loading=True)
         self.addCleanup(self.popup.deleteLater)
 
     def test_live_update_keeps_the_focus_elsewhere(self):
-        with mock.patch.object(self.popup, "activateWindow") as activate, \
-                mock.patch.object(self.popup, "raise_") as raise_:
+        with (
+            mock.patch.object(self.popup, "activateWindow") as activate,
+            mock.patch.object(self.popup, "raise_") as raise_,
+        ):
             self.popup.update_content("src", "new", activate=False)
         activate.assert_not_called()
         raise_.assert_called_once()
@@ -74,15 +76,16 @@ class TestLiveUpdate(unittest.TestCase):
         activate.assert_called_once()
 
     def test_show_result_passes_activate_to_the_open_popup(self):
-        with mock.patch.object(self.popup, "update_content") as update, \
-                mock.patch.object(type(result_popup.config), "NOTIFICATION_TYPE", "popup", create=True):
+        with (
+            mock.patch.object(self.popup, "update_content") as update,
+            mock.patch.object(type(result_popup.config), "NOTIFICATION_TYPE", "popup", create=True),
+        ):
             same = show_result("src", "t", existing_popup=self.popup, activate=False)
         self.assertIs(same, self.popup)
         self.assertFalse(update.call_args.kwargs["activate"])
 
 
 class TestStopMonitoringButton(unittest.TestCase):
-
     def setUp(self):
         self.popup = ResultPopup("src", "перевод")
         self.addCleanup(self.popup.deleteLater)
@@ -143,7 +146,6 @@ class TestScrollKeptOnLiveUpdates(unittest.TestCase):
 
 
 class TestRegionPresetsDialog(unittest.TestCase):
-
     presets = [
         {"id": "a", "name": "Twitch чат", "x1": 10, "y1": 20, "x2": 610, "y2": 820, "hotkey": "ctrl+alt+1"},
         {"id": "b", "name": "Квесты", "x1": 0, "y1": 0, "x2": 300, "y2": 100, "hotkey": None},
@@ -154,6 +156,7 @@ class TestRegionPresetsDialog(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         from ui.region_presets_dialog import RegionPresetsDialog
+
         self.dialog = RegionPresetsDialog()
         self.addCleanup(self.dialog.deleteLater)
 

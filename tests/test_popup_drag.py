@@ -25,7 +25,6 @@ def _fake_popup(*, system_move=True):
 
 
 class TestResizeEdges(unittest.TestCase):
-
     def test_top_edge_is_a_drag_handle(self):
         popup = _fake_popup()
         for pos in (QPoint(200, 2), QPoint(2, 2), QPoint(398, 2)):
@@ -34,14 +33,19 @@ class TestResizeEdges(unittest.TestCase):
 
     def test_other_edges_still_resize(self):
         popup = _fake_popup()
-        cases = [((398, 100), "r"), ((2, 100), "l"), ((200, 198), "b"),
-                 ((398, 198), "br"), ((2, 198), "bl"), ((200, 100), None)]
+        cases = [
+            ((398, 100), "r"),
+            ((2, 100), "l"),
+            ((200, 198), "b"),
+            ((398, 198), "br"),
+            ((2, 198), "bl"),
+            ((200, 100), None),
+        ]
         for (x, y), expected in cases:
             self.assertEqual(ResultPopup._detect_resize_edge(popup, QPoint(x, y)), expected, (x, y))
 
 
 class TestDragMove(unittest.TestCase):
-
     def test_small_jitter_does_not_start_a_drag(self):
         popup = _fake_popup()
         self.assertFalse(ResultPopup._drag_move(popup, QPoint(102, 102)))

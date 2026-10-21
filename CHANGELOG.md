@@ -9,6 +9,10 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+- Google, DeepL and Azure translations are now served from the cache when the source
+  language is auto-detected; before, the same text was sent to the service every time.
+
 ## [1.2.2] - 2026-10-21
 
 ### Added

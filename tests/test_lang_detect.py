@@ -6,8 +6,8 @@ Covers:
   • Cache composite key distinguishes (text, source_lang, target_lang).
 """
 
-import sys
 import os
+import sys
 import unittest
 
 # Ensure project root is on the path so bare ``import config`` works.
@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from translate.lang_detect import LangidDetector, get_detector
 
-
 # ── LangidDetector accuracy tests ────────────────────────
+
 
 class TestLangidDetector(unittest.TestCase):
     """LangidDetector must return the correct ISO 639-1 code for
@@ -45,12 +45,14 @@ class TestLangidDetector(unittest.TestCase):
             with self.subTest(expected=expected, text=text[:40]):
                 result = self.detector.detect(text)
                 self.assertEqual(
-                    result, expected,
+                    result,
+                    expected,
                     f"Expected '{expected}' for text '{text[:40]}…', got '{result}'",
                 )
 
 
 # ── Cache composite-key tests ───────────────────────────
+
 
 class TestCacheCompositeKey(unittest.TestCase):
     """The cache must treat (text, source_lang_A, target) and
@@ -60,6 +62,7 @@ class TestCacheCompositeKey(unittest.TestCase):
     def setUp(self):
         """Every cache read/write goes to a throw-away DB (never the real history)."""
         from tests.store_isolation import isolate_store
+
         isolate_store(self)
 
     def test_different_source_lang_not_cached_together(self):
@@ -96,6 +99,7 @@ class TestCacheCompositeKey(unittest.TestCase):
 
 
 # ── Factory tests ────────────────────────────────────────
+
 
 class TestGetDetector(unittest.TestCase):
     """get_detector() must return the right subclass and raise on unknown."""

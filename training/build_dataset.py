@@ -64,8 +64,7 @@ def words(text: str) -> set[str]:
     return {w.lower() for w in re.findall(r"[\w']+", text)}
 
 
-def split_abbreviations(phrases: list[dict], rng: random.Random,
-                        test_share: float, val_share: float) -> dict[str, str]:
+def split_abbreviations(phrases: list[dict], rng: random.Random, test_share: float, val_share: float) -> dict[str, str]:
     """abbr -> split, stratified by mode."""
     assignment: dict[str, str] = {}
     for mode in ("keep", "translate"):
@@ -135,8 +134,9 @@ def main() -> int:
 
     missing = {(p["full"], lang) for p in phrases for lang in LANGS} - translations.keys()
     if missing:
-        print(f"{len(missing)} phrase translations are missing; run training/translate_phrases.py first",
-              file=sys.stderr)
+        print(
+            f"{len(missing)} phrase translations are missing; run training/translate_phrases.py first", file=sys.stderr
+        )
         return 1
 
     # Always drawn first, so the FLORES pools below are identical for both --split-by modes
@@ -154,15 +154,24 @@ def main() -> int:
             if not tr["keep_ok"]:
                 dropped[lang] += 1
                 continue
-            pairs[split].append({"src": p["short"], "tgt": tr["text"], "lang": lang, "tgt_code": code,
-                                 "kind": "abbr", "abbrs": found, "mode": p["mode"]})
+            pairs[split].append(
+                {
+                    "src": p["short"],
+                    "tgt": tr["text"],
+                    "lang": lang,
+                    "tgt_code": code,
+                    "kind": "abbr",
+                    "abbrs": found,
+                    "mode": p["mode"],
+                }
+            )
 
     flores = load_flores()
     ids = list(range(len(flores["eng_Latn"])))
     rng.shuffle(ids)
     n_train = round(len(ids) * FLORES_POOLS["train"])
     n_val = round(len(ids) * FLORES_POOLS["val"])
-    pools = {"train": ids[:n_train], "val": ids[n_train:n_train + n_val], "test": ids[n_train + n_val:]}
+    pools = {"train": ids[:n_train], "val": ids[n_train : n_train + n_val], "test": ids[n_train + n_val :]}
 
     for split in SPLITS:
         need = round(len(pairs[split]) * args.general_share / (1 - args.general_share))
@@ -171,9 +180,18 @@ def main() -> int:
         if need > len(candidates):
             print(f"[{split}] only {len(candidates)} general pairs available, need {need}", file=sys.stderr)
         for i, lang in candidates[:need]:
-            pairs[split].append({"src": flores["eng_Latn"][i], "tgt": flores[LANGS[lang]][i], "lang": lang,
-                                 "tgt_code": LANGS[lang], "kind": "general", "abbrs": [], "mode": None,
-                                 "flores_id": i})
+            pairs[split].append(
+                {
+                    "src": flores["eng_Latn"][i],
+                    "tgt": flores[LANGS[lang]][i],
+                    "lang": lang,
+                    "tgt_code": LANGS[lang],
+                    "kind": "general",
+                    "abbrs": [],
+                    "mode": None,
+                    "flores_id": i,
+                }
+            )
 
     # No test abbreviation may leak into train/val sources.
     test_abbrs = {a for a, s in assignment.items() if s == "test"}
@@ -189,7 +207,9 @@ def main() -> int:
             for row in pairs[split]:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    print(f"seed={args.seed}, split by {args.split_by}; dropped {sum(dropped.values())} abbr pairs with lost keep terms: {dict(dropped)}")
+    print(
+        f"seed={args.seed}, split by {args.split_by}; dropped {sum(dropped.values())} abbr pairs with lost keep terms: {dict(dropped)}"
+    )
     for split in SPLITS:
         kinds = Counter(r["kind"] for r in pairs[split])
         if by_phrase is None:

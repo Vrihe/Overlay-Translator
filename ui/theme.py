@@ -60,19 +60,40 @@ def rgba(hex_color: str, alpha: int) -> str:
 # Tints are 7 % of the accent (alpha 18 of 255).
 PALETTES: dict[str, Palette] = {
     "amber": Palette(
-        accent="#ffb020", on_accent="#1a1200", dim="#6b4d0f", tint=rgba("#ffb020", 18),
-        bg="#0c0d10", panel="#12141a", rail="#0a0b0e", line="#262a33",
-        active="#161820", outer="#050607",
+        accent="#ffb020",
+        on_accent="#1a1200",
+        dim="#6b4d0f",
+        tint=rgba("#ffb020", 18),
+        bg="#0c0d10",
+        panel="#12141a",
+        rail="#0a0b0e",
+        line="#262a33",
+        active="#161820",
+        outer="#050607",
     ),
     "cyan": Palette(
-        accent="#35e0ff", on_accent="#00181d", dim="#1b6a7c", tint=rgba("#35e0ff", 18),
-        bg="#080c10", panel="#0e151b", rail="#070a0d", line="#1f2e38",
-        active="#0f1b22", outer="#04070a",
+        accent="#35e0ff",
+        on_accent="#00181d",
+        dim="#1b6a7c",
+        tint=rgba("#35e0ff", 18),
+        bg="#080c10",
+        panel="#0e151b",
+        rail="#070a0d",
+        line="#1f2e38",
+        active="#0f1b22",
+        outer="#04070a",
     ),
     "crimson": Palette(
-        accent="#ff4d6d", on_accent="#2a030c", dim="#7f2438", tint=rgba("#ff4d6d", 18),
-        bg="#0f0b0d", panel="#171114", rail="#0b0809", line="#33232a",
-        active="#1d1418", outer="#070405",
+        accent="#ff4d6d",
+        on_accent="#2a030c",
+        dim="#7f2438",
+        tint=rgba("#ff4d6d", 18),
+        bg="#0f0b0d",
+        panel="#171114",
+        rail="#0b0809",
+        line="#33232a",
+        active="#1d1418",
+        outer="#070405",
     ),
 }
 
@@ -92,6 +113,7 @@ def current() -> Palette:
     if _active is None:
         try:
             import config
+
             name = config.UI_THEME
         except Exception:
             name = DEFAULT_THEME
@@ -190,9 +212,11 @@ _icon_urls: dict[tuple[str, str, int], str] = {}
 def _icon_cache_dir() -> Path:
     try:
         import config
+
         base = Path(config.USER_DATA_DIR)
     except Exception:
         import tempfile
+
         base = Path(tempfile.gettempdir()) / "translator-overlay"
     return base / "cache" / "ui_icons"
 
@@ -208,6 +232,7 @@ def icon_url(name: str, color: str, size: int) -> str:
         url = ""
         try:
             from ui import icons
+
             folder = _icon_cache_dir()
             folder.mkdir(parents=True, exist_ok=True)
             # 2x so the arrow stays sharp at 150-200 % display scaling.
@@ -224,14 +249,13 @@ def icon_url(name: str, color: str, size: int) -> str:
 
 # ── Stylesheet builders ──────────────────────────────────
 
-def text_css(color: str, pt: float = 10, *, display: bool = False, bold: bool = False,
-             italic: bool = False) -> str:
+
+def text_css(color: str, pt: float = 10, *, display: bool = False, bold: bool = False, italic: bool = False) -> str:
     """Property-only sheet for a QLabel / QCheckBox (no selector, no cascade)."""
     family = _display_family if display else _body_family
     weight = " font-weight: 600;" if bold else ""
     style = " font-style: italic;" if italic else ""
-    return (f"font-family: '{family}'; font-size: {pt}pt; color: {color};"
-            f" background: transparent;{weight}{style}")
+    return f"font-family: '{family}'; font-size: {pt}pt; color: {color}; background: transparent;{weight}{style}"
 
 
 def label_css(kind: str = "body") -> str:
@@ -243,8 +267,14 @@ def label_css(kind: str = "body") -> str:
         return text_css(p.text, 10.5, display=True)
     sizes = {"caption": 8, "muted": 9}
     colors = {
-        "body": p.text, "soft": p.text_soft, "muted": p.muted, "caption": p.muted,
-        "accent": p.accent, "ok": p.ok, "error": p.error, "warn": p.warn,
+        "body": p.text,
+        "soft": p.text_soft,
+        "muted": p.muted,
+        "caption": p.muted,
+        "accent": p.accent,
+        "ok": p.ok,
+        "error": p.error,
+        "warn": p.warn,
     }
     return text_css(colors.get(kind, p.text), sizes.get(kind, 9.5))
 
@@ -324,7 +354,7 @@ def btn_icon(*, danger: bool = False) -> str:
 def input_css(pt: float = 10, padding: str = "6px 10px") -> str:
     """Line edits, text edits, spin boxes and key-sequence edits."""
     p = current()
-    sel = (f"selection-background-color: {p.accent}; selection-color: {p.on_accent};")
+    sel = f"selection-background-color: {p.accent}; selection-color: {p.on_accent};"
     return (
         "QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QKeySequenceEdit {"
         f"  background: {p.bg}; color: {p.text}; border: 1px solid {p.line};"
@@ -413,8 +443,10 @@ def check_css(pt: float = 9.5) -> str:
 def panel_css(object_name: str, *, background: str | None = None, border: str | None = None) -> str:
     """Flat panel scoped to ``#object_name`` so the rule never cascades into children."""
     p = current()
-    return (f"#{object_name} {{ background: {background or p.panel};"
-            f" border: 1px solid {border or p.line}; border-radius: 0; }}")
+    return (
+        f"#{object_name} {{ background: {background or p.panel};"
+        f" border: 1px solid {border or p.line}; border-radius: 0; }}"
+    )
 
 
 def group_css() -> str:
@@ -440,8 +472,9 @@ def chip_css(kind: str = "neutral") -> str:
         "ok": (p.ok, p.ok_border, "transparent"),
         "accent": (p.accent, p.dim, p.tint),
     }.get(kind, (p.text_soft, p.line, "transparent"))
-    return (f"QLabel {{ color: {color}; border: 1px solid {border}; background: {bg};"
-            " border-radius: 0; padding: 0 10px; }")
+    return (
+        f"QLabel {{ color: {color}; border: 1px solid {border}; background: {bg}; border-radius: 0; padding: 0 10px; }}"
+    )
 
 
 def scrollbar_css() -> str:
@@ -523,8 +556,10 @@ def menu_css() -> str:
 
 def tooltip_css() -> str:
     p = current()
-    return (f"QToolTip {{ background: {p.panel}; color: {p.text}; border: 1px solid {p.dim};"
-            f" padding: 4px 6px; font-family: '{_body_family}'; font-size: 9pt; }}")
+    return (
+        f"QToolTip {{ background: {p.panel}; color: {p.text}; border: 1px solid {p.dim};"
+        f" padding: 4px 6px; font-family: '{_body_family}'; font-size: 9pt; }}"
+    )
 
 
 def stock_dialog_css() -> str:
@@ -566,9 +601,9 @@ def app_css() -> str:
 
 # ── Native title bar ─────────────────────────────────────
 
-_DWMWA_USE_IMMERSIVE_DARK_MODE = 20         # Windows 10 20H1+ (19 on older builds)
+_DWMWA_USE_IMMERSIVE_DARK_MODE = 20  # Windows 10 20H1+ (19 on older builds)
 _DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19
-_DWMWA_BORDER_COLOR = 34                     # 34-36: Windows 11 only
+_DWMWA_BORDER_COLOR = 34  # 34-36: Windows 11 only
 _DWMWA_CAPTION_COLOR = 35
 _DWMWA_TEXT_COLOR = 36
 
@@ -583,6 +618,7 @@ def apply_title_bar(widget: QWidget) -> None:
         return
     try:
         import ctypes
+
         dwm = ctypes.windll.dwmapi
         hwnd = ctypes.c_void_p(int(widget.winId()))
         on = ctypes.c_int(1)
@@ -590,8 +626,7 @@ def apply_title_bar(widget: QWidget) -> None:
             if dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(on), ctypes.sizeof(on)) == 0:
                 break
         p = current()
-        for attr, token in ((_DWMWA_CAPTION_COLOR, "rail"), (_DWMWA_TEXT_COLOR, "text"),
-                            (_DWMWA_BORDER_COLOR, "line")):
+        for attr, token in ((_DWMWA_CAPTION_COLOR, "rail"), (_DWMWA_TEXT_COLOR, "text"), (_DWMWA_BORDER_COLOR, "line")):
             c = QColor(getattr(p, token))
             colorref = ctypes.c_uint(c.red() | (c.green() << 8) | (c.blue() << 16))
             dwm.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(colorref), ctypes.sizeof(colorref))
@@ -604,9 +639,13 @@ class _TitleBarFilter(QObject):
     (main window, dialogs, QMessageBox / QInputDialog / QFileDialog)."""
 
     def eventFilter(self, obj, event):
-        if (event.type() == QEvent.Show and isinstance(obj, QWidget) and obj.isWindow()
-                and not obj.windowFlags() & Qt.FramelessWindowHint
-                and not obj.property("_hudTitleBar")):
+        if (
+            event.type() == QEvent.Show
+            and isinstance(obj, QWidget)
+            and obj.isWindow()
+            and not obj.windowFlags() & Qt.FramelessWindowHint
+            and not obj.property("_hudTitleBar")
+        ):
             obj.setProperty("_hudTitleBar", True)
             apply_title_bar(obj)
         return False

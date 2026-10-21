@@ -13,17 +13,16 @@ Every request is logged to the file specified by ``config.LOG_FILE``.
 import logging
 import os
 import re
-from logging.handlers import RotatingFileHandler
 import threading
 import time
+from logging.handlers import RotatingFileHandler
 
 # openai and anthropic are imported lazily inside _get_client_for()
 # to avoid ~200-500ms startup cost before the first translation request.
-
 import config
 import settings
-from i18n import tr
 from cache.store import get_cached, save_to_cache
+from i18n import tr
 from translate.domain_manager import load_domain_profile
 from translate.error_classification import is_retryable
 from translate.privacy import loggable
@@ -36,10 +35,12 @@ _logger.setLevel(logging.INFO)
 if not _logger.handlers:
     os.makedirs(config.LOG_DIR, exist_ok=True)
     _fh = RotatingFileHandler(config.LOG_FILE, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
-    _fh.setFormatter(logging.Formatter(
-        "%(asctime)s | %(levelname)-5s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    _fh.setFormatter(
+        logging.Formatter(
+            "%(asctime)s | %(levelname)-5s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     _logger.addHandler(_fh)
 
 # ── LLM clients & resilience ────────────────────────────
@@ -56,8 +57,10 @@ _prompt_cache: dict[str, str] = {}
 # When two threads request the same (text, src, tgt, domain) simultaneously,
 # the second one waits for the first and reuses its result without an extra API call.
 
+
 class _InflightRequest:
     """Shared state between an in-flight owner thread and any waiting threads."""
+
     __slots__ = ("event", "result")
 
     def __init__(self):
@@ -86,6 +89,7 @@ def _get_client_for(provider_name: str):
         if not key:
             return None
         import openai  # lazy: loaded on first translation request
+
         client = openai.OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=key,
@@ -98,6 +102,7 @@ def _get_client_for(provider_name: str):
         if not key:
             return None
         import anthropic  # lazy: loaded on first translation request
+
         client = anthropic.Anthropic(api_key=key)
         _clients_cache["anthropic"] = client
         return client
@@ -153,12 +158,13 @@ def validate_api_key(provider: str, key: str) -> None:
     try:
         if provider == "openrouter":
             import openai
-            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1", api_key=key,
-                                   max_retries=0, timeout=15)
+
+            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1", api_key=key, max_retries=0, timeout=15)
             client.get("/key", cast_to=object)  # /models is public, /key is not
             return
         if provider == "anthropic":
             import anthropic
+
             client = anthropic.Anthropic(api_key=key, max_retries=0, timeout=15)
             client.models.list(limit=1)
             return
@@ -188,7 +194,7 @@ def _strip_reasoning(text: str) -> str:
     text = _THINK_BLOCK.sub("", text)
     m = _THINK_OPEN.search(text)
     if m:
-        text = text[:m.start()]
+        text = text[: m.start()]
     return text
 
 
@@ -262,11 +268,13 @@ def _call_provider(
         # budget on thinking, that text would be shown as the "translation".
         content = _strip_reasoning(getattr(msg, "content", None) or "").strip()
         if not content:
-            raise RuntimeError(tr(
-                "Модель '{model}' вернула пустой текст ответа на OpenRouter. "
-                "Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках.",
-                model=model,
-            ))
+            raise RuntimeError(
+                tr(
+                    "Модель '{model}' вернула пустой текст ответа на OpenRouter. "
+                    "Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках.",
+                    model=model,
+                )
+            )
         return content
 
     if provider == "anthropic":
@@ -318,10 +326,12 @@ def _call_with_resilience(
     """
     chain = get_provider_chain()
     if not chain:
-        raise RuntimeError(tr(
-            "Нет доступных провайдеров — проверьте, что задан хотя бы один API-ключ "
-            "(Anthropic или OpenRouter) в Настройках."
-        ))
+        raise RuntimeError(
+            tr(
+                "Нет доступных провайдеров — проверьте, что задан хотя бы один API-ключ "
+                "(Anthropic или OpenRouter) в Настройках."
+            )
+        )
 
     errors: dict[str, Exception] = {}
     max_retries = getattr(config, "MAX_RETRIES_PER_PROVIDER", 2)
@@ -340,22 +350,30 @@ def _call_with_resilience(
                 if attempt > 0 or provider_name != chain[0]:
                     _logger.warning(
                         "RESILIENCE | succeeded via provider=%s after %d attempt(s), chain=%s",
-                        provider_name, attempt + 1, chain,
+                        provider_name,
+                        attempt + 1,
+                        chain,
                     )
                 return result, provider_name
             except Exception as e:
                 errors[f"{provider_name}#attempt_{attempt}"] = e
                 if is_retryable(e) and attempt < max_retries:
-                    wait = backoff_base * (2 ** attempt)
+                    wait = backoff_base * (2**attempt)
                     _logger.warning(
                         "RESILIENCE | provider=%s attempt=%d failed (%s: %s), retrying in %.1fs",
-                        provider_name, attempt, type(e).__name__, e, wait,
+                        provider_name,
+                        attempt,
+                        type(e).__name__,
+                        e,
+                        wait,
                     )
                     time.sleep(wait)
                     continue
                 _logger.warning(
                     "RESILIENCE | provider=%s exhausted/non-retryable (%s: %s), moving to next in chain",
-                    provider_name, type(e).__name__, e,
+                    provider_name,
+                    type(e).__name__,
+                    e,
                 )
                 break
 
@@ -401,6 +419,7 @@ def _build_system_prompt(domain_id: str, target_lang: str, source_lang: str | No
 
 # ── Public API ───────────────────────────────────────────
 
+
 def translate(
     text: str,
     target_lang: str | None = None,
@@ -430,9 +449,12 @@ def translate(
 
     # 0. Fast-path: Same language check (instant, 0 ms)
     from translate.lang_detect import is_same_language
+
     is_same, detected_or_known = is_same_language(text, target_lang, source_lang=source_lang)
     if is_same:
-        _logger.info("FAST PATH (same language) | src=%s == target=%s | skipping API call", detected_or_known, target_lang)
+        _logger.info(
+            "FAST PATH (same language) | src=%s == target=%s | skipping API call", detected_or_known, target_lang
+        )
         save_to_cache(text, source_lang, target_lang, text, domain_id=domain_id)
         return text
 
@@ -481,7 +503,12 @@ def translate(
         elapsed = time.perf_counter() - t0
         _logger.info(
             "API OK | provider=%s domain=%s model=%s | %.2fs | src=%s | result=%s",
-            provider, domain_id, model, elapsed, loggable(text), loggable(translation),
+            provider,
+            domain_id,
+            model,
+            elapsed,
+            loggable(text),
+            loggable(translation),
         )
 
         # 4. Cache the result with domain_id.
@@ -519,9 +546,12 @@ def detect_and_translate(
 
     # 0. Fast-path: Same language check (instant, 0 ms)
     from translate.lang_detect import is_same_language
+
     is_same, detected_or_known = is_same_language(text, target_lang, source_lang=getattr(config, "SOURCE_LANG", "auto"))
     if is_same:
-        _logger.info("FAST PATH (same language) | detected=%s == target=%s | skipping API call", detected_or_known, target_lang)
+        _logger.info(
+            "FAST PATH (same language) | detected=%s == target=%s | skipping API call", detected_or_known, target_lang
+        )
         save_to_cache(text, "_auto", target_lang, text, domain_id=domain_id)
         return detected_or_known, text
 
@@ -552,9 +582,7 @@ def detect_and_translate(
                 if s_ex and t_ex:
                     sys_parts.append(f"\"{s_ex}\" -> \"{t_ex}\"")
         sys_parts.append(
-            "Reply in EXACTLY this format (two lines, nothing else):\n"
-            "LANG: <ISO 639-1 code>\n"
-            "<translation>"
+            "Reply in EXACTLY this format (two lines, nothing else):\nLANG: <ISO 639-1 code>\n<translation>"
         )
     else:
         sys_parts = [
@@ -624,7 +652,13 @@ def detect_and_translate(
 
     _logger.info(
         "API OK (auto) | provider=%s domain=%s model=%s | %.2fs | lang=%s | src=%s | result=%s",
-        provider, domain_id, model, elapsed, detected_lang, loggable(text), loggable(translation),
+        provider,
+        domain_id,
+        model,
+        elapsed,
+        detected_lang,
+        loggable(text),
+        loggable(translation),
     )
 
     # Cache with the special "_auto" source key.

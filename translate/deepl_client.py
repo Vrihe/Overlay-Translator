@@ -44,9 +44,7 @@ def translate(
     # ── Resolve key ──────────────────────────────────────
     api_key = settings.get_api_key("deepl") or os.getenv("DEEPL_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            tr("DeepL API key missing! Укажите ключ в Настройках.")
-        )
+        raise RuntimeError(tr("DeepL API key missing! Укажите ключ в Настройках."))
 
     # ── Endpoint selection ───────────────────────────────
     if api_key.rstrip().endswith(":fx"):
@@ -65,12 +63,15 @@ def translate(
 
     _logger.info(
         "DeepL %s → target=%s source=%s",
-        "Free" if ":fx" in api_key else "Pro", target, source or "auto",
+        "Free" if ":fx" in api_key else "Pro",
+        target,
+        source or "auto",
     )
 
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
-        url, data=data,
+        url,
+        data=data,
         headers={
             "Authorization": f"DeepL-Auth-Key {api_key}",
             "Content-Type": "application/json",
@@ -89,20 +90,12 @@ def translate(
         except Exception:
             pass
         if exc.code == 403:
-            raise RuntimeError(
-                tr("DeepL: ключ недействителен или заблокирован (403 Forbidden).")
-            ) from exc
+            raise RuntimeError(tr("DeepL: ключ недействителен или заблокирован (403 Forbidden).")) from exc
         if exc.code == 456:
-            raise RuntimeError(
-                tr("DeepL: превышена квота символов. Проверьте лимит вашего тарифа.")
-            ) from exc
-        raise RuntimeError(
-            tr("DeepL API вернул ошибку {code}: {detail}", code=exc.code, detail=detail)
-        ) from exc
+            raise RuntimeError(tr("DeepL: превышена квота символов. Проверьте лимит вашего тарифа.")) from exc
+        raise RuntimeError(tr("DeepL API вернул ошибку {code}: {detail}", code=exc.code, detail=detail)) from exc
     except (urllib.error.URLError, OSError) as exc:
-        raise RuntimeError(
-            tr("Не удалось подключиться к DeepL API: {error}", error=exc)
-        ) from exc
+        raise RuntimeError(tr("Не удалось подключиться к DeepL API: {error}", error=exc)) from exc
 
     translations = result.get("translations", [])
     if not translations:

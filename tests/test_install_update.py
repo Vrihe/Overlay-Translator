@@ -10,6 +10,7 @@ import base64
 import hashlib
 import io
 import json
+import sys
 import tempfile
 import threading
 import unittest
@@ -19,7 +20,12 @@ from unittest import mock
 import config
 from updater import install_update
 from updater.install_update import (
-    INSTALLER_ARGS, DownloadCancelled, Release, download_setup, release_from_json, waiter_script,
+    INSTALLER_ARGS,
+    DownloadCancelled,
+    Release,
+    download_setup,
+    release_from_json,
+    waiter_script,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,11 +34,12 @@ SHA = "ab" * 32
 
 def _release_json(tag="v9.9.9", digest=f"sha256:{SHA}", body="", name="TranslatorOverlay-Setup-9.9.9.exe"):
     return {
-        "tag_name": tag, "html_url": f"https://example.invalid/{tag}", "body": body,
+        "tag_name": tag,
+        "html_url": f"https://example.invalid/{tag}",
+        "body": body,
         "assets": [
             {"name": "notes.txt", "browser_download_url": "x", "size": 1},
-            {"name": name, "browser_download_url": "https://example.invalid/setup.exe",
-             "size": 123, "digest": digest},
+            {"name": name, "browser_download_url": "https://example.invalid/setup.exe", "size": 123, "digest": digest},
         ],
     }
 
@@ -44,11 +51,11 @@ class _Response(io.BytesIO):
 
 
 class TestReleaseFromJson(unittest.TestCase):
-
     def test_uses_githubs_asset_digest(self):
         rel = release_from_json(_release_json())
-        self.assertEqual((rel.tag, rel.setup_name, rel.sha256, rel.size),
-                         ("v9.9.9", "TranslatorOverlay-Setup-9.9.9.exe", SHA, 123))
+        self.assertEqual(
+            (rel.tag, rel.setup_name, rel.sha256, rel.size), ("v9.9.9", "TranslatorOverlay-Setup-9.9.9.exe", SHA, 123)
+        )
 
     def test_falls_back_to_the_checksum_in_the_notes(self):
         body = f"Notes\n\nSHA-256 of `TranslatorOverlay-Setup-9.9.9.exe`: `{SHA.upper()}`\n"
@@ -63,11 +70,12 @@ class TestReleaseFromJson(unittest.TestCase):
 
 
 class TestLatestRelease(unittest.TestCase):
-
     def _latest(self, tag, app_version):
         data = json.dumps(_release_json(tag=tag)).encode()
-        with mock.patch.object(install_update.urllib.request, "urlopen", return_value=_Response(data)), \
-                mock.patch.object(type(config), "APP_VERSION", app_version, create=False):
+        with (
+            mock.patch.object(install_update.urllib.request, "urlopen", return_value=_Response(data)),
+            mock.patch.object(type(config), "APP_VERSION", app_version, create=False),
+        ):
             return install_update.latest_release()
 
     def test_newer_release(self):
@@ -79,17 +87,19 @@ class TestLatestRelease(unittest.TestCase):
 
 
 class TestDownload(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.dir = Path(self._tmp.name)
 
     def _download(self, data: bytes, sha: str, cancel=None):
-        rel = Release("v9.9.9", "u", "https://example.invalid/s.exe",
-                      "TranslatorOverlay-Setup-9.9.9.exe", sha, len(data))
-        with mock.patch.object(install_update.urllib.request, "urlopen", return_value=_Response(data)), \
-                mock.patch.object(install_update, "_CHUNK", 16):
+        rel = Release(
+            "v9.9.9", "u", "https://example.invalid/s.exe", "TranslatorOverlay-Setup-9.9.9.exe", sha, len(data)
+        )
+        with (
+            mock.patch.object(install_update.urllib.request, "urlopen", return_value=_Response(data)),
+            mock.patch.object(install_update, "_CHUNK", 16),
+        ):
             return download_setup(rel, dest_dir=self.dir, cancel=cancel)
 
     def test_verified_download(self):
@@ -112,7 +122,6 @@ class TestDownload(unittest.TestCase):
 
 
 class TestLaunch(unittest.TestCase):
-
     def test_waiter_waits_for_the_app_then_runs_the_setup_silently(self):
         script = waiter_script(Path(r"C:\Temp\it's here\Setup.exe"), 4242)
         self.assertTrue(script.startswith("Wait-Process -Id 4242"))
@@ -121,6 +130,7 @@ class TestLaunch(unittest.TestCase):
             self.assertIn(f"'{arg}'", script)
         self.assertLess(script.index("Wait-Process"), script.index("Start-Process"))
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows process creation flags")
     def test_launch_starts_a_hidden_encoded_powershell(self):
         with mock.patch.object(install_update.subprocess, "Popen") as popen:
             install_update.launch_installer(Path(r"C:\Temp\Setup.exe"), pid=7)
@@ -138,9 +148,11 @@ class TestLaunch(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "TranslatorOverlay.exe"
             exe.write_bytes(b"")
-            with mock.patch.object(install_update.sys, "frozen", True, create=True), \
-                    mock.patch.object(install_update.sys, "executable", str(exe)):
-                self.assertFalse(install_update.can_self_update())   # copied dist folder
+            with (
+                mock.patch.object(install_update.sys, "frozen", True, create=True),
+                mock.patch.object(install_update.sys, "executable", str(exe)),
+            ):
+                self.assertFalse(install_update.can_self_update())  # copied dist folder
                 (Path(tmp) / "unins000.exe").write_bytes(b"")
                 self.assertEqual(install_update.can_self_update(), install_update.os.name == "nt")
         self.assertFalse(install_update.can_self_update())  # source run: not frozen

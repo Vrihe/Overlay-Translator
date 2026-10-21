@@ -13,14 +13,15 @@ No GPU, network or real model is needed: the RapidOCR engine is a mock.
 """
 
 import importlib.util
-import sys
 import os
+import sys
 import tempfile
 import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+
 import numpy as np
 from PIL import Image
 
@@ -28,7 +29,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import config
 from ocr import engine
-from ocr.engine import preprocess, _sort_results, _should_use_gpu, recognise
+from ocr.engine import _should_use_gpu, _sort_results, preprocess, recognise
 
 
 def _engine_output(items):
@@ -114,9 +115,11 @@ class TestGPUResolution(unittest.TestCase):
     """Test GPU option resolving."""
 
     def _decide(self, legacy="auto", mode="auto", dml=True):
-        with patch.object(type(config), "EASYOCR_GPU", legacy), \
-                patch.object(type(config), "OCR_GPU_MODE", mode), \
-                patch.object(engine, "_dml_available", return_value=dml):
+        with (
+            patch.object(type(config), "EASYOCR_GPU", legacy),
+            patch.object(type(config), "OCR_GPU_MODE", mode),
+            patch.object(engine, "_dml_available", return_value=dml),
+        ):
             return _should_use_gpu()
 
     def test_auto_follows_directml(self):
@@ -136,9 +139,11 @@ class TestGPUMode(unittest.TestCase):
     """Test the OCR_GPU_MODE setting → DirectML decision."""
 
     def _decide(self, mode, dml=True, legacy="auto"):
-        with patch.object(type(config), "EASYOCR_GPU", legacy), \
-             patch.object(type(config), "OCR_GPU_MODE", mode), \
-             patch("ocr.engine._dml_available", return_value=dml):
+        with (
+            patch.object(type(config), "EASYOCR_GPU", legacy),
+            patch.object(type(config), "OCR_GPU_MODE", mode),
+            patch("ocr.engine._dml_available", return_value=dml),
+        ):
             return engine._should_use_gpu()
 
     def test_auto_uses_directml_when_available(self):
@@ -163,12 +168,14 @@ class TestRecLanguage(unittest.TestCase):
 
     def test_cyrillic_languages_use_eslav(self):
         from rapidocr import LangRec
+
         self.assertEqual(engine._rec_lang(["en", "ru"]), LangRec.ESLAV)
         self.assertEqual(engine._rec_lang(["uk"]), LangRec.ESLAV)
         self.assertEqual(engine._rec_lang([]), LangRec.ESLAV)
 
     def test_english_only_uses_en(self):
         from rapidocr import LangRec
+
         self.assertEqual(engine._rec_lang(["en"]), LangRec.EN)
 
 
@@ -187,8 +194,7 @@ class TestModelDir(unittest.TestCase):
 
             fake = types.ModuleType("rapidocr")
             fake.__file__ = str(pkg / "__init__.py")
-            with patch.dict(sys.modules, {"rapidocr": fake}), \
-                 patch.object(type(config), "USER_DATA_DIR", user):
+            with patch.dict(sys.modules, {"rapidocr": fake}), patch.object(type(config), "USER_DATA_DIR", user):
                 model_dir = engine._model_dir()
 
             self.assertEqual(model_dir, user / "ocr_models")
@@ -204,10 +210,12 @@ class TestRecogniseMocked(unittest.TestCase):
 
     @patch("ocr.engine.get_reader")
     def test_recognise_filters_low_confidence(self, mock_get_reader):
-        mock_get_reader.return_value = _mock_engine([
-            ([[10, 10], [100, 10], [100, 25], [10, 25]], "Надёжный текст", 0.85),
-            ([[10, 30], [100, 30], [100, 45], [10, 45]], "Мусорный шум", 0.10),
-        ])
+        mock_get_reader.return_value = _mock_engine(
+            [
+                ([[10, 10], [100, 10], [100, 25], [10, 25]], "Надёжный текст", 0.85),
+                ([[10, 30], [100, 30], [100, 45], [10, 45]], "Мусорный шум", 0.10),
+            ]
+        )
 
         img = Image.new("RGB", (100, 100))
         text = recognise(img)
@@ -215,9 +223,11 @@ class TestRecogniseMocked(unittest.TestCase):
 
     @patch("ocr.engine.get_reader")
     def test_recognise_returns_empty_when_all_low_confidence(self, mock_get_reader):
-        mock_get_reader.return_value = _mock_engine([
-            ([[10, 10], [100, 10], [100, 25], [10, 25]], "noise", 0.05),
-        ])
+        mock_get_reader.return_value = _mock_engine(
+            [
+                ([[10, 10], [100, 10], [100, 25], [10, 25]], "noise", 0.05),
+            ]
+        )
 
         img = Image.new("RGB", (100, 100))
         text = recognise(img)
@@ -231,10 +241,12 @@ class TestRecogniseMocked(unittest.TestCase):
     @patch("ocr.engine.get_reader")
     def test_strip_mode_offsets_boxes(self, mock_get_reader):
         # Each strip reports one line at y=10; strips start at y=0 and y=300.
-        mock_get_reader.return_value = MagicMock(side_effect=[
-            _engine_output([([[10, 10], [90, 10], [90, 25], [10, 25]], "верх", 0.9)]),
-            _engine_output([([[10, 10], [90, 10], [90, 25], [10, 25]], "низ", 0.9)]),
-        ])
+        mock_get_reader.return_value = MagicMock(
+            side_effect=[
+                _engine_output([([[10, 10], [90, 10], [90, 25], [10, 25]], "верх", 0.9)]),
+                _engine_output([([[10, 10], [90, 10], [90, 25], [10, 25]], "низ", 0.9)]),
+            ]
+        )
         img = Image.new("RGB", (200, 600), "white")
         # Give both strips some contrast so neither is skipped as blank.
         img.paste((0, 0, 0), (0, 0, 50, 50))

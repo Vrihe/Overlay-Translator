@@ -9,9 +9,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import config
 from PIL import Image
 
+import config
 from ocr import engine
 from translate import domain_manager, llm_client
 from translate.privacy import loggable
@@ -34,8 +34,10 @@ class TestOcrLogging(unittest.TestCase):
     SECRET = "my password is hunter2"
 
     def _extract_logs(self):
-        with mock.patch.object(engine, "_extract_single", return_value=self.SECRET), \
-                self.assertLogs(level="DEBUG") as logs:
+        with (
+            mock.patch.object(engine, "_extract_single", return_value=self.SECRET),
+            self.assertLogs(level="DEBUG") as logs,
+        ):
             self.assertEqual(engine.extract_text(Image.new("RGB", (10, 10))), self.SECRET)
         return "\n".join(logs.output)
 

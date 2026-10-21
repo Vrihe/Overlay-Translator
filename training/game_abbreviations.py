@@ -66,30 +66,70 @@ OUT_DIR = _PROJECT_ROOT / "data" / "interim" / "v2"
 APP_GLOSSARY = _PROJECT_ROOT / "translate" / "glossary" / "game_en.json"
 GLOSSARY_VERSION = 2
 # Meanings that read better in a translated chat line than the literal expansion.
-APP_MEANING_OVERRIDE = {"rng": "luck", "lol": "haha", "xd": "haha", "gank": "ambush", "rngesus": "luck",
-                        # two meanings in the glossary; the chat reading is far more common
-                        "inv": "invite", "lf": "looking for", "pog": "awesome", "poggers": "awesome",
-                        "kekw": "haha", "lul": "haha", "lulw": "haha", "omegalul": "haha",
-                        # trade / group ads: without a subject NLLB writes «Хотите продать», «Вы ищете»
-                        "wts": "I want to sell", "wtb": "I want to buy", "wtt": "I want to trade",
-                        "lfg": "I'm looking for a group", "lfm": "we need more players",
-                        # "overpowered" comes out as «одержимы победой»
-                        "op": "too strong"}
+APP_MEANING_OVERRIDE = {
+    "rng": "luck",
+    "lol": "haha",
+    "xd": "haha",
+    "gank": "ambush",
+    "rngesus": "luck",
+    # two meanings in the glossary; the chat reading is far more common
+    "inv": "invite",
+    "lf": "looking for",
+    "pog": "awesome",
+    "poggers": "awesome",
+    "kekw": "haha",
+    "lul": "haha",
+    "lulw": "haha",
+    "omegalul": "haha",
+    # trade / group ads: without a subject NLLB writes «Хотите продать», «Вы ищете»
+    "wts": "I want to sell",
+    "wtb": "I want to buy",
+    "wtt": "I want to trade",
+    "lfg": "I'm looking for a group",
+    "lfm": "we need more players",
+    # "overpowered" comes out as «одержимы победой»
+    "op": "too strong",
+}
 
 SEED = 42
-PLAIN_ZIPF = 3.0          # meaning == abbr and at least this common -> ordinary word
-COMMON_ZIPF = 4.0         # KEEP abbreviation this common -> indistinguishable from the word
-TRAIN_LANGS = 3           # target languages per train phrase
+PLAIN_ZIPF = 3.0  # meaning == abbr and at least this common -> ordinary word
+COMMON_ZIPF = 4.0  # KEEP abbreviation this common -> indistinguishable from the word
+TRAIN_LANGS = 3  # target languages per train phrase
 # Plain negatives get every language: with 3 the v2 run left ordinary words untranslated
 # (83 of 513 test words copied verbatim vs 53 for v0-base).
 PLAIN_TRAIN_LANGS = 9
 EXAMPLE_TEST, EXAMPLE_VAL = 0.20, 0.10
 PLAIN_TEST, PLAIN_VAL = 0.10, 0.05
-MAX_PLAIN = 600           # plain negatives are a regulariser, not the task
+MAX_PLAIN = 600  # plain negatives are a regulariser, not the task
 
 # Common-word spellings that are still standard game abbreviations in chat.
-COMMON_KEEP_ALLOW = {"op", "hp", "mp", "ap", "ad", "cc", "cd", "dps", "ah", "mvp", "aoe", "pve", "pvp",
-                     "dm", "eu", "na", "bis", "ms", "ar", "smg", "mg", "dot", "hot", "los", "k/d"}
+COMMON_KEEP_ALLOW = {
+    "op",
+    "hp",
+    "mp",
+    "ap",
+    "ad",
+    "cc",
+    "cd",
+    "dps",
+    "ah",
+    "mvp",
+    "aoe",
+    "pve",
+    "pvp",
+    "dm",
+    "eu",
+    "na",
+    "bis",
+    "ms",
+    "ar",
+    "smg",
+    "mg",
+    "dot",
+    "hot",
+    "los",
+    "k/d",
+}
 # Single letters are only usable as a whole utterance ("F", "W") or with a number ("100g");
 # as a token inside a phrase "a", "e", "s" are ordinary words.
 SINGLE_TRANSLATE_ALLOW = {"u", "r", "y", "k"}
@@ -97,8 +137,21 @@ SINGLE_TRANSLATE_ALLOW = {"u", "r", "y", "k"}
 # meaning is game-specific (creep = creep tumor, all = alliance) and expanding it is wrong.
 SOCIAL_SECTION = 1
 # TRANSLATE rows that are ordinary words with a narrower meaning in the glossary.
-TRANSLATE_DENY = {"all", "firm", "fixed", "neck", "duo", "trio", "quad", "pro", "pros", "admin",
-                  "app", "apps", "whisper"}
+TRANSLATE_DENY = {
+    "all",
+    "firm",
+    "fixed",
+    "neck",
+    "duo",
+    "trio",
+    "quad",
+    "pro",
+    "pros",
+    "admin",
+    "app",
+    "apps",
+    "whisper",
+}
 # Chat writes "2 min", "30 sec": the plural is the usual reading.
 EXPANSION_OVERRIDE = {"min": "minutes", "sec": "seconds"}
 NUMBER_SUFFIXES = {"g", "gp", "k", "kk", "m", "b", "cr", "c", "s", "sp", "cp", "pp", "mil", "mill"}
@@ -118,8 +171,16 @@ def parse_source(path: Path = SOURCE_TXT) -> tuple[list[dict], list[str]]:
             continue
         parts = [p.strip() for p in line.split("|")]
         if len(parts) == 4:
-            rows.append({"line": lineno, "section": section, "abbr": parts[0], "meaning": parts[1],
-                         "policy": parts[2], "example": parts[3]})
+            rows.append(
+                {
+                    "line": lineno,
+                    "section": section,
+                    "abbr": parts[0],
+                    "meaning": parts[1],
+                    "policy": parts[2],
+                    "example": parts[3],
+                }
+            )
         elif len(parts) == 1:
             templates.append(line)
         else:
@@ -184,8 +245,7 @@ def build_lexicon(rows: list[dict], v1: list[dict]) -> tuple[dict[str, dict], li
             continue
         mode = modes.pop()
         expansion = EXPANSION_OVERRIDE.get(abbr, cands[0][2]["meaning"]) if mode == "translate" else None
-        lexicon[abbr] = {"mode": mode, "expansion": expansion,
-                         "source": "v2", "rows": [r["line"] for _, _, r in cands]}
+        lexicon[abbr] = {"mode": mode, "expansion": expansion, "source": "v2", "rows": [r["line"] for _, _, r in cands]}
     return lexicon, dropped
 
 
@@ -196,7 +256,7 @@ def lookup(token: str, lexicon: dict[str, dict]) -> tuple[str, dict] | None:
         entry = lexicon.get(cand)
         if entry and (len(cand) > 1 or entry["mode"] == "translate"):
             start = low.find(cand)
-            return token[start:start + len(cand)], entry
+            return token[start : start + len(cand)], entry
     num = re.fullmatch(r"[+]?\d+(?:[.,]\d+)?([a-z]+)", low.strip(STRIP))
     if num and num.group(1) in NUMBER_SUFFIXES:
         core = token.strip(STRIP)
@@ -211,7 +271,7 @@ def analyse(short: str, lexicon: dict[str, dict], own: tuple[str, dict] | None =
         hit = None
         if own is not None and token.lower().strip(STRIP) == own[0]:
             start = token.lower().find(own[0])
-            hit = token[start:start + len(own[0])], own[1]
+            hit = token[start : start + len(own[0])], own[1]
         hit = hit or lookup(token, lexicon)
         if hit is None or hit[1]["mode"] == "plain":
             out_tokens.append(token)
@@ -227,8 +287,7 @@ def analyse(short: str, lexicon: dict[str, dict], own: tuple[str, dict] | None =
     if full and short[:1].isupper() and expanded:
         full = full[0].upper() + full[1:]
     mode = "translate" if expanded else "keep" if keep_terms else "plain"
-    return {"full": full, "keep_terms": sorted(set(keep_terms), key=str.lower), "expanded": expanded,
-            "mode": mode}
+    return {"full": full, "keep_terms": sorted(set(keep_terms), key=str.lower), "expanded": expanded, "mode": mode}
 
 
 def app_glossary(rows: list[dict], lexicon: dict[str, dict]) -> dict[str, str | None]:
@@ -247,8 +306,9 @@ def app_glossary(rows: list[dict], lexicon: dict[str, dict]) -> dict[str, str | 
         else:
             found = meanings.get(term, set())
             meaning = next(iter(found)) if len(found) == 1 else ""
-            usable = (meaning and meaning.lower() != term and "/" not in meaning
-                      and not any(c.isupper() for c in meaning))
+            usable = (
+                meaning and meaning.lower() != term and "/" not in meaning and not any(c.isupper() for c in meaning)
+            )
             out[term] = meaning if usable else None
     return out
 
@@ -293,14 +353,17 @@ def main() -> int:
             continue
         own = (r["abbr"].lower(), entry) if entry else None
         x = rng.random()
-        add(r["example"], "example", "test" if x < EXAMPLE_TEST else "val" if x < EXAMPLE_TEST + EXAMPLE_VAL
-            else "train", own)
+        add(
+            r["example"],
+            "example",
+            "test" if x < EXAMPLE_TEST else "val" if x < EXAMPLE_TEST + EXAMPLE_VAL else "train",
+            own,
+        )
 
     # 3. every v2 lexicon entry alone and in two chat wrappers -> train
     for abbr in sorted(a for a, e in lexicon.items() if e["source"] == "v2" and e["mode"] != "plain"):
         entry = lexicon[abbr]
-        alone = next((r["example"] for r in rows if r["abbr"].lower() == abbr
-                      and r["example"].lower() == abbr), abbr)
+        alone = next((r["example"] for r in rows if r["abbr"].lower() == abbr and r["example"].lower() == abbr), abbr)
         own = (abbr, entry)
         add(alone, "alone", "train", own)
         upper = abbr.isalpha() and len(abbr) <= 5 and rng.random() < 0.5
@@ -309,8 +372,12 @@ def main() -> int:
 
     # 4. plain negatives: ordinary words should still translate normally
     plain_src = [r["example"] for r in plain_rows] + sorted(
-        {r["example"] for r in rows if r["example"].lower() == r["abbr"].lower()
-         and lexicon.get(r["abbr"].lower(), {}).get("mode") == "plain"})
+        {
+            r["example"]
+            for r in rows
+            if r["example"].lower() == r["abbr"].lower() and lexicon.get(r["abbr"].lower(), {}).get("mode") == "plain"
+        }
+    )
     rng.shuffle(plain_src)
     for s in plain_src[:MAX_PLAIN]:
         x = rng.random()
@@ -320,23 +387,37 @@ def main() -> int:
     for key, p in phrases.items():
         # seeded by the phrase itself, so adding or removing phrases never reshuffles the others
         n_langs = PLAIN_TRAIN_LANGS if p["mode"] == "plain" else TRAIN_LANGS
-        p["langs"] = (sorted(random.Random(f"{SEED}:{key}").sample(langs, n_langs))
-                      if p["split"] == "train" and n_langs < len(langs) else langs)
+        p["langs"] = (
+            sorted(random.Random(f"{SEED}:{key}").sample(langs, n_langs))
+            if p["split"] == "train" and n_langs < len(langs)
+            else langs
+        )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "lexicon.json").write_text(json.dumps(lexicon, indent=1, ensure_ascii=False), encoding="utf-8")
     glossary = app_glossary(rows, lexicon)
     APP_GLOSSARY.parent.mkdir(parents=True, exist_ok=True)
-    APP_GLOSSARY.write_text(json.dumps({"version": GLOSSARY_VERSION, "source_lang": "en", "terms": glossary},
-                                       indent=0, ensure_ascii=False), encoding="utf-8")
+    APP_GLOSSARY.write_text(
+        json.dumps({"version": GLOSSARY_VERSION, "source_lang": "en", "terms": glossary}, indent=0, ensure_ascii=False),
+        encoding="utf-8",
+    )
     with (OUT_DIR / "game_phrases.jsonl").open("w", encoding="utf-8") as f:
         for p in phrases.values():
             f.write(json.dumps(p, ensure_ascii=False) + "\n")
     reasons = Counter(d["reason"].split(":")[0].split(" (")[0] for d in dropped)
-    (OUT_DIR / "curation_report.json").write_text(json.dumps(
-        {"rows": len(rows), "templates": len(templates), "dropped_by_reason": reasons,
-         "dropped": [{k: d[k] for k in ("line", "abbr", "meaning", "policy", "reason")} for d in dropped]},
-        indent=1, ensure_ascii=False), encoding="utf-8")
+    (OUT_DIR / "curation_report.json").write_text(
+        json.dumps(
+            {
+                "rows": len(rows),
+                "templates": len(templates),
+                "dropped_by_reason": reasons,
+                "dropped": [{k: d[k] for k in ("line", "abbr", "meaning", "policy", "reason")} for d in dropped],
+            },
+            indent=1,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
     lex_modes = Counter((e["source"], e["mode"]) for e in lexicon.values())
     print(f"Rows: {len(rows)} glossary + {len(templates)} templates")
@@ -346,8 +427,10 @@ def main() -> int:
     print(f"Phrases: {len(phrases)} {dict(sorted(split_mode.items()))}")
     print(f"Pairs to translate: {sum(len(p['langs']) for p in phrases.values())}")
     print(f"Saved to {OUT_DIR.relative_to(_PROJECT_ROOT)}")
-    print(f"App glossary: {sum(v is not None for v in glossary.values())} expanded, "
-          f"{sum(v is None for v in glossary.values())} protected -> {APP_GLOSSARY.relative_to(_PROJECT_ROOT)}")
+    print(
+        f"App glossary: {sum(v is not None for v in glossary.values())} expanded, "
+        f"{sum(v is None for v in glossary.values())} protected -> {APP_GLOSSARY.relative_to(_PROJECT_ROOT)}"
+    )
     return 0
 
 

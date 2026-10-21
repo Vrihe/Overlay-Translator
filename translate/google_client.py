@@ -28,9 +28,7 @@ _logger = logging.getLogger("translator.google")
 _TIMEOUT = 5  # seconds
 
 _USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/126.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
 
@@ -38,20 +36,21 @@ _USER_AGENT = (
 
 
 def _translate_official(
-    text: str, target: str, source: str | None, api_key: str,
+    text: str,
+    target: str,
+    source: str | None,
+    api_key: str,
 ) -> tuple[str, str]:
     """Use the paid Cloud Translation API v2."""
-    url = (
-        f"https://translation.googleapis.com/language/translate/v2"
-        f"?key={urllib.parse.quote(api_key, safe='')}"
-    )
+    url = f"https://translation.googleapis.com/language/translate/v2?key={urllib.parse.quote(api_key, safe='')}"
     body: dict = {"q": text, "target": target, "format": "text"}
     if source:
         body["source"] = source
 
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
-        url, data=data,
+        url,
+        data=data,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -69,9 +68,7 @@ def _translate_official(
             tr("Google Cloud Translation API вернул ошибку {code}: {detail}", code=exc.code, detail=detail)
         ) from exc
     except (urllib.error.URLError, OSError) as exc:
-        raise RuntimeError(
-            tr("Не удалось подключиться к Google Cloud Translation API: {error}", error=exc)
-        ) from exc
+        raise RuntimeError(tr("Не удалось подключиться к Google Cloud Translation API: {error}", error=exc)) from exc
 
     translations = result.get("data", {}).get("translations", [])
     if not translations:
@@ -87,17 +84,21 @@ def _translate_official(
 
 
 def _translate_free(
-    text: str, target: str, source: str | None,
+    text: str,
+    target: str,
+    source: str | None,
 ) -> tuple[str, str]:
     """Use the public gtx endpoint — no API key required."""
     sl = source or "auto"
-    params = urllib.parse.urlencode({
-        "client": "gtx",
-        "sl": sl,
-        "tl": target,
-        "dt": "t",
-        "q": text,
-    })
+    params = urllib.parse.urlencode(
+        {
+            "client": "gtx",
+            "sl": sl,
+            "tl": target,
+            "dt": "t",
+            "q": text,
+        }
+    )
     url = f"https://translate.googleapis.com/translate_a/single?{params}"
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
 
@@ -105,21 +106,15 @@ def _translate_free(
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(
-            tr("Google Translate (Web RPC) вернул ошибку {code}.", code=exc.code)
-        ) from exc
+        raise RuntimeError(tr("Google Translate (Web RPC) вернул ошибку {code}.", code=exc.code)) from exc
     except (urllib.error.URLError, OSError) as exc:
-        raise RuntimeError(
-            tr("Не удалось подключиться к Google Translate: {error}", error=exc)
-        ) from exc
+        raise RuntimeError(tr("Не удалось подключиться к Google Translate: {error}", error=exc)) from exc
 
     data = json.loads(raw)
 
     # data[0] is a list of [translated_segment, original_segment, ...] lists.
     segments = data[0] if isinstance(data[0], list) else []
-    translated = "".join(
-        seg[0] for seg in segments if isinstance(seg, list) and seg[0]
-    )
+    translated = "".join(seg[0] for seg in segments if isinstance(seg, list) and seg[0])
     if not translated:
         raise RuntimeError(tr("Google Translate вернул пустой ответ."))
 

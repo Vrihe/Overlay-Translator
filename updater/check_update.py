@@ -6,9 +6,8 @@ Checks GitHub API for the latest release and compares semantic versions.
 
 import json
 import logging
-import urllib.request
 import urllib.error
-from typing import Tuple
+import urllib.request
 
 import config
 
@@ -30,7 +29,7 @@ def _parse_version(v_str: str) -> tuple[int, ...]:
     return tuple(parts)
 
 
-def check_for_update(repo: str | None = None) -> Tuple[bool, str, str]:
+def check_for_update(repo: str | None = None) -> tuple[bool, str, str]:
     """Check GitHub Releases for a newer version.
 
     Parameters

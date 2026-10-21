@@ -7,9 +7,9 @@ overlay across the entire virtual desktop.  The returned coordinates
 are always in the global screen coordinate system.
 """
 
-from PyQt5.QtWidgets import QWidget, QApplication
-from PyQt5.QtCore import Qt, QRect, QPoint, pyqtSignal
-from PyQt5.QtGui import QPainter, QColor, QPen, QCursor
+from PyQt5.QtCore import QPoint, QRect, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QCursor, QPainter, QPen
+from PyQt5.QtWidgets import QApplication, QWidget
 
 from i18n import tr
 from ui import theme
@@ -43,11 +43,11 @@ class RegionSelector(QWidget):
     # ── Visual tunables ──────────────────────────────────
     # Accent-coloured selection / border come from the palette at construction
     # (ui/theme.py), not at import, so the configured theme is used.
-    _OVERLAY_COLOR = QColor(0, 0, 0, 120)        # dark semi-transparent bg
-    _SELECTION_ALPHA = 30                         # accent fill inside rect
-    _BORDER_ALPHA = 220                           # accent border
+    _OVERLAY_COLOR = QColor(0, 0, 0, 120)  # dark semi-transparent bg
+    _SELECTION_ALPHA = 30  # accent fill inside rect
+    _BORDER_ALPHA = 220  # accent border
     _BORDER_WIDTH = 1
-    _BRACKET_LEN = 8                              # HUD corner brackets
+    _BRACKET_LEN = 8  # HUD corner brackets
     _BRACKET_WIDTH = 2
     _HINT_COLOR = QColor(255, 255, 255, 180)
 
@@ -58,8 +58,8 @@ class RegionSelector(QWidget):
         self._border_color = theme.qcolor("accent", self._BORDER_ALPHA)
         self._bracket_color = theme.qcolor("accent")
 
-        self._origin = QPoint()       # mouse-down point (widget coords)
-        self._current = QPoint()      # current mouse position
+        self._origin = QPoint()  # mouse-down point (widget coords)
+        self._current = QPoint()  # current mouse position
         self._selecting = False
 
         # Origin of the virtual desktop in global coords.
@@ -73,9 +73,7 @@ class RegionSelector(QWidget):
 
         # ── Window flags ─────────────────────────────────
         self.setWindowFlags(
-            Qt.FramelessWindowHint
-            | Qt.WindowStaysOnTopHint
-            | Qt.Tool                 # hide from taskbar
+            Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool  # hide from taskbar
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_DeleteOnClose)
@@ -111,8 +109,8 @@ class RegionSelector(QWidget):
         # Position the window at the virtual desktop origin and stretch
         # it to cover every pixel across all monitors.
         self.setGeometry(vd)
-        self.show()           # show() instead of showFullScreen() so WM
-        self.activateWindow() # doesn't clamp us to one monitor.
+        self.show()  # show() instead of showFullScreen() so WM
+        self.activateWindow()  # doesn't clamp us to one monitor.
         self.raise_()
 
     # ── Coordinate helpers ───────────────────────────────
@@ -156,8 +154,10 @@ class RegionSelector(QWidget):
 
             self.close()
             self.region_selected.emit(
-                global_tl.x(), global_tl.y(),
-                global_br.x(), global_br.y(),
+                global_tl.x(),
+                global_tl.y(),
+                global_br.x(),
+                global_br.y(),
             )
 
     # ── Keyboard events ──────────────────────────────────
@@ -185,26 +185,22 @@ class RegionSelector(QWidget):
             oc = self._OVERLAY_COLOR
             # top strip
             painter.fillRect(
-                QRect(full.left(), full.top(), full.width(),
-                      sel.top() - full.top()),
+                QRect(full.left(), full.top(), full.width(), sel.top() - full.top()),
                 oc,
             )
             # bottom strip
             painter.fillRect(
-                QRect(full.left(), sel.bottom() + 1, full.width(),
-                      full.bottom() - sel.bottom()),
+                QRect(full.left(), sel.bottom() + 1, full.width(), full.bottom() - sel.bottom()),
                 oc,
             )
             # left strip (between top and bottom strips)
             painter.fillRect(
-                QRect(full.left(), sel.top(),
-                      sel.left() - full.left(), sel.height() + 1),
+                QRect(full.left(), sel.top(), sel.left() - full.left(), sel.height() + 1),
                 oc,
             )
             # right strip
             painter.fillRect(
-                QRect(sel.right() + 1, sel.top(),
-                      full.right() - sel.right(), sel.height() + 1),
+                QRect(sel.right() + 1, sel.top(), full.right() - sel.right(), sel.height() + 1),
                 oc,
             )
 
@@ -231,8 +227,7 @@ class RegionSelector(QWidget):
             lx = sel.right() - label_rect.width() - 6
             ly = sel.bottom() - 6
             # background for readability
-            bg = QRect(lx - 4, ly - label_rect.height() - 2,
-                       label_rect.width() + 8, label_rect.height() + 6)
+            bg = QRect(lx - 4, ly - label_rect.height() - 2, label_rect.width() + 8, label_rect.height() + 6)
             painter.fillRect(bg, QColor(0, 0, 0, 160))
             painter.drawText(lx, ly, label)
         else:

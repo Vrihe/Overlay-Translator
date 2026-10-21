@@ -44,20 +44,20 @@ def _get_profiles_dir() -> Path:
 
 def _get_custom_profiles_dirs() -> list[Path]:
     """Return list of search directories for custom profiles.
-    
+
     1. Local translate/domain_profiles/custom/
     2. %APPDATA%/translator-overlay/domain_profiles/custom/
     """
     dirs: list[Path] = []
-    
+
     # 1. Project local directory
     local_dir = _get_profiles_dir() / "custom"
     dirs.append(local_dir)
-    
+
     # 2. AppData user directory
     user_dir = _get_user_data_dir() / "domain_profiles" / "custom"
     dirs.append(user_dir)
-    
+
     return dirs
 
 
@@ -74,7 +74,7 @@ def _get_writable_custom_dir() -> Path:
         return local_dir
     except (OSError, PermissionError):
         pass
-    
+
     user_dir = _get_user_data_dir() / "domain_profiles" / "custom"
     user_dir.mkdir(parents=True, exist_ok=True)
     return user_dir
@@ -112,6 +112,7 @@ def display_name_of(profile: dict[str, Any]) -> str:
         return name
     return tr(_BUILTIN_DISPLAY_NAMES.get(profile.get("id"), name))
 
+
 # Profile ids become file names; anything else (e.g. "../x" from a hand-edited
 # settings.json) must never reach the filesystem.
 _SAFE_ID = re.compile(r"^\w+$")
@@ -130,11 +131,39 @@ def generate_slug(display_name: str) -> str:
     """Generate a clean URL/filename-safe slug from display_name."""
     s = display_name.strip().lower()
     translit = {
-        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
-        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
-        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
-        'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
-        'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+        'а': 'a',
+        'б': 'b',
+        'в': 'v',
+        'г': 'g',
+        'д': 'd',
+        'е': 'e',
+        'ё': 'yo',
+        'ж': 'zh',
+        'з': 'z',
+        'и': 'i',
+        'й': 'y',
+        'к': 'k',
+        'л': 'l',
+        'м': 'm',
+        'н': 'n',
+        'о': 'o',
+        'п': 'p',
+        'р': 'r',
+        'с': 's',
+        'т': 't',
+        'у': 'u',
+        'ф': 'f',
+        'х': 'h',
+        'ц': 'ts',
+        'ч': 'ch',
+        'ш': 'sh',
+        'щ': 'sch',
+        'ъ': '',
+        'ы': 'y',
+        'ь': '',
+        'э': 'e',
+        'ю': 'yu',
+        'я': 'ya',
     }
     res = []
     for char in s:
@@ -165,7 +194,7 @@ def load_domain_profile(domain_id: str) -> dict[str, Any]:
         fp = custom_dir / f"{clean_id}.json"
         if fp.exists():
             try:
-                with open(fp, "r", encoding="utf-8") as f:
+                with open(fp, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict) and "system_prompt" in data:
                     data["is_custom"] = True
@@ -181,7 +210,7 @@ def load_domain_profile(domain_id: str) -> dict[str, Any]:
 
     if filepath.exists():
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict) and "system_prompt" in data:
                 data["is_custom"] = False
@@ -205,13 +234,15 @@ def list_available_domains() -> list[dict[str, Any]]:
         fp = profiles_dir / f"{dom_id}.json"
         if fp.exists():
             try:
-                with open(fp, "r", encoding="utf-8") as f:
+                with open(fp, encoding="utf-8") as f:
                     data = json.load(f)
-                domains.append({
-                    "id": data.get("id", dom_id),
-                    "display_name": data.get("display_name", dom_id.capitalize()),
-                    "is_custom": False,
-                })
+                domains.append(
+                    {
+                        "id": data.get("id", dom_id),
+                        "display_name": data.get("display_name", dom_id.capitalize()),
+                        "is_custom": False,
+                    }
+                )
                 seen.add(dom_id)
             except Exception:
                 pass
@@ -222,13 +253,15 @@ def list_available_domains() -> list[dict[str, Any]]:
             dom_id = fp.stem
             if dom_id not in seen and dom_id != "custom":
                 try:
-                    with open(fp, "r", encoding="utf-8") as f:
+                    with open(fp, encoding="utf-8") as f:
                         data = json.load(f)
-                    domains.append({
-                        "id": data.get("id", dom_id),
-                        "display_name": data.get("display_name", dom_id.capitalize()),
-                        "is_custom": False,
-                    })
+                    domains.append(
+                        {
+                            "id": data.get("id", dom_id),
+                            "display_name": data.get("display_name", dom_id.capitalize()),
+                            "is_custom": False,
+                        }
+                    )
                     seen.add(dom_id)
                 except Exception:
                     pass
@@ -240,13 +273,15 @@ def list_available_domains() -> list[dict[str, Any]]:
                 dom_id = fp.stem
                 if dom_id not in seen:
                     try:
-                        with open(fp, "r", encoding="utf-8") as f:
+                        with open(fp, encoding="utf-8") as f:
                             data = json.load(f)
-                        domains.append({
-                            "id": data.get("id", dom_id),
-                            "display_name": data.get("display_name", dom_id.capitalize()),
-                            "is_custom": True,
-                        })
+                        domains.append(
+                            {
+                                "id": data.get("id", dom_id),
+                                "display_name": data.get("display_name", dom_id.capitalize()),
+                                "is_custom": True,
+                            }
+                        )
                         seen.add(dom_id)
                     except Exception:
                         pass

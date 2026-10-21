@@ -115,26 +115,36 @@ def to_flores(code: str) -> str | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--db", type=Path, default=None,
-                        help="path to translations.db (default: app user-data dir)")
-    parser.add_argument("--out", type=Path, default=_PROJECT_ROOT / "data" / "history_pairs.jsonl",
-                        help="output .jsonl path (default: data/history_pairs.jsonl)")
-    parser.add_argument("--min-chars", type=int, default=2,
-                        help="skip pairs whose source is shorter than this (default: 2)")
-    parser.add_argument("--domain", action="append", default=None,
-                        help="keep only this domain_id (repeatable)")
-    parser.add_argument("--include-nllb", action="store_true",
-                        help="keep rows produced by the local NLLB backend")
-    parser.add_argument("--drop-unknown-src", action="store_true",
-                        help="drop rows with an unrecorded source language instead of detecting it")
-    parser.add_argument("--lang-format", choices=("iso", "flores"), default="iso",
-                        help="language code format in the output (default: iso)")
-    parser.add_argument("--with-metadata", action="store_true",
-                        help="also emit domain_id / timestamp / row id per line")
-    parser.add_argument("--val-ratio", type=float, default=0.0,
-                        help="if >0, also write a *.val.jsonl holdout of this fraction")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--db", type=Path, default=None, help="path to translations.db (default: app user-data dir)")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=_PROJECT_ROOT / "data" / "history_pairs.jsonl",
+        help="output .jsonl path (default: data/history_pairs.jsonl)",
+    )
+    parser.add_argument(
+        "--min-chars", type=int, default=2, help="skip pairs whose source is shorter than this (default: 2)"
+    )
+    parser.add_argument("--domain", action="append", default=None, help="keep only this domain_id (repeatable)")
+    parser.add_argument("--include-nllb", action="store_true", help="keep rows produced by the local NLLB backend")
+    parser.add_argument(
+        "--drop-unknown-src",
+        action="store_true",
+        help="drop rows with an unrecorded source language instead of detecting it",
+    )
+    parser.add_argument(
+        "--lang-format",
+        choices=("iso", "flores"),
+        default="iso",
+        help="language code format in the output (default: iso)",
+    )
+    parser.add_argument(
+        "--with-metadata", action="store_true", help="also emit domain_id / timestamp / row id per line"
+    )
+    parser.add_argument(
+        "--val-ratio", type=float, default=0.0, help="if >0, also write a *.val.jsonl holdout of this fraction"
+    )
     parser.add_argument("--seed", type=int, default=13, help="shuffle seed for the split")
     args = parser.parse_args()
 
@@ -258,8 +268,9 @@ def main() -> int:
 
     pairs: dict[str, int] = {}
     for record in records:
-        pairs[f"{record['src_lang']}->{record['tgt_lang']}"] = \
+        pairs[f"{record['src_lang']}->{record['tgt_lang']}"] = (
             pairs.get(f"{record['src_lang']}->{record['tgt_lang']}", 0) + 1
+        )
     print("Language pairs:")
     for pair, count in sorted(pairs.items(), key=lambda kv: -kv[1]):
         print(f"  {pair:<24} {count}")

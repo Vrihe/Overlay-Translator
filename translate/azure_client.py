@@ -19,8 +19,8 @@ import urllib.parse
 import urllib.request
 
 import settings
-from settings import config_manager
 from i18n import tr
+from settings import config_manager
 from translate.lang_codes import normalize_source_lang, normalize_target_lang
 
 _logger = logging.getLogger("translator.azure")
@@ -44,9 +44,7 @@ def translate(
     # ── Resolve credentials ──────────────────────────────
     api_key = settings.get_api_key("azure") or os.getenv("AZURE_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            tr("Azure Translator API key missing! Укажите ключ в Настройках.")
-        )
+        raise RuntimeError(tr("Azure Translator API key missing! Укажите ключ в Настройках."))
     region = config_manager.get("azure_region") or "global"
 
     # ── Build URL ────────────────────────────────────────
@@ -58,13 +56,13 @@ def translate(
         params["from"] = source
     url = f"{_BASE_URL}?{urllib.parse.urlencode(params)}"
 
-    _logger.info("Azure Translator → target=%s source=%s region=%s",
-                 target, source or "auto", region)
+    _logger.info("Azure Translator → target=%s source=%s region=%s", target, source or "auto", region)
 
     # ── Build request ────────────────────────────────────
     body = json.dumps([{"Text": text}]).encode("utf-8")
     req = urllib.request.Request(
-        url, data=body,
+        url,
+        data=body,
         headers={
             "Ocp-Apim-Subscription-Key": api_key,
             "Ocp-Apim-Subscription-Region": region,
@@ -84,20 +82,14 @@ def translate(
         except Exception:
             pass
         if exc.code == 401:
-            raise RuntimeError(
-                tr("Azure Translator: ключ недействителен или регион указан неверно (401).")
-            ) from exc
+            raise RuntimeError(tr("Azure Translator: ключ недействителен или регион указан неверно (401).")) from exc
         if exc.code == 403:
-            raise RuntimeError(
-                tr("Azure Translator: доступ запрещён (403). Проверьте подписку.")
-            ) from exc
+            raise RuntimeError(tr("Azure Translator: доступ запрещён (403). Проверьте подписку.")) from exc
         raise RuntimeError(
             tr("Azure Translator API вернул ошибку {code}: {detail}", code=exc.code, detail=detail)
         ) from exc
     except (urllib.error.URLError, OSError) as exc:
-        raise RuntimeError(
-            tr("Не удалось подключиться к Azure Translator API: {error}", error=exc)
-        ) from exc
+        raise RuntimeError(tr("Не удалось подключиться к Azure Translator API: {error}", error=exc)) from exc
 
     if not result or not isinstance(result, list):
         raise RuntimeError(tr("Azure Translator API вернул пустой ответ."))

@@ -13,6 +13,8 @@ __pycache__/
 .tox/
 .coverage
 .coverage.*
+coverage.json
+coverage.xml
 htmlcov/
 
 # ─── PyInstaller Build Artifacts ────────────────────────

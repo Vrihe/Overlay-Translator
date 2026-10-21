@@ -6,8 +6,8 @@ spans all physical monitors) so that global screen coordinates — including
 negative ones — are resolved correctly.
 """
 
-from PIL import Image
 import mss
+from PIL import Image
 
 
 def capture_region(x1: int, y1: int, x2: int, y2: int) -> Image.Image:

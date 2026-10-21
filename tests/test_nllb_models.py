@@ -58,8 +58,7 @@ class _FakeHub:
 
 class TestRemote(unittest.TestCase):
     def test_tags_in_natural_order(self):
-        refs = {"tags": [{"name": n, "targetCommit": n + "-sha"}
-                         for n in ("v10-x", "v2-game", "v0-base", "v1-abbr")]}
+        refs = {"tags": [{"name": n, "targetCommit": n + "-sha"} for n in ("v10-x", "v2-game", "v0-base", "v1-abbr")]}
         with patch.object(nllb_models, "_get_json", return_value=refs):
             tags = [v.tag for v in nllb_models.list_remote_versions("r/r")]
         self.assertEqual(tags, ["v0-base", "v1-abbr", "v2-game", "v10-x"])
@@ -111,8 +110,11 @@ class TestDownload(unittest.TestCase):
         progress = []
         with patch.object(nllb_models.urllib.request, "urlopen", _FakeHub(self.files)):
             path = nllb_models.download_version(
-                self.version, repo_id="r/r", dest_root=self.root,
-                progress=lambda done, total: progress.append((done, total)))
+                self.version,
+                repo_id="r/r",
+                dest_root=self.root,
+                progress=lambda done, total: progress.append((done, total)),
+            )
         self.assertEqual(path, self.root / "nllb-v1-abbr")
         self.assertEqual((path / "model.bin").read_bytes(), self.files["model.bin"])
         marker = json.loads((path / nllb_models.MARKER_FILE).read_text())

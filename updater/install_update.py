@@ -29,9 +29,9 @@ import sys
 import tempfile
 import threading
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import config
 from updater.check_update import _parse_version
@@ -74,9 +74,12 @@ def release_from_json(data: dict) -> Release | None:
         if not sha256:
             return None  # never install a file that cannot be checked
         return Release(
-            tag=data.get("tag_name", ""), html_url=data.get("html_url", ""),
-            setup_url=asset.get("browser_download_url", ""), setup_name=name,
-            sha256=sha256, size=int(asset.get("size") or 0),
+            tag=data.get("tag_name", ""),
+            html_url=data.get("html_url", ""),
+            setup_url=asset.get("browser_download_url", ""),
+            setup_name=name,
+            sha256=sha256,
+            size=int(asset.get("size") or 0),
         )
     return None
 
@@ -147,8 +150,10 @@ def waiter_script(setup: Path, pid: int) -> str:
     """PowerShell that waits for *pid* to exit, then runs *setup* silently."""
     quoted = str(setup).replace("'", "''")
     args = ",".join(f"'{a}'" for a in INSTALLER_ARGS)
-    return (f"Wait-Process -Id {int(pid)} -ErrorAction SilentlyContinue; "
-            f"Start-Process -FilePath '{quoted}' -ArgumentList {args}")
+    return (
+        f"Wait-Process -Id {int(pid)} -ErrorAction SilentlyContinue; "
+        f"Start-Process -FilePath '{quoted}' -ArgumentList {args}"
+    )
 
 
 def launch_installer(setup: Path, *, pid: int | None = None) -> None:
@@ -159,8 +164,18 @@ def launch_installer(setup: Path, *, pid: int | None = None) -> None:
     # at once without running the script (measured); a hidden console works.
     flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     subprocess.Popen(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
-         "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
-        creationflags=flags, close_fds=True,
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encoded,
+        ],
+        creationflags=flags,
+        close_fds=True,
     )
     _logger.info("Update installer scheduled after exit: %s", setup)

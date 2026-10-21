@@ -1,6 +1,15 @@
 # 🌐 Translator Overlay
+
+[![CI](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Vrihe/Overlay-Translator/badges/coverage.json)](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml?query=branch%3Amain)
+
 Screen region translator for Windows. Select any text on screen with a hotkey,
-and get an instant translation in a floating popup — powered by OCR and LLM.
+and get an instant translation in a floating popup — powered by offline OCR and
+Google Translate, DeepL, Azure, an LLM or a fully offline NLLB model.
+
+**Just want to use it?** Download `TranslatorOverlay-Setup-<version>.exe` from
+[Releases](https://github.com/Vrihe/Overlay-Translator/releases/latest), run it and press `Ctrl+Shift+R`.
+The steps below are for running from source.
 
 ![Demo](docs/demo.gif)
 > **TODO:** Record a demo GIF and place it at `docs/demo.gif`.
@@ -17,11 +26,12 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 - **Region selector** — fullscreen transparent overlay with mouse-drag selection
 - **Multi-monitor support** — works across all connected displays, including negative-coordinate layouts
 - **OCR** via RapidOCR (PP-OCR models on ONNX Runtime) with Cyrillic + Latin recognition (`ru` + `en`), GPU acceleration through DirectML, and optimised preprocessing
-- **Translation** via OpenRouter (free models) or Anthropic Claude
-- **Offline translation** (optional) with a local, quantized NLLB-200 model (CTranslate2 int8), with no API key or internet needed. It runs on the CPU and can use an NVIDIA GPU for extra speed
+- **Translation backends** — Google Translate (the default, works without a key), DeepL and Microsoft Azure Translator with your own key, or an LLM through OpenRouter (free models) or Anthropic Claude with domain profiles and streaming
+- **Offline translation** (optional) with a local, quantized NLLB-200 model (CTranslate2 int8), with no API key or internet needed. Pick and download a model build in Settings. It runs on the CPU and can use an NVIDIA GPU for extra speed
 - **SQLite cache** — repeated texts are translated instantly without API calls
-- **Floating popup** — shows original + translation near the selected area; draggable, auto-closes after a timeout
-- **Auto language detection** — automatically detects the source language before translation (offline via `langid` or via LLM); falls back to a fixed language for very short texts
+- **Floating popup** — shows the translation next to the selected area; copy, read aloud, drag and resize (the size is remembered), auto-closes after a timeout
+- **Region presets and live mode** — saved regions with their own hotkeys, periodic re-translation of a region, translation history
+- **Auto language detection** — Google, DeepL and Azure detect the source language themselves; for the LLM and NLLB backends the app detects it offline (script heuristic + `langid`). A fixed source language can be set in Settings
 - **Interface in English and Russian** — picked automatically from the Windows language or set in Settings → Interface (applies after a restart)
 - **Executable support** — can be compiled into a standalone application folder (`onedir` mode) via PyInstaller
 
@@ -30,46 +40,37 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 ## 📁 Project Structure
 
 ```
-translator-overlay/
-├── main.py              # Entry point — system tray, hotkeys, pipeline orchestration
-├── config.py            # All settings (loaded from .env)
-├── settings.py          # Secure API key storage via keyring
-├── .env                 # API keys and personal settings (git-ignored)
-├── .env.example         # Template for .env
-├── requirements.txt     # Python dependencies
+Overlay-Translator/
+├── main.py              # Entry point — tray, hotkeys, pipeline orchestration
+├── config.py            # Config facade: settings.json values + .env overrides
+├── single_instance.py   # One running copy per session
+├── .env.example         # Template for .env (optional keys and overrides)
+├── requirements*.txt    # App (DirectML / CPU / GPU), dev and training dependencies
+├── build.py / build.bat # PyInstaller build (+ --installer)
 ├── build_*.spec         # PyInstaller specs (layered build: heavy deps + app code)
-├── build.py             # Cross-platform build launcher script
-├── build.bat            # One-click Windows build script
+├── installer/           # Inno Setup script for Setup.exe
 ├── install.bat          # Creates .venv and installs dependencies
 ├── download_model.bat   # Downloads the local NLLB model
 ├── run.bat              # Starts the app from .venv (normal user rights; --admin to elevate)
 │
-├── overlay/
-│   └── selector.py      # Fullscreen region-selection overlay (PyQt5)
-├── capture/
-│   └── screenshot.py    # Screen capture via mss
-├── ocr/
-│   ├── engine.py        # RapidOCR engine with lazy model loading & Cyrillic optimisation
-│   └── hsv_filter.py    # Optional HSV-based preprocessing filter
-├── translate/
-│   ├── backend.py       # Picks the active backend (API or local NLLB) on every call
-│   ├── llm_client.py    # LLM translation (OpenRouter / Anthropic) + logging
-│   ├── nllb_backend.py  # Offline translation with the local NLLB CTranslate2 model
-│   ├── cuda_support.py  # Finds cuBLAS for optional GPU inference
-│   └── lang_detect.py   # Auto source-language detection (langid / LLM)
-├── cache/
-│   └── store.py         # SQLite translation cache
-├── ui/
-│   ├── result_popup.py  # Floating result popup (PyQt5)
-│   ├── setup_wizard.py      # First-run wizard: online / API key / offline model download
-│   ├── first_run_dialog.py  # LLM API key dialog (LLM backend without a key)
-│   └── settings_dialog.py   # Runtime settings dialog
-├── tray/
-│   ├── tray_icon.py     # System tray icon and context menu
-│   └── icon_gen.py      # Programmatic icon generator
-└── logs/
-    └── translator.log   # Request log (auto-created)
+├── capture/             # Screen capture (mss) and live region monitoring
+├── ocr/                 # RapidOCR engine, optional HSV filter
+├── overlay/             # Fullscreen region-selection overlay
+├── translate/           # Backend dispatcher; Google, DeepL, Azure, LLM and NLLB clients;
+│                        # language detection, game-chat glossary, domain profiles
+├── cache/               # SQLite translation cache and history
+├── settings/            # API keys (keyring), settings.json, region presets
+├── ui/                  # Main window, settings, result popup, first-run wizard, theme
+├── history/             # History page
+├── i18n/                # Russian / English interface strings
+├── tray/ tts/ updater/  # Tray icon, text-to-speech, GitHub release check
+├── scripts/             # Model download, NLLB smoke test, evaluation helpers
+├── training/            # NLLB LoRA fine-tuning pipeline (separate venv)
+├── docs/                # Fine-tuning process and evaluation reports
+└── tests/
 ```
+
+A file-by-file map is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -78,8 +79,8 @@ translator-overlay/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/overlay-translator.git
-cd overlay-translator
+git clone https://github.com/Vrihe/Overlay-Translator.git
+cd Overlay-Translator
 ```
 
 ### Quick start on Windows (double-click)
@@ -108,8 +109,10 @@ pip install -r requirements.txt
 
 ### 3. Configure API keys
 
-The app will ask for your API key on first launch. You can also set it
-manually in `.env` (useful for development):
+Optional. The default backend, Google Translate, works without a key, and so does the local
+NLLB model. A key is needed only for DeepL, Azure or the LLM backend: enter it in Settings
+(the app also asks for one on start if the LLM backend is selected without a key).
+You can also set keys in `.env` (useful for development):
 
 ```bash
 cp .env.example .env
@@ -118,15 +121,17 @@ cp .env.example .env
 Edit `.env`:
 
 ```ini
-# Free option — get a key at https://openrouter.ai/keys
+# LLM backend: free option — get a key at https://openrouter.ai/keys
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
-
 # Or paid Anthropic option
 # ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# DEEPL_API_KEY=...
+# AZURE_API_KEY=...
 ```
 
 > **Tip:** OpenRouter offers several free models. The app uses
-> `meta-llama/llama-3.3-70b-instruct:free` by default — no credit card required.
+> `poolside/laguna-s-2.1:free` by default (change it in Settings) — no credit card required.
 
 ---
 
@@ -167,8 +172,8 @@ python main.py
 
 | Hotkey | Action |
 |---|---|
-| `Ctrl+Shift+T` | Start region selection → translate |
-| `Ctrl+Shift+O` | Open settings dialog |
+| `Ctrl+Shift+R` | Start region selection → translate (changeable in Settings) |
+| `Ctrl+Shift+O` | Open settings |
 
 ---
 
@@ -225,12 +230,12 @@ This guarantees that:
 - The application runs cleanly even when extracted into write-restricted folders.
 
 ### 🔒 Privacy
-- With the API backend, the text recognised in the selected region is sent to the chosen provider
-  (OpenRouter or Anthropic). Free OpenRouter models may log prompts. Do not translate passwords or
+- With a cloud backend, the text recognised in the selected region is sent to that provider
+  (Google, DeepL, Azure, OpenRouter or Anthropic). Free OpenRouter models may log prompts. Do not translate passwords or
   personal data that way, or use the local NLLB backend, which never touches the network.
 - The text you translate is not written to the logs: they record only its length. Set
   `OVERLAY_LOG_TEXT=1` for a debugging session to log the first 80 characters. Logs rotate at 2 MB.
-- The history/cache database (`cache	ranslations.db`) does keep source texts and translations
+- The history/cache database (`cache\translations.db`) does keep source texts and translations
   (up to `CACHE_MAX_ITEMS`); clear it in the History page.
 - The translation popup is left out of screen captures (Windows 10 2004 and later): it is
   visible on your screen, but not in screenshots, recordings, streams or screen sharing. This
@@ -245,25 +250,28 @@ In an app installed with the setup, the banner's **Update** button downloads the
 
 ## ⚙️ Configuration
 
-All settings can be overridden in `.env`:
+Everyday options (hotkey, languages, backend, OCR languages, popup timeout, theme) are set in
+the Settings window and stored in `%APPDATA%\translator-overlay\settings.json`.
+`.env` holds API keys and a few advanced overrides:
 
 | Variable | Default | Description |
 |---|---|---|
 | `SETTINGS_HOTKEY` | — | Overrides the settings hotkey. Both app hotkeys (translate: `ctrl+shift+r`, settings: `ctrl+shift+o`) are set in **Settings → Hotkeys** and apply at once |
-| `TARGET_LANG` | `ru` | Target translation language |
-| `SOURCE_LANG` | `en` | Source language (fallback when auto-detect is off or text is too short) |
-| `LANG_DETECT_ENGINE` | `langid` | Source language detection engine: `langid` (offline ML), `llm` (via API), `off` (fixed) |
-| `EASYOCR_LANGS` | `ru,en` | Comma-separated list of OCR languages (a Cyrillic code selects the `eslav` model, otherwise `en`) |
-| `EASYOCR_GPU` | `auto` | OCR GPU mode: `auto` (DirectML if available), `true`, or `false` |
-| `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
-| `OCR_USE_HSV_FILTER` | `false` | Enable HSV preprocessing for coloured backgrounds |
-| `POPUP_TIMEOUT_SEC` | `10` | Popup auto-close timeout (seconds) |
 | `OPENROUTER_API_KEY` | — | OpenRouter API key (free) |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (paid) |
+| `GOOGLE_API_KEY` | — | Google Cloud Translation key (optional; without it the keyless endpoint is used) |
+| `DEEPL_API_KEY` | — | DeepL API key |
+| `AZURE_API_KEY` | — | Microsoft Azure Translator key |
+| `EASYOCR_GPU` | `auto` | Legacy OCR GPU override: `auto` (DirectML if available), `true`, or `false` |
+| `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
+| `OCR_USE_HSV_FILTER` | `false` | Enable HSV preprocessing for coloured backgrounds |
 | `NLLB_MODEL_DIR` | — | Path to the CTranslate2 NLLB model directory (overridden by the path set in Settings) |
 | `NLLB_DEVICE` | `auto` | Local NLLB device: `auto` (GPU if usable, else CPU), `cuda`, or `cpu` |
-| `NLLB_HF_REPO_ID` | `Alhite/overlay-translator-nllb-int8` | Hugging Face repo that `scripts/download_model.py` downloads the model from |
-| `NLLB_HF_REVISION` | commit of tag `v0-base` | Model build (commit SHA, tag or branch) to download |
+| `NLLB_GLOSSARY` | `1` | `0` turns off the game-chat glossary that expands terms before NLLB |
+| `NLLB_HF_REPO_ID` | `Alhite/overlay-translator-nllb-int8` | Hugging Face repo the model builds are downloaded from |
+| `NLLB_HF_REVISION` | commit of tag `v0-base` | Model build that `scripts/download_model.py` downloads |
+| `CACHE_MAX_ITEMS` | `500` | Size of the translation cache / history |
+| `LOG_DIR` | `%APPDATA%\translator-overlay\logs` | Log directory |
 | `OVERLAY_LOG_TEXT` | `0` | `1` writes the first 80 characters of translated text to the logs (debugging only) |
 
 ---
@@ -277,7 +285,12 @@ It works offline, needs no API key, and covers the 29 languages mapped in `trans
 Domain profiles (prompts, few-shot examples) do not apply to it, because it is a plain seq2seq translation model.
 
 The runtime needs only `ctranslate2` and `sentencepiece`, both already in `requirements.txt`.
-The model weights are **not** part of the repository (`models/` is git-ignored); get them once in one of two ways.
+The model weights are **not** part of the repository (`models/` is git-ignored).
+The easiest way to get them is in the app: **Settings → Бэкенд перевода (Translation backend) →
+Локально (NLLB) (Local) → Версия модели (Model version)** lists every build published on Hugging Face
+(`v0-base`, `v1-abbr`, `v2-game`, …); pick one and press **Скачать (Download)**. Files are checked
+against their SHA-256 and saved to `models/nllb-<tag>` (in the installed app, under
+`%APPDATA%\translator-overlay\models\`). From source you can also use one of the two ways below.
 
 ### 1a. Quick path: download the ready-made model (recommended)
 
@@ -320,14 +333,16 @@ python scripts/test_nllb_translation.py --model models/nllb-200-ct2-int8
 
 ### 2. Where the app looks for the model
 
-1. The path entered in **Settings → Бэкенд перевода (Translation backend) → Путь к модели (Model path)** (if set, it is the only place checked).
+1. The build chosen in **Версия модели (Model version)**, or the path entered under
+   **Свой путь… (Custom path)** (if set, it is the only place checked).
 2. The `NLLB_MODEL_DIR` environment variable.
-3. Auto-discovery: `<project>/models/nllb-200-ct2-int8`, then `%APPDATA%\translator-overlay\models\nllb-200-ct2-int8`.
+3. Auto-discovery (**Автовыбор / Auto**): in `<project>/models/`, then `%APPDATA%\translator-overlay\models\`,
+   first `nllb-200-ct2-int8`, then any other complete build, newest first.
 
 ### 3. Switch the backend in the UI
 
 1. Open Settings (`Ctrl+Shift+O`).
-2. Under **Бэкенд перевода** (Translation backend), select **Локальная модель (NLLB)** (Local model). The status line shows whether the model was found.
+2. Under **Бэкенд перевода** (Translation backend), select **Локально (NLLB)** (Local). The status line shows whether the model was found.
 3. Optional: press **Загрузить модель** (Load model) to load it into memory right away (1–3 s).
    This button only loads the model; it does **not** switch the backend.
 4. The choice is saved immediately (`translation_backend` in `settings.json`); there is nothing else to press.
@@ -379,40 +394,42 @@ Standalone builds do not bundle cuBLAS. They use the GPU only when CUDA Toolkit 
 
 The app can automatically detect the source language of recognised text before sending it for translation. This is especially useful when translating game chat where players write in different languages (English, German, Polish, Russian, etc.).
 
-### Detection Engines
+### How it works
 
-| Engine | `LANG_DETECT_ENGINE` | Description |
-|---|---|---|
-| **langid** (default) | `langid` | Offline ML model — fast, deterministic, no API cost |
-| **LLM** | `llm` | Uses the active LLM provider — more accurate on noisy/short texts, but adds latency and cost |
-| **Off** | `off` | Disabled — uses the fixed `SOURCE_LANG` value |
+| Backend | Who detects the source language |
+|---|---|
+| Google, DeepL, Azure | The provider itself, server-side |
+| LLM, local NLLB | The app, offline: a script heuristic (Cyrillic → `ru`), then the `langid` model |
 
-You can switch engines in the Settings dialog (Ctrl+Shift+O) under "Перевод" (Translation) → "Определение языка" (Language detection).
+The source language is **Auto** by default. To turn detection off, pick a fixed source language in
+Settings (`Ctrl+Shift+O`) → "Перевод" (Translation).
 
 ### Limitations
 
 - **Short texts**: Auto-detection is unreliable on very short messages (1–3 words, gamer tags, slang). Cyrillic text is always treated as `ru`; for other short texts set a fixed source language if detection guesses wrong.
-- **Same-language skip**: If the detected source language matches the target language, translation is skipped and the original text is shown as-is — saving an unnecessary API call.
+- **Same-language skip** (LLM backend): if the detected source language matches the target language, translation is skipped and the original text is shown as-is — saving an unnecessary API call.
 
 ## 📊 Logging & Statistics
 
-Every translation request is logged to `logs/translator.log`:
+Every LLM translation request is logged to `%APPDATA%\translator-overlay\logs\translator.log`.
+The text itself is replaced by its length (see Privacy):
 
 ```
-2025-07-21 14:30:01 | INFO  | CACHE MISS | text='Hello world' | calling API…
-2025-07-21 14:30:02 | INFO  | API OK | provider=openrouter model=google/gemma-... | 1.23s | src='Hello world' | result='Привет мир'
-2025-07-21 14:30:15 | INFO  | CACHE HIT | text='Hello world'
+2026-10-21 14:30:01 | INFO  | CACHE MISS | domain=general | text=<11 chars> | calling API…
+2026-10-21 14:30:02 | INFO  | API OK | provider=openrouter domain=general model=poolside/laguna-s-2.1:free | 1.23s | src=<11 chars> | result=<10 chars>
+2026-10-21 14:30:15 | INFO  | CACHE HIT | domain=general | text=<11 chars>
 ```
 
 Quick stats example (PowerShell):
 
 ```powershell
+$log = "$env:APPDATA\translator-overlay\logs\translator.log"
 # Total requests
-(Select-String "CACHE" logs\translator.log).Count
+(Select-String "CACHE" $log).Count
 
 # Cache hit rate
-$hits = (Select-String "CACHE HIT" logs\translator.log).Count
-$total = (Select-String "CACHE" logs\translator.log).Count
+$hits = (Select-String "CACHE HIT" $log).Count
+$total = (Select-String "CACHE" $log).Count
 "Cache hit rate: $([math]::Round($hits / $total * 100, 1))%"
 ```
 
@@ -426,11 +443,11 @@ $total = (Select-String "CACHE" logs\translator.log).Count
 | System Tray | QSystemTrayIcon (PyQt5) |
 | Screen capture | mss |
 | OCR | RapidOCR (PP-OCRv6 det + PP-OCRv5 rec) + ONNX Runtime DirectML + Pillow |
-| Translation | OpenRouter (free) / Anthropic API |
+| Translation | Google Translate, DeepL, Azure Translator, OpenRouter (free) / Anthropic API |
 | Offline translation | NLLB-200-distilled-600M, int8, via CTranslate2 + SentencePiece (optional CUDA via `nvidia-cublas-cu12`) |
 | Cache | SQLite |
 | Key storage | keyring (OS credential vault) |
-| Language detection | langid |
+| Language detection | langid + script heuristic |
 | Hotkey | keyboard |
 | Config | python-dotenv |
 | Packaging | PyInstaller |

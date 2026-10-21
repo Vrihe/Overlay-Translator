@@ -203,6 +203,7 @@ def warm_cache(limit: int = 50) -> int:
         return loaded
     except Exception as e:
         import logging
+
         logging.warning(f"Failed to warm cache from history: {e}")
         return 0
 

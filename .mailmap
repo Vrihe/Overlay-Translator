@@ -1,0 +1,9 @@
+# Maps every name/email a contributor has committed under to one identity,
+# so `git shortlog -sn` and `git log` show each person once.
+# Format: Canonical Name <canonical@email> [Commit Name] <commit@email>
+
+Kyrylo Bankovskyi <64853130+Vrihe@users.noreply.github.com>
+
+Oleksandr <chavv3@gmail.com>
+Oleksandr <chavv3@gmail.com> <gdx177303@student.gdansk.merito.pl>
+Oleksandr <chavv3@gmail.com> <87146141+alhite@users.noreply.github.com>

@@ -23,9 +23,9 @@ import sys
 import threading
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import config
 from translate.nllb_backend import _is_complete, _models_roots, missing_files

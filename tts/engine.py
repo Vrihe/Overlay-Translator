@@ -7,6 +7,7 @@ import threading
 
 try:
     import pyttsx3
+
     _HAS_PYTTSX3 = True
 except ImportError:
     _HAS_PYTTSX3 = False

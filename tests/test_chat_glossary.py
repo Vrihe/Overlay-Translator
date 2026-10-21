@@ -16,8 +16,14 @@ from unittest.mock import patch
 from translate import chat_glossary
 from translate.chat_glossary import prepare, restore
 
-TERMS = {"wts": "want to sell", "pm": "private message", "gg": "good game", "wp": "well played",
-         "valorant": None, "kekw": "haha"}
+TERMS = {
+    "wts": "want to sell",
+    "pm": "private message",
+    "gg": "good game",
+    "wp": "well played",
+    "valorant": None,
+    "kekw": "haha",
+}
 
 
 class TestPrepare(unittest.TestCase):
@@ -64,6 +70,7 @@ class TestRestore(unittest.TestCase):
 class TestBackendIntegration(unittest.TestCase):
     def setUp(self):
         from translate.nllb_backend import NllbBackend
+
         self.backend = NllbBackend.__new__(NllbBackend)
         self.calls = []
         self.backend._raw_translate = lambda text, src, tgt: self.calls.append(text) or f"<{text}>"

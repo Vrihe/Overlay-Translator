@@ -10,9 +10,8 @@ Provides two interchangeable backends behind a common interface:
 Which backend is active is controlled by ``config.LANG_DETECT_ENGINE``.
 """
 
-from abc import ABC, abstractmethod
 import re
-
+from abc import ABC, abstractmethod
 
 # ── Script detection (Unicode-based, not ML) ─────────────
 
@@ -37,8 +36,7 @@ def detect_script(text: str) -> str:
     return "cyrillic" if cyrillic_count / total > 0.5 else "latin"
 
 
-def detect_source_lang(text: str, detector: 'LangDetector',
-                       cyrillic_default: str = "ru") -> str | None:
+def detect_source_lang(text: str, detector: 'LangDetector', cyrillic_default: str = "ru") -> str | None:
     """Two-stage language detection: script check → ML detector.
 
     1. If the text is predominantly Cyrillic, return *cyrillic_default*
@@ -129,6 +127,7 @@ class LangDetector(ABC):
 
 # ── Langid backend ───────────────────────────────────────
 
+
 class LangidDetector(LangDetector):
     """Offline language detection via the *langid* library.
 
@@ -151,6 +150,7 @@ class LangidDetector(LangDetector):
 
     def __init__(self):
         import langid
+
         self._langid = langid
 
     def detect(self, text: str) -> str | None:
@@ -161,6 +161,7 @@ class LangidDetector(LangDetector):
 
 
 # ── LLM backend ──────────────────────────────────────────
+
 
 class LLMDetector(LangDetector):
     """Language detection via the active LLM provider.
@@ -173,6 +174,7 @@ class LLMDetector(LangDetector):
     def __init__(self):
         # Import lazily to avoid circular imports at module level.
         from translate.llm_client import _get_client
+
         self._get_client = _get_client
 
     def detect(self, text: str) -> str:
@@ -187,6 +189,7 @@ class LLMDetector(LangDetector):
 
         if provider == "openrouter":
             import config
+
             response = client.chat.completions.create(
                 model=config.OPENROUTER_MODEL,
                 messages=[

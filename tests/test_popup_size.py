@@ -18,7 +18,6 @@ _MAX = QSize(ResultPopup._MAX_WIDTH, ResultPopup._MAX_HEIGHT)
 
 
 class TestParseSize(unittest.TestCase):
-
     def test_no_saved_size_fits_text(self):
         for value in (None, [], "", "abc", [1], [1, 2, 3], ["x", 2], {"w": 1}):
             self.assertIsNone(ResultPopup._parse_size(value), value)
@@ -32,13 +31,11 @@ class TestParseSize(unittest.TestCase):
         self.assertEqual(ResultPopup._parse_size([99999, 99999]), _MAX)
 
     def test_saved_size_reads_config(self):
-        with mock.patch.object(type(config), "POPUP_SIZE", new_callable=mock.PropertyMock,
-                               return_value=[500, 300]):
+        with mock.patch.object(type(config), "POPUP_SIZE", new_callable=mock.PropertyMock, return_value=[500, 300]):
             self.assertEqual(ResultPopup.saved_size(), QSize(500, 300))
 
 
 class TestFinishResize(unittest.TestCase):
-
     def _fake_popup(self, resized: bool):
         popup = mock.Mock(spec=ResultPopup)
         popup._resized = resized

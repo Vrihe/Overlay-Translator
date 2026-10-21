@@ -15,23 +15,37 @@ Design goals:
   • Dismissable — close button, Escape key, or 10s fallback timeout
 """
 
-from PyQt5.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
-    QScrollArea, QScrollBar, QFrame, QApplication, QSystemTrayIcon,
-)
-from PyQt5.QtCore import (
-    Qt, QTimer, QPoint, QRect, QEvent, QSize,
-    QPropertyAnimation, QEasingCurve, pyqtSignal,
-)
-from PyQt5.QtGui import QPainter, QPen, QCursor
-
 import ctypes
 import sys
+
+from PyQt5.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QPoint,
+    QPropertyAnimation,
+    QRect,
+    QSize,
+    Qt,
+    QTimer,
+    pyqtSignal,
+)
+from PyQt5.QtGui import QCursor, QPainter, QPen
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QScrollBar,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget,
+)
 
 import config
 from i18n import tr
 from ui import icons, theme
-
 
 #: SetWindowDisplayAffinity: shown on screen, left out of every capture.
 _WDA_EXCLUDEFROMCAPTURE = 0x11
@@ -49,10 +63,9 @@ class ResultPopup(QWidget):
     _MAX_HEIGHT = 550
     _RESIZE_MARGIN = 8
     _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
-    _FADE_DURATION = 150          # ms for smooth fade-out on close
-    _MARGIN = 10                  # gap between popup and selection edge
-    _ICON_SIZE = 14               # header icon buttons
-
+    _FADE_DURATION = 150  # ms for smooth fade-out on close
+    _MARGIN = 10  # gap between popup and selection edge
+    _ICON_SIZE = 14  # header icon buttons
 
     def __init__(
         self,
@@ -97,11 +110,7 @@ class ResultPopup(QWidget):
     # ── Window setup ─────────────────────────────────────
 
     def _setup_window(self) -> None:
-        self.setWindowFlags(
-            Qt.FramelessWindowHint
-            | Qt.WindowStaysOnTopHint
-            | Qt.Tool
-        )
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         # Opaque on purpose: a translucent (UpdateLayeredWindow) window cannot be kept
         # out of screen captures, see _exclude_from_capture().
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
@@ -201,13 +210,12 @@ class ResultPopup(QWidget):
         header_row.setSpacing(6)
 
         from translate.domain_manager import display_name_of, load_domain_profile
+
         domain_display_name = display_name_of(load_domain_profile(config.ACTIVE_DOMAIN))
         p = theme.current()
 
         if self._is_loading:
-            self._loading_label = QLabel(
-                tr("Переводим ({context})...", context=domain_display_name)
-            )
+            self._loading_label = QLabel(tr("Переводим ({context})...", context=domain_display_name))
             self._loading_label.setTextFormat(Qt.PlainText)
             self._loading_label.setFont(theme.body_font(9, medium=True, spacing=106))
             self._loading_label.setStyleSheet(f"color: {p.text_soft}; background: transparent;")
@@ -217,9 +225,7 @@ class ResultPopup(QWidget):
             title_text = tr("Ошибка") if self._is_error else tr("Перевод")
             header_lbl = QLabel(title_text.upper())
             header_lbl.setFont(theme.display_font(9.5, spacing=118))
-            header_lbl.setStyleSheet(
-                f"color: {p.error if self._is_error else p.accent}; background: transparent;"
-            )
+            header_lbl.setStyleSheet(f"color: {p.error if self._is_error else p.accent}; background: transparent;")
             header_row.addWidget(header_lbl)
 
             domain_badge = QLabel(f"·  {domain_display_name}")
@@ -298,8 +304,7 @@ class ResultPopup(QWidget):
         btn = QPushButton()
         btn.setFixedSize(24, 24)
         btn.setIconSize(QSize(self._ICON_SIZE, self._ICON_SIZE))
-        btn.setIcon(icons.icon(name, p.muted, self._ICON_SIZE,
-                               active_color=p.error if danger else p.text_soft))
+        btn.setIcon(icons.icon(name, p.muted, self._ICON_SIZE, active_color=p.error if danger else p.text_soft))
         btn.setCursor(Qt.PointingHandCursor)
         btn.setToolTip(tooltip)
         btn.setStyleSheet(theme.btn_icon(danger=danger))
@@ -311,9 +316,7 @@ class ResultPopup(QWidget):
         # OCR text and LLM output are untrusted: never let Qt render them as HTML.
         label.setTextFormat(Qt.PlainText)
         label.setWordWrap(True)
-        label.setStyleSheet(
-            theme.text_css(color or theme.current().text, size, bold=bold) + " padding: 2px 0;"
-        )
+        label.setStyleSheet(theme.text_css(color or theme.current().text, size, bold=bold) + " padding: 2px 0;")
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
 
@@ -336,6 +339,7 @@ class ResultPopup(QWidget):
             return
         try:
             from tts.engine import speak
+
             speak(self._translated)
         except Exception:
             pass
@@ -376,6 +380,7 @@ class ResultPopup(QWidget):
                 self._dots_timer.stop()
             return
         from translate.domain_manager import display_name_of, load_domain_profile
+
         domain_display_name = display_name_of(load_domain_profile(config.ACTIVE_DOMAIN))
         self._dots_count = (self._dots_count % 3) + 1
         dots = "." * self._dots_count
@@ -402,8 +407,9 @@ class ResultPopup(QWidget):
 
     # ── In-place content update ──────────────────────────
 
-    def update_content(self, source_text: str, translated_text: str, *,
-                       is_error: bool = False, notice: str = "", activate: bool = True) -> None:
+    def update_content(
+        self, source_text: str, translated_text: str, *, is_error: bool = False, notice: str = "", activate: bool = True
+    ) -> None:
         """Update popup content from loading state to final result in-place,
         fitting the window snugly to the translated content size.
 
@@ -486,8 +492,9 @@ class ResultPopup(QWidget):
         if content is not None:
             self.layout().activate()
             viewport = self._scroll_area.viewport()
-            needed = (content.heightForWidth(viewport.width()) if content.hasHeightForWidth()
-                      else content.sizeHint().height())
+            needed = (
+                content.heightForWidth(viewport.width()) if content.hasHeightForWidth() else content.sizeHint().height()
+            )
             if needed > viewport.height():
                 h = min(self._MAX_HEIGHT, self.height() + needed - viewport.height())
                 self.resize(w, h)
@@ -500,9 +507,9 @@ class ResultPopup(QWidget):
         x, y, w, h = pos.x(), pos.y(), r.width(), r.height()
 
         # No top edge: it is the header, so grabbing it always moves the window.
-        on_right = (x >= w - m)
-        on_bottom = (y >= h - m)
-        on_left = (x <= m)
+        on_right = x >= w - m
+        on_bottom = y >= h - m
+        on_left = x <= m
 
         if on_right and on_bottom:
             return "br"
@@ -715,8 +722,7 @@ class ResultPopup(QWidget):
 
     def _position_near_anchor(self) -> None:
         self._fit_and_adjust_size()
-        self.move(self._place(self.size(), self._anchor, self._screen_rect(),
-                              self._app_window_rects(), self._MARGIN))
+        self.move(self._place(self.size(), self._anchor, self._screen_rect(), self._app_window_rects(), self._MARGIN))
 
     def _step_aside_if_covering(self) -> None:
         """After the popup grew in place, move it off an app window it now covers.
@@ -727,8 +733,7 @@ class ResultPopup(QWidget):
             return
         avoid = self._app_window_rects()
         if any(self.frameGeometry().intersects(r) for r in avoid):
-            self.move(self._place(self.size(), self._anchor, self._screen_rect(),
-                                  avoid, self._MARGIN))
+            self.move(self._place(self.size(), self._anchor, self._screen_rect(), avoid, self._MARGIN))
 
     def _screen_rect(self) -> QRect:
         if self._anchor is None:
@@ -739,13 +744,14 @@ class ResultPopup(QWidget):
 
     def _app_window_rects(self) -> list:
         """Visible windows and dialogs of the app (the main window first of all)."""
-        return [w.frameGeometry() for w in QApplication.topLevelWidgets()
-                if w is not self and w.isVisible() and not w.isMinimized()
-                and w.windowType() in (Qt.Window, Qt.Dialog)]
+        return [
+            w.frameGeometry()
+            for w in QApplication.topLevelWidgets()
+            if w is not self and w.isVisible() and not w.isMinimized() and w.windowType() in (Qt.Window, Qt.Dialog)
+        ]
 
     @staticmethod
-    def _place(size: QSize, anchor: QRect | None, screen: QRect, avoid: list,
-               margin: int) -> QPoint:
+    def _place(size: QSize, anchor: QRect | None, screen: QRect, avoid: list, margin: int) -> QPoint:
         """Top-left for a popup of *size*.
 
         Preferred spot: under the anchor (above it when there is no room below),
@@ -758,8 +764,7 @@ class ResultPopup(QWidget):
         max_y = max(screen.y() + margin, screen.y() + screen.height() - h - margin)
 
         def clamp(x: int, y: int) -> QPoint:
-            return QPoint(max(screen.x() + margin, min(x, max_x)),
-                          max(screen.y() + margin, min(y, max_y)))
+            return QPoint(max(screen.x() + margin, min(x, max_x)), max(screen.y() + margin, min(y, max_y)))
 
         if anchor is None:
             xs = [screen.x() + (screen.width() - w) // 2]
@@ -798,6 +803,7 @@ class ResultPopup(QWidget):
 
 # ── Public helper for displaying result / toast ──────────
 
+
 def show_result(
     source_text: str,
     translated_text: str,
@@ -827,6 +833,7 @@ def show_result(
         else:
             try:
                 from plyer import notification
+
                 notification.notify(title=title, message=msg, timeout=5)
             except Exception:
                 pass
@@ -839,7 +846,6 @@ def show_result(
             )
             return existing_popup
         else:
-            popup = ResultPopup(source_text, translated_text, anchor,
-                                is_error=is_error, notice=notice)
+            popup = ResultPopup(source_text, translated_text, anchor, is_error=is_error, notice=notice)
             popup.show()
             return popup

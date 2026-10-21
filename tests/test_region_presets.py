@@ -14,15 +14,16 @@ from unittest import mock
 from i18n import set_language
 from settings import region_presets
 from settings.region_presets import (
-    load_presets,
-    save_preset,
+    MAX_NAME_LENGTH,
+    MAX_PRESETS,
     delete_preset,
+    load_presets,
     rename_preset,
+    save_preset,
     update_preset_hotkey,
     validate_hotkey,
-    MAX_PRESETS,
-    MAX_NAME_LENGTH,
 )
+from tests.keyboard_stub import stub_key_names
 
 
 class _PresetsTestCase(unittest.TestCase):
@@ -37,6 +38,7 @@ class _PresetsTestCase(unittest.TestCase):
         self.addCleanup(patcher.stop)
         set_language("ru")  # the assertions match the Russian messages
         self.addCleanup(set_language, None)
+        stub_key_names(self)
 
 
 # ── Basic CRUD ───────────────────────────────────────────
@@ -138,14 +140,17 @@ class TestHotkeyManagement(_PresetsTestCase):
 
     def test_validate_collision_with_app_hotkey(self):
         import config
+
         app_hk = config.HOTKEY
         with self.assertRaisesRegex(ValueError, "уже занята для основного перевода"):
             validate_hotkey(app_hk.upper())
 
     def test_validate_collision_with_settings_hotkey(self):
         import config
-        with mock.patch.object(type(config), "SETTINGS_HOTKEY", new_callable=mock.PropertyMock,
-                               return_value="ctrl+shift+o"):
+
+        with mock.patch.object(
+            type(config), "SETTINGS_HOTKEY", new_callable=mock.PropertyMock, return_value="ctrl+shift+o"
+        ):
             with self.assertRaisesRegex(ValueError, "уже занята для окна настроек"):
                 validate_hotkey("ctrl+shift+o")
 
@@ -279,7 +284,15 @@ class TestPersistence(_PresetsTestCase):
     def test_legacy_preset_without_hotkey_key(self):
         """Older JSON format without 'hotkey' key loads gracefully with hotkey=None."""
         legacy_data = [
-            {"id": "old-1", "name": "Старый", "x1": 10, "y1": 20, "x2": 100, "y2": 200, "created_at": "2026-01-01T00:00:00Z"}
+            {
+                "id": "old-1",
+                "name": "Старый",
+                "x1": 10,
+                "y1": 20,
+                "x2": 100,
+                "y2": 200,
+                "created_at": "2026-01-01T00:00:00Z",
+            }
         ]
         self.presets_file.write_text(json.dumps(legacy_data), encoding="utf-8")
         loaded = load_presets()

@@ -53,6 +53,7 @@ def _system_language() -> str:
     if os.name == "nt":
         try:
             import ctypes
+
             langid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
             return _RUSSIAN_UI_WIN_LANGIDS.get(langid & 0x3FF, "other")
         except Exception:
@@ -77,6 +78,7 @@ def current_language() -> str:
     if _current is None:
         try:
             from settings import config_manager
+
             setting = config_manager.get("ui_language")
         except Exception:
             setting = LANG_AUTO
@@ -101,6 +103,7 @@ def install_qt_translator(app) -> None:
     if lang == LANG_EN:
         return
     from PyQt5.QtCore import QLibraryInfo, QTranslator
+
     translator = QTranslator(app)  # parented to the app, so it stays alive
     path = QLibraryInfo.location(QLibraryInfo.TranslationsPath)
     if translator.load(f"qtbase_{lang}", path):
@@ -117,6 +120,7 @@ def tr(text: str, **kwargs) -> str:
     """
     if current_language() == LANG_EN:
         from i18n.en import MESSAGES
+
         text = MESSAGES.get(text, text)
     return text.format(**kwargs) if kwargs else text
 

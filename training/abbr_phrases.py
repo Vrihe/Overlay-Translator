@@ -50,8 +50,12 @@ def load_phrases(path: Path = PHRASES_TXT) -> list[dict]:
                 errors.append(f"{lineno}: bad header: {line}")
                 header = None
                 continue
-            header = {"abbr": parts[0], "mode": parts[1], "expansion": parts[2],
-                      "source": "added" if len(parts) == 4 and parts[3] == "added" else "dataset"}
+            header = {
+                "abbr": parts[0],
+                "mode": parts[1],
+                "expansion": parts[2],
+                "source": "added" if len(parts) == 4 and parts[3] == "added" else "dataset",
+            }
             continue
         if header is None:
             errors.append(f"{lineno}: phrase outside a section: {line}")
@@ -75,8 +79,11 @@ def load_phrases(path: Path = PHRASES_TXT) -> list[dict]:
     per_abbr = Counter(p["abbr"] for p in phrases)
     errors += [f"'{a}': {n} phrases (need 3-5)" for a, n in per_abbr.items() if not 3 <= n <= 5]
     errors += [f"duplicate phrase: {s}" for s, n in Counter(p["short"].lower() for p in phrases).items() if n > 1]
-    headers = [ln[3:].split("|")[0].strip().lower() for ln in path.read_text(encoding="utf-8").splitlines()
-               if ln.startswith("## ")]
+    headers = [
+        ln[3:].split("|")[0].strip().lower()
+        for ln in path.read_text(encoding="utf-8").splitlines()
+        if ln.startswith("## ")
+    ]
     errors += [f"duplicate section: {a}" for a, n in Counter(headers).items() if n > 1]
 
     if errors:
@@ -99,10 +106,14 @@ def main() -> int:
     abbrs = {p["abbr"]: p for p in phrases}
     by_mode = Counter(p["mode"] for p in abbrs.values())
     by_source = Counter(p["source"] for p in abbrs.values())
-    print(f"Abbreviations: {len(abbrs)}  (keep {by_mode['keep']}, translate {by_mode['translate']}; "
-          f"dataset {by_source['dataset']}, added {by_source['added']})")
-    print(f"Phrases:       {len(phrases)}  (keep {sum(p['mode'] == 'keep' for p in phrases)}, "
-          f"translate {sum(p['mode'] == 'translate' for p in phrases)})")
+    print(
+        f"Abbreviations: {len(abbrs)}  (keep {by_mode['keep']}, translate {by_mode['translate']}; "
+        f"dataset {by_source['dataset']}, added {by_source['added']})"
+    )
+    print(
+        f"Phrases:       {len(phrases)}  (keep {sum(p['mode'] == 'keep' for p in phrases)}, "
+        f"translate {sum(p['mode'] == 'translate' for p in phrases)})"
+    )
     print(f"Saved to {OUT_JSONL.relative_to(_PROJECT_ROOT)}")
     return 0
 

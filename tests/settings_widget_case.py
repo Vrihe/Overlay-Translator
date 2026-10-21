@@ -20,9 +20,11 @@ class SettingsWidgetCase(unittest.TestCase):
 
     def setUp(self):
         from settings import config_manager
+
         self.disk = dict(config_manager.DEFAULTS)
-        self.disk.update(hotkey="ctrl+shift+r", settings_hotkey="ctrl+shift+o",
-                         ui_language="ru", translation_backend="google")
+        self.disk.update(
+            hotkey="ctrl+shift+r", settings_hotkey="ctrl+shift+o", ui_language="ru", translation_backend="google"
+        )
         self.writes = []
 
         def fake_save(cfg):
@@ -37,8 +39,7 @@ class SettingsWidgetCase(unittest.TestCase):
             mock.patch.dict(os.environ, env, clear=True),
             mock.patch.object(config_manager, "save_config", side_effect=fake_save),
             mock.patch.object(config_manager, "load_config", side_effect=lambda: dict(self.disk)),
-            mock.patch.object(config_manager, "set_value",
-                              side_effect=lambda k, v: fake_save({**self.disk, k: v})),
+            mock.patch.object(config_manager, "set_value", side_effect=lambda k, v: fake_save({**self.disk, k: v})),
             mock.patch("settings.get_api_key", return_value=None),
             mock.patch("settings.get_primary_provider", return_value="openrouter"),
             mock.patch("settings.is_fallback_enabled", return_value=True),
@@ -49,10 +50,10 @@ class SettingsWidgetCase(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
         from ui import settings_dialog
+
         for patcher in (
             mock.patch.object(settings_dialog, "reset_client"),
-            mock.patch.object(settings_dialog.SettingsWidget, "_detect_gpu_info",
-                              staticmethod(lambda: "")),
+            mock.patch.object(settings_dialog.SettingsWidget, "_detect_gpu_info", staticmethod(lambda: "")),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
