@@ -395,6 +395,10 @@ class ResultPopup(QWidget):
         if self._dots_timer is not None:
             self._dots_timer.stop()
 
+        # A result replacing a result (live monitoring) keeps where the reader scrolled to;
+        # the first result after "Переводим…" starts at the top as before.
+        scroll = self._scroll_state() if not self._is_loading else None
+
         self._is_loading = False
         self._is_error = is_error
         self._translated = translated_text
@@ -407,6 +411,9 @@ class ResultPopup(QWidget):
         self._fit_and_adjust_size()
         self.move(saved_pos)
         self._step_aside_if_covering()
+        if scroll is not None:
+            # After the rebuilt layout has its final size, or the range is still empty.
+            QTimer.singleShot(0, lambda: self._restore_scroll(scroll))
 
         self._start_auto_timer()
 
@@ -415,6 +422,21 @@ class ResultPopup(QWidget):
             self.activateWindow()
             self.setFocus()
         self.update()
+
+    def _scroll_state(self) -> tuple[int, bool] | None:
+        """``(value, at_bottom)`` of the text's scroll bar, None without one."""
+        if self._scroll_area is None:
+            return None
+        bar = self._scroll_area.verticalScrollBar()
+        return bar.value(), bar.maximum() > 0 and bar.value() >= bar.maximum() - 2
+
+    def _restore_scroll(self, state: tuple[int, bool]) -> None:
+        """Back where the reader was; at the bottom it follows the newest lines."""
+        if self._closing or self._scroll_area is None:
+            return
+        value, at_bottom = state
+        bar = self._scroll_area.verticalScrollBar()
+        bar.setValue(bar.maximum() if at_bottom else min(value, bar.maximum()))
 
     def _fit_and_adjust_size(self) -> None:
         """Size the window: the size the user dragged to, otherwise fit the content."""

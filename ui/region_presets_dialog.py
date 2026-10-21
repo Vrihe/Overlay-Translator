@@ -17,7 +17,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QKeySequence
 
-import config
 from i18n import tr
 from ui import theme
 
@@ -121,14 +120,13 @@ class RegionPresetsDialog(QDialog):
     Signals:
         preset_translate(int, int, int, int): Emitted when user triggers single-shot
             translation for (x1, y1, x2, y2).
-        preset_monitor(int, int, int, int): Emitted when user explicitly starts
-            periodic auto-monitoring for (x1, y1, x2, y2).
         request_new_preset(): Emitted when user clicks 'New'.
         presets_updated(): Emitted whenever presets list or hotkeys are modified.
+
+    Live monitoring of a region is started from Settings → Regions, not here.
     """
 
     preset_translate = pyqtSignal(int, int, int, int)
-    preset_monitor = pyqtSignal(int, int, int, int)
     request_new_preset = pyqtSignal()
     presets_updated = pyqtSignal()
 
@@ -160,8 +158,8 @@ class RegionPresetsDialog(QDialog):
         layout.addWidget(lbl_title)
 
         lbl_hint = QLabel(tr(
-            "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода "
-            "или запустите опциональный автомониторинг."
+            "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода; "
+            "мониторинг запускается в Настройки → Регионы."
         ))
         lbl_hint.setWordWrap(True)
         lbl_hint.setStyleSheet(theme.label_css("muted"))
@@ -209,19 +207,8 @@ class RegionPresetsDialog(QDialog):
         self._btn_translate.setFont(theme.display_font(10, spacing=110))
         self._btn_translate.setStyleSheet(theme.btn_primary("9px 18px", 10))
         self._btn_translate.clicked.connect(self._on_translate_now)
-        action_row.addWidget(self._btn_translate, 1)
-
-        # Same size and font as the translate button: the second main action, not a link.
-        interval = int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10)
-        self._btn_monitor = QPushButton(tr("Мониторинг").upper())
-        self._btn_monitor.setCursor(Qt.PointingHandCursor)
-        self._btn_monitor.setFont(theme.display_font(10, spacing=110))
-        self._btn_monitor.setStyleSheet(theme.btn_secondary("9px 18px", 10))
-        self._btn_monitor.setToolTip(tr(
-            "Переводить область снова, когда в ней меняется текст (проверка каждые {seconds} сек; "
-            "интервал и чувствительность — в Настройки → Регионы).", seconds=interval))
-        self._btn_monitor.clicked.connect(self._on_start_monitoring)
-        action_row.addWidget(self._btn_monitor, 1)
+        action_row.addWidget(self._btn_translate)
+        action_row.addStretch()
 
         self._btn_cancel = QPushButton(tr("Закрыть"))
         self._btn_cancel.setCursor(Qt.PointingHandCursor)
@@ -258,7 +245,6 @@ class RegionPresetsDialog(QDialog):
 
         has_items = self._list.count() > 0
         self._btn_translate.setEnabled(has_items)
-        self._btn_monitor.setEnabled(has_items)
         self._btn_hotkey.setEnabled(has_items)
         self._btn_clear_hotkey.setEnabled(has_items)
         self._btn_rename.setEnabled(has_items)
@@ -377,13 +363,3 @@ class RegionPresetsDialog(QDialog):
         self.preset_translate.emit(x1, y1, x2, y2)
         self.accept()
 
-    def _on_start_monitoring(self) -> None:
-        """Secondary action: explicitly launch 10s live auto-monitoring."""
-        preset = self._selected_preset()
-        if preset is None:
-            return
-        x1, y1 = preset.get("x1", 0), preset.get("y1", 0)
-        x2, y2 = preset.get("x2", 0), preset.get("y2", 0)
-        logger.info("Starting optional live monitoring for preset '%s' (%d,%d)→(%d,%d)", preset.get("name"), x1, y1, x2, y2)
-        self.preset_monitor.emit(x1, y1, x2, y2)
-        self.accept()

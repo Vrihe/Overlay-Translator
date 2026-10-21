@@ -9,7 +9,14 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Changed
+- Live monitoring is started and stopped on Settings → Regions ("Monitor" for the selected
+  region, "Stop monitoring" while it runs, in step with the tray toggle) instead of the
+  regions management dialog.
+
 ### Fixed
+- Live monitoring updates kept scrolling the popup back to the top; it now stays where you
+  scrolled to, and follows new lines when you are at the bottom.
 - Live monitoring of a busy region (e.g. a stream chat): the popup no longer disappears
   and reappears on every change — it is updated in place and does not take the focus.
 - The popup is left out of screen captures, so monitoring and OCR never pick it up when

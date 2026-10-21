@@ -81,6 +81,42 @@ class TestLiveUpdate(unittest.TestCase):
         self.assertFalse(update.call_args.kwargs["activate"])
 
 
+class TestScrollKeptOnLiveUpdates(unittest.TestCase):
+    LONG = "\n".join(f"line {i} of a long chat translation" for i in range(80))
+
+    def _update(self, popup, text):
+        popup.update_content("src", text, activate=False)
+        _APP.processEvents()  # the restore runs after the rebuilt layout settles
+        return popup._scroll_area.verticalScrollBar()
+
+    def _shown(self, *args, **kwargs):
+        popup = ResultPopup(*args, **kwargs)
+        self.addCleanup(popup.deleteLater)
+        popup.show()
+        _APP.processEvents()
+        return popup
+
+    def test_middle_position_is_kept(self):
+        popup = self._shown("src", self.LONG)
+        bar = popup._scroll_area.verticalScrollBar()
+        self.assertGreater(bar.maximum(), 0)
+        bar.setValue(bar.maximum() // 2)
+        middle = bar.value()
+        self.assertEqual(self._update(popup, self.LONG + "\nnew line").value(), middle)
+
+    def test_bottom_follows_new_lines(self):
+        popup = self._shown("src", self.LONG)
+        bar = popup._scroll_area.verticalScrollBar()
+        bar.setValue(bar.maximum())
+        bar = self._update(popup, self.LONG + "\nnew\nlines")
+        self.assertEqual(bar.value(), bar.maximum())
+
+    def test_first_result_starts_at_the_top(self):
+        popup = self._shown(is_loading=True)
+        bar = self._update(popup, self.LONG)
+        self.assertEqual(bar.value(), 0)
+
+
 class TestRegionPresetsDialog(unittest.TestCase):
 
     presets = [
@@ -102,10 +138,9 @@ class TestRegionPresetsDialog(unittest.TestCase):
         self.assertEqual(first.toolTip(), "(10, 20) → (610, 820)")
         self.assertIn("без бинда", self.dialog._list.item(1).text())
 
-    def test_monitor_button_shows_the_configured_interval(self):
-        self.assertEqual(self.dialog._btn_monitor.text(), "МОНИТОРИНГ")
-        import config
-        self.assertIn(f"{int(config.LIVE_INTERVAL_SEC)} сек", self.dialog._btn_monitor.toolTip())
+    def test_monitoring_is_started_from_the_settings_not_here(self):
+        self.assertFalse(hasattr(self.dialog, "_btn_monitor"))
+        self.assertFalse(hasattr(self.dialog, "preset_monitor"))
 
 
 if __name__ == "__main__":

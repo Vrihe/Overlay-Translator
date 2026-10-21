@@ -356,6 +356,8 @@ class TranslatorApp:
         self._main_window.update_install_started.connect(self._quit)
         self._main_window.add_region_requested.connect(self._add_region)
         self._main_window.manage_regions_requested.connect(self._show_presets_dialog)
+        self._main_window.monitor_region_requested.connect(self._on_preset_monitor)
+        self._main_window.stop_monitoring_requested.connect(self._stop_live_monitoring)
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
@@ -572,8 +574,10 @@ class TranslatorApp:
                 lx1, ly1, lx2, ly2, QRect(lx1, ly1, lx2 - lx1, ly2 - ly1), live=True)
         )
         self._live_monitor.start()
+        self._main_window.set_monitoring_active(True)
 
         if self._tray is not None:
+            self._tray.act_live_monitor.setChecked(True)
             self._tray.showMessage(
                 tr("Живой автомониторинг запущен"),
                 tr("Область автоматически проверяется каждые {seconds} сек.",
@@ -587,7 +591,9 @@ class TranslatorApp:
         if hasattr(self, "_live_monitor") and self._live_monitor is not None:
             self._live_monitor.stop()
             self._live_monitor = None
+            self._main_window.set_monitoring_active(False)
             if self._tray is not None:
+                self._tray.act_live_monitor.setChecked(False)
                 self._tray.showMessage(
                     tr("Живой мониторинг остановлен"),
                     tr("Автоматическое отслеживание области отключено."),
@@ -672,7 +678,6 @@ class TranslatorApp:
             from ui.region_presets_dialog import RegionPresetsDialog
             dlg = RegionPresetsDialog()
             dlg.preset_translate.connect(self._on_preset_translate)
-            dlg.preset_monitor.connect(self._on_preset_monitor)
             dlg.request_new_preset.connect(lambda: self._on_new_preset_requested(dlg))
             dlg.presets_updated.connect(self._on_presets_updated)
             self._presets_dialog = dlg
@@ -695,10 +700,8 @@ class TranslatorApp:
             self._start_translation_pipeline(x1, y1, x2, y2, anchor=anchor)
 
     def _on_preset_monitor(self, x1: int, y1: int, x2: int, y2: int) -> None:
-        """Start optional live monitoring for the selected region preset."""
+        """Settings → Regions → "Мониторинг": live monitoring of the selected region."""
         self._start_live_monitoring(x1, y1, x2, y2)
-        if self._tray is not None:
-            self._tray.act_live_monitor.setChecked(True)
 
     def _on_presets_updated(self) -> None:
         """Refresh the registered preset hotkeys, the tray menu and Settings → Regions."""

@@ -484,6 +484,10 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `manage_regions_requested`, forwarded by `MainWindow` to `TranslatorApp._add_region`
   (selector → name prompt → `save_preset`) / `_show_presets_dialog`;
   `TranslatorApp._on_presets_updated` → `MainWindow.refresh_regions()` keeps the list current;
+  "Мониторинг" emits `monitor_region_requested(x1, y1, x2, y2)` for the selected region, or
+  `stop_monitoring_requested` while monitoring runs (`set_monitoring_active()`, fed by
+  `TranslatorApp._start/_stop_live_monitoring` through `MainWindow.set_monitoring_active`,
+  which also keeps the tray toggle in step; the presets dialog has no monitoring button);
   live monitoring `live_interval_sec` spin 1–120 s and `live_sensitivity` combo, autosaved,
   read by `_start_live_monitoring` at the next start), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
@@ -518,7 +522,9 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`, which fails on UpdateLayeredWindow
   windows: mss/OCR and live monitoring never see the popup (it covered tall regions such
   as a stream chat and re-triggered monitoring in a loop); screenshots and recordings do
-  not show it either. Placement
+  not show it either. `update_content` rebuilds the widgets; a result replacing a result
+  keeps the scroll position (`_scroll_state` / `_restore_scroll`, at the bottom it follows
+  new lines), the first result after "Переводим…" starts at the top. Placement
   (`_place`, pure geometry): under the selection (above if no room), but when that spot
   covers a visible app window (main window, dialogs) the nearest spot covering neither it
   nor the selection is used; no such spot → the usual place. When the popup grows from
