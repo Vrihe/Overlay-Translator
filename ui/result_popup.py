@@ -2,25 +2,32 @@
 ui/result_popup.py — lightweight floating popup and notification helper.
 
 Design goals:
-  • Non-intrusive — compact, semi-transparent, instant appearance
-  • Resizable & Draggable — stretchable from all 4 edges & 4 corners (max 850x550, min 300x80)
-  • Clean header with close button ("✕") — window remains open on focus loss or window body clicks
+  • Non-intrusive — compact, near-opaque HUD card (1 px accent frame), instant appearance
+  • Resizable & Draggable — stretchable from the left, right and bottom edges and bottom corners
+    (the top edge is the drag handle; max 850x550, min 300x80);
+    a size set by hand is saved (``config.POPUP_SIZE``) and reused by later updates,
+    popups and launches (text wraps to it)
+  • Streaming — partial text goes to the body (``show_partial``), the header keeps
+    "Переводим…"
+  • Clean header with icon buttons (speak / copy / close) — window remains open on focus
+    loss or window body clicks
   • Strict screen bounds — wrapped in QScrollArea, never exceeds monitor bounds
-  • Dismissable — close button ("✕"), Escape key, or 10s fallback timeout
+  • Dismissable — close button, Escape key, or 10s fallback timeout
 """
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
-    QScrollArea, QScrollBar, QFrame, QApplication, QGraphicsDropShadowEffect, QSystemTrayIcon,
+    QScrollArea, QScrollBar, QFrame, QApplication, QSystemTrayIcon,
 )
 from PyQt5.QtCore import (
-    Qt, QTimer, QPoint, QRect, QEvent,
+    Qt, QTimer, QPoint, QRect, QEvent, QSize,
     QPropertyAnimation, QEasingCurve,
 )
-from PyQt5.QtGui import QColor, QPainter, QPainterPath, QCursor
+from PyQt5.QtGui import QPainter, QPen, QCursor
 
 import config
 from i18n import tr
+from ui import icons, theme
 
 
 class ResultPopup(QWidget):
@@ -34,7 +41,9 @@ class ResultPopup(QWidget):
     _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
     _FADE_DURATION = 150          # ms for smooth fade-out on close
     _MARGIN = 10                  # gap between popup and selection edge
-    _BG_OPACITY = 0.92            # card background opacity
+    _BG_OPACITY = 0.96            # card background opacity
+    _ICON_SIZE = 14               # header icon buttons
+
 
     def __init__(
         self,
@@ -57,6 +66,7 @@ class ResultPopup(QWidget):
         self._closing = False
         self._scroll_area: QScrollArea | None = None
         self._btn_close: QPushButton | None = None
+        self._stream_label: QLabel | None = None
 
         self._dots_count = 3
         self._dots_timer: QTimer | None = None
@@ -66,6 +76,8 @@ class ResultPopup(QWidget):
         self._start_geom: QRect | None = None
         self._is_dragging = False
         self._resize_edge: str | None = None
+        self._resized = False
+        self._moved_by_user = False
 
         self._setup_window()
         self._build_ui()
@@ -147,7 +159,7 @@ class ResultPopup(QWidget):
         layout = self.layout()
         if layout is None:
             layout = QVBoxLayout(self)
-            layout.setContentsMargins(4, 4, 4, 4)
+            layout.setContentsMargins(0, 0, 0, 0)  # the card fills the window: no invisible border eating clicks
             layout.setSpacing(0)
 
         self._card = QWidget(self)
@@ -164,68 +176,46 @@ class ResultPopup(QWidget):
 
         from translate.domain_manager import display_name_of, load_domain_profile
         domain_display_name = display_name_of(load_domain_profile(config.ACTIVE_DOMAIN))
+        p = theme.current()
 
         if self._is_loading:
-            self._loading_label = self._make_label(
-                tr("Переводим ({context})...", context=domain_display_name), size=10, color="#a0a0c0", bold=True
+            self._loading_label = QLabel(
+                tr("Переводим ({context})...", context=domain_display_name)
             )
+            self._loading_label.setTextFormat(Qt.PlainText)
+            self._loading_label.setFont(theme.body_font(9, medium=True, spacing=106))
+            self._loading_label.setStyleSheet(f"color: {p.text_soft}; background: transparent;")
             header_row.addWidget(self._loading_label)
             self._start_dots_animation()
         else:
             title_text = tr("Ошибка") if self._is_error else tr("Перевод")
-            title_color = "#ff6b6b" if self._is_error else "#8888aa"
-            header_lbl = QLabel(title_text)
-            header_lbl.setStyleSheet(f"color: {title_color}; font-size: 9.5pt; font-weight: 600; background: transparent;")
+            header_lbl = QLabel(title_text.upper())
+            header_lbl.setFont(theme.display_font(9.5, spacing=118))
+            header_lbl.setStyleSheet(
+                f"color: {p.error if self._is_error else p.accent}; background: transparent;"
+            )
             header_row.addWidget(header_lbl)
 
-            domain_badge = QLabel(tr("•  Контекст: {context}", context=domain_display_name))
+            domain_badge = QLabel(f"·  {domain_display_name}")
             domain_badge.setTextFormat(Qt.PlainText)
-            domain_badge.setStyleSheet("color: #777799; font-size: 8.5pt; font-family: 'Segoe UI'; background: transparent;")
+            domain_badge.setStyleSheet(theme.text_css(p.muted, 8.5))
             header_row.addWidget(domain_badge)
 
         header_row.addStretch()
 
         # C1 & D3: Copy and TTS buttons (visible only in final, non-error state)
         if not self._is_loading and not self._is_error and self._translated:
-            # D3: Speech synthesis button (🔊)
-            self._btn_tts = QPushButton("🔊")
-            self._btn_tts.setFixedSize(22, 22)
-            self._btn_tts.setCursor(Qt.PointingHandCursor)
-            self._btn_tts.setToolTip(tr("Озвучить перевод"))
-            _action_btn_base = (
-                "QPushButton {"
-                "  color: #777799; background: transparent; border: none;"
-                "  font-size: 11pt; border-radius: 4px;"
-                "}"
-                "QPushButton:hover { color: #a0c4ff; background: rgba(255,255,255,0.10); }"
-            )
-            self._btn_tts.setStyleSheet(_action_btn_base)
+            # D3: Speech synthesis button
+            self._btn_tts = self._icon_button("speaker", tr("Озвучить перевод"))
             self._btn_tts.clicked.connect(self._on_speak_translation)
             header_row.addWidget(self._btn_tts)
 
-            # C1: Copy to clipboard button (📋)
-            self._btn_copy = QPushButton("📋")
-            self._btn_copy.setFixedSize(22, 22)
-            self._btn_copy.setCursor(Qt.PointingHandCursor)
-            self._btn_copy.setToolTip(tr("Скопировать перевод"))
-            self._btn_copy.setStyleSheet(_action_btn_base)
+            # C1: Copy to clipboard button
+            self._btn_copy = self._icon_button("copy", tr("Скопировать перевод"))
             self._btn_copy.clicked.connect(self._on_copy_translation)
             header_row.addWidget(self._btn_copy)
 
-        self._btn_close = QPushButton("✕")
-        self._btn_close.setFixedSize(20, 20)
-        self._btn_close.setCursor(Qt.PointingHandCursor)
-        self._btn_close.setToolTip(tr("Закрыть окно"))
-        self._btn_close.setStyleSheet(
-            "QPushButton {"
-            "  color: #777799; background: transparent; border: none;"
-            "  font-family: 'Segoe UI', sans-serif; font-size: 10pt; font-weight: bold;"
-            "  border-radius: 4px;"
-            "}"
-            "QPushButton:hover {"
-            "  color: #ff6b6b; background: rgba(255, 255, 255, 0.12);"
-            "}"
-        )
+        self._btn_close = self._icon_button("close", tr("Закрыть окно"), danger=True)
         self._btn_close.clicked.connect(self._fade_out_and_close)
         header_row.addWidget(self._btn_close)
 
@@ -237,20 +227,7 @@ class ResultPopup(QWidget):
         self._scroll_area.setFrameShape(QFrame.NoFrame)
         self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._scroll_area.setStyleSheet(
-            "QScrollArea { background: transparent; border: none; }"
-            "QScrollBar:vertical {"
-            "  background: transparent; width: 6px; margin: 0px; border-radius: 3px;"
-            "}"
-            "QScrollBar::handle:vertical {"
-            "  background: rgba(255, 255, 255, 0.25); min-height: 20px; border-radius: 3px;"
-            "}"
-            "QScrollBar::handle:vertical:hover {"
-            "  background: rgba(255, 255, 255, 0.4);"
-            "}"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,"
-            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
-            "  background: none; height: 0px;"
-            "}"
+            "QScrollArea { background: transparent; border: none; }" + theme.scrollbar_css()
         )
 
         scroll_content = QWidget()
@@ -258,43 +235,52 @@ class ResultPopup(QWidget):
         content_layout = QVBoxLayout(scroll_content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(4)
+        content_layout.setAlignment(Qt.AlignTop)
 
-        if not self._is_loading:
+        if self._is_loading:
+            # Live streaming text (show_partial); hidden until the first chunk.
+            self._stream_label = self._make_label("", size=11, color=p.text, bold=True)
+            self._stream_label.setVisible(False)
+            content_layout.addWidget(self._stream_label)
+        else:
+            self._stream_label = None
             if self._is_error:
-                err = self._make_label(self._translated, size=11, color="#ff6b6b")
+                err = self._make_label(self._translated, size=10.5, color=p.error)
                 content_layout.addWidget(err)
             else:
-                tl = self._make_label(self._translated, size=12, color="#e8e8e8", bold=True)
+                tl = self._make_label(self._translated, size=11, color=p.text, bold=True)
                 content_layout.addWidget(tl)
 
             # Backend notice (e.g. local NLLB model unavailable → API was used).
             # Kept out of self._translated so copy/TTS still yield the clean text.
             if self._notice:
-                note = self._make_label(f"⚠ {self._notice}", size=8, color="#ffb347")
+                note = self._make_label(f"⚠ {self._notice}", size=8, color=p.warn)
                 content_layout.addWidget(note)
 
         self._scroll_area.setWidget(scroll_content)
         card_layout.addWidget(self._scroll_area)
         layout.addWidget(self._card)
 
-        # Subtle shadow
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setOffset(0, 3)
-        shadow.setColor(QColor(0, 0, 0, 80))
-        self._card.setGraphicsEffect(shadow)
+    def _icon_button(self, name: str, tooltip: str, *, danger: bool = False) -> QPushButton:
+        p = theme.current()
+        btn = QPushButton()
+        btn.setFixedSize(24, 24)
+        btn.setIconSize(QSize(self._ICON_SIZE, self._ICON_SIZE))
+        btn.setIcon(icons.icon(name, p.muted, self._ICON_SIZE,
+                               active_color=p.error if danger else p.text_soft))
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setToolTip(tooltip)
+        btn.setStyleSheet(theme.btn_icon(danger=danger))
+        return btn
 
     @staticmethod
-    def _make_label(text: str, *, size: int = 12, color: str = "#fff", bold: bool = False) -> QLabel:
+    def _make_label(text: str, *, size: float = 12, color: str = "", bold: bool = False) -> QLabel:
         label = QLabel(text)
         # OCR text and LLM output are untrusted: never let Qt render them as HTML.
         label.setTextFormat(Qt.PlainText)
         label.setWordWrap(True)
-        weight = "600" if bold else "normal"
         label.setStyleSheet(
-            f"color: {color}; font-size: {size}pt; font-weight: {weight}; "
-            f"font-family: 'Segoe UI', sans-serif; background: transparent; "
-            f"padding: 2px 0;"
+            theme.text_css(color or theme.current().text, size, bold=bold) + " padding: 2px 0;"
         )
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
@@ -321,26 +307,14 @@ class ResultPopup(QWidget):
         btn = getattr(self, "_btn_copy", None)
         if btn is None:
             return
-        btn.setText("✓")
-        btn.setStyleSheet(
-            "QPushButton {"
-            "  color: #6fcf97; background: transparent; border: none;"
-            "  font-size: 10pt; font-weight: bold; border-radius: 4px;"
-            "}"
-        )
+        btn.setIcon(icons.icon("check", theme.current().ok, self._ICON_SIZE))
         QTimer.singleShot(1500, lambda: self._reset_copy_btn(btn))
 
     def _reset_copy_btn(self, btn: QPushButton) -> None:
         """Restore copy button to default state after feedback delay."""
         try:
-            btn.setText("📋")
-            btn.setStyleSheet(
-                "QPushButton {"
-                "  color: #777799; background: transparent; border: none;"
-                "  font-size: 11pt; border-radius: 4px;"
-                "}"
-                "QPushButton:hover { color: #a0c4ff; background: rgba(255,255,255,0.10); }"
-            )
+            p = theme.current()
+            btn.setIcon(icons.icon("copy", p.muted, self._ICON_SIZE, active_color=p.text_soft))
         except RuntimeError:
             pass  # widget already deleted
 
@@ -363,6 +337,25 @@ class ResultPopup(QWidget):
         self._dots_count = (self._dots_count % 3) + 1
         dots = "." * self._dots_count
         self._loading_label.setText(tr("Переводим ({context})", context=domain_display_name) + dots)
+
+    # ── Streaming preview ────────────────────────────────
+
+    def show_partial(self, text: str) -> None:
+        """Show the translation as it streams in (loading state only)."""
+        if self._closing or not self._is_loading or self._stream_label is None:
+            return
+        self._stream_label.setText(text)
+        if not self._stream_label.isVisible():
+            self._stream_label.setVisible(True)
+            self._install_click_filter(self._stream_label)
+        if self.saved_size() is None:
+            saved_pos = self.pos()
+            self._fit_and_adjust_size()
+            self.move(saved_pos)
+            self._step_aside_if_covering()
+        if self._scroll_area is not None:  # follow the newest text
+            bar = self._scroll_area.verticalScrollBar()
+            bar.setValue(bar.maximum())
 
     # ── In-place content update ──────────────────────────
 
@@ -387,6 +380,7 @@ class ResultPopup(QWidget):
         self._install_click_filter(self._card)
         self._fit_and_adjust_size()
         self.move(saved_pos)
+        self._step_aside_if_covering()
 
         self._start_auto_timer()
 
@@ -396,11 +390,16 @@ class ResultPopup(QWidget):
         self.update()
 
     def _fit_and_adjust_size(self) -> None:
-        """Calculate and set exact window size fitting the content perfectly."""
-        self.setMinimumSize(self._MIN_WIDTH + 8, self._MIN_HEIGHT + 8)
-        self.setMaximumSize(self._MAX_WIDTH + 8, self._MAX_HEIGHT + 8)
+        """Size the window: the size the user dragged to, otherwise fit the content."""
+        self.setMinimumSize(self._MIN_WIDTH, self._MIN_HEIGHT)
+        self.setMaximumSize(self._MAX_WIDTH, self._MAX_HEIGHT)
         if self._scroll_area is not None:
             self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        remembered = self.saved_size()
+        if remembered is not None:
+            self.resize(remembered)  # labels word-wrap to it; the scroll area takes the rest
+            return
 
         self.layout().activate()
         self._card.layout().activate()
@@ -408,9 +407,20 @@ class ResultPopup(QWidget):
             self._scroll_area.widget().layout().activate()
 
         hint = self.sizeHint()
-        w = max(self._MIN_WIDTH + 8, min(self._MAX_WIDTH + 8, hint.width()))
-        h = max(self._MIN_HEIGHT + 8, min(self._MAX_HEIGHT + 8, hint.height()))
+        w = max(self._MIN_WIDTH, min(self._MAX_WIDTH, hint.width()))
+        h = max(self._MIN_HEIGHT, min(self._MAX_HEIGHT, hint.height()))
         self.resize(w, h)
+
+        # QScrollArea's size hint ignores word wrap: grow to the wrapped text height.
+        content = self._scroll_area.widget() if self._scroll_area is not None else None
+        if content is not None:
+            self.layout().activate()
+            viewport = self._scroll_area.viewport()
+            needed = (content.heightForWidth(viewport.width()) if content.hasHeightForWidth()
+                      else content.sizeHint().height())
+            if needed > viewport.height():
+                h = min(self._MAX_HEIGHT, self.height() + needed - viewport.height())
+                self.resize(w, h)
 
     # ── Edge detection & Mouse Resizing / Dragging ────────
 
@@ -419,27 +429,21 @@ class ResultPopup(QWidget):
         m = self._RESIZE_MARGIN
         x, y, w, h = pos.x(), pos.y(), r.width(), r.height()
 
+        # No top edge: it is the header, so grabbing it always moves the window.
         on_right = (x >= w - m)
         on_bottom = (y >= h - m)
         on_left = (x <= m)
-        on_top = (y <= m)
 
         if on_right and on_bottom:
             return "br"
         elif on_left and on_bottom:
             return "bl"
-        elif on_right and on_top:
-            return "tr"
-        elif on_left and on_top:
-            return "tl"
         elif on_right:
             return "r"
         elif on_bottom:
             return "b"
         elif on_left:
             return "l"
-        elif on_top:
-            return "t"
         return None
 
     def _update_cursor_for_edge(self, edge: str | None) -> None:
@@ -464,8 +468,8 @@ class ResultPopup(QWidget):
         edge = self._resize_edge
         g = self._start_geom
         x0, y0, w0, h0 = g.x(), g.y(), g.width(), g.height()
-        min_w, max_w = self._MIN_WIDTH + 8, self._MAX_WIDTH + 8
-        min_h, max_h = self._MIN_HEIGHT + 8, self._MAX_HEIGHT + 8
+        min_w, max_w = self._MIN_WIDTH, self._MAX_WIDTH
+        min_h, max_h = self._MIN_HEIGHT, self._MAX_HEIGHT
 
         new_x, new_y, new_w, new_h = x0, y0, w0, h0
 
@@ -484,6 +488,34 @@ class ResultPopup(QWidget):
             new_h = proposed_h
 
         self.setGeometry(new_x, new_y, new_w, new_h)
+        self._resized = True
+
+    # ── Saved size (config.POPUP_SIZE) ───────────────────
+
+    @classmethod
+    def saved_size(cls) -> QSize | None:
+        """The size the user dragged a popup to, clamped to the limits; None = fit text."""
+        return cls._parse_size(getattr(config, "POPUP_SIZE", None))
+
+    @classmethod
+    def _parse_size(cls, value) -> QSize | None:
+        try:
+            w, h = (int(v) for v in value)
+        except (TypeError, ValueError):
+            return None  # None / malformed hand-edited value
+        w = max(cls._MIN_WIDTH, min(cls._MAX_WIDTH, w))
+        h = max(cls._MIN_HEIGHT, min(cls._MAX_HEIGHT, h))
+        return QSize(w, h)
+
+    def _finish_resize(self) -> None:
+        """Persist the size once a resize drag ends (not on every mouse move)."""
+        if not self._resized:
+            return
+        self._resized = False
+        try:
+            config.POPUP_SIZE = [self.width(), self.height()]
+        except Exception:
+            pass  # settings file not writable: the size still applies to this popup
 
     # ── Click & Drag & Resize event filter ────────────────
 
@@ -516,13 +548,8 @@ class ResultPopup(QWidget):
                 if self._resize_edge:
                     self._perform_resize(event.globalPos())
                     return True
-                else:
-                    dist = (event.globalPos() - self._press_pos).manhattanLength()
-                    if dist > 5 or self._is_dragging:
-                        self._is_dragging = True
-                        self.setCursor(Qt.ClosedHandCursor)
-                        self.move(event.globalPos() - self._drag_offset)
-                        return True
+                elif self._drag_move(event.globalPos()):
+                    return True
         elif event.type() == QEvent.MouseButtonPress:
             if event.button() == Qt.LeftButton:
                 pos_local = self.mapFromGlobal(event.globalPos())
@@ -533,6 +560,7 @@ class ResultPopup(QWidget):
                 self._is_dragging = False
         elif event.type() == QEvent.MouseButtonRelease:
             if event.button() == Qt.LeftButton:
+                self._finish_resize()
                 self._resize_edge = None
                 self.setCursor(Qt.OpenHandCursor)
                 self._is_dragging = False
@@ -558,16 +586,30 @@ class ResultPopup(QWidget):
             if self._resize_edge:
                 self._perform_resize(event.globalPos())
                 event.accept()
-            else:
-                dist = (event.globalPos() - self._press_pos).manhattanLength()
-                if dist > 5 or self._is_dragging:
-                    self._is_dragging = True
-                    self.setCursor(Qt.ClosedHandCursor)
-                    self.move(event.globalPos() - self._drag_offset)
-                    event.accept()
+            elif self._drag_move(event.globalPos()):
+                event.accept()
+
+    def _drag_move(self, global_pos: QPoint) -> bool:
+        """Move the window for a left-button drag; False until the 5 px threshold."""
+        if not self._is_dragging:
+            if (global_pos - self._press_pos).manhattanLength() <= 5:
+                return False
+            self._moved_by_user = True
+            # The OS move loop tracks the cursor smoothly even while Python is busy
+            # and skips a repaint of the translucent window per mouse move. It eats
+            # the button release, so the press state is cleared right here.
+            handle = self.windowHandle()
+            if handle is not None and handle.startSystemMove():
+                self._press_pos = None
+                return True
+            self._is_dragging = True
+            self.setCursor(Qt.ClosedHandCursor)
+        self.move(global_pos - self._drag_offset)
+        return True
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self._finish_resize()
             self._resize_edge = None
             self.setCursor(Qt.OpenHandCursor)
             self._is_dragging = False
@@ -582,72 +624,104 @@ class ResultPopup(QWidget):
         else:
             super().keyPressEvent(event)
 
-    # ── Rounded card background with true alpha ──────────
+    # ── Square HUD card with true alpha ──────────────────
 
     def paintEvent(self, _event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
 
         painter.setCompositionMode(QPainter.CompositionMode_Clear)
         painter.fillRect(self.rect(), Qt.transparent)
         painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
 
-        path = QPainterPath()
-        r = self.rect().adjusted(4, 3, -4, -4)
-        path.addRoundedRect(r.x(), r.y(), r.width(), r.height(), 10, 10)
+        r = self.rect().adjusted(0, 0, -1, -1)
+        painter.fillRect(self.rect(), theme.qcolor("bg", int(255 * self._BG_OPACITY)))
 
         if self._is_loading:
-            bg = QColor(25, 30, 45, int(255 * self._BG_OPACITY))
+            border = theme.qcolor("dim")
         elif self._is_error:
-            bg = QColor(40, 20, 20, int(255 * self._BG_OPACITY))
+            border = theme.qcolor("error")
         else:
-            bg = QColor(28, 28, 36, int(255 * self._BG_OPACITY))
-
-        painter.fillPath(path, bg)
-
-        painter.setPen(QColor(255, 255, 255, 15))
-        painter.drawPath(path)
+            border = theme.qcolor("accent")
+        painter.setPen(QPen(border, 1))
+        painter.drawRect(r)
         painter.end()
 
     # ── Positioning ──────────────────────────────────────
 
     def _position_near_anchor(self) -> None:
-        if self._anchor is None:
-            cursor = QCursor.pos()
-            screen = self._screen_at(cursor)
-        else:
-            a = self._anchor
-            screen = self._screen_at(QPoint(a.center().x(), a.center().y()))
-
-        sg = screen.availableGeometry()
-
         self._fit_and_adjust_size()
-        ps = self.size()
+        self.move(self._place(self.size(), self._anchor, self._screen_rect(),
+                              self._app_window_rects(), self._MARGIN))
 
+    def _step_aside_if_covering(self) -> None:
+        """After the popup grew in place, move it off an app window it now covers.
+
+        A popup the user dragged stays where they put it.
+        """
+        if self._moved_by_user:
+            return
+        avoid = self._app_window_rects()
+        if any(self.frameGeometry().intersects(r) for r in avoid):
+            self.move(self._place(self.size(), self._anchor, self._screen_rect(),
+                                  avoid, self._MARGIN))
+
+    def _screen_rect(self) -> QRect:
         if self._anchor is None:
-            x = sg.x() + (sg.width() - ps.width()) // 2
-            y = sg.y() + (sg.height() - ps.height()) // 2
+            screen = self._screen_at(QCursor.pos())
         else:
-            a = self._anchor
-            x = a.left() + (a.width() - ps.width()) // 2
-            y = a.bottom() + self._MARGIN
+            screen = self._screen_at(self._anchor.center())
+        return screen.availableGeometry()
 
-            if y + ps.height() > sg.y() + sg.height():
-                y = a.top() - ps.height() - self._MARGIN
+    def _app_window_rects(self) -> list:
+        """Visible windows and dialogs of the app (the main window first of all)."""
+        return [w.frameGeometry() for w in QApplication.topLevelWidgets()
+                if w is not self and w.isVisible() and not w.isMinimized()
+                and w.windowType() in (Qt.Window, Qt.Dialog)]
 
-        min_x = sg.x() + self._MARGIN
-        max_x = sg.x() + sg.width() - ps.width() - self._MARGIN
-        if max_x < min_x:
-            max_x = min_x
-        x = max(min_x, min(x, max_x))
+    @staticmethod
+    def _place(size: QSize, anchor: QRect | None, screen: QRect, avoid: list,
+               margin: int) -> QPoint:
+        """Top-left for a popup of *size*.
 
-        min_y = sg.y() + self._MARGIN
-        max_y = sg.y() + sg.height() - ps.height() - self._MARGIN
-        if max_y < min_y:
-            max_y = min_y
-        y = max(min_y, min(y, max_y))
+        Preferred spot: under the anchor (above it when there is no room below),
+        centred on it; without an anchor, the screen centre. When that spot covers
+        one of the *avoid* windows, the nearest spot that covers neither them nor
+        the anchor is used; if the screen has none, the preferred spot stays.
+        """
+        w, h = size.width(), size.height()
+        max_x = max(screen.x() + margin, screen.x() + screen.width() - w - margin)
+        max_y = max(screen.y() + margin, screen.y() + screen.height() - h - margin)
 
-        self.move(x, y)
+        def clamp(x: int, y: int) -> QPoint:
+            return QPoint(max(screen.x() + margin, min(x, max_x)),
+                          max(screen.y() + margin, min(y, max_y)))
+
+        if anchor is None:
+            xs = [screen.x() + (screen.width() - w) // 2]
+            ys = [screen.y() + (screen.height() - h) // 2]
+        else:
+            xs = [anchor.left() + (anchor.width() - w) // 2]
+            below, above = anchor.bottom() + margin, anchor.top() - h - margin
+            ys = [below, above] if below + h <= screen.y() + screen.height() else [above, below]
+        preferred = clamp(xs[0], ys[0])
+
+        def covers_window(p: QPoint) -> bool:
+            return any(QRect(p, size).intersects(o) for o in avoid)
+
+        def is_free(p: QPoint) -> bool:
+            return not covers_window(p) and (anchor is None or not QRect(p, size).intersects(anchor))
+
+        if not covers_window(preferred):
+            return preferred
+
+        for o in avoid:  # beside / above / below each window in the way
+            xs += [o.left() - w - margin, o.right() + 1 + margin]
+            ys += [o.top() - h - margin, o.bottom() + 1 + margin]
+        spots = {(p.x(), p.y()) for p in (clamp(x, y) for x in xs for y in ys)}
+        free = [QPoint(x, y) for x, y in spots if is_free(QPoint(x, y))]
+        if not free:
+            return preferred
+        return min(free, key=lambda p: ((p - preferred).manhattanLength(), p.y(), p.x()))
 
     @staticmethod
     def _screen_at(pos: QPoint):

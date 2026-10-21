@@ -10,6 +10,7 @@ import openai
 
 import config
 import settings
+from i18n import set_language
 from translate import llm_client
 
 
@@ -17,9 +18,11 @@ class TestLLMResilience(unittest.TestCase):
 
     def setUp(self):
         llm_client.reset_client()
+        set_language("ru")  # error texts are asserted in Russian, whatever the user's setting
 
     def tearDown(self):
         llm_client.reset_client()
+        set_language(None)
 
     @patch("translate.llm_client.settings.get_primary_provider", return_value="anthropic")
     @patch("translate.llm_client.settings.is_fallback_enabled", return_value=True)

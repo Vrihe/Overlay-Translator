@@ -1,8 +1,9 @@
 """
-ui/main_window.py — Main application window with sidebar navigation.
+ui/main_window.py — Main application window with a navigation rail.
 
 Tabs:
-  1. Главная    — status overview + text translation + file-based OCR translation
+  1. Главная    — status chips + text translation + screenshot (file / drag-and-drop)
+                  OCR translation + the latest history records
   2. Настройки  — embedded SettingsWidget
   3. История    — embedded HistoryWidget
 """
@@ -10,17 +11,21 @@ Tabs:
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTextEdit, QFileDialog, QStackedWidget,
-    QApplication, QFrame, QGraphicsDropShadowEffect,
-    QComboBox,
+    QFrame, QComboBox, QBoxLayout, QScrollArea, QSizePolicy,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QIcon
+from PyQt5.QtCore import Qt, QThread, QEvent, pyqtSignal
+from PyQt5.QtGui import QFont
 
 import logging
+import os
 import webbrowser
+from datetime import datetime
+
 import config
 from i18n import tr
 from tray.icon_gen import create_tray_icon
+from ui import icons, theme, title_bar
+from ui.hud_widgets import Chip, FieldLabel, NavButton, Panel, page_title
 
 
 # ── Background worker for update checking ────────────────
@@ -97,97 +102,111 @@ class _ImageTranslateWorker(QThread):
         self.image_done.emit(text, translated, "")
 
 
-# ── Sidebar button ───────────────────────────────────────
+class _ElidedLabel(QLabel):
+    """Single-line plain-text label that elides with "…" to its current width."""
 
-class _SidebarButton(QPushButton):
-    """Custom sidebar navigation button."""
-
-    def __init__(self, icon_text: str, label: str, parent=None):
+    def __init__(self, text: str, parent=None):
         super().__init__(parent)
-        self.setText(f"  {icon_text}  {label}")
-        self.setCheckable(True)
-        self.setFixedHeight(44)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setStyleSheet(self._style(False))
+        self._full = text
+        self.setTextFormat(Qt.PlainText)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.setText(text)
 
-    @staticmethod
-    def _style(active: bool) -> str:
-        if active:
-            return (
-                "QPushButton {"
-                "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-                "    stop:0 rgba(91,141,239,0.25), stop:1 rgba(91,141,239,0.08));"
-                "  color: #ffffff; border: none; border-left: 3px solid #5b8def;"
-                "  border-radius: 0; padding: 0 16px;"
-                "  font-family: 'Segoe UI'; font-size: 10.5pt; font-weight: 600;"
-                "  text-align: left;"
-                "}"
-            )
-        return (
-            "QPushButton {"
-            "  background: transparent; color: #8888aa; border: none;"
-            "  border-left: 3px solid transparent;"
-            "  border-radius: 0; padding: 0 16px;"
-            "  font-family: 'Segoe UI'; font-size: 10.5pt; font-weight: 500;"
-            "  text-align: left;"
-            "}"
-            "QPushButton:hover {"
-            "  background: rgba(255,255,255,0.04); color: #b0b0cc;"
-            "}"
+    def resizeEvent(self, event):
+        self.setText(self.fontMetrics().elidedText(self._full, Qt.ElideRight, max(event.size().width(), 10)))
+        super().resizeEvent(event)
+
+
+# ── Screenshot drop zone ─────────────────────────────────
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp")
+
+
+class _DropZone(QFrame):
+    """Dashed area accepting a dropped image file; holds the upload button."""
+
+    file_dropped = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("dropZone")
+        self.setAcceptDrops(True)
+        self._set_highlight(False)
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(14, 18, 14, 16)
+        lay.setSpacing(8)
+
+        p = theme.current()
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(icons.pixmap("upload", p.accent, 26))
+        icon_lbl.setAlignment(Qt.AlignCenter)
+        icon_lbl.setStyleSheet("background: transparent; border: none;")
+        lay.addWidget(icon_lbl)
+
+        cap = QLabel(tr("Перетащите скриншот сюда"))
+        cap.setAlignment(Qt.AlignCenter)
+        cap.setWordWrap(True)
+        cap.setStyleSheet(theme.text_css(p.text_soft, 9.5) + " border: none;")
+        lay.addWidget(cap)
+
+        formats = QLabel("PNG · JPG · BMP · WEBP")
+        formats.setAlignment(Qt.AlignCenter)
+        formats.setFont(theme.body_font(8, spacing=110))
+        formats.setStyleSheet(f"color: {p.muted}; background: transparent; border: none;")
+        lay.addWidget(formats)
+
+        self.button = QPushButton(tr("Загрузить скриншот").upper())
+        self.button.setCursor(Qt.PointingHandCursor)
+        self.button.setStyleSheet(theme.btn_accent("7px 14px", 8.5))
+        lay.addSpacing(4)
+        lay.addWidget(self.button, 0, Qt.AlignHCenter)
+
+    def _set_highlight(self, on: bool) -> None:
+        p = theme.current()
+        self.setStyleSheet(
+            f"#dropZone {{ border: 1px dashed {p.accent if on else p.dim};"
+            f" background: {p.tint if on else 'transparent'}; }}"
         )
 
-    def set_active(self, active: bool):
-        self.setChecked(active)
-        self.setStyleSheet(self._style(active))
+    @staticmethod
+    def _image_path(event) -> str | None:
+        md = event.mimeData()
+        if not md.hasUrls():
+            return None
+        for url in md.urls():
+            path = url.toLocalFile()
+            if path and os.path.splitext(path)[1].lower() in _IMAGE_EXTS:
+                return path
+        return None
+
+    def dragEnterEvent(self, event):
+        if self.isEnabled() and self._image_path(event):
+            event.acceptProposedAction()
+            self._set_highlight(True)
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._set_highlight(False)
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        self._set_highlight(False)
+        path = self._image_path(event)
+        if path:
+            event.acceptProposedAction()
+            self.file_dropped.emit(path)
 
 
 # ── Home page ────────────────────────────────────────────
 
 class _HomePage(QWidget):
-    """Home tab: status + text translation + image file translation."""
+    """Home tab: status chips + text translation + screenshot translation + recent."""
 
-    _CSS_LABEL = "font-family: 'Segoe UI'; color: #ccc; font-size: 10pt; background: transparent;"
-    _CSS_TITLE = "font-family: 'Segoe UI'; color: #e8e8e8; font-size: 13pt; font-weight: 600; background: transparent;"
-    _CSS_MUTED = "font-family: 'Segoe UI'; color: #888; font-size: 9.5pt; background: transparent;"
-
-    _INPUT_CSS = (
-        "QTextEdit {"
-        "  background: #232334; color: #e0e0e0; border: 1px solid #3a3a4e;"
-        "  border-radius: 8px; padding: 10px;"
-        "  font-family: 'Segoe UI'; font-size: 10.5pt;"
-        "}"
-        "QTextEdit:focus {"
-        "  border-color: #5b8def;"
-        "}"
-    )
-
-    _RESULT_CSS = (
-        "QTextEdit {"
-        "  background: #1a1a2e; color: #e0e0e0; border: 1px solid #2a2a40;"
-        "  border-radius: 8px; padding: 10px;"
-        "  font-family: 'Segoe UI'; font-size: 10.5pt;"
-        "}"
-    )
-
-    _BTN_PRIMARY = (
-        "QPushButton {"
-        "  background: #5b8def; color: #fff; border: none;"
-        "  border-radius: 6px; padding: 9px 24px;"
-        "  font-family: 'Segoe UI'; font-size: 10pt; font-weight: 600;"
-        "}"
-        "QPushButton:hover { background: #4a7de0; }"
-        "QPushButton:disabled { background: #3a3a5c; color: #666; }"
-    )
-
-    _BTN_SECONDARY = (
-        "QPushButton {"
-        "  background: transparent; color: #aaa; border: 1px solid #444;"
-        "  border-radius: 6px; padding: 9px 24px;"
-        "  font-family: 'Segoe UI'; font-size: 10pt;"
-        "}"
-        "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
-        "QPushButton:disabled { background: #1a1a28; color: #555; }"
-    )
+    # Below this width the two columns stack vertically.
+    _STACK_BELOW = 760
+    _RECENT_LIMIT = 3
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -196,75 +215,37 @@ class _HomePage(QWidget):
         self._build_ui()
 
     def _build_ui(self):
+        p = theme.current()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setContentsMargins(24, 20, 24, 24)
         layout.setSpacing(16)
 
-        # ── Status card ──────────────────────────────────
-        status_card = QFrame()
-        status_card.setStyleSheet(
-            "QFrame {"
-            "  background: #1e1e30; border: 1px solid #2a2a40;"
-            "  border-radius: 10px;"
-            "}"
-        )
-        sc_layout = QVBoxLayout(status_card)
-        sc_layout.setContentsMargins(18, 14, 18, 14)
-        sc_layout.setSpacing(8)
+        # ── Header: title + status chips ─────────────────
+        header = QHBoxLayout()
+        header.setSpacing(8)
+        header.addWidget(page_title(tr("Главная")))
+        header.addStretch()
 
-        # Status row
-        status_row = QHBoxLayout()
-        dot = QLabel("●")
-        dot.setStyleSheet("color: #4ade80; font-size: 10pt; background: transparent;")
-        dot.setFixedWidth(18)
-        status_row.addWidget(dot)
-        status_lbl = QLabel(tr("Приложение запущено"))
-        status_lbl.setStyleSheet(self._CSS_LABEL + " font-weight: 600;")
-        status_row.addWidget(status_lbl)
-        status_row.addStretch()
-        sc_layout.addLayout(status_row)
+        self._status_chip = Chip(tr("Онлайн"), "ok")
+        header.addWidget(self._status_chip)
+        self._lang_lbl = Chip(kind="neutral")
+        header.addWidget(self._lang_lbl)
+        self._hotkey_lbl = Chip(kind="accent")
+        header.addWidget(self._hotkey_lbl)
+        layout.addLayout(header)
 
-        # Info row
-        info_row = QHBoxLayout()
-        info_row.setSpacing(24)
+        # ── Body: two columns (stack on narrow windows) ──
+        self._columns = QBoxLayout(QBoxLayout.LeftToRight)
+        self._columns.setSpacing(16)
+        layout.addLayout(self._columns, 1)
 
-        self._hotkey_lbl = QLabel(tr("⌨ Хоткей:  {hotkey}", hotkey=config.HOTKEY.upper()))
-        self._hotkey_lbl.setStyleSheet(self._CSS_MUTED)
-        info_row.addWidget(self._hotkey_lbl)
-
-        self._lang_lbl = QLabel(
-            tr("🌍 Перевод:  {src} → {tgt}", src=config.SOURCE_LANG.upper(), tgt=config.TARGET_LANG.upper())
-        )
-        self._lang_lbl.setStyleSheet(self._CSS_MUTED)
-        info_row.addWidget(self._lang_lbl)
-        info_row.addStretch()
-        sc_layout.addLayout(info_row)
-
-        layout.addWidget(status_card)
-
-        # ── Text translation section ─────────────────────
-        txt_title = QLabel(tr("📝 Перевод текста"))
-        txt_title.setStyleSheet(self._CSS_TITLE)
-        layout.addWidget(txt_title)
-
-        # Domain selection row
-        domain_row = QHBoxLayout()
-        lbl_domain = QLabel(tr("Контекст перевода:"))
-        lbl_domain.setStyleSheet(self._CSS_LABEL)
+        # Left: text translation panel
+        text_panel = Panel(tr("Перевод текста"))
         self._domain_combo = QComboBox()
-        self._domain_combo.setStyleSheet(
-            "QComboBox {"
-            "  background: #232334; color: #e0e0e0; border: 1px solid #3a3a4e;"
-            "  border-radius: 6px; padding: 5px 10px;"
-            "  font-family: 'Segoe UI'; font-size: 10pt;"
-            "}"
-            "QComboBox:focus { border-color: #5b8def; }"
-            "QComboBox QAbstractItemView {"
-            "  background: #232334; color: #e0e0e0;"
-            "  selection-background-color: #3a3a5c;"
-            "  border: 1px solid #3a3a4e;"
-            "}"
-        )
+        self._domain_combo.setStyleSheet(theme.combo_css(9))
+        self._domain_combo.setToolTip(tr("Контекст перевода:"))
+        self._domain_combo.setMinimumWidth(150)
+        self._domain_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         from translate.domain_manager import list_available_domains
         for d in list_available_domains():
             self._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
@@ -274,83 +255,92 @@ class _HomePage(QWidget):
             self._domain_combo.setCurrentIndex(idx_dom)
 
         self._domain_combo.currentIndexChanged.connect(self._on_domain_changed)
-        domain_row.addWidget(lbl_domain)
-        domain_row.addWidget(self._domain_combo, 1)
-        layout.addLayout(domain_row)
+        text_panel.header.addWidget(self._domain_combo)
 
+        text_panel.body.addWidget(FieldLabel(tr("Ввод"), prompt=True))
         self._text_input = QTextEdit()
         self._text_input.setPlaceholderText(tr("Введите или вставьте текст для перевода…"))
-        self._text_input.setStyleSheet(self._INPUT_CSS)
-        self._text_input.setFixedHeight(100)
-        layout.addWidget(self._text_input)
+        self._text_input.setStyleSheet(theme.input_css(10, "8px 10px"))
+        self._text_input.setFixedHeight(84)
+        text_panel.body.addWidget(self._text_input)
 
-        btn_row = QHBoxLayout()
-        self._btn_translate = QPushButton(tr("Перевести"))
-        self._btn_translate.setStyleSheet(self._BTN_PRIMARY)
+        self._btn_translate = QPushButton(tr("Перевести").upper())
+        self._btn_translate.setCursor(Qt.PointingHandCursor)
+        self._btn_translate.setFont(theme.display_font(10, spacing=112))
+        self._btn_translate.setStyleSheet(theme.btn_primary("9px 22px", 10))
         self._btn_translate.clicked.connect(self._on_translate_text)
-        btn_row.addWidget(self._btn_translate)
-        btn_row.addStretch()
-        layout.addLayout(btn_row)
+        text_panel.body.addWidget(self._btn_translate)
 
-        # ── Result area ──────────────────────────────────
+        self._result_caption = FieldLabel(tr("Результат"), prompt=True, accent=True)
+        text_panel.body.addWidget(self._result_caption)
+
+        # Error / status line (plain text: shows provider error text).
         self._result_label = QLabel("")
-        self._result_label.setTextFormat(Qt.PlainText)  # shows error text
-        self._result_label.setStyleSheet(self._CSS_MUTED)
+        self._result_label.setTextFormat(Qt.PlainText)
+        self._result_label.setWordWrap(True)
+        self._result_label.setStyleSheet(theme.label_css("muted"))
         self._result_label.setVisible(False)
-        layout.addWidget(self._result_label)
+        text_panel.body.addWidget(self._result_label)
 
         self._result_text = QTextEdit()
         self._result_text.setReadOnly(True)
-        self._result_text.setStyleSheet(self._RESULT_CSS)
-        self._result_text.setVisible(False)
-        self._result_text.setMinimumHeight(60)
-        layout.addWidget(self._result_text)
+        self._result_text.setPlaceholderText(tr("Перевод появится здесь"))
+        self._result_text.setStyleSheet(theme.result_css())
+        self._result_text.setMinimumHeight(70)
+        text_panel.body.addWidget(self._result_text, 1)
 
-        # ── Separator ────────────────────────────────────
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background: #2a2a40; border: none; max-height: 1px;")
-        layout.addWidget(sep)
+        self._columns.addWidget(text_panel, 135)
 
-        # ── Image translation section ────────────────────
-        img_title = QLabel(tr("🖼 Перевод из файла"))
-        img_title.setStyleSheet(self._CSS_TITLE)
-        layout.addWidget(img_title)
+        # Right column: screenshot panel + recent panel
+        right = QVBoxLayout()
+        right.setSpacing(16)
 
-        img_desc = QLabel(tr("Загрузите скриншот — текст будет распознан через OCR и переведён"))
-        img_desc.setStyleSheet(self._CSS_MUTED)
-        img_desc.setWordWrap(True)
-        layout.addWidget(img_desc)
-
-        img_btn_row = QHBoxLayout()
-        self._btn_load_image = QPushButton(tr("📁 Загрузить скриншот"))
-        self._btn_load_image.setStyleSheet(self._BTN_SECONDARY)
+        img_panel = Panel(tr("Из скриншота"))
+        self._drop_zone = _DropZone()
+        self._drop_zone.file_dropped.connect(self._start_image_translation)
+        self._btn_load_image = self._drop_zone.button
         self._btn_load_image.clicked.connect(self._on_load_image)
-        img_btn_row.addWidget(self._btn_load_image)
-        img_btn_row.addStretch()
-        layout.addLayout(img_btn_row)
+        img_panel.body.addWidget(self._drop_zone)
 
         self._img_result_label = QLabel("")
         self._img_result_label.setTextFormat(Qt.PlainText)
-        self._img_result_label.setStyleSheet(self._CSS_MUTED)
+        self._img_result_label.setWordWrap(True)
+        self._img_result_label.setStyleSheet(theme.label_css("muted"))
         self._img_result_label.setVisible(False)
-        layout.addWidget(self._img_result_label)
+        img_panel.body.addWidget(self._img_result_label)
 
         self._img_source_text = QTextEdit()
         self._img_source_text.setReadOnly(True)
-        self._img_source_text.setStyleSheet(self._RESULT_CSS)
+        self._img_source_text.setStyleSheet(theme.input_css(9, "6px 8px"))
         self._img_source_text.setVisible(False)
         self._img_source_text.setFixedHeight(60)
-        layout.addWidget(self._img_source_text)
+        img_panel.body.addWidget(self._img_source_text)
 
         self._img_result_text = QTextEdit()
         self._img_result_text.setReadOnly(True)
-        self._img_result_text.setStyleSheet(self._RESULT_CSS)
+        self._img_result_text.setStyleSheet(theme.result_css(10))
         self._img_result_text.setVisible(False)
         self._img_result_text.setMinimumHeight(60)
-        layout.addWidget(self._img_result_text)
+        img_panel.body.addWidget(self._img_result_text)
+        right.addWidget(img_panel)
 
-        layout.addStretch()
+        recent_panel = Panel(tr("Последние"))
+        self._recent_layout = QVBoxLayout()
+        self._recent_layout.setSpacing(0)
+        recent_panel.body.addLayout(self._recent_layout)
+        recent_panel.body.addStretch()
+        right.addWidget(recent_panel, 1)
+
+        self._columns.addLayout(right, 100)
+
+        self.refresh_status()
+
+    def resizeEvent(self, event):
+        direction = (QBoxLayout.TopToBottom if event.size().width() < self._STACK_BELOW
+                     else QBoxLayout.LeftToRight)
+        if self._columns.direction() != direction:
+            self._columns.setDirection(direction)
+        super().resizeEvent(event)
 
     # ── Domain change ────────────────────────────────────
 
@@ -362,16 +352,65 @@ class _HomePage(QWidget):
     # ── Status refresh ───────────────────────────────────
 
     def refresh_status(self):
-        """Update status labels to reflect current config."""
-        self._hotkey_lbl.setText(tr("⌨ Хоткей:  {hotkey}", hotkey=config.HOTKEY.upper()))
-        self._lang_lbl.setText(
-            tr("🌍 Перевод:  {src} → {tgt}", src=config.SOURCE_LANG.upper(), tgt=config.TARGET_LANG.upper())
+        """Update status chips and the recent list to reflect current config / history."""
+        self._hotkey_lbl.set_chip_text(config.HOTKEY.upper())
+        self._lang_lbl.set_chip_text(
+            tr("{src} → {tgt}", src=config.SOURCE_LANG.upper(), tgt=config.TARGET_LANG.upper())
         )
         idx = self._domain_combo.findData(config.ACTIVE_DOMAIN)
         if idx >= 0 and self._domain_combo.currentIndex() != idx:
             self._domain_combo.blockSignals(True)
             self._domain_combo.setCurrentIndex(idx)
             self._domain_combo.blockSignals(False)
+        self.refresh_recent()
+
+    def refresh_recent(self):
+        """Show the newest history records (read through cache/store, never logged)."""
+        while self._recent_layout.count():
+            item = self._recent_layout.takeAt(0)
+            if item.widget() is not None:
+                item.widget().hide()
+                item.widget().deleteLater()
+
+        try:
+            import cache.store as store
+            records = store.get_all_history(limit=self._RECENT_LIMIT)
+        except Exception:
+            logging.exception("Failed to read recent history")
+            records = []
+
+        p = theme.current()
+        if not records:
+            empty = QLabel(tr("Пока нет переводов"))
+            empty.setStyleSheet(theme.label_css("muted"))
+            self._recent_layout.addWidget(empty)
+            return
+
+        for i, rec in enumerate(records):
+            row = QFrame()
+            row.setObjectName("recentRow")
+            border = f"border-top: 1px solid {p.line};" if i else "border: none;"
+            row.setStyleSheet(f"#recentRow {{ background: transparent; {border} }}")
+            rl = QVBoxLayout(row)
+            rl.setContentsMargins(0, 8, 0, 8)
+            rl.setSpacing(3)
+
+            ts = rec.get("timestamp", 0)
+            when = datetime.fromtimestamp(ts).strftime("%H:%M") if ts else "—"
+            meta = QLabel(
+                f"{rec.get('source_lang', '').upper()} → {rec.get('target_lang', '').upper()}"
+                f"  ·  {when}"
+            )
+            meta.setFont(theme.body_font(7.5, spacing=110))
+            meta.setStyleSheet(f"color: {p.muted}; background: transparent;")
+            rl.addWidget(meta)
+
+            text = " ".join(str(rec.get("translated_text", "")).split())
+            body = _ElidedLabel(text)
+            body.setStyleSheet(theme.text_css(p.text, 9))
+            body.setToolTip(text[:500])
+            rl.addWidget(body)
+            self._recent_layout.addWidget(row)
 
     # ── Text translation ─────────────────────────────────
 
@@ -381,10 +420,9 @@ class _HomePage(QWidget):
             return
 
         self._btn_translate.setEnabled(False)
-        self._btn_translate.setText(tr("Переводим…"))
+        self._btn_translate.setText(tr("Переводим…").upper())
         self._result_label.setText("")
         self._result_label.setVisible(False)
-        self._result_text.setVisible(False)
 
         self._text_worker = _TextTranslateWorker(text)
         self._text_worker.text_done.connect(self._on_text_translated)
@@ -407,23 +445,17 @@ class _HomePage(QWidget):
         )
         self._text_worker = None
         self._btn_translate.setEnabled(True)
-        self._btn_translate.setText(tr("Перевести"))
+        self._btn_translate.setText(tr("Перевести").upper())
 
         if error:
-            self._result_label.setText(tr("❌ Ошибка: {error}", error=error))
-            self._result_label.setStyleSheet(
-                "font-family: 'Segoe UI'; color: #ff6b6b; font-size: 9.5pt; background: transparent;"
-            )
+            self._result_label.setText(tr("Ошибка: {error}", error=error))
+            self._result_label.setStyleSheet(theme.label_css("error"))
             self._result_label.setVisible(True)
-            self._result_text.setVisible(False)
+            self._result_text.clear()
         else:
-            self._result_label.setText(tr("✓ Результат перевода:"))
-            self._result_label.setStyleSheet(
-                "font-family: 'Segoe UI'; color: #66cc99; font-size: 9.5pt; background: transparent;"
-            )
-            self._result_label.setVisible(True)
+            self._result_label.setVisible(False)
             self._result_text.setPlainText(translated)
-            self._result_text.setVisible(True)
+            self.refresh_recent()
 
     # ── Image translation ────────────────────────────────
 
@@ -436,9 +468,15 @@ class _HomePage(QWidget):
         )
         if not path:
             return
+        self._start_image_translation(path)
+
+    def _start_image_translation(self, path: str):
+        if self._image_worker is not None:
+            return  # one image at a time (also guards against a drop mid-run)
 
         self._btn_load_image.setEnabled(False)
-        self._btn_load_image.setText(tr("📁 Обрабатываем…"))
+        self._drop_zone.setEnabled(False)
+        self._btn_load_image.setText(tr("Обрабатываем…").upper())
         self._img_result_label.setVisible(False)
         self._img_source_text.setVisible(False)
         self._img_result_text.setVisible(False)
@@ -450,23 +488,18 @@ class _HomePage(QWidget):
     def _on_image_translated(self, source: str, translated: str, error: str):
         self._image_worker = None
         self._btn_load_image.setEnabled(True)
-        self._btn_load_image.setText(tr("📁 Загрузить скриншот"))
+        self._drop_zone.setEnabled(True)
+        self._btn_load_image.setText(tr("Загрузить скриншот").upper())
 
         if error:
-            self._img_result_label.setText(f"❌ {error}")
-            self._img_result_label.setStyleSheet(
-                "font-family: 'Segoe UI'; color: #ff6b6b; font-size: 9.5pt;"
-                " background: transparent;"
-            )
+            self._img_result_label.setText(error)
+            self._img_result_label.setStyleSheet(theme.label_css("error"))
             self._img_result_label.setVisible(True)
             self._img_source_text.setVisible(False)
             self._img_result_text.setVisible(False)
         else:
             self._img_result_label.setText(tr("✓ Текст распознан и переведён:"))
-            self._img_result_label.setStyleSheet(
-                "font-family: 'Segoe UI'; color: #66cc99; font-size: 9.5pt;"
-                " background: transparent;"
-            )
+            self._img_result_label.setStyleSheet(theme.label_css("ok"))
             self._img_result_label.setVisible(True)
 
             if source:
@@ -475,14 +508,18 @@ class _HomePage(QWidget):
 
             self._img_result_text.setPlainText(translated)
             self._img_result_text.setVisible(True)
+            self.refresh_recent()
 
 
 # ── Main Window ──────────────────────────────────────────
 
 class MainWindow(QMainWindow):
-    """Main application window with sidebar navigation."""
+    """Main application window with a navigation rail."""
 
-    _SIDEBAR_WIDTH = 210
+    _RAIL_WIDTH = 72
+
+    # Settings asked for a restart (restart-only options were saved).
+    restart_requested = pyqtSignal()
 
     # Page indices
     PAGE_HOME = 0
@@ -494,30 +531,26 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Translator Overlay")
         self.setWindowIcon(create_tray_icon())
-        self.resize(920, 620)
-        self.setMinimumSize(700, 450)
+        # Own title bar in the palette colours (Windows 10 cannot colour the native one);
+        # ui/title_bar.py restores the native frame behaviour (snap, resize, animations).
+        self._custom_frame = title_bar.ENABLED
+        self._title_bar = None
+        if self._custom_frame:
+            self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        # Sizes are for the content; the custom title bar sits inside the window.
+        extra = title_bar.HEIGHT if self._custom_frame else 0
+        self.resize(920, 620 + extra)
+        self.setMinimumSize(700, 450 + extra)
 
-        self.setStyleSheet(
-            "QMainWindow { background: #1c1c24; }"
-            "QScrollBar:vertical {"
-            "  background: transparent; width: 6px; margin: 0px; border-radius: 3px;"
-            "}"
-            "QScrollBar::handle:vertical {"
-            "  background: rgba(255, 255, 255, 0.2); min-height: 20px; border-radius: 3px;"
-            "}"
-            "QScrollBar::handle:vertical:hover {"
-            "  background: rgba(255, 255, 255, 0.35);"
-            "}"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,"
-            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
-            "  background: none; height: 0px;"
-            "}"
-        )
+        p = theme.current()
+        self.setStyleSheet(f"QMainWindow {{ background: {p.bg}; }}" + theme.scrollbar_css())
 
         self._tray_icon = None
         self._update_worker = None
 
         self._build_ui()
+        if self._custom_frame:
+            title_bar.install_native_frame(self)
         self._connect_signals()
         self.switch_to_page(self.PAGE_HOME)
 
@@ -537,7 +570,7 @@ class MainWindow(QMainWindow):
     def _on_update_check_finished(self, has_update: bool, version: str, url: str):
         self._update_worker = None
         if has_update and url:
-            self._update_label.setText(tr("🚀 Доступно обновление {version}!", version=version))
+            self._update_label.setText(tr("Доступно обновление {version}", version=version).upper())
             self._update_banner.setVisible(True)
             try:
                 self._btn_download_update.clicked.disconnect()
@@ -564,111 +597,91 @@ class MainWindow(QMainWindow):
     # ── Build UI ─────────────────────────────────────────
 
     def _build_ui(self):
+        p = theme.current()
         central = QWidget()
+        central.setObjectName("windowFrame")
         self.setCentralWidget(central)
+        self._frame_layout = QVBoxLayout(central)
+        self._frame_layout.setContentsMargins(0, 0, 0, 0)
+        self._frame_layout.setSpacing(0)
+        if self._custom_frame:
+            self._title_bar = title_bar.TitleBar(self, "Translator Overlay")
+            self._frame_layout.addWidget(self._title_bar)
+            self._sync_frame()
 
-        root = QHBoxLayout(central)
+        root = QHBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+        self._frame_layout.addLayout(root, 1)
 
-        # ── Sidebar ──────────────────────────────────────
-        sidebar = QWidget()
-        sidebar.setFixedWidth(self._SIDEBAR_WIDTH)
-        sidebar.setStyleSheet("background: #16162a;")
-
-        sb_layout = QVBoxLayout(sidebar)
-        sb_layout.setContentsMargins(0, 0, 0, 0)
-        sb_layout.setSpacing(0)
-
-        # Logo / app name
-        logo_container = QWidget()
-        logo_container.setFixedHeight(70)
-        logo_container.setStyleSheet("background: transparent;")
-        logo_layout = QVBoxLayout(logo_container)
-        logo_layout.setContentsMargins(20, 16, 16, 8)
-
-        app_name = QLabel("Translator Overlay")
-        app_name.setStyleSheet(
-            "font-family: 'Segoe UI'; font-size: 13pt; font-weight: 700;"
-            " color: #e0e0f0; background: transparent;"
+        # ── Navigation rail ──────────────────────────────
+        rail = QFrame()
+        rail.setObjectName("navRail")
+        rail.setFixedWidth(self._RAIL_WIDTH)
+        rail.setStyleSheet(
+            f"#navRail {{ background: {p.rail}; border: none; border-right: 1px solid {p.line}; }}"
         )
-        logo_layout.addWidget(app_name)
 
-        ver_label = QLabel(f"v{getattr(config, 'APP_VERSION', '1.0.0')}")
-        ver_label.setStyleSheet(
-            "font-family: 'Segoe UI'; font-size: 8.5pt; color: #555570;"
-            " background: transparent;"
-        )
-        logo_layout.addWidget(ver_label)
+        sb_layout = QVBoxLayout(rail)
+        sb_layout.setContentsMargins(0, 16, 0, 16)
+        sb_layout.setSpacing(6)
+        sb_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
 
-        sb_layout.addWidget(logo_container)
-
-        # Separator
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background: #2a2a40; border: none; max-height: 1px;")
-        sb_layout.addWidget(sep)
-
-        sb_layout.addSpacing(8)
+        # Logo tile
+        logo = QLabel("T")
+        logo.setFixedSize(38, 38)
+        logo.setAlignment(Qt.AlignCenter)
+        logo_font = theme.display_font(17, spacing=100)
+        logo_font.setWeight(QFont.Bold)
+        logo.setFont(logo_font)
+        logo.setToolTip(f"Translator Overlay v{getattr(config, 'APP_VERSION', '1.0.0')}")
+        logo.setStyleSheet(f"background: {p.accent}; color: {p.on_accent};")
+        sb_layout.addWidget(logo, 0, Qt.AlignHCenter)
+        sb_layout.addSpacing(14)
 
         # Navigation buttons
-        self._btn_home = _SidebarButton("🏠", tr("Главная"))
-        self._btn_settings = _SidebarButton("⚙️", tr("Настройки"))
-        self._btn_history = _SidebarButton("📜", tr("История"))
+        self._btn_home = NavButton("home", tr("Главная"))
+        self._btn_settings = NavButton("sliders", tr("Опции"))
+        self._btn_history = NavButton("clock", tr("История"))
 
         self._nav_buttons = [self._btn_home, self._btn_settings, self._btn_history]
 
         for btn in self._nav_buttons:
-            sb_layout.addWidget(btn)
+            sb_layout.addWidget(btn, 0, Qt.AlignHCenter)
 
         sb_layout.addStretch()
-
-        # Bottom info
-        bottom_info = QLabel("  ⌨ " + config.HOTKEY.upper())
-        bottom_info.setStyleSheet(
-            "font-family: 'Segoe UI'; font-size: 8.5pt; color: #444460;"
-            " background: transparent; padding: 12px;"
-        )
-        sb_layout.addWidget(bottom_info)
-
-        root.addWidget(sidebar)
+        root.addWidget(rail)
 
         # ── Right content container (Banner + Stack) ─────
         right_container = QWidget()
         right_container.setObjectName("rightContainer")
         # Rules on page ancestors are selector-scoped: unscoped ones cascade into the
         # QMessageBox / QInputDialog opened from a page and override ui/theme.py.
-        right_container.setStyleSheet("#rightContainer { background: #1c1c24; }")
+        right_container.setStyleSheet(f"#rightContainer {{ background: {p.bg}; }}")
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
 
         # Update banner (hidden by default)
         self._update_banner = QFrame()
+        self._update_banner.setObjectName("updateBanner")
         self._update_banner.setStyleSheet(
-            "QFrame {"
-            "  background: #20203a; border-bottom: 1px solid #5b8def;"
-            "}"
+            f"#updateBanner {{ background: {p.panel}; border: none;"
+            f" border-bottom: 1px solid {p.accent}; }}"
         )
         ub_layout = QHBoxLayout(self._update_banner)
         ub_layout.setContentsMargins(20, 8, 20, 8)
 
         self._update_label = QLabel("")
         self._update_label.setTextFormat(Qt.PlainText)  # version comes from GitHub
-        self._update_label.setStyleSheet("color: #ffffff; font-family: 'Segoe UI'; font-size: 9.5pt;")
+        self._update_label.setFont(theme.body_font(8.5, medium=True, spacing=110))
+        self._update_label.setStyleSheet(f"color: {p.text}; background: transparent;")
         ub_layout.addWidget(self._update_label)
         ub_layout.addStretch()
 
-        self._btn_download_update = QPushButton(tr("Скачать обновление"))
+        self._btn_download_update = QPushButton(tr("Скачать обновление").upper())
         self._btn_download_update.setCursor(Qt.PointingHandCursor)
-        self._btn_download_update.setStyleSheet(
-            "QPushButton {"
-            "  background: #5b8def; color: #fff; border: none;"
-            "  border-radius: 6px; padding: 5px 14px;"
-            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #4a7de0; }"
-        )
+        self._btn_download_update.setStyleSheet(theme.btn_accent("5px 14px", 8.5))
         ub_layout.addWidget(self._btn_download_update)
         self._update_banner.setVisible(False)
         right_layout.addWidget(self._update_banner)
@@ -676,16 +689,16 @@ class MainWindow(QMainWindow):
         # ── Content area (QStackedWidget) ────────────────
         self._stack = QStackedWidget()
         self._stack.setObjectName("pageStack")
-        self._stack.setStyleSheet("#pageStack { background: #1c1c24; }")
+        self._stack.setStyleSheet(f"#pageStack {{ background: {p.bg}; }}")
 
         # Page 0: Home
-        from PyQt5.QtWidgets import QScrollArea
         home_scroll = QScrollArea()
         home_scroll.setWidgetResizable(True)
         home_scroll.setFrameShape(QFrame.NoFrame)
         home_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self._home_page = _HomePage()
-        self._home_page.setStyleSheet("background: transparent;")
+        self._home_page.setObjectName("homePage")
+        self._home_page.setStyleSheet("#homePage { background: transparent; }")
         home_scroll.setWidget(self._home_page)
         self._stack.addWidget(home_scroll)
 
@@ -703,6 +716,31 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(self._stack, 1)
         root.addWidget(right_container, 1)
+
+    # ── Custom frame (Windows) ───────────────────────────
+
+    def nativeEvent(self, event_type, message):
+        if self._custom_frame:
+            handled = title_bar.native_event(self, self._title_bar, message)
+            if handled is not None:
+                return handled
+        return super().nativeEvent(event_type, message)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.WindowStateChange and self._custom_frame:
+            self._sync_frame()
+        super().changeEvent(event)
+
+    def _sync_frame(self):
+        """1 px outline while windowed (no native border left); none when maximised."""
+        p = theme.current()
+        maximized = self.isMaximized()
+        self._frame_layout.setContentsMargins(*(0 if maximized else 1,) * 4)
+        self.centralWidget().setStyleSheet(
+            f"#windowFrame {{ background: {p.line if not maximized else p.bg}; }}"
+        )
+        if self._title_bar is not None:
+            self._title_bar.sync_state()
 
     # ── Signals ──────────────────────────────────────────
 
@@ -738,7 +776,7 @@ class MainWindow(QMainWindow):
             btn.set_active(i == index)
 
     def _init_settings_page(self):
-        """Lazy-init the settings page with SettingsWidget."""
+        """Lazy-init the settings page with SettingsWidget (it scrolls its own sections)."""
         try:
             from ui.settings_dialog import SettingsWidget
             settings_widget = SettingsWidget()
@@ -746,41 +784,33 @@ class MainWindow(QMainWindow):
             logging.exception("Failed to initialize settings page")
             return
 
-        from PyQt5.QtWidgets import QScrollArea
-
         container = QWidget()
         container.setObjectName("settingsPage")
         container.setStyleSheet("#settingsPage { background: transparent; }")
         vbox = QVBoxLayout(container)
-        vbox.setContentsMargins(28, 24, 28, 24)
+        vbox.setContentsMargins(0, 0, 0, 0)
         vbox.setSpacing(0)
 
-        title = QLabel(tr("⚙️ Настройки"))
-        title.setStyleSheet(
-            "font-family: 'Segoe UI'; color: #e8e8e8; font-size: 14pt;"
-            " font-weight: 600; background: transparent; padding-bottom: 12px;"
-        )
-        vbox.addWidget(title)
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(24, 20, 24, 16)
+        title_row.addWidget(page_title(tr("Настройки")))
+        title_row.addStretch()
+        vbox.addLayout(title_row)
 
         self._settings_widget = settings_widget
         # C2: keep tray language checkmarks in sync when settings are saved
         if getattr(self, "_tray_icon", None) is not None and hasattr(self._tray_icon, "rebuild_lang_menu"):
             self._settings_widget.settings_saved.connect(self._tray_icon.rebuild_lang_menu)
-        vbox.addWidget(self._settings_widget)
-        vbox.addStretch()
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        scroll.setWidget(container)
+        self._settings_widget.settings_saved.connect(self._home_page.refresh_status)
+        self._settings_widget.restart_requested.connect(self.restart_requested)
+        vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)
         self._settings_placeholder.deleteLater()
-        self._stack.insertWidget(self.PAGE_SETTINGS, scroll)
+        self._stack.insertWidget(self.PAGE_SETTINGS, container)
 
     def _init_history_page(self):
-        """Lazy-init the history page with HistoryWidget."""
+        """Lazy-init the history page with HistoryWidget (it has its own title row)."""
         try:
             from history.history_window import HistoryWidget
             history_widget = HistoryWidget()
@@ -788,34 +818,19 @@ class MainWindow(QMainWindow):
             logging.exception("Failed to initialize history page")
             return
 
-        from PyQt5.QtWidgets import QScrollArea
-
         container = QWidget()
         container.setObjectName("historyPage")
         container.setStyleSheet("#historyPage { background: transparent; }")
         vbox = QVBoxLayout(container)
-        vbox.setContentsMargins(28, 24, 28, 24)
+        vbox.setContentsMargins(24, 20, 24, 20)
         vbox.setSpacing(0)
-
-        title = QLabel(tr("📜 История переводов"))
-        title.setStyleSheet(
-            "font-family: 'Segoe UI'; color: #e8e8e8; font-size: 14pt;"
-            " font-weight: 600; background: transparent; padding-bottom: 12px;"
-        )
-        vbox.addWidget(title)
 
         self._history_widget = history_widget
         vbox.addWidget(self._history_widget, 1)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        scroll.setWidget(container)
-
         self._stack.removeWidget(self._history_placeholder)
         self._history_placeholder.deleteLater()
-        self._stack.insertWidget(self.PAGE_HISTORY, scroll)
+        self._stack.insertWidget(self.PAGE_HISTORY, container)
 
     # ── Show / restore ───────────────────────────────────
 

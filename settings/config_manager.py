@@ -7,13 +7,15 @@ Falls back to sane defaults when the file doesn't exist or is corrupted.
 Stored keys:
   • target_language       — ISO 639-1 code (default "ru")
   • translation_engine    — "llm_text" | "llm_vision" | "api"
-  • translation_backend   — "api" | "google" | "deepl" | "azure" | "nllb"
+  • translation_backend   — "google" (default, no key needed) | "api" | "deepl" | "azure" | "nllb"
   • azure_region           — Azure Translator region (default "global")
   • nllb_model_path       — explicit path to the local NLLB model ("" = auto-discover)
   • llm_model             — model identifier for OpenRouter / Anthropic
   • hotkey                — keyboard combo string
   • popup_timeout_sec     — auto-close delay for the result popup
   • ui_language           — interface language: "auto" | "ru" | "en" (see i18n/)
+  • ui_theme              — colour scheme: "amber" | "cyan" | "crimson" (see ui/theme.py)
+  • popup_size            — [width, height] the result popup was dragged to (None = fit text)
 """
 
 import json
@@ -58,7 +60,7 @@ DEFAULTS: dict[str, Any] = {
     "source_language": "auto",
     "target_language": "ru",
     "translation_engine": "llm_text",     # "llm_text" | "llm_vision" | "api"
-    "translation_backend": "api",         # "api" | "google" | "deepl" | "azure" | "nllb"
+    "translation_backend": "google",      # "google" (keyless by default) | "api" | "deepl" | "azure" | "nllb"
     "nllb_model_path": "",                # optional explicit path to the CTranslate2 NLLB dir
     "ocr_gpu_mode": "auto",               # "auto" | "cpu" — OCR on the GPU via DirectML ("gpu" = "auto")
     "azure_region": "global",             # Azure Translator region (default "global")
@@ -71,10 +73,12 @@ DEFAULTS: dict[str, Any] = {
     "llm_max_tokens": 350,                 # int: max completion tokens (50 - 2000)
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
+    "popup_size": None,                    # [w, h] set by dragging the popup edges; None = fit text
     "notification_type": "popup",          # "popup" | "windows_toast"
     "ocr_languages": ["en", "ru"],
     "active_domain": "general",
     "ui_language": "auto",                 # "auto" | "ru" | "en" (applied after a restart)
+    "ui_theme": "amber",                   # "amber" | "cyan" | "crimson" (applied after a restart)
 }
 
 # ── In-memory cache ──────────────────────────────────────

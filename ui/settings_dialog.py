@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QRadioButton, QButtonGroup, QComboBox,
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
-    QTextEdit, QScrollArea, QFrame, QCheckBox,
+    QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem, QStackedWidget,
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
 
@@ -21,6 +21,8 @@ import settings
 from settings import config_manager
 from translate.llm_client import reset_client
 from i18n import N_, UI_LANGUAGES, tr
+from ui import icons, theme
+from ui.hud_widgets import Chip, FieldLabel, Segmented, SwitchRow
 
 _SOURCE_LANGUAGES = [
     ("auto", N_("Автоопределение")),
@@ -55,6 +57,12 @@ _TARGET_LANGUAGES = [
     ("tr", "Türkçe"),
     ("pl", "Polski"),
     ("uk", "Українська"),
+]
+
+_UI_THEMES = [
+    ("amber",   N_("Янтарь")),
+    ("cyan",    N_("Циан")),
+    ("crimson", N_("Малиновый")),
 ]
 
 _ENGINES = [
@@ -144,36 +152,25 @@ class _ExampleRowWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
+        p = theme.current()
         self.src_input = QLineEdit(source)
         self.src_input.setPlaceholderText(tr("Оригинал (напр. HP)"))
-        self.src_input.setStyleSheet(
-            "QLineEdit {"
-            "  background: #1e1e2d; color: #e0e0e0; border: 1px solid #444;"
-            "  border-radius: 4px; padding: 5px 8px; font-size: 9.5pt;"
-            "}"
-        )
+        self.src_input.setStyleSheet(theme.input_css(9.5, "5px 8px"))
 
-        lbl_arrow = QLabel("→")
-        lbl_arrow.setStyleSheet("color: #888; font-size: 10pt; background: transparent;")
+        lbl_arrow = QLabel()
+        lbl_arrow.setPixmap(icons.pixmap("arrow_right", p.muted, 14))
+        lbl_arrow.setStyleSheet("background: transparent;")
 
         self.trans_input = QLineEdit(translation)
         self.trans_input.setPlaceholderText(tr("Перевод (напр. ОЗ)"))
-        self.trans_input.setStyleSheet(
-            "QLineEdit {"
-            "  background: #1e1e2d; color: #e0e0e0; border: 1px solid #444;"
-            "  border-radius: 4px; padding: 5px 8px; font-size: 9.5pt;"
-            "}"
-        )
+        self.trans_input.setStyleSheet(theme.input_css(9.5, "5px 8px"))
 
-        self.btn_delete = QPushButton("✕")
-        self.btn_delete.setFixedSize(24, 24)
+        self.btn_delete = QPushButton()
+        self.btn_delete.setIcon(icons.icon("close", p.error, 12))
+        self.btn_delete.setToolTip(tr("Удалить"))
+        self.btn_delete.setFixedSize(26, 26)
         self.btn_delete.setCursor(Qt.PointingHandCursor)
-        self.btn_delete.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent; color: #ff6b6b; border: none; font-weight: bold;"
-            "}"
-            "QPushButton:hover { background: rgba(255, 107, 107, 0.15); border-radius: 4px; }"
-        )
+        self.btn_delete.setStyleSheet(theme.btn_icon(danger=True))
         self.btn_delete.clicked.connect(self.deleteLater)
 
         layout.addWidget(self.src_input, 1)
@@ -202,7 +199,7 @@ class ProfileEditorDialog(QDialog):
         self.resize(520, 520)
         self.setMinimumSize(420, 420)
         self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
-        self.setStyleSheet("QDialog { background: #1c1c24; }")
+        self.setStyleSheet(f"QDialog {{ background: {theme.current().panel}; }}")
 
         self._build_ui()
         self._load_data()
@@ -213,31 +210,22 @@ class ProfileEditorDialog(QDialog):
         layout.setSpacing(12)
 
         # Title
-        title_text = tr("✏️ Редактирование профиля") if self._existing_id else tr("✨ Новый профиль контекста")
-        lbl_title = QLabel(title_text)
-        lbl_title.setStyleSheet("font-family: 'Segoe UI'; font-size: 13pt; font-weight: 600; color: #e8e8e8;")
+        title_text = tr("Редактирование профиля") if self._existing_id else tr("Новый профиль контекста")
+        lbl_title = QLabel(title_text.upper())
+        lbl_title.setFont(theme.display_font(13))
+        lbl_title.setStyleSheet(f"color: {theme.current().text}; background: transparent;")
         layout.addWidget(lbl_title)
 
         # Display name
-        lbl_name = QLabel(tr("Название профиля (display_name):"))
-        lbl_name.setStyleSheet("font-family: 'Segoe UI'; color: #ccc; font-size: 9.5pt;")
-        layout.addWidget(lbl_name)
+        layout.addWidget(FieldLabel(tr("Название профиля (display_name):").rstrip(":")))
 
         self._name_input = QLineEdit()
         self._name_input.setPlaceholderText(tr("Например: Фэнтези РПГ, Медицина, Юриспруденция..."))
-        self._name_input.setStyleSheet(
-            "QLineEdit {"
-            "  background: #262636; color: #e0e0e0; border: 1px solid #444;"
-            "  border-radius: 6px; padding: 7px 10px; font-family: 'Segoe UI'; font-size: 10pt;"
-            "}"
-            "QLineEdit:focus { border-color: #5b8def; }"
-        )
+        self._name_input.setStyleSheet(theme.input_css(10, "7px 10px"))
         layout.addWidget(self._name_input)
 
         # System prompt
-        lbl_prompt = QLabel(tr("Инструкция для ИИ (system_prompt):"))
-        lbl_prompt.setStyleSheet("font-family: 'Segoe UI'; color: #ccc; font-size: 9.5pt;")
-        layout.addWidget(lbl_prompt)
+        layout.addWidget(FieldLabel(tr("Инструкция для ИИ (system_prompt):").rstrip(":")))
 
         self._prompt_input = QTextEdit()
         self._prompt_input.setPlaceholderText(tr(
@@ -245,32 +233,18 @@ class ProfileEditorDialog(QDialog):
             "Ты опытный переводчик фэнтези игр. Переводи игровые термины (HP -> ОЗ, Mana -> Мана). "
             "Сохраняй геймерский сленг и атмосферу."
         ))
-        self._prompt_input.setStyleSheet(
-            "QTextEdit {"
-            "  background: #262636; color: #e0e0e0; border: 1px solid #444;"
-            "  border-radius: 6px; padding: 8px 10px; font-family: 'Segoe UI'; font-size: 9.5pt;"
-            "}"
-            "QTextEdit:focus { border-color: #5b8def; }"
-        )
+        self._prompt_input.setStyleSheet(theme.input_css(9.5, "8px 10px"))
         self._prompt_input.setFixedHeight(120)
         layout.addWidget(self._prompt_input)
 
         # Few-Shot examples header row
         ex_header = QHBoxLayout()
-        lbl_ex = QLabel(tr("Примеры перевода (Few-Shot Examples):"))
-        lbl_ex.setStyleSheet("font-family: 'Segoe UI'; color: #ccc; font-size: 9.5pt; font-weight: 600;")
-        ex_header.addWidget(lbl_ex)
+        ex_header.addWidget(FieldLabel(tr("Примеры перевода (Few-Shot Examples):").rstrip(":")))
         ex_header.addStretch()
 
-        self._btn_add_ex = QPushButton(tr("➕ Добавить пример"))
+        self._btn_add_ex = QPushButton(tr("+ Добавить пример"))
         self._btn_add_ex.setCursor(Qt.PointingHandCursor)
-        self._btn_add_ex.setStyleSheet(
-            "QPushButton {"
-            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
-            "  border-radius: 5px; padding: 4px 10px; font-family: 'Segoe UI'; font-size: 8.5pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #3a3a5c; }"
-        )
+        self._btn_add_ex.setStyleSheet(theme.btn_accent("4px 10px", 8.5))
         self._btn_add_ex.clicked.connect(self._add_example_row)
         ex_header.addWidget(self._btn_add_ex)
         layout.addLayout(ex_header)
@@ -282,6 +256,8 @@ class ProfileEditorDialog(QDialog):
         scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
         self._examples_container = QWidget()
+        self._examples_container.setObjectName("examplesContainer")
+        self._examples_container.setStyleSheet("#examplesContainer { background: transparent; }")
         self._examples_layout = QVBoxLayout(self._examples_container)
         self._examples_layout.setContentsMargins(0, 0, 0, 0)
         self._examples_layout.setSpacing(6)
@@ -295,24 +271,14 @@ class ProfileEditorDialog(QDialog):
         btn_row.setSpacing(10)
 
         self._btn_cancel = QPushButton(tr("Отмена"))
-        self._btn_cancel.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent; color: #aaa; border: 1px solid #444;"
-            "  border-radius: 6px; padding: 8px 18px; font-family: 'Segoe UI'; font-size: 9.5pt;"
-            "}"
-            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
-        )
+        self._btn_cancel.setCursor(Qt.PointingHandCursor)
+        self._btn_cancel.setStyleSheet(theme.btn_secondary())
         self._btn_cancel.clicked.connect(self.reject)
 
-        self._btn_save = QPushButton(tr("Сохранить профиль"))
-        self._btn_save.setStyleSheet(
-            "QPushButton {"
-            "  background: #5b8def; color: #fff; border: none;"
-            "  border-radius: 6px; padding: 8px 20px;"
-            "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #4a7de0; }"
-        )
+        self._btn_save = QPushButton(tr("Сохранить профиль").upper())
+        self._btn_save.setCursor(Qt.PointingHandCursor)
+        self._btn_save.setFont(theme.display_font(9.5, spacing=110))
+        self._btn_save.setStyleSheet(theme.btn_primary("8px 20px", 9.5))
         self._btn_save.clicked.connect(self._on_save)
 
         btn_row.addStretch()
@@ -372,129 +338,216 @@ class SettingsWidget(QWidget):
     """Reusable settings form widget."""
 
     settings_saved = pyqtSignal()
+    # Restart-only settings were saved and the user chose to restart now.
+    restart_requested = pyqtSignal()
+
+    # Most settings save themselves (debounced) as soon as a control changes; the
+    # ones below only take effect after a restart, so "Сохранить" lights up for them.
+    _AUTOSAVE_DELAY_MS = 400
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        self._loading = True
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setSingleShot(True)
+        self._autosave_timer.setInterval(self._AUTOSAVE_DELAY_MS)
+        self._autosave_timer.timeout.connect(self._autosave)
+
         self._build_ui()
         self._load_current()
         self._connect_signals()
+        self._loading = False
+        self._update_restart_state()
 
     def reload(self) -> None:
         """Re-load current config values into the form."""
-        self._load_current()
+        self._flush_autosave()
+        self._loading = True
+        try:
+            self._load_current()
+        finally:
+            self._loading = False
+        self._update_restart_state()
 
     # ── Shared styles ────────────────────────────────────
 
     @staticmethod
     def _css(extra: str = "") -> str:
-        return f"font-family: 'Segoe UI'; background: transparent; {extra}"
+        return f"font-family: '{theme.body_family()}'; background: transparent; {extra}"
 
-    _INPUT_CSS = (
-        "QLineEdit, QComboBox, QSpinBox {"
-        "  background: #2a2a3e; color: #e0e0e0; border: 1px solid #444;"
-        "  border-radius: 6px; padding: 6px 10px;"
-        "  font-family: 'Segoe UI'; font-size: 10pt;"
-        "}"
-        "QLineEdit:focus, QComboBox:focus, QSpinBox:focus {"
-        "  border-color: #5b8def;"
-        "}"
-        "QComboBox {"
-        "  padding-right: 24px;"
-        "}"
-        "QComboBox::drop-down {"
-        "  subcontrol-origin: padding;"
-        "  subcontrol-position: top right;"
-        "  width: 22px;"
-        "  border: none;"
-        "}"
-        "QComboBox::down-arrow {"
-        "  image: none;"
-        "  width: 0px;"
-        "  height: 0px;"
-        "  border-left: 4px solid transparent;"
-        "  border-right: 4px solid transparent;"
-        "  border-top: 5px solid #8888aa;"
-        "  margin-right: 6px;"
-        "}"
-        "QComboBox::down-arrow:hover {"
-        "  border-top: 5px solid #5b8def;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "  background: #2a2a3e; color: #e0e0e0;"
-        "  selection-background-color: #3a3a5c;"
-        "  border: 1px solid #444;"
-        "}"
+    @staticmethod
+    def _status_css(kind: str = "muted") -> str:
+        """Status line colour by role: muted | ok | error | warn | accent."""
+        return theme.text_css(getattr(theme.current(), kind), 9)
+
+    _INPUT_CSS = ""   # set in _build_ui from ui/theme.py (needs the loaded fonts)
+    _GROUP_CSS = ""
+
+    # Settings sections: (title, page key). Group boxes are placed on the pages in
+    # _build_ui; their widgets and the _load_current / _on_save logic are unchanged.
+    _SECTIONS = (
+        (N_("Перевод"), "translate"),
+        (N_("Хоткеи"), "hotkeys"),
+        (N_("Распознавание"), "ocr"),
+        (N_("Попап"), "popup"),
+        (N_("Интерфейс"), "interface"),
     )
 
-    _GROUP_CSS = (
-        "QGroupBox {"
-        "  color: #bbb; border: 1px solid #3a3a4e;"
-        "  border-radius: 8px; margin-top: 12px; padding: 14px 12px 10px;"
-        "  font-family: 'Segoe UI'; font-size: 10pt; font-weight: 600;"
-        "}"
-        "QGroupBox::title {"
-        "  subcontrol-origin: margin; left: 14px; padding: 0 6px;"
-        "}"
-    )
+    @staticmethod
+    def _field(caption: str, widget: QWidget) -> QVBoxLayout:
+        """Caps caption above a control."""
+        box = QVBoxLayout()
+        box.setSpacing(5)
+        box.addWidget(FieldLabel(caption.rstrip(":")))
+        box.addWidget(widget)
+        return box
+
+    @staticmethod
+    def _field_row(caption: str, row: QHBoxLayout) -> QVBoxLayout:
+        """Caps caption above a row of controls."""
+        box = QVBoxLayout()
+        box.setSpacing(5)
+        box.addWidget(FieldLabel(caption.rstrip(":")))
+        box.addLayout(row)
+        return box
+
+    def _group(self, title: str, spacing: int = 10) -> tuple[QGroupBox, QVBoxLayout]:
+        grp = QGroupBox(title.upper())
+        grp.setStyleSheet(self._GROUP_CSS + theme.check_css())
+        lay = QVBoxLayout(grp)
+        lay.setSpacing(spacing)
+        return grp, lay
+
+    def _build_pages(self) -> dict[str, QVBoxLayout]:
+        """Section list + save button on the left, one scrollable page per section on the right."""
+        p = theme.current()
+        body = QHBoxLayout(self)
+        body.setContentsMargins(24, 0, 16, 16)
+        body.setSpacing(16)
+
+        # Left column: the save button sits right under the sections, so it is
+        # visible as soon as the page opens, whatever section is scrolled.
+        self._side = QWidget()
+        self._side.setFixedWidth(170)
+        side = QVBoxLayout(self._side)
+        side.setContentsMargins(0, 0, 0, 0)
+        side.setSpacing(12)
+        body.addWidget(self._side)
+
+        self._section_list = QListWidget()
+        self._section_list.setStyleSheet(
+            theme.list_css()
+            + f"QListWidget {{ background: {p.rail}; }}"
+            + "QListWidget::item { padding: 10px 12px; }"
+        )
+        self._section_list.setFont(theme.body_font(8.5, medium=True, spacing=112))
+        self._section_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._section_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        side.addWidget(self._section_list)
+
+        self._btn_save = QPushButton(tr("Сохранить").upper())
+        self._btn_save.setCursor(Qt.PointingHandCursor)
+        self._btn_save.setFont(theme.display_font(10, spacing=112))
+        self._btn_save.setStyleSheet(theme.btn_primary("9px 12px", 10))
+        self._btn_save.setToolTip(tr("Остальные настройки сохраняются автоматически."))
+        side.addWidget(self._btn_save)
+        self._save_hint = QLabel("")
+        self._save_hint.setWordWrap(True)
+        self._save_hint.setStyleSheet(theme.label_css("caption"))
+        side.addWidget(self._save_hint)
+        side.addStretch()
+
+        self._section_stack = QStackedWidget()
+        self._section_stack.setObjectName("settingsStack")
+        self._section_stack.setStyleSheet("#settingsStack { background: transparent; }")
+        body.addWidget(self._section_stack, 1)
+
+        pages: dict[str, QVBoxLayout] = {}
+        for title, key in self._SECTIONS:
+            QListWidgetItem(tr(title).upper(), self._section_list)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.NoFrame)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+            page = QWidget()
+            page.setObjectName("settingsSection")
+            page.setStyleSheet("#settingsSection { background: transparent; }")
+            lay = QVBoxLayout(page)
+            lay.setContentsMargins(0, 0, 8, 8)
+            lay.setSpacing(14)
+            scroll.setWidget(page)
+            self._section_stack.addWidget(scroll)
+            pages[key] = lay
+        self._section_list.setFixedHeight(
+            self._section_list.sizeHintForRow(0) * self._section_list.count() + 2)
+        self._section_list.currentRowChanged.connect(self._section_stack.setCurrentIndex)
+        self._section_list.setCurrentRow(0)
+        return pages
 
     # ── Build UI ─────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        SettingsWidget._INPUT_CSS = theme.input_css(9.5) + theme.combo_css(9.5)
+        SettingsWidget._GROUP_CSS = theme.group_css()
+        p = theme.current()
+        pages = self._build_pages()
+        nmt_btn_css = theme.btn_accent("6px 12px", 8.5)
 
         # ── API Key & Provider section ──
-        grp_key = QGroupBox(tr("API-ключ и провайдеры"))
-        grp_key.setStyleSheet(self._GROUP_CSS)
-        key_layout = QVBoxLayout(grp_key)
-        key_layout.setSpacing(8)
+        grp_key, key_layout = self._group(tr("API-ключ и провайдеры"))
 
-        lbl_prov = QLabel(tr("Основной провайдер:"))
-        lbl_prov.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
-        key_layout.addWidget(lbl_prov)
-
+        key_layout.addWidget(FieldLabel(tr("Основной провайдер:").rstrip(":")))
         prov_row = QHBoxLayout()
+        prov_row.setSpacing(18)
         self._radio_group = QButtonGroup(self)
         self._radio_or = QRadioButton("OpenRouter")
         self._radio_ant = QRadioButton("Anthropic")
         self._radio_group.addButton(self._radio_or, 0)
         self._radio_group.addButton(self._radio_ant, 1)
-        radio_css = self._css("color: #ccc; font-size: 9pt;")
-        self._radio_or.setStyleSheet(radio_css)
-        self._radio_ant.setStyleSheet(radio_css)
         prov_row.addWidget(self._radio_or)
         prov_row.addWidget(self._radio_ant)
+        prov_row.addStretch()
         key_layout.addLayout(prov_row)
 
-        self._chk_fallback = QCheckBox(tr("Автоматически переключаться на резервный провайдер при сбое (Fallback)"))
-        self._chk_fallback.setStyleSheet(self._css("color: #ccc; font-size: 9pt;"))
+        self._chk_fallback = SwitchRow(tr("Автоматически переключаться на резервный провайдер при сбое (Fallback)"))
         key_layout.addWidget(self._chk_fallback)
 
+        key_row = QHBoxLayout()
+        key_row.setSpacing(8)
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.Password)
         self._key_input.setPlaceholderText(tr("Новый API-ключ для выбранного провайдера (оставьте пустым, если не меняется)"))
         self._key_input.setStyleSheet(self._INPUT_CSS)
-        key_layout.addWidget(self._key_input)
+        key_row.addWidget(self._key_input, 1)
+        self._btn_check_key = QPushButton(tr("Проверить"))
+        self._btn_check_key.setCursor(Qt.PointingHandCursor)
+        self._btn_check_key.setStyleSheet(theme.btn_accent("7px 14px", 9))
+        self._btn_check_key.clicked.connect(self._on_check_llm_key)
+        key_row.addWidget(self._btn_check_key)
+        self._btn_save_key = QPushButton(tr("Сохранить"))
+        self._btn_save_key.setCursor(Qt.PointingHandCursor)
+        self._btn_save_key.setStyleSheet(theme.btn_accent("7px 14px", 9))
+        self._btn_save_key.clicked.connect(self._on_save_llm_key)
+        key_row.addWidget(self._btn_save_key)
+        key_layout.addLayout(self._field_row(tr("API-ключ"), key_row))
 
         self._key_status = QLabel("")
         self._key_status.setTextFormat(Qt.PlainText)  # shows provider error text
         self._key_status.setWordWrap(True)
-        self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._key_status.setStyleSheet(self._status_css())
         key_layout.addWidget(self._key_status)
 
-        layout.addWidget(grp_key)
+        pages["translate"].addWidget(grp_key)
 
         # ── Translation backend section ──
-        grp_backend = QGroupBox(tr("Бэкенд перевода"))
-        grp_backend.setStyleSheet(self._GROUP_CSS)
-        backend_layout = QVBoxLayout(grp_backend)
-        backend_layout.setSpacing(8)
+        grp_backend, backend_layout = self._group(tr("Бэкенд перевода"))
 
-        lbl_backend = QLabel(tr("Чем выполнять перевод:"))
-        lbl_backend.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
-        backend_layout.addWidget(lbl_backend)
+        self._backend_seg = Segmented([(tr("Облако (API)"), "cloud"), (tr("Локально (NLLB)"), "nllb")])
+        self._backend_seg.changed.connect(self._on_backend_segment)
+        self._last_cloud_backend = "google"  # keyless; replaced by the last cloud choice
+        backend_layout.addWidget(self._backend_seg)
 
         # Backend combo (replaces the old pair of radio buttons).
         from translate.backend import BACKENDS as _ALL_BACKENDS
@@ -502,13 +555,13 @@ class SettingsWidget(QWidget):
         self._backend_combo.setStyleSheet(self._INPUT_CSS)
         for bid, blabel in _ALL_BACKENDS:
             self._backend_combo.addItem(tr(blabel), bid)
-        backend_layout.addWidget(self._backend_combo)
+        backend_layout.addLayout(self._field(tr("Чем выполнять перевод:"), self._backend_combo))
 
         # ── NLLB-specific widgets (hidden when another backend is active) ──
         self._nllb_container = QWidget()
         nllb_inner = QVBoxLayout(self._nllb_container)
         nllb_inner.setContentsMargins(0, 4, 0, 0)
-        nllb_inner.setSpacing(6)
+        nllb_inner.setSpacing(8)
 
         # Model build: every tag of the HF repo, local copies, auto or a custom path.
         self._nllb_remote_versions = None  # list[RemoteVersion] once fetched
@@ -516,8 +569,6 @@ class SettingsWidget(QWidget):
         self._nllb_versions_worker = None
         self._nllb_download_worker = None
         version_row = QHBoxLayout()
-        lbl_nllb_version = QLabel(tr("Версия модели:"))
-        lbl_nllb_version.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
         self._nllb_version_combo = QComboBox()
         self._nllb_version_combo.setStyleSheet(self._INPUT_CSS)
         self._nllb_version_combo.currentIndexChanged.connect(self._on_nllb_version_changed)
@@ -527,364 +578,228 @@ class SettingsWidget(QWidget):
         self._btn_nllb_refresh.setFixedWidth(32)
         self._btn_nllb_refresh.setStyleSheet(self._INPUT_CSS)
         self._btn_nllb_refresh.clicked.connect(self._fetch_nllb_versions)
-        version_row.addWidget(lbl_nllb_version)
         version_row.addWidget(self._nllb_version_combo, 1)
         version_row.addWidget(self._btn_nllb_refresh)
-        nllb_inner.addLayout(version_row)
+        nllb_inner.addLayout(self._field_row(tr("Версия модели:"), version_row))
 
         # Explicit model path, shown only for the "custom path" entry.
         self._nllb_path_widget = QWidget()
-        nllb_path_row = QHBoxLayout(self._nllb_path_widget)
-        nllb_path_row.setContentsMargins(0, 0, 0, 0)
-        lbl_nllb_path = QLabel(tr("Путь к модели:"))
-        lbl_nllb_path.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        nllb_path_layout = QVBoxLayout(self._nllb_path_widget)
+        nllb_path_layout.setContentsMargins(0, 0, 0, 0)
         self._nllb_path_edit = QLineEdit()
         self._nllb_path_edit.setPlaceholderText(
             tr("оставьте пустым для автопоиска (…/models/nllb-200-ct2-int8)")
         )
         self._nllb_path_edit.setStyleSheet(self._INPUT_CSS)
-        nllb_path_row.addWidget(lbl_nllb_path)
-        nllb_path_row.addWidget(self._nllb_path_edit, 1)
+        nllb_path_layout.addLayout(self._field(tr("Путь к модели:"), self._nllb_path_edit))
         nllb_inner.addWidget(self._nllb_path_widget)
 
         status_row = QHBoxLayout()
         self._nllb_status = QLabel("")
         self._nllb_status.setWordWrap(True)
-        self._nllb_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._nllb_status.setStyleSheet(self._status_css())
         status_row.addWidget(self._nllb_status, 1)
 
         self._btn_load_nllb = QPushButton(tr("Загрузить модель"))
         self._btn_load_nllb.setCursor(Qt.PointingHandCursor)
         self._btn_load_nllb.setToolTip(tr("Проверить наличие модели и прогреть её в памяти"))
-        self._btn_load_nllb.setStyleSheet(
-            "QPushButton {"
-            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
-            "  border-radius: 6px; padding: 6px 14px;"
-            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
-            "QPushButton:disabled { background: #1f1f2e; color: #555; border-color: #333; }"
-        )
+        self._btn_load_nllb.setStyleSheet(nmt_btn_css)
         self._btn_load_nllb.clicked.connect(self._on_load_nllb_clicked)
-        status_row.addWidget(self._btn_load_nllb)
+        status_row.addWidget(self._btn_load_nllb, 0, Qt.AlignTop)
         nllb_inner.addLayout(status_row)
 
         backend_layout.addWidget(self._nllb_container)
 
         self._backend_combo.currentIndexChanged.connect(self._on_backend_changed)
-        layout.addWidget(grp_backend)
+        pages["translate"].addWidget(grp_backend)
 
         # ── NMT API keys section ──
-        grp_nmt = QGroupBox(tr("Ключи быстрых переводчиков"))
-        grp_nmt.setStyleSheet(self._GROUP_CSS)
-        nmt_layout = QVBoxLayout(grp_nmt)
-        nmt_layout.setSpacing(10)
+        grp_nmt, nmt_layout = self._group(tr("Ключи быстрых переводчиков"))
 
-        nmt_btn_css = (
-            "QPushButton {"
-            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
-            "  border-radius: 6px; padding: 5px 12px;"
-            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
-            "QPushButton:disabled { background: #1f1f2e; color: #555; border-color: #333; }"
-        )
+        def _key_block(title: str, hint: str, placeholder: str, provider: str):
+            nmt_layout.addWidget(FieldLabel(title))
+            if hint:
+                lbl_hint = QLabel(hint)
+                lbl_hint.setWordWrap(True)
+                lbl_hint.setStyleSheet(theme.label_css("caption"))
+                nmt_layout.addWidget(lbl_hint)
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            edit = QLineEdit()
+            edit.setPlaceholderText(placeholder)
+            edit.setEchoMode(QLineEdit.Password)
+            edit.setStyleSheet(self._INPUT_CSS)
+            row.addWidget(edit, 1)
+            btn_save = QPushButton(tr("Сохранить"))
+            btn_save.setStyleSheet(nmt_btn_css)
+            btn_save.setCursor(Qt.PointingHandCursor)
+            btn_save.clicked.connect(lambda: self._save_nmt_key(provider))
+            row.addWidget(btn_save)
+            btn_test = QPushButton(tr("Проверить"))
+            btn_test.setStyleSheet(nmt_btn_css)
+            btn_test.setCursor(Qt.PointingHandCursor)
+            btn_test.clicked.connect(lambda: self._test_nmt_key(provider))
+            row.addWidget(btn_test)
+            nmt_layout.addLayout(row)
+            return edit, btn_save, btn_test
 
         # ── Google API Key ──
-        lbl_google = QLabel("Google API Key")
-        lbl_google.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
-        nmt_layout.addWidget(lbl_google)
-        lbl_google_hint = QLabel(tr("Необязательно — без ключа работает через бесплатный Web RPC"))
-        lbl_google_hint.setStyleSheet(self._css("color: #888; font-size: 8.5pt;"))
-        nmt_layout.addWidget(lbl_google_hint)
-
-        google_row = QHBoxLayout()
-        self._google_key_input = QLineEdit()
-        self._google_key_input.setPlaceholderText("AIza...")
-        self._google_key_input.setEchoMode(QLineEdit.Password)
-        self._google_key_input.setStyleSheet(self._INPUT_CSS)
-        google_row.addWidget(self._google_key_input, 1)
-
-        self._btn_save_google = QPushButton(tr("Сохранить"))
-        self._btn_save_google.setStyleSheet(nmt_btn_css)
-        self._btn_save_google.setCursor(Qt.PointingHandCursor)
-        self._btn_save_google.clicked.connect(lambda: self._save_nmt_key("google"))
-        google_row.addWidget(self._btn_save_google)
-
-        self._btn_test_google = QPushButton(tr("Проверить"))
-        self._btn_test_google.setStyleSheet(nmt_btn_css)
-        self._btn_test_google.setCursor(Qt.PointingHandCursor)
-        self._btn_test_google.clicked.connect(lambda: self._test_nmt_key("google"))
-        google_row.addWidget(self._btn_test_google)
-        nmt_layout.addLayout(google_row)
-
+        (self._google_key_input, self._btn_save_google, self._btn_test_google) = _key_block(
+            "Google API Key", tr("Необязательно — без ключа работает через бесплатный Web RPC"),
+            "AIza...", "google")
         self._google_key_status = QLabel("")
         self._google_key_status.setWordWrap(True)
-        self._google_key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._google_key_status.setStyleSheet(self._status_css())
         nmt_layout.addWidget(self._google_key_status)
 
         # ── DeepL API Key ──
-        lbl_deepl = QLabel("DeepL API Key")
-        lbl_deepl.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
-        nmt_layout.addWidget(lbl_deepl)
-        lbl_deepl_hint = QLabel(tr("Free или Pro ключ (суффикс :fx = Free)"))
-        lbl_deepl_hint.setStyleSheet(self._css("color: #888; font-size: 8.5pt;"))
-        nmt_layout.addWidget(lbl_deepl_hint)
-
-        deepl_row = QHBoxLayout()
-        self._deepl_key_input = QLineEdit()
-        self._deepl_key_input.setPlaceholderText("xxxxxxxx-xxxx-...:fx")
-        self._deepl_key_input.setEchoMode(QLineEdit.Password)
-        self._deepl_key_input.setStyleSheet(self._INPUT_CSS)
-        deepl_row.addWidget(self._deepl_key_input, 1)
-
-        self._btn_save_deepl = QPushButton(tr("Сохранить"))
-        self._btn_save_deepl.setStyleSheet(nmt_btn_css)
-        self._btn_save_deepl.setCursor(Qt.PointingHandCursor)
-        self._btn_save_deepl.clicked.connect(lambda: self._save_nmt_key("deepl"))
-        deepl_row.addWidget(self._btn_save_deepl)
-
-        self._btn_test_deepl = QPushButton(tr("Проверить"))
-        self._btn_test_deepl.setStyleSheet(nmt_btn_css)
-        self._btn_test_deepl.setCursor(Qt.PointingHandCursor)
-        self._btn_test_deepl.clicked.connect(lambda: self._test_nmt_key("deepl"))
-        deepl_row.addWidget(self._btn_test_deepl)
-        nmt_layout.addLayout(deepl_row)
-
+        (self._deepl_key_input, self._btn_save_deepl, self._btn_test_deepl) = _key_block(
+            "DeepL API Key", tr("Free или Pro ключ (суффикс :fx = Free)"),
+            "xxxxxxxx-xxxx-...:fx", "deepl")
         self._deepl_key_status = QLabel("")
         self._deepl_key_status.setWordWrap(True)
-        self._deepl_key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._deepl_key_status.setStyleSheet(self._status_css())
         nmt_layout.addWidget(self._deepl_key_status)
 
         # ── Azure Translator Key + Region ──
-        lbl_azure = QLabel("Azure Translator Key")
-        lbl_azure.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
-        nmt_layout.addWidget(lbl_azure)
-
-        azure_row = QHBoxLayout()
-        self._azure_key_input = QLineEdit()
-        self._azure_key_input.setPlaceholderText("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-        self._azure_key_input.setEchoMode(QLineEdit.Password)
-        self._azure_key_input.setStyleSheet(self._INPUT_CSS)
-        azure_row.addWidget(self._azure_key_input, 1)
-
-        self._btn_save_azure = QPushButton(tr("Сохранить"))
-        self._btn_save_azure.setStyleSheet(nmt_btn_css)
-        self._btn_save_azure.setCursor(Qt.PointingHandCursor)
-        self._btn_save_azure.clicked.connect(lambda: self._save_nmt_key("azure"))
-        azure_row.addWidget(self._btn_save_azure)
-
-        self._btn_test_azure = QPushButton(tr("Проверить"))
-        self._btn_test_azure.setStyleSheet(nmt_btn_css)
-        self._btn_test_azure.setCursor(Qt.PointingHandCursor)
-        self._btn_test_azure.clicked.connect(lambda: self._test_nmt_key("azure"))
-        azure_row.addWidget(self._btn_test_azure)
-        nmt_layout.addLayout(azure_row)
-
-        azure_region_row = QHBoxLayout()
-        lbl_azure_region = QLabel(tr("Регион:"))
-        lbl_azure_region.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        (self._azure_key_input, self._btn_save_azure, self._btn_test_azure) = _key_block(
+            "Azure Translator Key", "", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "azure")
         self._azure_region_input = QLineEdit()
         self._azure_region_input.setPlaceholderText("global")
         self._azure_region_input.setStyleSheet(self._INPUT_CSS)
-        azure_region_row.addWidget(lbl_azure_region)
-        azure_region_row.addWidget(self._azure_region_input, 1)
-        nmt_layout.addLayout(azure_region_row)
+        nmt_layout.addLayout(self._field(tr("Регион:"), self._azure_region_input))
 
         self._azure_key_status = QLabel("")
         self._azure_key_status.setWordWrap(True)
-        self._azure_key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._azure_key_status.setStyleSheet(self._status_css())
         nmt_layout.addWidget(self._azure_key_status)
 
-        layout.addWidget(grp_nmt)
+        pages["translate"].addWidget(grp_nmt)
 
         # ── OCR GPU acceleration ──
-        grp_ocr_gpu = QGroupBox(tr("Ускорение OCR (видеокарта)"))
-        grp_ocr_gpu.setStyleSheet(self._GROUP_CSS)
-        ocr_gpu_layout = QVBoxLayout(grp_ocr_gpu)
-        ocr_gpu_layout.setSpacing(8)
+        grp_ocr_gpu, ocr_gpu_layout = self._group(tr("Ускорение OCR (видеокарта)"))
 
         # GPU info label
         gpu_info = self._detect_gpu_info()
         self._gpu_info_label = QLabel(gpu_info)
         self._gpu_info_label.setWordWrap(True)
-        self._gpu_info_label.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._gpu_info_label.setStyleSheet(self._status_css())
         ocr_gpu_layout.addWidget(self._gpu_info_label)
-
-        gpu_mode_row = QHBoxLayout()
-        lbl_gpu_mode = QLabel(tr("Режим OCR:"))
-        lbl_gpu_mode.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; font-weight: 600;"))
-        gpu_mode_row.addWidget(lbl_gpu_mode)
 
         # A legacy "gpu" value behaves like "auto" and shows as the first item.
         self._ocr_gpu_combo = QComboBox()
         self._ocr_gpu_combo.setStyleSheet(self._INPUT_CSS)
         self._ocr_gpu_combo.addItem(tr("Авто (видеокарта через DirectML, если доступна)"), "auto")
         self._ocr_gpu_combo.addItem(tr("Только процессор (CPU)"), "cpu")
-        gpu_mode_row.addWidget(self._ocr_gpu_combo, 1)
-        ocr_gpu_layout.addLayout(gpu_mode_row)
+        ocr_gpu_layout.addLayout(self._field(tr("Режим OCR:"), self._ocr_gpu_combo))
 
-        layout.addWidget(grp_ocr_gpu)
+        # D1: OCR preview switch
+        self._chk_ocr_preview = SwitchRow(tr("Предпросмотр и правка OCR-текста перед переводом"))
+        ocr_gpu_layout.addWidget(self._chk_ocr_preview)
+
+        pages["ocr"].addWidget(grp_ocr_gpu)
 
         # ── Translation section ──
-        grp_trans = QGroupBox(tr("Перевод"))
-        grp_trans.setStyleSheet(self._GROUP_CSS)
-        trans_layout = QVBoxLayout(grp_trans)
-        trans_layout.setSpacing(8)
+        grp_trans, trans_layout = self._group(tr("Перевод"))
 
         # Context / Domain
-        domain_row = QHBoxLayout()
-        lbl_domain = QLabel(tr("Контекст перевода:"))
-        lbl_domain.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
         self._domain_combo = QComboBox()
         self._domain_combo.setStyleSheet(self._INPUT_CSS)
         from translate.domain_manager import list_available_domains
         for d in list_available_domains():
             self._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
-        domain_row.addWidget(lbl_domain)
-        domain_row.addWidget(self._domain_combo, 1)
-        trans_layout.addLayout(domain_row)
+        trans_layout.addLayout(self._field(tr("Контекст перевода:"), self._domain_combo))
 
-        # Source language
-        src_lang_row = QHBoxLayout()
-        lbl_src_lang = QLabel(tr("Исходный язык:"))
-        lbl_src_lang.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
+        # Source / target language in two columns
         self._src_lang_combo = QComboBox()
         self._src_lang_combo.setStyleSheet(self._INPUT_CSS)
         for code, name in _SOURCE_LANGUAGES:
             self._src_lang_combo.addItem(f"{tr(name)} ({code})", code)
-        src_lang_row.addWidget(lbl_src_lang)
-        src_lang_row.addWidget(self._src_lang_combo, 1)
-        trans_layout.addLayout(src_lang_row)
 
-        # Target language
-        lang_row = QHBoxLayout()
-        lbl_lang = QLabel(tr("Язык перевода:"))
-        lbl_lang.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
         self._lang_combo = QComboBox()
         self._lang_combo.setStyleSheet(self._INPUT_CSS)
         for code, name in _TARGET_LANGUAGES:
             self._lang_combo.addItem(f"{name} ({code})", code)
-        lang_row.addWidget(lbl_lang)
-        lang_row.addWidget(self._lang_combo, 1)
-        trans_layout.addLayout(lang_row)
+
+        lang_cols = QHBoxLayout()
+        lang_cols.setSpacing(12)
+        lang_cols.addLayout(self._field(tr("Исходный язык:"), self._src_lang_combo), 1)
+        lang_cols.addLayout(self._field(tr("Язык перевода:"), self._lang_combo), 1)
+        trans_layout.addLayout(lang_cols)
+
+        # Switch on = source "auto" (the combo is the saved value; the switch only drives it).
+        self._sw_auto_lang = SwitchRow(tr("Автоопределение исходного языка"))
+        self._sw_auto_lang.toggled.connect(self._on_auto_lang_toggled)
+        self._src_lang_combo.currentIndexChanged.connect(self._sync_auto_lang_switch)
+        trans_layout.addWidget(self._sw_auto_lang)
 
         # Translation engine
-        engine_row = QHBoxLayout()
-        lbl_engine = QLabel(tr("Движок перевода:"))
-        lbl_engine.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
         self._engine_combo = QComboBox()
         self._engine_combo.setStyleSheet(self._INPUT_CSS)
         for eng_id, eng_label in _ENGINES:
             self._engine_combo.addItem(tr(eng_label), eng_id)
-        engine_row.addWidget(lbl_engine)
-        engine_row.addWidget(self._engine_combo, 1)
-        trans_layout.addLayout(engine_row)
+        trans_layout.addLayout(self._field(tr("Движок перевода:"), self._engine_combo))
 
         # LLM model — Standard clean dropdown matching other settings + custom model field
-        model_row = QHBoxLayout()
-        lbl_model = QLabel(tr("LLM-модель:"))
-        lbl_model.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
-
         self._model_combo = QComboBox()
         self._model_combo.setEditable(False)
         self._model_combo.setMaxVisibleItems(10)
         self._model_combo.setStyleSheet(self._INPUT_CSS)
         self._populate_model_combo()
         self._model_combo.currentIndexChanged.connect(self._on_model_changed)
-
-        model_row.addWidget(lbl_model)
-        model_row.addWidget(self._model_combo, 1)
-        trans_layout.addLayout(model_row)
+        trans_layout.addLayout(self._field(tr("LLM-модель:"), self._model_combo))
 
         # Custom model input (visible only when "Другая модель..." is selected)
         self._custom_model_row_widget = QWidget()
-        custom_row_layout = QHBoxLayout(self._custom_model_row_widget)
+        custom_row_layout = QVBoxLayout(self._custom_model_row_widget)
         custom_row_layout.setContentsMargins(0, 2, 0, 2)
-        lbl_custom_model = QLabel(tr("ID модели:"))
-        lbl_custom_model.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
         self._custom_model_edit = QLineEdit()
         self._custom_model_edit.setPlaceholderText(tr("например: meta-llama/llama-3.3-70b-instruct"))
         self._custom_model_edit.setStyleSheet(self._INPUT_CSS)
-        custom_row_layout.addWidget(lbl_custom_model)
-        custom_row_layout.addWidget(self._custom_model_edit, 1)
+        custom_row_layout.addLayout(self._field(tr("ID модели:"), self._custom_model_edit))
         self._custom_model_row_widget.setVisible(False)
         trans_layout.addWidget(self._custom_model_row_widget)
 
         # B3: hint label
         self._model_hint = QLabel("")
-        self._model_hint.setStyleSheet(self._css("color: #666; font-size: 8.5pt; font-style: italic; padding-left: 2px;"))
+        self._model_hint.setStyleSheet(theme.text_css(p.muted, 8.5, italic=True))
         self._model_hint.setWordWrap(True)
         trans_layout.addWidget(self._model_hint)
 
-        # Streaming checkbox
-        self._chk_streaming = QCheckBox(tr("Потоковый вывод перевода (Streaming)"))
+        # Streaming switch
+        self._chk_streaming = SwitchRow(tr("Потоковый вывод перевода (Streaming)"))
         self._chk_streaming.setToolTip(tr("Выводить перевод слово за словом сразу по мере генерации ответа моделью"))
-        self._chk_streaming.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 4px;"))
         trans_layout.addWidget(self._chk_streaming)
 
-        # Compact prompt checkbox
-        self._chk_compact_prompt = QCheckBox(tr("Компактный системный промпт (ускорение отклика)"))
+        # Compact prompt switch
+        self._chk_compact_prompt = SwitchRow(tr("Компактный системный промпт (ускорение отклика)"))
         self._chk_compact_prompt.setToolTip(tr("Сокращает служебные инструкции запроса, ускоряя начало ответа модели на ~30–50%"))
-        self._chk_compact_prompt.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 2px;"))
         trans_layout.addWidget(self._chk_compact_prompt)
 
-        # D1: OCR preview checkbox
-        self._chk_ocr_preview = QCheckBox(tr("Предпросмотр и правка OCR-текста перед переводом"))
-        self._chk_ocr_preview.setStyleSheet(self._css("color: #ccc; font-size: 9.5pt; margin-top: 2px;"))
-        trans_layout.addWidget(self._chk_ocr_preview)
-
         # Max tokens row
-        tokens_row = QHBoxLayout()
-        lbl_tokens = QLabel(tr("Макс. токенов ответа:"))
-        lbl_tokens.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
         self._tokens_spin = QSpinBox()
         self._tokens_spin.setRange(50, 2000)
         self._tokens_spin.setSingleStep(50)
         self._tokens_spin.setSuffix(tr(" токенов"))
         self._tokens_spin.setStyleSheet(self._INPUT_CSS)
-        tokens_row.addWidget(lbl_tokens)
-        tokens_row.addWidget(self._tokens_spin, 1)
-        trans_layout.addLayout(tokens_row)
+        trans_layout.addLayout(self._field(tr("Макс. токенов ответа:"), self._tokens_spin))
 
-        # Popup timeout
-        timeout_row = QHBoxLayout()
-        lbl_timeout = QLabel(tr("Автоскрытие попапа (сек):"))
-        lbl_timeout.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
-        self._timeout_spin = QSpinBox()
-        self._timeout_spin.setRange(3, 60)
-        self._timeout_spin.setSuffix(tr(" сек"))
-        self._timeout_spin.setStyleSheet(self._INPUT_CSS)
-        timeout_row.addWidget(lbl_timeout)
-        timeout_row.addWidget(self._timeout_spin, 1)
-        trans_layout.addLayout(timeout_row)
-
-        layout.addWidget(grp_trans)
+        pages["translate"].addWidget(grp_trans)
 
         # ── Custom Profiles section ("Мои профили") ──
-        grp_custom = QGroupBox(tr("Мои профили контекста"))
-        grp_custom.setStyleSheet(self._GROUP_CSS)
-        custom_layout = QVBoxLayout(grp_custom)
-        custom_layout.setSpacing(8)
+        grp_custom, custom_layout = self._group(tr("Мои профили контекста"), spacing=8)
 
         c_head = QHBoxLayout()
         lbl_c_desc = QLabel(tr("Кастомные промпты и словари для адаптивного перевода:"))
-        lbl_c_desc.setStyleSheet(self._css("color: #aaa; font-size: 9pt;"))
-        c_head.addWidget(lbl_c_desc)
-        c_head.addStretch()
+        lbl_c_desc.setWordWrap(True)
+        lbl_c_desc.setStyleSheet(self._status_css())
+        c_head.addWidget(lbl_c_desc, 1)
 
-        self._btn_create_profile = QPushButton(tr("➕ Создать новый профиль"))
+        self._btn_create_profile = QPushButton(tr("+ Новый профиль"))
         self._btn_create_profile.setCursor(Qt.PointingHandCursor)
-        self._btn_create_profile.setStyleSheet(
-            "QPushButton {"
-            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
-            "  border-radius: 6px; padding: 6px 14px;"
-            "  font-family: 'Segoe UI'; font-size: 9pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
-        )
+        self._btn_create_profile.setStyleSheet(nmt_btn_css)
         self._btn_create_profile.clicked.connect(self._on_create_profile)
-        c_head.addWidget(self._btn_create_profile)
+        c_head.addWidget(self._btn_create_profile, 0, Qt.AlignTop)
         custom_layout.addLayout(c_head)
 
         self._custom_profiles_container = QWidget()
@@ -893,101 +808,199 @@ class SettingsWidget(QWidget):
         self._custom_profiles_layout.setSpacing(6)
         custom_layout.addWidget(self._custom_profiles_container)
 
-        layout.addWidget(grp_custom)
+        pages["translate"].addWidget(grp_custom)
+
+        # ── Hotkeys section (read-only overview) ──
+        grp_hotkeys, hotkeys_layout = self._group(tr("Хоткеи"))
+        self._hotkey_chip = Chip(kind="accent")
+        self._settings_hotkey_chip = Chip(kind="neutral")
+        for caption, chip in ((tr("Перевод области"), self._hotkey_chip),
+                              (tr("Окно настроек"), self._settings_hotkey_chip)):
+            row = QHBoxLayout()
+            row.addWidget(FieldLabel(caption))
+            row.addStretch()
+            row.addWidget(chip)
+            hotkeys_layout.addLayout(row)
+        lbl_hk_hint = QLabel(tr("Бинды для пресетов областей назначаются в меню трея → «Пресеты регионов»."))
+        lbl_hk_hint.setWordWrap(True)
+        lbl_hk_hint.setStyleSheet(theme.label_css("caption"))
+        hotkeys_layout.addWidget(lbl_hk_hint)
+        pages["hotkeys"].addWidget(grp_hotkeys)
 
         # ── Interface section ──
-        grp_ui = QGroupBox(tr("Интерфейс"))
-        grp_ui.setStyleSheet(self._GROUP_CSS)
-        ui_layout = QVBoxLayout(grp_ui)
-        ui_layout.setSpacing(6)
+        grp_ui, ui_layout = self._group(tr("Интерфейс"))
 
-        ui_lang_row = QHBoxLayout()
-        lbl_ui_lang = QLabel(tr("Язык интерфейса:"))
-        lbl_ui_lang.setStyleSheet(self._css("color: #ccc; font-size: 10pt;"))
         self._ui_lang_combo = QComboBox()
         self._ui_lang_combo.setStyleSheet(self._INPUT_CSS)
         for code, name in UI_LANGUAGES:
             self._ui_lang_combo.addItem(name, code)
-        ui_lang_row.addWidget(lbl_ui_lang)
-        ui_lang_row.addWidget(self._ui_lang_combo, 1)
-        ui_layout.addLayout(ui_lang_row)
 
-        lbl_ui_lang_hint = QLabel(tr("Новый язык применяется после перезапуска приложения."))
-        lbl_ui_lang_hint.setStyleSheet(self._css("color: #666; font-size: 8.5pt; font-style: italic;"))
+        self._theme_combo = QComboBox()
+        self._theme_combo.setStyleSheet(self._INPUT_CSS)
+        for code, name in _UI_THEMES:
+            self._theme_combo.addItem(tr(name), code)
+
+        ui_cols = QHBoxLayout()
+        ui_cols.setSpacing(12)
+        ui_cols.addLayout(self._field(tr("Язык интерфейса:"), self._ui_lang_combo), 1)
+        ui_cols.addLayout(self._field(tr("Цветовая схема"), self._theme_combo), 1)
+        ui_layout.addLayout(ui_cols)
+
+        lbl_ui_lang_hint = QLabel(tr("Язык и цветовая схема применяются после перезапуска приложения."))
+        lbl_ui_lang_hint.setWordWrap(True)
+        lbl_ui_lang_hint.setStyleSheet(theme.text_css(p.muted, 8.5, italic=True))
         ui_layout.addWidget(lbl_ui_lang_hint)
 
-        layout.addWidget(grp_ui)
+        pages["interface"].addWidget(grp_ui)
 
         # ── Notifications section ──
-        grp_notify = QGroupBox(tr("Уведомления"))
-        grp_notify.setStyleSheet(self._GROUP_CSS)
-        notify_layout = QVBoxLayout(grp_notify)
-        notify_layout.setSpacing(6)
+        grp_notify, notify_layout = self._group(tr("Уведомления"), spacing=8)
 
         self._radio_notify_group = QButtonGroup(self)
         self._radio_popup = QRadioButton(tr("Показывать результат в попап-окне"))
         self._radio_toast = QRadioButton(tr("Показывать через системные уведомления Windows"))
         self._radio_notify_group.addButton(self._radio_popup, 0)
         self._radio_notify_group.addButton(self._radio_toast, 1)
-        self._radio_popup.setStyleSheet(radio_css)
-        self._radio_toast.setStyleSheet(radio_css)
         notify_layout.addWidget(self._radio_popup)
         notify_layout.addWidget(self._radio_toast)
 
-        layout.addWidget(grp_notify)
+        # Popup timeout
+        self._timeout_spin = QSpinBox()
+        self._timeout_spin.setRange(3, 60)
+        self._timeout_spin.setSuffix(tr(" сек"))
+        self._timeout_spin.setStyleSheet(self._INPUT_CSS)
+        notify_layout.addSpacing(4)
+        notify_layout.addLayout(self._field(tr("Автоскрытие попапа (сек):"), self._timeout_spin))
+
+        # Popup size: set by dragging the popup's edges, remembered across launches.
+        size_row = QHBoxLayout()
+        size_row.setSpacing(8)
+        self._popup_size_lbl = QLabel("")
+        self._popup_size_lbl.setWordWrap(True)
+        self._popup_size_lbl.setStyleSheet(self._status_css())
+        size_row.addWidget(self._popup_size_lbl, 1)
+        self._btn_reset_popup_size = QPushButton(tr("Сбросить размер"))
+        self._btn_reset_popup_size.setCursor(Qt.PointingHandCursor)
+        self._btn_reset_popup_size.setStyleSheet(theme.btn_secondary("6px 12px", 8.5))
+        self._btn_reset_popup_size.clicked.connect(self._on_reset_popup_size)
+        size_row.addWidget(self._btn_reset_popup_size, 0, Qt.AlignTop)
+        notify_layout.addLayout(self._field_row(tr("Размер попапа"), size_row))
+
+        pages["popup"].addWidget(grp_notify)
 
         # ── About & Updates section ──
-        grp_about = QGroupBox(tr("О программе и обновления"))
-        grp_about.setStyleSheet(self._GROUP_CSS)
-        about_layout = QVBoxLayout(grp_about)
-        about_layout.setSpacing(8)
+        grp_about, about_layout = self._group(tr("О программе и обновления"), spacing=8)
 
         ver_row = QHBoxLayout()
         self._lbl_ver = QLabel(
             tr("Версия приложения: v{version}", version=getattr(config, "APP_VERSION", "1.0.0"))
         )
-        self._lbl_ver.setStyleSheet(self._css("color: #ccc; font-size: 10pt; font-weight: 600;"))
+        self._lbl_ver.setStyleSheet(theme.text_css(p.text, 9.5))
         ver_row.addWidget(self._lbl_ver)
         ver_row.addStretch()
 
         self._btn_check_update = QPushButton(tr("Проверить обновления"))
-        self._btn_check_update.setStyleSheet(
-            "QPushButton {"
-            "  background: #2a2a3e; color: #5b8def; border: 1px solid #5b8def;"
-            "  border-radius: 6px; padding: 6px 14px;"
-            "  font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #3a3a5c; color: #7ca5f5; }"
-            "QPushButton:disabled { background: #1f1f2e; color: #555; border-color: #333; }"
-        )
+        self._btn_check_update.setCursor(Qt.PointingHandCursor)
+        self._btn_check_update.setStyleSheet(nmt_btn_css)
         ver_row.addWidget(self._btn_check_update)
         about_layout.addLayout(ver_row)
 
         self._update_status_lbl = QLabel("")
         self._update_status_lbl.setWordWrap(True)
-        self._update_status_lbl.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._update_status_lbl.setStyleSheet(self._status_css())
         about_layout.addWidget(self._update_status_lbl)
 
-        layout.addWidget(grp_about)
+        pages["interface"].addWidget(grp_about)
 
-        # ── Buttons ──
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
+        for lay in pages.values():
+            lay.addStretch()
 
-        self._btn_save = QPushButton(tr("Сохранить"))
-        self._btn_save.setStyleSheet(
-            "QPushButton {"
-            "  background: #5b8def; color: #fff; border: none;"
-            "  border-radius: 6px; padding: 9px 24px;"
-            "  font-family: 'Segoe UI'; font-size: 10pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #4a7de0; }"
-            "QPushButton:disabled { background: #3a3a5c; color: #666; }"
-        )
+        # Long item texts must not set the page's minimum width (narrow windows).
+        for combo in self.findChildren(QComboBox):
+            combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(12)
 
-        btn_row.addStretch()
-        btn_row.addWidget(self._btn_save)
-        layout.addLayout(btn_row)
+    def resizeEvent(self, event):
+        # Narrow windows: give the section pages the room the section list takes.
+        self._side.setFixedWidth(150 if event.size().width() < 700 else 170)
+        super().resizeEvent(event)
+
+    # ── Popup size ───────────────────────────────────────
+
+    def _refresh_popup_size(self) -> None:
+        from ui.result_popup import ResultPopup
+        size = ResultPopup.saved_size()
+        if size is None:
+            self._popup_size_lbl.setText(tr("Подстраивается под текст. Растяните попап за край, чтобы задать свой размер."))
+        else:
+            self._popup_size_lbl.setText(tr("Сохранён: {width} × {height}", width=size.width(), height=size.height()))
+        self._btn_reset_popup_size.setEnabled(size is not None)
+
+    def _on_reset_popup_size(self) -> None:
+        config.POPUP_SIZE = None
+        self._refresh_popup_size()
+
+    # ── Backend segment / auto language / key check ─────
+
+    def _on_backend_segment(self, choice) -> None:
+        """The "cloud / local" segmented control drives the backend combo."""
+        from translate.backend import BACKEND_NLLB
+        on_nllb = self._backend_combo.currentData() == BACKEND_NLLB
+        if (choice == "nllb") == on_nllb:
+            return
+        target = BACKEND_NLLB if choice == "nllb" else self._last_cloud_backend
+        idx = self._backend_combo.findData(target)
+        if idx >= 0:
+            self._backend_combo.setCurrentIndex(idx)
+
+    def _sync_backend_segment(self) -> None:
+        from translate.backend import BACKEND_NLLB
+        current = self._backend_combo.currentData()
+        if current and current != BACKEND_NLLB:
+            self._last_cloud_backend = current
+        self._backend_seg.set_current("nllb" if current == BACKEND_NLLB else "cloud")
+
+    def _sync_auto_lang_switch(self, _index=None) -> None:
+        is_auto = self._src_lang_combo.currentData() == "auto"
+        self._sw_auto_lang.blockSignals(True)
+        self._sw_auto_lang.setChecked(is_auto)
+        self._sw_auto_lang.blockSignals(False)
+        self._src_lang_combo.setEnabled(not is_auto)
+
+    def _on_auto_lang_toggled(self, on: bool) -> None:
+        if on:
+            idx = self._src_lang_combo.findData("auto")
+        elif self._src_lang_combo.currentData() == "auto":
+            idx = self._src_lang_combo.findData("en")
+        else:
+            idx = self._src_lang_combo.currentIndex()
+        if idx >= 0:
+            self._src_lang_combo.setCurrentIndex(idx)
+        self._sync_auto_lang_switch()
+
+    def _on_check_llm_key(self) -> None:
+        """Validate the typed LLM key with its provider without saving it."""
+        key_text = self._key_input.text().strip()
+        if not key_text:
+            self._key_status.setText(tr("Введите ключ."))
+            self._key_status.setStyleSheet(self._status_css("error"))
+            return
+        provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
+        self._btn_check_key.setEnabled(False)
+        self._key_status.setText(tr("Проверяем ключ…"))
+        self._key_status.setStyleSheet(self._status_css())
+        QApplication.processEvents()
+        from translate.llm_client import validate_api_key
+        try:
+            validate_api_key(provider, key_text)
+        except Exception as e:
+            self._key_status.setText(tr("Ошибка: {error}", error=e))
+            self._key_status.setStyleSheet(self._status_css("error"))
+        else:
+            self._key_status.setText(tr("✓ Ключ {provider} работает.", provider=provider))
+            self._key_status.setStyleSheet(self._status_css("ok"))
+        finally:
+            self._btn_check_key.setEnabled(True)
 
     # ── Custom profiles list management ─────────────────
 
@@ -1004,7 +1017,7 @@ class SettingsWidget(QWidget):
 
         if not custom_domains:
             empty_lbl = QLabel(tr("У вас пока нет пользовательских профилей."))
-            empty_lbl.setStyleSheet(self._css("color: #777799; font-size: 9pt; font-style: italic;"))
+            empty_lbl.setStyleSheet(theme.text_css(theme.current().muted, 9, italic=True))
             self._custom_profiles_layout.addWidget(empty_lbl)
             return
 
@@ -1012,45 +1025,30 @@ class SettingsWidget(QWidget):
             dom_id = dom["id"]
             display_name = dom["display_name"]
 
+            p = theme.current()
             row = QFrame()
-            row.setStyleSheet(
-                "QFrame {"
-                "  background: #232334; border: 1px solid #3a3a4e;"
-                "  border-radius: 6px; padding: 4px 8px;"
-                "}"
-            )
+            row.setObjectName("profileRow")
+            row.setStyleSheet(theme.panel_css("profileRow", background=p.bg))
             r_layout = QHBoxLayout(row)
-            r_layout.setContentsMargins(8, 6, 8, 6)
+            r_layout.setContentsMargins(10, 6, 8, 6)
 
             lbl = QLabel(
-                f"<b>{html.escape(display_name)}</b> "
-                f"<span style='color:#777; font-size:8.5pt;'>({html.escape(dom_id)})</span>"
+                f"{html.escape(display_name)} "
+                f"<span style='color:{p.muted}; font-size:8.5pt;'>({html.escape(dom_id)})</span>"
             )
-            lbl.setStyleSheet(self._css("color: #e0e0e0; font-size: 9.5pt;"))
+            lbl.setStyleSheet(theme.text_css(p.text, 9.5))
             r_layout.addWidget(lbl)
             r_layout.addStretch()
 
-            btn_edit = QPushButton(tr("✏️ Редактировать"))
+            btn_edit = QPushButton(tr("Редактировать"))
             btn_edit.setCursor(Qt.PointingHandCursor)
-            btn_edit.setStyleSheet(
-                "QPushButton {"
-                "  background: transparent; color: #aaa; border: 1px solid #444;"
-                "  border-radius: 4px; padding: 4px 10px; font-family: 'Segoe UI'; font-size: 8.5pt;"
-                "}"
-                "QPushButton:hover { background: #2a2a3e; color: #fff; }"
-            )
+            btn_edit.setStyleSheet(theme.btn_secondary("4px 10px", 8.5))
             btn_edit.clicked.connect(lambda _, did=dom_id: self._on_edit_profile(did))
             r_layout.addWidget(btn_edit)
 
-            btn_del = QPushButton(tr("🗑️ Удалить"))
+            btn_del = QPushButton(tr("Удалить"))
             btn_del.setCursor(Qt.PointingHandCursor)
-            btn_del.setStyleSheet(
-                "QPushButton {"
-                "  background: transparent; color: #ff6b6b; border: 1px solid #663333;"
-                "  border-radius: 4px; padding: 4px 10px; font-family: 'Segoe UI'; font-size: 8.5pt;"
-                "}"
-                "QPushButton:hover { background: rgba(255, 107, 107, 0.15); color: #ff8888; }"
-            )
+            btn_del.setStyleSheet(theme.btn_danger("4px 10px", 8.5))
             btn_del.clicked.connect(lambda _, did=dom_id, dname=display_name: self._on_delete_profile(did, dname))
             r_layout.addWidget(btn_del)
 
@@ -1172,14 +1170,14 @@ class SettingsWidget(QWidget):
 
         if not key_text:
             status.setText(tr("Введите ключ."))
-            status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
+            status.setStyleSheet(self._status_css("error"))
             return
 
         try:
             settings.set_api_key(provider, key_text)
         except Exception as e:
             status.setText(tr("Ошибка сохранения: {error}", error=e))
-            status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
+            status.setStyleSheet(self._status_css("error"))
             return
 
         # Also persist azure_region when saving azure key.
@@ -1188,7 +1186,7 @@ class SettingsWidget(QWidget):
             config_manager.set_value("azure_region", region)
 
         status.setText(tr("✓ Ключ {provider} сохранён!", provider=provider))
-        status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+        status.setStyleSheet(self._status_css("ok"))
         self._nmt_key_input(provider).clear()
         self._refresh_nmt_key_status()
 
@@ -1196,7 +1194,7 @@ class SettingsWidget(QWidget):
         """Send a test phrase through the NMT backend and show the result."""
         status = self._nmt_status_label(provider)
         status.setText(tr("Проверяем…"))
-        status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        status.setStyleSheet(self._status_css())
         QApplication.processEvents()
 
         # Temporarily persist azure_region so the test picks it up.
@@ -1209,10 +1207,10 @@ class SettingsWidget(QWidget):
             client = _get_nmt_client(provider)
             detected, translated = client.translate("Hello world", target_lang="ru")
             status.setText(f"✓ {detected} → ru: «{translated}»")
-            status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+            status.setStyleSheet(self._status_css("ok"))
         except Exception as e:
             status.setText(f"✗ {e}")
-            status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
+            status.setStyleSheet(self._status_css("error"))
 
     def _refresh_nmt_key_status(self) -> None:
         """Update NMT key status labels based on what's stored in keyring."""
@@ -1225,13 +1223,13 @@ class SettingsWidget(QWidget):
             has_key = bool(settings.get_api_key(provider))
             if has_key:
                 label.setText(tr("✓ Ключ {provider} сохранён в Keyring", provider=name))
-                label.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+                label.setStyleSheet(self._status_css("ok"))
             else:
                 if provider == "google":
                     label.setText(tr("Ключ не задан — будет использоваться бесплатный Web RPC"))
                 else:
                     label.setText(tr("Ключ {provider} не задан", provider=name))
-                label.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+                label.setStyleSheet(self._status_css())
 
         # Azure region.
         self._azure_region_input.setText(config_manager.get("azure_region") or "global")
@@ -1240,13 +1238,14 @@ class SettingsWidget(QWidget):
 
     # ── Translation backend (API / local NLLB) ──────────
 
-    def _set_nllb_status(self, message: str, *, color: str = "#999") -> None:
+    def _set_nllb_status(self, message: str, *, kind: str = "muted") -> None:
         self._nllb_status.setText(message)
-        self._nllb_status.setStyleSheet(self._css(f"color: {color}; font-size: 9pt;"))
+        self._nllb_status.setStyleSheet(self._status_css(kind))
 
     def _refresh_nllb_status(self) -> None:
         """Show whether the local model is present, without loading it."""
         from translate.backend import BACKEND_NLLB
+        self._sync_backend_segment()
         use_nllb = self._backend_combo.currentData() == BACKEND_NLLB
         self._nllb_container.setVisible(use_nllb)
 
@@ -1270,7 +1269,7 @@ class SettingsWidget(QWidget):
         backend = get_backend()
         if backend.is_loaded:
             self._set_nllb_status(
-                tr("✓ Модель загружена в память: {path}", path=backend.model_dir), color="#66cc99"
+                tr("✓ Модель загружена в память: {path}", path=backend.model_dir), kind="ok"
             )
             return
 
@@ -1282,7 +1281,7 @@ class SettingsWidget(QWidget):
                     "(или нажмите «Загрузить модель»).",
                     path=found,
                 ),
-                color="#66cc99",
+                kind="ok",
             )
         else:
             self._set_nllb_status(
@@ -1292,7 +1291,7 @@ class SettingsWidget(QWidget):
                     "(ct2-transformers-converter). Пока модель недоступна, перевод "
                     "будет выполняться через API."
                 ),
-                color="#ffb347",
+                kind="warn",
             )
 
     def _on_backend_changed(self, _index=None) -> None:
@@ -1402,7 +1401,7 @@ class SettingsWidget(QWidget):
         self._on_nllb_version_changed()
         if result:
             self._set_nllb_status(tr("⚠ Не удалось скачать модель: {error}", error=result),
-                                  color="#ffb347")
+                                  kind="warn")
         else:
             self._set_nllb_status(tr("Скачивание отменено."))
 
@@ -1419,6 +1418,9 @@ class SettingsWidget(QWidget):
         if kind == "remote":
             self._start_nllb_download(value)
             return
+        worker = getattr(self, "_nllb_worker", None)
+        if worker is not None and worker.isRunning():
+            return  # already warming up
 
         config_manager.set_value("nllb_model_path", self._nllb_path_edit.text().strip())
 
@@ -1426,7 +1428,7 @@ class SettingsWidget(QWidget):
         reset_nllb()
 
         self._btn_load_nllb.setEnabled(False)
-        self._set_nllb_status(tr("⏳ Загрузка локальной модели… (около 600 МБ, 1–5 с)"))
+        self._set_nllb_status(tr("Загрузка локальной модели… (около 600 МБ, 1–5 с)"))
         QApplication.processEvents()
 
         self._nllb_worker = _NllbPreloadWorker(self)
@@ -1437,12 +1439,12 @@ class SettingsWidget(QWidget):
         from translate.backend import BACKEND_NLLB
         self._btn_load_nllb.setEnabled(self._backend_combo.currentData() == BACKEND_NLLB)
         if ok:
-            self._set_nllb_status(f"✓ {message}", color="#66cc99")
+            self._set_nllb_status(f"✓ {message}", kind="ok")
         else:
             self._set_nllb_status(
                 f"⚠ {message}\n\n"
                 + tr("Пока модель недоступна, перевод будет выполняться через API."),
-                color="#ffb347",
+                kind="warn",
             )
 
     # ── Load ─────────────────────────────────────────────
@@ -1450,7 +1452,8 @@ class SettingsWidget(QWidget):
     def _load_current(self) -> None:
 
         # Translation backend (combo box).
-        current_backend = getattr(config, "TRANSLATION_BACKEND", "api") or "api"
+        from translate.backend import get_active_backend
+        current_backend = get_active_backend()
         for i in range(self._backend_combo.count()):
             if self._backend_combo.itemData(i) == current_backend:
                 self._backend_combo.setCurrentIndex(i)
@@ -1488,10 +1491,10 @@ class SettingsWidget(QWidget):
 
         if status_parts:
             self._key_status.setText(tr("Сохранённые ключи: ") + ", ".join(status_parts))
-            self._key_status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
+            self._key_status.setStyleSheet(self._status_css("ok"))
         else:
             self._key_status.setText(tr("Ключи не заданы в Keyring (используются переменные из .env)"))
-            self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+            self._key_status.setStyleSheet(self._status_css())
 
         # Domain.
         self._refresh_all_domain_combos()
@@ -1503,6 +1506,7 @@ class SettingsWidget(QWidget):
         idx_src = self._src_lang_combo.findData(config.SOURCE_LANG)
         if idx_src >= 0:
             self._src_lang_combo.setCurrentIndex(idx_src)
+        self._sync_auto_lang_switch()
 
         # Target language.
         idx = self._lang_combo.findData(config.TARGET_LANG)
@@ -1537,12 +1541,19 @@ class SettingsWidget(QWidget):
         self._chk_ocr_preview.setChecked(bool(getattr(config, "ENABLE_OCR_PREVIEW", False)))
         self._tokens_spin.setValue(int(getattr(config, "LLM_MAX_TOKENS", 350)))
 
-        # Popup timeout.
+        # Popup timeout and saved size.
         self._timeout_spin.setValue(config.POPUP_TIMEOUT_SEC)
+        self._refresh_popup_size()
 
-        # Interface language.
+        # Interface language and colour scheme.
         idx_ui = self._ui_lang_combo.findData(config_manager.get("ui_language"))
         self._ui_lang_combo.setCurrentIndex(max(idx_ui, 0))
+        idx_theme = self._theme_combo.findData(config_manager.get("ui_theme"))
+        self._theme_combo.setCurrentIndex(max(idx_theme, 0))
+
+        # Hotkeys overview.
+        self._hotkey_chip.set_chip_text(str(config.HOTKEY or "").upper())
+        self._settings_hotkey_chip.set_chip_text(str(config.SETTINGS_HOTKEY or "").upper())
 
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":
@@ -1556,13 +1567,37 @@ class SettingsWidget(QWidget):
         self._btn_save.clicked.connect(self._on_save)
         self._btn_check_update.clicked.connect(self._on_check_update)
 
+        # Autosave: every control whose setting applies without a restart.
+        for combo in (self._backend_combo, self._ocr_gpu_combo, self._domain_combo,
+                      self._src_lang_combo, self._lang_combo, self._engine_combo,
+                      self._model_combo, self._nllb_version_combo):
+            combo.currentIndexChanged.connect(self._schedule_autosave)
+        for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
+            button.toggled.connect(self._schedule_autosave)
+        for switch in (self._chk_fallback, self._chk_streaming, self._chk_compact_prompt,
+                       self._chk_ocr_preview):
+            switch.toggled.connect(self._schedule_autosave)
+        for spin in (self._tokens_spin, self._timeout_spin):
+            spin.valueChanged.connect(self._schedule_autosave)
+        for edit in (self._nllb_path_edit, self._custom_model_edit, self._azure_region_input):
+            edit.editingFinished.connect(self._schedule_autosave)
+
+        # Restart-only settings light up the save button instead.
+        self._ui_lang_combo.currentIndexChanged.connect(self._update_restart_state)
+        self._theme_combo.currentIndexChanged.connect(self._update_restart_state)
+
+    def hideEvent(self, event):
+        # Leaving the page (or hiding the window) must not drop a pending change.
+        self._flush_autosave()
+        super().hideEvent(event)
+
     def _on_check_update(self) -> None:
         import webbrowser
         from updater.check_update import check_for_update
 
         self._btn_check_update.setEnabled(False)
         self._update_status_lbl.setText(tr("Проверка наличия обновлений…"))
-        self._update_status_lbl.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
+        self._update_status_lbl.setStyleSheet(self._status_css())
         QApplication.processEvents()
 
         has_update, version, url = check_for_update()
@@ -1570,101 +1605,32 @@ class SettingsWidget(QWidget):
 
         if has_update:
             self._update_status_lbl.setText(
-                tr("🚀 Доступна новая версия {version}! ", version=html.escape(version))
-                + f'<a href="{html.escape(url)}" style="color:#5b8def; font-weight:600;">'
+                tr("Доступна новая версия {version}. ", version=html.escape(version))
+                + f'<a href="{html.escape(url)}" style="color:{theme.current().accent};">'
                 + tr("Скачать обновление →") + "</a>"
             )
-            self._update_status_lbl.setStyleSheet(self._css("color: #66cc99; font-size: 9.5pt;"))
+            self._update_status_lbl.setStyleSheet(self._status_css("ok"))
             self._update_status_lbl.setOpenExternalLinks(True)
         else:
             current = getattr(config, "APP_VERSION", "1.0.0")
             self._update_status_lbl.setText(tr("✓ У вас установлена актуальная версия (v{version}).", version=current))
-            self._update_status_lbl.setStyleSheet(self._css("color: #8888aa; font-size: 9pt;"))
+            self._update_status_lbl.setStyleSheet(self._status_css())
 
     # ── Save ─────────────────────────────────────────────
 
-    def _on_save(self) -> None:
-        key_text = self._key_input.text().strip()
-        provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
+    def _schedule_autosave(self, *_args) -> None:
+        if not self._loading:
+            self._autosave_timer.start()  # restarts the debounce window
 
-        # ── Update API key (if a new one was entered) ────
-        if key_text:
-            self._btn_save.setEnabled(False)
-            self._key_status.setText(tr("Проверяем ключ…"))
-            self._key_status.setStyleSheet(self._css("color: #999; font-size: 9pt;"))
-            QApplication.processEvents()
+    def _flush_autosave(self) -> None:
+        if self._autosave_timer.isActive():
+            self._autosave_timer.stop()
+            self._autosave()
 
-            # Check before storing, so a rejected key never replaces a working one.
-            from translate.llm_client import validate_api_key
-            try:
-                validate_api_key(provider, key_text)
-            except Exception as e:
-                self._key_status.setText(tr("Ошибка: {error}", error=e))
-                self._key_status.setStyleSheet(self._css("color: #ff6b6b; font-size: 9pt;"))
-                self._btn_save.setEnabled(True)
-                return
-
-            settings.set_api_key(provider, key_text)
-            reset_client()
-            self._key_status.setText(tr("✓ Ключ {provider} обновлён!", provider=provider))
-            self._key_status.setStyleSheet(self._css("color: #66cc99; font-size: 9pt;"))
-            self._key_input.clear()
-            self._btn_save.setEnabled(True)
-
-        # ── Update config_manager values ─────────────────
+    def _autosave(self) -> None:
+        """Write every setting that applies without a restart."""
         try:
-            primary_choice = "openrouter" if self._radio_or.isChecked() else "anthropic"
-            settings.save_primary_provider(primary_choice)
-            settings.set_fallback_enabled(self._chk_fallback.isChecked())
-
-            new_domain = self._domain_combo.currentData()
-            new_src_lang = self._src_lang_combo.currentData()
-            new_lang = self._lang_combo.currentData()
-            new_engine = self._engine_combo.currentData()
-            # LLM model
-            combo_data = self._model_combo.currentData()
-            if combo_data == "__custom__":
-                new_model = self._custom_model_edit.text().strip() or "openai/gpt-oss-20b:free"
-            else:
-                new_model = combo_data or "openai/gpt-oss-20b:free"
-            new_timeout = self._timeout_spin.value()
-
-            from translate.backend import BACKEND_API, BACKEND_NLLB
-
-            new_backend = self._backend_combo.currentData() or BACKEND_API
-            new_nllb_path = self._nllb_path_edit.text().strip()
-            backend_switched_to_nllb = (
-                new_backend == BACKEND_NLLB
-                and getattr(config, "TRANSLATION_BACKEND", BACKEND_API) != BACKEND_NLLB
-            )
-
-            cfg = config_manager.load_config()
-            cfg["translation_backend"] = new_backend
-            cfg["nllb_model_path"] = new_nllb_path
-            cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
-            cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
-            cfg["primary_provider"] = primary_choice
-            cfg["enable_fallback"] = self._chk_fallback.isChecked()
-            cfg["enable_streaming"] = self._chk_streaming.isChecked()
-            cfg["compact_prompt"] = self._chk_compact_prompt.isChecked()
-            cfg["enable_ocr_preview"] = self._chk_ocr_preview.isChecked()
-            cfg["llm_max_tokens"] = self._tokens_spin.value()
-            cfg["active_domain"] = new_domain or cfg.get("active_domain", "general")
-            cfg["source_language"] = new_src_lang or cfg.get("source_language", "auto")
-            cfg["target_language"] = new_lang or cfg["target_language"]
-            cfg["translation_engine"] = new_engine or cfg["translation_engine"]
-            if new_model:
-                cfg["llm_model"] = new_model
-            cfg["popup_timeout_sec"] = new_timeout
-            cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
-            new_ui_lang = self._ui_lang_combo.currentData() or "auto"
-            ui_lang_changed = new_ui_lang != cfg.get("ui_language", "auto")
-            cfg["ui_language"] = new_ui_lang
-            config_manager.save_config(cfg)
-
-            # Reset both backends so the new model/provider/path is picked up.
-            from translate.backend import reset as reset_backends
-            reset_backends()
+            changed = self._save_instant_settings()
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -1672,20 +1638,147 @@ class SettingsWidget(QWidget):
                 tr("Не удалось сохранить настройки:\n{error}", error=e)
             )
             return
+        if not changed:
+            return
 
-        if ui_lang_changed:
-            QMessageBox.information(
-                self,
-                tr("Язык интерфейса"),
-                tr("Язык интерфейса изменится после перезапуска приложения."),
-            )
-
+        from translate.backend import BACKEND_NLLB
         # Freshly switched to the local model → warm it up with a visible indicator
         # instead of making the user wait on their first hotkey press.
         nllb_kind, _ = self._nllb_version_combo.currentData() or ("auto", None)
-        if backend_switched_to_nllb and nllb_kind != "remote":  # never start a download on Save
+        if ("translation_backend" in changed and config.TRANSLATION_BACKEND == BACKEND_NLLB
+                and nllb_kind != "remote"):  # never start a download on save
+
             self._on_load_nllb_clicked()
         else:
             self._refresh_nllb_status()
-
         self.settings_saved.emit()
+
+    def _save_instant_settings(self) -> set[str]:
+        """Persist the form's no-restart settings; return the keys that changed."""
+        primary_choice = "openrouter" if self._radio_or.isChecked() else "anthropic"
+        settings.save_primary_provider(primary_choice)
+        settings.set_fallback_enabled(self._chk_fallback.isChecked())
+
+        combo_data = self._model_combo.currentData()
+        if combo_data == "__custom__":
+            new_model = self._custom_model_edit.text().strip() or "openai/gpt-oss-20b:free"
+        else:
+            new_model = combo_data or "openai/gpt-oss-20b:free"
+
+        from translate.backend import DEFAULT_BACKEND
+
+        cfg = config_manager.load_config()
+        old = dict(cfg)
+        cfg["translation_backend"] = self._backend_combo.currentData() or DEFAULT_BACKEND
+        cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
+        cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
+        cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
+        cfg["primary_provider"] = primary_choice
+        cfg["enable_fallback"] = self._chk_fallback.isChecked()
+        cfg["enable_streaming"] = self._chk_streaming.isChecked()
+        cfg["compact_prompt"] = self._chk_compact_prompt.isChecked()
+        cfg["enable_ocr_preview"] = self._chk_ocr_preview.isChecked()
+        cfg["llm_max_tokens"] = self._tokens_spin.value()
+        cfg["active_domain"] = self._domain_combo.currentData() or cfg.get("active_domain", "general")
+        cfg["source_language"] = self._src_lang_combo.currentData() or cfg.get("source_language", "auto")
+        cfg["target_language"] = self._lang_combo.currentData() or cfg["target_language"]
+        cfg["translation_engine"] = self._engine_combo.currentData() or cfg["translation_engine"]
+        cfg["llm_model"] = new_model
+        cfg["popup_timeout_sec"] = self._timeout_spin.value()
+        cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
+
+        changed = {k for k in cfg if cfg[k] != old.get(k)}
+        if not changed:
+            return changed
+        config_manager.save_config(cfg)
+
+        # New model/provider/prompt options → fresh LLM clients (cheap). The local model
+        # is only dropped when its backend or path changes (reloading it costs seconds).
+        reset_client()
+        if changed & {"translation_backend", "nllb_model_path"}:
+            from translate.backend import reset as reset_backends
+            reset_backends()
+        return changed
+
+    # ── Restart-only settings ────────────────────────────
+
+    def _pending_restart_settings(self) -> dict[str, str]:
+        """Restart-only values in the form that differ from settings.json."""
+        pending = {}
+        ui_lang = self._ui_lang_combo.currentData() or "auto"
+        if ui_lang != (config_manager.get("ui_language") or "auto"):
+            pending["ui_language"] = ui_lang
+        ui_theme = self._theme_combo.currentData() or "amber"
+        if ui_theme != (config_manager.get("ui_theme") or "amber"):
+            pending["ui_theme"] = ui_theme
+        return pending
+
+    def _update_restart_state(self, *_args) -> None:
+        """Light up "Сохранить" only while a restart-only setting is changed."""
+        pending = bool(self._pending_restart_settings())
+        self._btn_save.setEnabled(pending)
+        self._save_hint.setText(tr("Применится после перезапуска") if pending else "")
+        self._save_hint.setVisible(pending)
+
+    def _on_save(self) -> None:
+        """Save the restart-only settings and offer to restart now."""
+        self._flush_autosave()
+        pending = self._pending_restart_settings()
+        if not pending:
+            return
+        try:
+            cfg = config_manager.load_config()
+            cfg.update(pending)
+            config_manager.save_config(cfg)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                tr("Ошибка сохранения"),
+                tr("Не удалось сохранить настройки:\n{error}", error=e)
+            )
+            return
+        self._update_restart_state()
+
+        reply = QMessageBox.question(
+            self,
+            tr("Перезапуск"),
+            tr("Язык интерфейса и цветовая схема применяются после перезапуска.\n"
+               "Перезапустить приложение сейчас?"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        if reply == QMessageBox.Yes:
+            self.restart_requested.emit()
+
+    # ── LLM API key ──────────────────────────────────────
+
+    def _on_save_llm_key(self) -> None:
+        """Validate the typed key with its provider, then store it in the keyring."""
+        key_text = self._key_input.text().strip()
+        if not key_text:
+            self._key_status.setText(tr("Введите ключ."))
+            self._key_status.setStyleSheet(self._status_css("error"))
+            return
+        provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
+
+        self._btn_save_key.setEnabled(False)
+        self._key_status.setText(tr("Проверяем ключ…"))
+        self._key_status.setStyleSheet(self._status_css())
+        QApplication.processEvents()
+
+        # Check before storing, so a rejected key never replaces a working one.
+        from translate.llm_client import validate_api_key
+        try:
+            validate_api_key(provider, key_text)
+        except Exception as e:
+            self._key_status.setText(tr("Ошибка: {error}", error=e))
+            self._key_status.setStyleSheet(self._status_css("error"))
+            return
+        finally:
+            self._btn_save_key.setEnabled(True)
+
+        settings.set_api_key(provider, key_text)
+        reset_client()
+        self._key_status.setText(tr("✓ Ключ {provider} обновлён!", provider=provider))
+        self._key_status.setStyleSheet(self._status_css("ok"))
+        self._key_input.clear()

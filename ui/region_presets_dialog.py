@@ -12,12 +12,13 @@ import logging
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QListWidget, QListWidgetItem,
-    QInputDialog, QMessageBox, QWidget, QKeySequenceEdit,
+    QInputDialog, QMessageBox, QKeySequenceEdit,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QKeySequence
+from PyQt5.QtGui import QKeySequence
 
 from i18n import tr
+from ui import theme
 
 from settings.region_presets import (
     load_presets, save_preset, delete_preset, rename_preset,
@@ -26,22 +27,9 @@ from settings.region_presets import (
 
 logger = logging.getLogger("translator")
 
-# ── Shared style constants (matching ui/settings_dialog.py) ──
 
-_DIALOG_BG = "#1c1c24"
-_CARD_BG = "#232334"
-_INPUT_BG = "#2a2a3e"
-_ACCENT = "#5b8def"
-_ACCENT_HOVER = "#4a7de0"
-_TEXT = "#e0e0e0"
-_TEXT_DIM = "#999"
-_BORDER = "#444"
-_BORDER_LIGHT = "#3a3a4e"
-_FONT = "Segoe UI"
-_DANGER = "#ff6b6b"
-_DANGER_BG_HOVER = "rgba(255, 107, 107, 0.15)"
-_SUCCESS = "#2d8c5a"
-_SUCCESS_HOVER = "#34a068"
+def _dialog_css() -> str:
+    return f"QDialog {{ background: {theme.current().panel}; }}"
 
 
 class HotkeyInputDialog(QDialog):
@@ -58,7 +46,7 @@ class HotkeyInputDialog(QDialog):
         self.setWindowTitle(tr("Назначить бинд — «{name}»", name=preset_name))
         self.resize(380, 200)
         self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
-        self.setStyleSheet(f"QDialog {{ background: {_DIALOG_BG}; }}")
+        self.setStyleSheet(_dialog_css())
         self.preset_id = preset_id
         self.result_hotkey: str | None = current_hotkey
 
@@ -69,22 +57,20 @@ class HotkeyInputDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
+        p = theme.current()
         lbl = QLabel(tr("Нажмите комбинацию клавиш для этого пресета:"))
-        lbl.setStyleSheet(f"color: {_TEXT}; font-family: '{_FONT}'; font-size: 10pt; font-weight: 600;")
+        lbl.setStyleSheet(theme.text_css(p.text, 10))
         layout.addWidget(lbl)
 
         hint = QLabel(tr("Например: Ctrl+Alt+1, F8, Alt+Shift+T. Бинд будет работать глобально."))
         hint.setWordWrap(True)
-        hint.setStyleSheet(f"color: {_TEXT_DIM}; font-family: '{_FONT}'; font-size: 8.5pt;")
+        hint.setStyleSheet(theme.label_css("caption"))
         layout.addWidget(hint)
 
         initial_seq = QKeySequence(current_hotkey.upper()) if current_hotkey else QKeySequence()
         self._key_edit = QKeySequenceEdit(initial_seq)
         self._key_edit.setStyleSheet(
-            f"QKeySequenceEdit {{"
-            f"  background: {_INPUT_BG}; color: #fff; border: 1px solid {_ACCENT};"
-            f"  border-radius: 6px; padding: 8px; font-family: '{_FONT}'; font-size: 11pt;"
-            f"}}"
+            theme.input_css(11, "8px") + f"QKeySequenceEdit {{ border-color: {p.dim}; color: {p.accent}; }}"
         )
         layout.addWidget(self._key_edit)
 
@@ -92,39 +78,22 @@ class HotkeyInputDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        btn_ok = QPushButton(tr("✔ Применить"))
+        btn_ok = QPushButton(tr("Применить").upper())
         btn_ok.setCursor(Qt.PointingHandCursor)
-        btn_ok.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: {_ACCENT}; color: #fff; border: none; border-radius: 6px;"
-            f"  padding: 8px 16px; font-family: '{_FONT}'; font-size: 9.5pt; font-weight: 600;"
-            f"}}"
-            f"QPushButton:hover {{ background: {_ACCENT_HOVER}; }}"
-        )
+        btn_ok.setFont(theme.display_font(9.5, spacing=110))
+        btn_ok.setStyleSheet(theme.btn_primary("8px 16px", 9.5))
         btn_ok.clicked.connect(self._on_apply)
         btn_row.addWidget(btn_ok)
 
-        btn_clear = QPushButton(tr("❌ Очистить бинд"))
+        btn_clear = QPushButton(tr("Очистить бинд"))
         btn_clear.setCursor(Qt.PointingHandCursor)
-        btn_clear.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: {_INPUT_BG}; color: {_DANGER}; border: 1px solid {_BORDER};"
-            f"  border-radius: 6px; padding: 8px 14px; font-family: '{_FONT}'; font-size: 9.5pt;"
-            f"}}"
-            f"QPushButton:hover {{ background: {_DANGER_BG_HOVER}; }}"
-        )
+        btn_clear.setStyleSheet(theme.btn_danger("8px 14px", 9))
         btn_clear.clicked.connect(self._on_clear)
         btn_row.addWidget(btn_clear)
 
         btn_cancel = QPushButton(tr("Отмена"))
         btn_cancel.setCursor(Qt.PointingHandCursor)
-        btn_cancel.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: transparent; color: #aaa; border: 1px solid {_BORDER};"
-            f"  border-radius: 6px; padding: 8px 14px; font-family: '{_FONT}'; font-size: 9.5pt;"
-            f"}}"
-            f"QPushButton:hover {{ background: {_INPUT_BG}; color: #ccc; }}"
-        )
+        btn_cancel.setStyleSheet(theme.btn_secondary("8px 14px", 9))
         btn_cancel.clicked.connect(self.reject)
         btn_row.addWidget(btn_cancel)
 
@@ -168,7 +137,7 @@ class RegionPresetsDialog(QDialog):
         self.resize(540, 460)
         self.setMinimumSize(440, 360)
         self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
-        self.setStyleSheet(f"QDialog {{ background: {_DIALOG_BG}; }}")
+        self.setStyleSheet(_dialog_css())
 
         self._build_ui()
         self._reload_list()
@@ -180,12 +149,13 @@ class RegionPresetsDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
+        p = theme.current()
+
         # Title & Hint
-        lbl_title = QLabel(tr("📋 Пресеты областей экрана"))
-        lbl_title.setStyleSheet(
-            f"font-family: '{_FONT}'; font-size: 13pt; font-weight: 600; "
-            f"color: {_TEXT}; background: transparent;"
-        )
+        lbl_title = QLabel(f"<span style='color:{p.accent};'>//</span> " + tr("Пресеты областей экрана").upper())
+        lbl_title.setTextFormat(Qt.RichText)
+        lbl_title.setFont(theme.display_font(13, spacing=106))
+        lbl_title.setStyleSheet(f"color: {p.text}; background: transparent;")
         layout.addWidget(lbl_title)
 
         lbl_hint = QLabel(tr(
@@ -193,30 +163,12 @@ class RegionPresetsDialog(QDialog):
             "или запустите опциональный автомониторинг."
         ))
         lbl_hint.setWordWrap(True)
-        lbl_hint.setStyleSheet(
-            f"font-family: '{_FONT}'; font-size: 9pt; color: {_TEXT_DIM}; "
-            "background: transparent; margin-bottom: 2px;"
-        )
+        lbl_hint.setStyleSheet(theme.label_css("muted"))
         layout.addWidget(lbl_hint)
 
         # Preset list
         self._list = QListWidget()
-        self._list.setStyleSheet(
-            f"QListWidget {{"
-            f"  background: {_CARD_BG}; color: {_TEXT}; border: 1px solid {_BORDER_LIGHT};"
-            f"  border-radius: 8px; padding: 4px;"
-            f"  font-family: '{_FONT}'; font-size: 10pt;"
-            f"}}"
-            f"QListWidget::item {{"
-            f"  padding: 8px 10px; border-bottom: 1px solid {_BORDER_LIGHT};"
-            f"}}"
-            f"QListWidget::item:selected {{"
-            f"  background: {_INPUT_BG}; color: {_TEXT};"
-            f"}}"
-            f"QListWidget::item:hover {{"
-            f"  background: #2a2a42;"
-            f"}}"
-        )
+        self._list.setStyleSheet(theme.list_css())
         self._list.setSelectionMode(QListWidget.SingleSelection)
         self._list.doubleClicked.connect(self._on_translate_now)
         layout.addWidget(self._list, 1)
@@ -225,23 +177,23 @@ class RegionPresetsDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(6)
 
-        self._btn_new = self._make_button(tr("➕ Новый"), _ACCENT, "#fff", _ACCENT_HOVER)
+        self._btn_new = self._make_button(tr("+ Новый"), theme.btn_accent("6px 12px", 9))
         self._btn_new.clicked.connect(self._on_new)
         btn_row.addWidget(self._btn_new)
 
-        self._btn_hotkey = self._make_button(tr("⌨ Назначить бинд"), _INPUT_BG, _TEXT, "#3a3a5c")
+        self._btn_hotkey = self._make_button(tr("Назначить бинд"), theme.btn_secondary("6px 12px", 9))
         self._btn_hotkey.clicked.connect(self._on_set_hotkey)
         btn_row.addWidget(self._btn_hotkey)
 
-        self._btn_clear_hotkey = self._make_button(tr("❌ Сбросить"), _INPUT_BG, _TEXT_DIM, "#3a3a5c")
+        self._btn_clear_hotkey = self._make_button(tr("Сбросить"), theme.btn_secondary("6px 12px", 9))
         self._btn_clear_hotkey.clicked.connect(self._on_clear_hotkey)
         btn_row.addWidget(self._btn_clear_hotkey)
 
-        self._btn_rename = self._make_button(tr("✏️ Имя"), _INPUT_BG, _TEXT_DIM, "#3a3a5c")
+        self._btn_rename = self._make_button(tr("Имя"), theme.btn_secondary("6px 12px", 9))
         self._btn_rename.clicked.connect(self._on_rename)
         btn_row.addWidget(self._btn_rename)
 
-        self._btn_delete = self._make_button(tr("🗑️ Удалить"), _INPUT_BG, _DANGER, _DANGER_BG_HOVER)
+        self._btn_delete = self._make_button(tr("Удалить"), theme.btn_danger("6px 12px", 9))
         self._btn_delete.clicked.connect(self._on_delete)
         btn_row.addWidget(self._btn_delete)
 
@@ -251,31 +203,16 @@ class RegionPresetsDialog(QDialog):
         action_row = QHBoxLayout()
         action_row.setSpacing(10)
 
-        self._btn_translate = QPushButton(tr("▶ Перевести область"))
+        self._btn_translate = QPushButton(tr("Перевести область").upper())
         self._btn_translate.setCursor(Qt.PointingHandCursor)
-        self._btn_translate.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: {_SUCCESS}; color: #fff; border: none;"
-            f"  border-radius: 6px; padding: 9px 18px;"
-            f"  font-family: '{_FONT}'; font-size: 10pt; font-weight: 600;"
-            f"}}"
-            f"QPushButton:hover {{ background: {_SUCCESS_HOVER}; }}"
-            f"QPushButton:disabled {{ background: #1f2f28; color: #555; }}"
-        )
+        self._btn_translate.setFont(theme.display_font(10, spacing=110))
+        self._btn_translate.setStyleSheet(theme.btn_primary("9px 18px", 10))
         self._btn_translate.clicked.connect(self._on_translate_now)
         action_row.addWidget(self._btn_translate)
 
-        self._btn_monitor = QPushButton(tr("👁 Автомониторинг (10 сек)"))
+        self._btn_monitor = QPushButton(tr("Автомониторинг (10 сек)"))
         self._btn_monitor.setCursor(Qt.PointingHandCursor)
-        self._btn_monitor.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: #3a3a56; color: #ccc; border: 1px solid {_BORDER};"
-            f"  border-radius: 6px; padding: 9px 14px;"
-            f"  font-family: '{_FONT}'; font-size: 9pt;"
-            f"}}"
-            f"QPushButton:hover {{ background: #4a4a6e; color: #fff; }}"
-            f"QPushButton:disabled {{ background: #222230; color: #555; }}"
-        )
+        self._btn_monitor.setStyleSheet(theme.btn_accent("9px 14px", 9))
         self._btn_monitor.clicked.connect(self._on_start_monitoring)
         action_row.addWidget(self._btn_monitor)
 
@@ -283,32 +220,17 @@ class RegionPresetsDialog(QDialog):
 
         self._btn_cancel = QPushButton(tr("Закрыть"))
         self._btn_cancel.setCursor(Qt.PointingHandCursor)
-        self._btn_cancel.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: transparent; color: #aaa; border: 1px solid {_BORDER};"
-            f"  border-radius: 6px; padding: 9px 18px;"
-            f"  font-family: '{_FONT}'; font-size: 10pt;"
-            f"}}"
-            f"QPushButton:hover {{ background: {_INPUT_BG}; color: #ccc; }}"
-        )
+        self._btn_cancel.setStyleSheet(theme.btn_secondary("9px 18px", 9.5))
         self._btn_cancel.clicked.connect(self.reject)
         action_row.addWidget(self._btn_cancel)
 
         layout.addLayout(action_row)
 
     @staticmethod
-    def _make_button(text: str, bg: str, fg: str, hover_bg: str) -> QPushButton:
+    def _make_button(text: str, css: str) -> QPushButton:
         btn = QPushButton(text)
         btn.setCursor(Qt.PointingHandCursor)
-        btn.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: {bg}; color: {fg}; border: 1px solid {_BORDER};"
-            f"  border-radius: 6px; padding: 6px 12px;"
-            f"  font-family: '{_FONT}'; font-size: 9pt; font-weight: 500;"
-            f"}}"
-            f"QPushButton:hover {{ background: {hover_bg}; }}"
-            f"QPushButton:disabled {{ background: #1a1a24; color: #444; border-color: #333; }}"
-        )
+        btn.setStyleSheet(css)
         return btn
 
     # ── List management ──────────────────────────────────

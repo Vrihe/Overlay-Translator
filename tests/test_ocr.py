@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import config
 from ocr import engine
-from ocr.engine import preprocess, _sort_text_results, _resolve_gpu, recognise
+from ocr.engine import preprocess, _sort_results, _should_use_gpu, recognise
 
 
 def _engine_output(items):
@@ -47,25 +47,39 @@ def _mock_engine(items):
 
 
 class TestOCRPreprocessing(unittest.TestCase):
-    """Test image preprocessing for OCR."""
+    """Test image preprocessing for OCR.
+
+    preprocess() pads every side by max(8, min(24, 10 % of the short side)) so edge
+    glyphs are not clipped, then upscales small crops when scale == 1
+    (x3 below 100 px high, x2 below 250 px high or 500 px wide).
+    """
 
     def test_preprocess_returns_numpy_array(self):
         img = Image.new("RGB", (100, 50), color="white")
         processed = preprocess(img, scale=2)
         self.assertIsInstance(processed, np.ndarray)
-        self.assertEqual(processed.shape, (100, 200, 3))  # 2x height, 2x width, 3 channels
+        # 8 px padding → 116×66, then the explicit 2x scale.
+        self.assertEqual(processed.shape, (132, 232, 3))
 
-    def test_preprocess_no_scaling(self):
+    def test_preprocess_pads_and_upscales_small_crop(self):
         img = Image.new("RGB", (80, 40), color="red")
         processed = preprocess(img, scale=1)
         self.assertIsInstance(processed, np.ndarray)
-        self.assertEqual(processed.shape, (40, 80, 3))
+        # 8 px padding → 96×56; under 100 px high → auto 3x.
+        self.assertEqual(processed.shape, (168, 288, 3))
+
+    def test_preprocess_large_crop_is_only_padded(self):
+        img = Image.new("RGB", (600, 300), color="white")
+        processed = preprocess(img, scale=1)
+        # 24 px padding (10 % capped at 24) → 648×348; big enough, no upscale.
+        self.assertEqual(processed.shape, (348, 648, 3))
 
     def test_preprocess_converts_grayscale_to_rgb(self):
         img = Image.new("L", (80, 40), color=128)
         processed = preprocess(img, scale=1)
         self.assertIsInstance(processed, np.ndarray)
-        self.assertEqual(processed.shape, (40, 80, 3))
+        self.assertEqual(processed.ndim, 3)
+        self.assertEqual(processed.shape[2], 3)
 
 
 class TestBoundingBoxSorting(unittest.TestCase):
@@ -77,7 +91,7 @@ class TestBoundingBoxSorting(unittest.TestCase):
             ([[10, 40], [100, 40], [100, 55], [10, 55]], "Вторая строка", 0.95),
             ([[10, 10], [100, 10], [100, 25], [10, 25]], "Первая строка", 0.98),
         ]
-        result_text = _sort_text_results(raw_results)
+        result_text = _sort_results(raw_results)
         lines = result_text.split("\n")
         self.assertEqual(len(lines), 2)
         self.assertEqual(lines[0], "Первая строка")
@@ -89,25 +103,33 @@ class TestBoundingBoxSorting(unittest.TestCase):
             ([[120, 10], [200, 10], [200, 25], [120, 25]], "мир!", 0.9),
             ([[10, 10], [100, 10], [100, 25], [10, 25]], "Привет", 0.95),
         ]
-        result_text = _sort_text_results(raw_results)
+        result_text = _sort_results(raw_results)
         self.assertEqual(result_text, "Привет мир!")
 
     def test_empty_results(self):
-        self.assertEqual(_sort_text_results([]), "")
+        self.assertEqual(_sort_results([]), "")
 
 
 class TestGPUResolution(unittest.TestCase):
     """Test GPU option resolving."""
 
-    def test_explicit_boolean(self):
-        self.assertTrue(_resolve_gpu(True))
-        self.assertFalse(_resolve_gpu(False))
+    def _decide(self, legacy="auto", mode="auto", dml=True):
+        with patch.object(type(config), "EASYOCR_GPU", legacy), \
+                patch.object(type(config), "OCR_GPU_MODE", mode), \
+                patch.object(engine, "_dml_available", return_value=dml):
+            return _should_use_gpu()
 
-    def test_string_modes(self):
-        self.assertTrue(_resolve_gpu("true"))
-        self.assertTrue(_resolve_gpu("1"))
-        self.assertFalse(_resolve_gpu("false"))
-        self.assertFalse(_resolve_gpu("0"))
+    def test_auto_follows_directml(self):
+        self.assertTrue(self._decide(dml=True))
+        self.assertFalse(self._decide(dml=False))
+
+    def test_cpu_mode_never_uses_gpu(self):
+        self.assertFalse(self._decide(mode="cpu", dml=True))
+
+    def test_legacy_env_override(self):
+        self.assertTrue(self._decide(legacy="true", mode="cpu", dml=True))
+        self.assertFalse(self._decide(legacy="true", dml=False))
+        self.assertFalse(self._decide(legacy="0", dml=True))
 
 
 class TestGPUMode(unittest.TestCase):

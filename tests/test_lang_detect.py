@@ -3,20 +3,17 @@ tests/test_lang_detect.py — tests for language auto-detection and cache.
 
 Covers:
   • LangidDetector correctly identifies en/ru/de/pl on reference strings.
-  • Short strings (< MIN_CHARS_FOR_DETECTION) bypass detect() entirely.
   • Cache composite key distinguishes (text, source_lang, target_lang).
 """
 
 import sys
 import os
 import unittest
-from unittest.mock import MagicMock, patch
 
 # Ensure project root is on the path so bare ``import config`` works.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import config
-from translate.lang_detect import LangidDetector, LangDetector, get_detector
+from translate.lang_detect import LangidDetector, get_detector
 
 
 # ── LangidDetector accuracy tests ────────────────────────
@@ -53,41 +50,6 @@ class TestLangidDetector(unittest.TestCase):
                 )
 
 
-# ── Short-text fallback tests ────────────────────────────
-
-class TestShortTextFallback(unittest.TestCase):
-    """When the recognised text is shorter than MIN_CHARS_FOR_DETECTION,
-    the pipeline must NOT call detect() and must use the configured
-    fallback language instead.
-    """
-
-    def test_detect_not_called_for_short_text(self):
-        """Simulate the pipeline logic from main.py and verify that
-        detect() is never invoked for strings below the threshold.
-        """
-        mock_detector = MagicMock(spec=LangDetector)
-        short_text = "GG WP"  # well below 15 chars
-
-        # Replicate the pipeline guard from main.py:
-        engine = "langid"
-        if engine != "off" and len(short_text.strip()) >= config.MIN_CHARS_FOR_DETECTION:
-            mock_detector.detect(short_text)
-
-        mock_detector.detect.assert_not_called()
-
-    def test_detect_called_for_long_text(self):
-        """Strings above the threshold must reach detect()."""
-        mock_detector = MagicMock(spec=LangDetector)
-        mock_detector.detect.return_value = "en"
-        long_text = "This is a sufficiently long sentence for detection"
-
-        engine = "langid"
-        if engine != "off" and len(long_text.strip()) >= config.MIN_CHARS_FOR_DETECTION:
-            mock_detector.detect(long_text)
-
-        mock_detector.detect.assert_called_once_with(long_text)
-
-
 # ── Cache composite-key tests ───────────────────────────
 
 class TestCacheCompositeKey(unittest.TestCase):
@@ -96,59 +58,41 @@ class TestCacheCompositeKey(unittest.TestCase):
     """
 
     def setUp(self):
-        """Use a fresh in-memory approach: patch _DB_PATH to a temp file."""
-        import tempfile
-        self._tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self._tmp.close()
-        self._original_db = None
-
-    def tearDown(self):
-        os.unlink(self._tmp.name)
+        """Every cache read/write goes to a throw-away DB (never the real history)."""
+        from tests.store_isolation import isolate_store
+        isolate_store(self)
 
     def test_different_source_lang_not_cached_together(self):
         """Same text + different source_lang → different cache entries."""
         from cache import store
 
-        # Patch the DB path to use our temp file.
-        original = store._DB_PATH
-        store._DB_PATH = self._tmp.name
+        text = "Hello world"
 
-        try:
-            text = "Hello world"
+        store.save_to_cache(text, "en", "ru", "Привет мир")
+        store.save_to_cache(text, "de", "ru", "Hallo Welt (de→ru)")
 
-            store.save_to_cache(text, "en", "ru", "Привет мир")
-            store.save_to_cache(text, "de", "ru", "Hallo Welt (de→ru)")
+        result_en = store.get_cached(text, "en", "ru")
+        result_de = store.get_cached(text, "de", "ru")
 
-            result_en = store.get_cached(text, "en", "ru")
-            result_de = store.get_cached(text, "de", "ru")
-
-            self.assertEqual(result_en, "Привет мир")
-            self.assertEqual(result_de, "Hallo Welt (de→ru)")
-            self.assertNotEqual(result_en, result_de)
-        finally:
-            store._DB_PATH = original
+        self.assertEqual(result_en, "Привет мир")
+        self.assertEqual(result_de, "Hallo Welt (de→ru)")
+        self.assertNotEqual(result_en, result_de)
 
     def test_different_target_lang_not_cached_together(self):
         """Same text + same source + different target_lang → distinct."""
         from cache import store
 
-        original = store._DB_PATH
-        store._DB_PATH = self._tmp.name
+        text = "Hello world"
 
-        try:
-            text = "Hello world"
+        store.save_to_cache(text, "en", "ru", "Привет мир")
+        store.save_to_cache(text, "en", "de", "Hallo Welt")
 
-            store.save_to_cache(text, "en", "ru", "Привет мир")
-            store.save_to_cache(text, "en", "de", "Hallo Welt")
+        result_ru = store.get_cached(text, "en", "ru")
+        result_de = store.get_cached(text, "en", "de")
 
-            result_ru = store.get_cached(text, "en", "ru")
-            result_de = store.get_cached(text, "en", "de")
-
-            self.assertEqual(result_ru, "Привет мир")
-            self.assertEqual(result_de, "Hallo Welt")
-            self.assertNotEqual(result_ru, result_de)
-        finally:
-            store._DB_PATH = original
+        self.assertEqual(result_ru, "Привет мир")
+        self.assertEqual(result_de, "Hallo Welt")
+        self.assertNotEqual(result_ru, result_de)
 
 
 # ── Factory tests ────────────────────────────────────────

@@ -69,11 +69,39 @@ import faulthandler
 _crash_log = open(os.path.join(os.path.dirname(_log_file_path), "crash.log"), "a", encoding="utf-8")
 faulthandler.enable(file=_crash_log, all_threads=True)
 
+# ── Restart hand-over ────────────────────────────────────
+# A restart (settings → "Сохранить" for restart-only options) launches the new
+# copy with --wait-pid <old pid>; it waits here for the old process to exit, so
+# the single-instance check below does not just re-activate the closing window.
+_WAIT_PID_FLAG = "--wait-pid"
+
+
+def _wait_for_previous_instance(timeout_ms: int = 15000) -> None:
+    if _WAIT_PID_FLAG not in sys.argv:
+        return
+    i = sys.argv.index(_WAIT_PID_FLAG)
+    try:
+        pid = int(sys.argv[i + 1])
+    except (IndexError, ValueError):
+        pid = 0
+    del sys.argv[i:i + 2]
+    if not pid or sys.platform != "win32":
+        return
+    import ctypes as _ctypes
+    k32 = _ctypes.windll.kernel32
+    handle = k32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+    if handle:
+        k32.WaitForSingleObject(handle, timeout_ms)
+        k32.CloseHandle(handle)
+    logging.info(f"Restarted after process {pid} exited.")
+
+
 # ── Single instance ──────────────────────────────────────
 # Checked before Qt loads so a duplicate launch exits immediately: a second
 # copy would add a second tray icon and register every global hotkey twice.
 _instance_guard = None
 if __name__ == "__main__":
+    _wait_for_previous_instance()
     from single_instance import SingleInstance
 
     _instance_guard = SingleInstance()
@@ -83,7 +111,6 @@ if __name__ == "__main__":
         sys.exit(0)
 
 import ctypes
-import time
 
 # onnxruntime must be imported BEFORE PyQt5. PyQt5 ships an old MSVC runtime
 # (msvcp140.dll 14.26) next to Qt5Core.dll; once Qt loads it, onnxruntime (needs
@@ -120,7 +147,6 @@ def _qt_message_handler(mode, context, message):
 qInstallMessageHandler(_qt_message_handler)
 
 import config
-import settings
 from i18n import tr
 from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
@@ -145,22 +171,24 @@ def _hide_console() -> None:
 
 def _create_splash() -> QSplashScreen:
     """Create a branded splash screen shown during app initialization."""
-    from PyQt5.QtGui import QPixmap, QColor, QPainter, QFont
+    from PyQt5.QtGui import QPixmap, QPainter, QPen
+    from ui import theme
 
     pix = QPixmap(440, 160)
-    pix.fill(QColor("#1c1c24"))
+    pix.fill(theme.qcolor("bg"))
     painter = QPainter(pix)
     painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(QPen(theme.qcolor("line"), 1))
+    painter.drawRect(pix.rect().adjusted(0, 0, -1, -1))
+    painter.fillRect(0, 0, pix.width(), 2, theme.qcolor("accent"))
 
-    painter.setPen(QColor("#a78bfa"))
-    title_font = QFont("Segoe UI", 20, QFont.Bold)
-    painter.setFont(title_font)
-    painter.drawText(pix.rect().adjusted(0, -30, 0, 0), Qt.AlignCenter, "Translator Overlay")
+    painter.setPen(theme.qcolor("text"))
+    painter.setFont(theme.display_font(20, spacing=108))
+    painter.drawText(pix.rect().adjusted(0, -30, 0, 0), Qt.AlignCenter, "TRANSLATOR OVERLAY")
 
-    painter.setPen(QColor("#6b7280"))
-    sub_font = QFont("Segoe UI", 10)
-    painter.setFont(sub_font)
-    painter.drawText(pix.rect().adjusted(0, 40, 0, 0), Qt.AlignCenter, "Loading...")
+    painter.setPen(theme.qcolor("muted"))
+    painter.setFont(theme.body_font(9, medium=True, spacing=120))
+    painter.drawText(pix.rect().adjusted(0, 40, 0, 0), Qt.AlignCenter, "LOADING...")
     painter.end()
 
     return QSplashScreen(pix, Qt.WindowStaysOnTopHint)
@@ -259,7 +287,7 @@ class OcrWarmupWorker(QThread):
     """Pre-loads the RapidOCR engine and the langid model in a background thread.
 
     Scheduled 3 s after app start so the ONNX model load plus the first DirectML
-    run (~2-4 s) and the langid model load (~3 s) happen silently while the user
+    run (~2-4 s) and, for backends that use it, the langid model load (~1.5 s) happen silently while the user
     reads the UI — not on their first hotkey press.
     """
 
@@ -272,6 +300,11 @@ class OcrWarmupWorker(QThread):
         except Exception:
             logging.exception("OcrWarmupWorker: pre-load failed (non-fatal, will retry on first use)")
         try:
+            # Unpickling the langid model holds the GIL for ~1 s and freezes the UI;
+            # skip it unless the backend needs it (it still loads on first use).
+            from translate.backend import uses_langid
+            if not uses_langid():
+                return
             from translate.lang_detect import get_detector
             get_detector("langid").detect("warm up")
             logging.info("OcrWarmupWorker: langid model ready.")
@@ -319,6 +352,7 @@ class TranslatorApp:
 
         # ── Show main window on startup ──────────────────
         self._main_window.set_tray_icon(self._tray)
+        self._main_window.restart_requested.connect(self._restart)
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
@@ -645,13 +679,11 @@ class TranslatorApp:
                 return
             if not partial_text.strip():
                 return
-            # Reuse the loading label to show the live translation preview.
-            lbl = getattr(popup, "_loading_label", None)
-            if lbl is not None:
-                try:
-                    lbl.setText(partial_text)
-                except RuntimeError:
-                    pass  # popup was deleted between the signal emit and the slot
+            # The popup body shows the live text; its header keeps "Переводим…".
+            try:
+                popup.show_partial(partial_text)
+            except RuntimeError:
+                pass  # popup was deleted between the signal emit and the slot
         except Exception:
             logging.debug("Ignored error in _on_partial_translation", exc_info=True)
 
@@ -728,10 +760,52 @@ class TranslatorApp:
             self._close_popup()
             self._main_window.closeEvent = lambda e: e.accept()
             self._main_window.close()
-            self._tray.hide()
+            self._remove_tray_icon()
             self.app.quit()
         except Exception:
             logging.exception("Error during app shutdown")
+
+    def _restart(self) -> None:
+        """Start a fresh copy (it waits for this process to exit), then quit."""
+        import subprocess
+        args = [a for a in sys.argv[1:] if a != _WAIT_PID_FLAG]
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, *args]
+        else:
+            cmd = [sys.executable, os.path.abspath(sys.argv[0]), *args]
+        cmd += [_WAIT_PID_FLAG, str(os.getpid())]
+        try:
+            flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.Popen(cmd, creationflags=flags, close_fds=True,
+                             cwd=os.path.dirname(os.path.abspath(sys.argv[0])))
+            logging.info("Restarting the application...")
+        except Exception:
+            logging.exception("Failed to start a new instance; not quitting")
+            return
+        self._quit()
+
+    def _remove_tray_icon(self) -> None:
+        """Take the icon off the notification area before the process ends.
+
+        main() ends with os._exit(), which skips the QSystemTrayIcon destructor; a
+        hidden-but-alive icon could stay in the tray until the mouse passed over it.
+        Exit is clicked inside the tray menu, so close that menu first, then hide and
+        destroy the icon (the destructor sends NIM_DELETE) while the event loop runs.
+        """
+        tray = getattr(self, "_tray", None)
+        if tray is None:
+            return
+        try:
+            menu = tray.contextMenu()
+            if menu is not None:
+                menu.hide()
+            tray.hide()
+            QApplication.processEvents()
+            from PyQt5 import sip
+            sip.delete(tray)
+        except Exception:
+            logging.exception("Failed to remove the tray icon")
+        self._tray = None
 
     # ── Run ──────────────────────────────────────────────
 
@@ -747,21 +821,19 @@ class TranslatorApp:
             return 1
 
 
-# ── API key check ────────────────────────────────────────
-
-def _has_any_api_key() -> bool:
-    """Return True if an API key is available from keyring or env vars."""
-    return bool(
-        settings.get_api_key("openrouter")
-        or settings.get_api_key("anthropic")
-        or os.environ.get("OPENROUTER_API_KEY")
-        or os.environ.get("ANTHROPIC_API_KEY")
-    )
+def _set_app_user_model_id() -> None:
+    """Own taskbar identity: without it a source run is grouped under python.exe
+    and shows Python's icon instead of the window icon."""
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Vrihe.TranslatorOverlay")
+    except Exception:
+        pass
 
 
 def main() -> None:
     try:
         _hide_console()
+        _set_app_user_model_id()
 
         app = QApplication(sys.argv)
         from ui.theme import apply_app_theme
@@ -777,9 +849,10 @@ def main() -> None:
         splash.show()
         app.processEvents()
 
-        # ── First-run: ask for API key if none is configured ─
-        if not _has_any_api_key():
-            logging.info("No API keys found. Prompting first-run dialog.")
+        # ── First-run: ask for an LLM key only if the LLM backend has none ─
+        from translate.backend import needs_llm_key
+        if needs_llm_key():
+            logging.info("LLM backend selected without an API key. Prompting first-run dialog.")
             splash.close()  # hide splash before interactive dialog
             from ui.first_run_dialog import FirstRunDialog
             dlg = FirstRunDialog()

@@ -6,7 +6,6 @@ everywhere:
 
   settings.get_api_key(provider)
   settings.set_api_key(provider, key)
-  settings.delete_api_key(provider)
 
   from settings import config_manager
   config_manager.load_config()
@@ -80,20 +79,6 @@ def set_api_key(provider: str, key: str) -> None:
     if keyname is None:
         raise ValueError(f"Unknown provider: {provider!r}")
     kr.set_password(_SERVICE, keyname, key)
-
-
-def delete_api_key(provider: str) -> None:
-    """Remove the stored API key for *provider* from keyring."""
-    kr = _get_keyring()
-    if kr is None:
-        return
-    keyname = _PROVIDER_KEYS.get(provider)
-    if keyname is None:
-        return
-    try:
-        kr.delete_password(_SERVICE, keyname)
-    except Exception:
-        pass
 
 
 def get_primary_provider() -> str:

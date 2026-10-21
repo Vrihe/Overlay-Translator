@@ -4,12 +4,13 @@ ui/ocr_preview_popup.py — Floating popup to preview and edit OCR text before t
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTextEdit, QFrame, QApplication, QGraphicsDropShadowEffect,
+    QTextEdit, QApplication,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QRect, QPoint
-from PyQt5.QtGui import QColor, QPainter, QPainterPath
+from PyQt5.QtCore import Qt, pyqtSignal, QRect, QSize
+from PyQt5.QtGui import QCursor
 
 from i18n import tr
+from ui import icons, theme
 
 
 class OcrPreviewPopup(QWidget):
@@ -42,28 +43,29 @@ class OcrPreviewPopup(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4)
 
+        p = theme.current()
         self._card = QWidget(self)
-        self._card.setStyleSheet(
-            "QWidget { background-color: #1e1e2c; border-radius: 10px; border: 1px solid #3a3a54; }"
-        )
+        self._card.setObjectName("ocrCard")
+        self._card.setStyleSheet(theme.panel_css("ocrCard", background=p.bg, border=p.accent))
         card_layout = QVBoxLayout(self._card)
         card_layout.setContentsMargins(14, 12, 14, 12)
         card_layout.setSpacing(8)
 
         # Header bar
         header_row = QHBoxLayout()
-        lbl_title = QLabel(tr("✏️ Редактирование OCR-текста"))
-        lbl_title.setStyleSheet("color: #7ca5f5; font-weight: 600; font-size: 10pt; font-family: 'Segoe UI'; border: none;")
+        lbl_title = QLabel(tr("Редактирование OCR-текста").upper())
+        lbl_title.setFont(theme.display_font(9.5, spacing=114))
+        lbl_title.setStyleSheet(f"color: {p.accent}; background: transparent;")
         header_row.addWidget(lbl_title)
         header_row.addStretch()
 
-        btn_close = QPushButton("✕")
-        btn_close.setFixedSize(20, 20)
+        btn_close = QPushButton()
+        btn_close.setFixedSize(24, 24)
+        btn_close.setIconSize(QSize(14, 14))
+        btn_close.setIcon(icons.icon("close", p.muted, 14, active_color=p.error))
+        btn_close.setToolTip(tr("Отмена"))
         btn_close.setCursor(Qt.PointingHandCursor)
-        btn_close.setStyleSheet(
-            "QPushButton { color: #888; background: transparent; border: none; font-weight: bold; font-size: 10pt; }"
-            "QPushButton:hover { color: #ff6b6b; }"
-        )
+        btn_close.setStyleSheet(theme.btn_icon(danger=True))
         btn_close.clicked.connect(self._on_cancel)
         header_row.addWidget(btn_close)
         card_layout.addLayout(header_row)
@@ -71,13 +73,7 @@ class OcrPreviewPopup(QWidget):
         # Text editor
         self._text_edit = QTextEdit()
         self._text_edit.setPlainText(self._raw_text)
-        self._text_edit.setStyleSheet(
-            "QTextEdit {"
-            "  background-color: #151522; color: #e8e8e8; border: 1px solid #2e2e42;"
-            "  border-radius: 6px; padding: 8px; font-family: 'Segoe UI'; font-size: 10pt;"
-            "}"
-            "QTextEdit:focus { border-color: #5b8def; }"
-        )
+        self._text_edit.setStyleSheet(theme.input_css(10, "8px"))
         self._text_edit.setMinimumHeight(90)
         self._text_edit.setMaximumHeight(220)
         card_layout.addWidget(self._text_edit)
@@ -88,37 +84,19 @@ class OcrPreviewPopup(QWidget):
 
         self._btn_cancel = QPushButton(tr("Отмена"))
         self._btn_cancel.setCursor(Qt.PointingHandCursor)
-        self._btn_cancel.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent; color: #aaa; border: 1px solid #444;"
-            "  border-radius: 6px; padding: 5px 14px; font-family: 'Segoe UI'; font-size: 9.5pt;"
-            "}"
-            "QPushButton:hover { background: #2a2a3e; color: #ccc; }"
-        )
+        self._btn_cancel.setStyleSheet(theme.btn_secondary("5px 14px", 9))
         self._btn_cancel.clicked.connect(self._on_cancel)
         btn_row.addWidget(self._btn_cancel)
 
-        self._btn_translate = QPushButton(tr("Перевести ↵"))
+        self._btn_translate = QPushButton(tr("Перевести ↵").upper())
         self._btn_translate.setCursor(Qt.PointingHandCursor)
-        self._btn_translate.setStyleSheet(
-            "QPushButton {"
-            "  background: #3b66c4; color: #fff; border: none;"
-            "  border-radius: 6px; padding: 5px 18px; font-family: 'Segoe UI'; font-size: 9.5pt; font-weight: 600;"
-            "}"
-            "QPushButton:hover { background: #4a77db; }"
-        )
+        self._btn_translate.setFont(theme.display_font(9.5, spacing=110))
+        self._btn_translate.setStyleSheet(theme.btn_primary("5px 18px", 9.5))
         self._btn_translate.clicked.connect(self._on_confirm)
         btn_row.addWidget(self._btn_translate)
 
         card_layout.addLayout(btn_row)
         root.addWidget(self._card)
-
-        # Shadow effect
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setOffset(0, 4)
-        shadow.setColor(QColor(0, 0, 0, 100))
-        self._card.setGraphicsEffect(shadow)
 
         self.setFixedWidth(self._MIN_WIDTH)
 
