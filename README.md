@@ -232,6 +232,9 @@ This guarantees that:
   `OVERLAY_LOG_TEXT=1` for a debugging session to log the first 80 characters. Logs rotate at 2 MB.
 - The history/cache database (`cache	ranslations.db`) does keep source texts and translations
   (up to `CACHE_MAX_ITEMS`); clear it in the History page.
+- The translation popup is left out of screen captures (Windows 10 2004 and later): it is
+  visible on your screen, but not in screenshots, recordings, streams or screen sharing. This
+  keeps the app's own OCR and live monitoring from reading the popup.
 
 ### 🔄 Automatic Update Checking
 The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a banner and a notification appear.

@@ -162,7 +162,6 @@ MESSAGES: dict[str, str] = {
     "Новое имя:": "New name:",
     "Удаление пресета": "Delete preset",
     "Удалить пресет «{name}»?": "Delete preset “{name}”?",
-    "[Нет бинда]": "[No hotkey]",
     "Ошибка бинда": "Hotkey error",
     "Ошибка сброса бинда": "Hotkey reset error",
     "Ошибка переименования": "Rename error",
@@ -377,7 +376,11 @@ MESSAGES: dict[str, str] = {
     "Имя": "Rename",
     "Удалить": "Delete",
     "Перевести область": "Translate region",
-    "Автомониторинг (10 сек)": "Auto-monitoring (10 s)",
+    "Мониторинг": "Monitor",
+    "Переводить область снова, когда в ней меняется текст (проверка каждые {seconds} сек; "
+    "интервал и чувствительность — в Настройки → Регионы).":
+        "Translate the area again when its text changes (checked every {seconds} s; "
+        "interval and sensitivity are in Settings → Regions).",
     "Новый профиль контекста": "New context profile",
     "+ Добавить пример": "+ Add example",
     "+ Новый профиль": "+ New profile",

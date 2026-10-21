@@ -376,6 +376,9 @@ class TranslatorApp:
         self._selector: RegionSelector | None = None
         self._popup: ResultPopup | None = None
         self._worker: TranslationWorker | None = None
+        self._request_seq = 0          # id of the newest translation request
+        self._pending_request = None   # the newest request waiting for a running worker
+        self._retired_workers: set = set()  # replaced workers kept alive until they finish
         self._presets_dialog = None  # RegionPresetsDialog instance (if open)
         self._preset_hotkeys: list[str] = []
         self._preset_bridges: list[HotkeyBridge] = []
@@ -465,7 +468,7 @@ class TranslatorApp:
 
             # D1: Check if OCR Preview/Edit mode is enabled
             if getattr(config, "ENABLE_OCR_PREVIEW", False):
-                self._worker = TranslationWorker(x1, y1, x2, y2, ocr_only=True)
+                self._replace_worker(TranslationWorker(x1, y1, x2, y2, ocr_only=True))
                 self._worker.ocr_done.connect(
                     lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc)
                 )
@@ -477,32 +480,61 @@ class TranslatorApp:
         except Exception:
             logging.exception("Error handling region selection in main app thread")
 
-    def _start_translation_pipeline(self, x1: int, y1: int, x2: int, y2: int, anchor: QRect, text_override: str | None = None) -> None:
-        """Start background translation worker for (x1, y1, x2, y2) or with text_override."""
-        # ── Step 0: Show loading popup immediately (only in popup mode) ──
-        if config.NOTIFICATION_TYPE == "popup":
+    def _start_translation_pipeline(self, x1: int, y1: int, x2: int, y2: int, anchor: QRect,
+                                    text_override: str | None = None, *, live: bool = False) -> None:
+        """Translate (x1, y1, x2, y2), or text_override, on a background worker.
+
+        A running translation is never killed: QThread.terminate() mid-OCR can leave the
+        OCR engine broken for the rest of the session. The newest request waits instead
+        and runs when the current one ends; an older waiting one is dropped, and a
+        finished translation that is no longer the newest request is not shown.
+        A live-monitoring update (``live``) keeps the open popup and refreshes it in
+        place instead of replacing it with a new "Переводим…" one.
+        """
+        self._request_seq += 1
+        request = (self._request_seq, x1, y1, x2, y2, anchor, text_override, live)
+
+        if config.NOTIFICATION_TYPE == "popup" and not live:
             self._close_popup()
-            self._popup = ResultPopup(anchor=anchor, is_loading=True)
-            self._popup.destroyed.connect(self._on_popup_destroyed)
+            self._set_popup(ResultPopup(anchor=anchor, is_loading=True))
             self._popup.show()
             QApplication.processEvents()
 
-        # Stop previous background worker if running
         if self._worker is not None and self._worker.isRunning():
-            logging.debug("Terminating existing background translation worker...")
-            self._worker.terminate()
-            self._worker.wait()
+            logging.debug("Translation running; request %d waits for it.", self._request_seq)
+            self._pending_request = request
+            return
+        self._run_translation(request)
 
-        # Start translation pipeline in background thread
-        self._worker = TranslationWorker(x1, y1, x2, y2, text_override=text_override)
-        self._worker.translation_done.connect(
-            lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor)
+    def _run_translation(self, request) -> None:
+        seq, x1, y1, x2, y2, anchor, text_override, live = request
+        worker = TranslationWorker(x1, y1, x2, y2, text_override=text_override)
+        worker.translation_done.connect(
+            lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor, live=live)
+            if seq == self._request_seq else logging.debug("Dropped stale translation %d.", seq)
         )
-        self._worker.partial_result.connect(
-            lambda partial: self._on_partial_translation(partial),
+        worker.partial_result.connect(
+            lambda partial: self._on_partial_translation(partial) if seq == self._request_seq else None,
             Qt.QueuedConnection,
         )
-        self._worker.start()
+        worker.finished.connect(self._on_translation_worker_finished)
+        self._replace_worker(worker)
+        worker.start()
+
+    def _replace_worker(self, worker) -> None:
+        """Make *worker* current; a still-running old one keeps a reference until it ends
+        (a running QThread whose last reference goes away aborts the process)."""
+        old = self._worker
+        if old is not None and old is not worker and old.isRunning():
+            self._retired_workers.add(old)
+            old.finished.connect(lambda w=old: self._retired_workers.discard(w))
+        self._worker = worker
+
+    def _on_translation_worker_finished(self) -> None:
+        """Run the request that waited for this translation, if any."""
+        request, self._pending_request = self._pending_request, None
+        if request is not None:
+            self._run_translation(request)
 
     def _on_ocr_preview_requested(self, x1: int, y1: int, x2: int, y2: int, raw_text: str, anchor: QRect) -> None:
         """D1: Display OCR preview popup allowing user to edit text before translating."""
@@ -536,7 +568,8 @@ class TranslatorApp:
             threshold=threshold_for(getattr(config, "LIVE_SENSITIVITY", "medium")),
         )
         self._live_monitor.region_changed.connect(
-            lambda lx1, ly1, lx2, ly2: self._on_region_selected(lx1, ly1, lx2, ly2)
+            lambda lx1, ly1, lx2, ly2: self._start_translation_pipeline(
+                lx1, ly1, lx2, ly2, QRect(lx1, ly1, lx2 - lx1, ly2 - ly1), live=True)
         )
         self._live_monitor.start()
 
@@ -653,7 +686,7 @@ class TranslatorApp:
         """Translate the selected preset's region once (from its hotkey or the 'Перевести' button)."""
         anchor = QRect(x1, y1, x2 - x1, y2 - y1)
         if getattr(config, "ENABLE_OCR_PREVIEW", False):
-            self._worker = TranslationWorker(x1, y1, x2, y2, ocr_only=True)
+            self._replace_worker(TranslationWorker(x1, y1, x2, y2, ocr_only=True))
             self._worker.ocr_done.connect(
                 lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc)
             )
@@ -737,26 +770,28 @@ class TranslatorApp:
         except Exception:
             logging.debug("Ignored error in _on_partial_translation", exc_info=True)
 
-    def _on_translation_finished(self, source: str, translated: str, error_msg: str, anchor: QRect) -> None:
+    def _on_translation_finished(self, source: str, translated: str, error_msg: str, anchor: QRect,
+                                 *, live: bool = False) -> None:
         try:
             if error_msg:
                 logging.warning(f"Translation finished with error: {error_msg}")
-                self._show_error(error_msg, anchor)
+                self._show_error(error_msg, anchor, activate=not live)
             else:
                 logging.info(f"Translation finished successfully. Source length: {len(source)}, Translated length: {len(translated)}")
                 notice = getattr(self._worker, "backend_notice", "") if self._worker is not None else ""
                 if notice:
                     logging.warning("Backend notice: %s", notice)
-                self._show_result(source, translated, anchor, notice=notice)
+                self._show_result(source, translated, anchor, notice=notice, activate=not live)
         except Exception:
             logging.exception("Error presenting translation result/error popup")
 
     # ── Popup helpers ────────────────────────────────────
 
-    def _show_result(self, source: str, translated: str, anchor: QRect, notice: str = "") -> None:
+    def _show_result(self, source: str, translated: str, anchor: QRect, notice: str = "",
+                     activate: bool = True) -> None:
         try:
             from ui.result_popup import show_result
-            self._popup = show_result(
+            popup = show_result(
                 source,
                 translated,
                 anchor,
@@ -764,25 +799,25 @@ class TranslatorApp:
                 notice=notice,
                 tray_icon=self._tray,
                 existing_popup=self._popup,
+                activate=activate,
             )
-            if self._popup is not None:
-                self._popup.destroyed.connect(self._on_popup_destroyed)
+            self._set_popup(popup)
         except Exception:
             logging.exception("Error showing result popup")
 
-    def _show_error(self, message: str, anchor: QRect) -> None:
+    def _show_error(self, message: str, anchor: QRect, activate: bool = True) -> None:
         try:
             from ui.result_popup import show_result
-            self._popup = show_result(
+            popup = show_result(
                 "",
                 message,
                 anchor,
                 is_error=True,
                 tray_icon=self._tray,
                 existing_popup=self._popup,
+                activate=activate,
             )
-            if self._popup is not None:
-                self._popup.destroyed.connect(self._on_popup_destroyed)
+            self._set_popup(popup)
         except Exception:
             logging.exception("Error showing error popup")
 
@@ -797,8 +832,17 @@ class TranslatorApp:
                 logging.exception("Error closing popup")
             self._popup = None
 
-    def _on_popup_destroyed(self) -> None:
-        self._popup = None
+    def _set_popup(self, popup) -> None:
+        """Make *popup* the current one; it forgets itself only while still current."""
+        if popup is not None and popup is not self._popup:
+            popup.destroyed.connect(lambda _obj=None, p=popup: self._on_popup_destroyed(p))
+        self._popup = popup
+
+    def _on_popup_destroyed(self, popup) -> None:
+        # A popup closed earlier is destroyed later (deleteLater, fade-out): it must not
+        # clear a newer popup that has replaced it in the meantime.
+        if self._popup is popup:
+            self._popup = None
 
     # ── Quit ─────────────────────────────────────────────
 

@@ -25,9 +25,16 @@ from PyQt5.QtCore import (
 )
 from PyQt5.QtGui import QPainter, QPen, QCursor
 
+import ctypes
+import sys
+
 import config
 from i18n import tr
 from ui import icons, theme
+
+
+#: SetWindowDisplayAffinity: shown on screen, left out of every capture.
+_WDA_EXCLUDEFROMCAPTURE = 0x11
 
 
 class ResultPopup(QWidget):
@@ -41,7 +48,6 @@ class ResultPopup(QWidget):
     _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
     _FADE_DURATION = 150          # ms for smooth fade-out on close
     _MARGIN = 10                  # gap between popup and selection edge
-    _BG_OPACITY = 0.96            # card background opacity
     _ICON_SIZE = 14               # header icon buttons
 
 
@@ -92,8 +98,9 @@ class ResultPopup(QWidget):
             | Qt.WindowStaysOnTopHint
             | Qt.Tool
         )
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        # Opaque on purpose: a translucent (UpdateLayeredWindow) window cannot be kept
+        # out of screen captures, see _exclude_from_capture().
+        self.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
@@ -103,12 +110,27 @@ class ResultPopup(QWidget):
 
     def show(self) -> None:
         super().show()
+        self._exclude_from_capture()
         self.raise_()
         self.activateWindow()
         self.setFocus()
 
         if not self._is_loading:
             self._start_auto_timer()
+
+    def _exclude_from_capture(self) -> None:
+        """Keep the popup out of screen captures (Windows 10 2004+).
+
+        Live monitoring and OCR capture the screen: a popup lying over the watched
+        region would count as a change and be read as text, in a loop. The window must
+        be opaque for this (the call fails on WA_TranslucentBackground windows).
+        """
+        if sys.platform != "win32":
+            return
+        try:
+            ctypes.windll.user32.SetWindowDisplayAffinity(int(self.winId()), _WDA_EXCLUDEFROMCAPTURE)
+        except Exception:
+            pass  # older Windows: the popup stays visible to captures
 
     def _start_auto_timer(self) -> None:
         if hasattr(self, "_auto_timer") and self._auto_timer.isActive():
@@ -360,9 +382,13 @@ class ResultPopup(QWidget):
     # ── In-place content update ──────────────────────────
 
     def update_content(self, source_text: str, translated_text: str, *,
-                       is_error: bool = False, notice: str = "") -> None:
+                       is_error: bool = False, notice: str = "", activate: bool = True) -> None:
         """Update popup content from loading state to final result in-place,
-        fitting the window snugly to the translated content size."""
+        fitting the window snugly to the translated content size.
+
+        ``activate=False`` (live monitoring updates) keeps it on top without taking
+        the keyboard focus from the game or browser being watched.
+        """
         if self._closing:
             return
 
@@ -385,8 +411,9 @@ class ResultPopup(QWidget):
         self._start_auto_timer()
 
         self.raise_()
-        self.activateWindow()
-        self.setFocus()
+        if activate:
+            self.activateWindow()
+            self.setFocus()
         self.update()
 
     def _fit_and_adjust_size(self) -> None:
@@ -624,17 +651,12 @@ class ResultPopup(QWidget):
         else:
             super().keyPressEvent(event)
 
-    # ── Square HUD card with true alpha ──────────────────
+    # ── Square HUD card ──────────────────────────────────
 
     def paintEvent(self, _event):
         painter = QPainter(self)
-
-        painter.setCompositionMode(QPainter.CompositionMode_Clear)
-        painter.fillRect(self.rect(), Qt.transparent)
-        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
-
         r = self.rect().adjusted(0, 0, -1, -1)
-        painter.fillRect(self.rect(), theme.qcolor("bg", int(255 * self._BG_OPACITY)))
+        painter.fillRect(self.rect(), theme.qcolor("bg"))
 
         if self._is_loading:
             border = theme.qcolor("dim")
@@ -742,9 +764,11 @@ def show_result(
     notice: str = "",
     tray_icon=None,
     existing_popup: ResultPopup | None = None,
+    activate: bool = True,
 ) -> ResultPopup | None:
     """Display translation result or error via popup or Windows toast according
-    to config.NOTIFICATION_TYPE.
+    to config.NOTIFICATION_TYPE. ``activate=False``: an open popup is updated
+    without taking the keyboard focus (live monitoring).
     """
     if config.NOTIFICATION_TYPE == "windows_toast":
         if existing_popup is not None and not existing_popup._closing:
@@ -768,7 +792,7 @@ def show_result(
     else:
         if existing_popup is not None and not existing_popup._closing:
             existing_popup.update_content(
-                source_text, translated_text, is_error=is_error, notice=notice
+                source_text, translated_text, is_error=is_error, notice=notice, activate=activate
             )
             return existing_popup
         else:

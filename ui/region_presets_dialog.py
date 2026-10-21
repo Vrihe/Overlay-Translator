@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QKeySequence
 
+import config
 from i18n import tr
 from ui import theme
 
@@ -208,15 +209,19 @@ class RegionPresetsDialog(QDialog):
         self._btn_translate.setFont(theme.display_font(10, spacing=110))
         self._btn_translate.setStyleSheet(theme.btn_primary("9px 18px", 10))
         self._btn_translate.clicked.connect(self._on_translate_now)
-        action_row.addWidget(self._btn_translate)
+        action_row.addWidget(self._btn_translate, 1)
 
-        self._btn_monitor = QPushButton(tr("Автомониторинг (10 сек)"))
+        # Same size and font as the translate button: the second main action, not a link.
+        interval = int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10)
+        self._btn_monitor = QPushButton(tr("Мониторинг").upper())
         self._btn_monitor.setCursor(Qt.PointingHandCursor)
-        self._btn_monitor.setStyleSheet(theme.btn_accent("9px 14px", 9))
+        self._btn_monitor.setFont(theme.display_font(10, spacing=110))
+        self._btn_monitor.setStyleSheet(theme.btn_secondary("9px 18px", 10))
+        self._btn_monitor.setToolTip(tr(
+            "Переводить область снова, когда в ней меняется текст (проверка каждые {seconds} сек; "
+            "интервал и чувствительность — в Настройки → Регионы).", seconds=interval))
         self._btn_monitor.clicked.connect(self._on_start_monitoring)
-        action_row.addWidget(self._btn_monitor)
-
-        action_row.addStretch()
+        action_row.addWidget(self._btn_monitor, 1)
 
         self._btn_cancel = QPushButton(tr("Закрыть"))
         self._btn_cancel.setCursor(Qt.PointingHandCursor)
@@ -245,9 +250,9 @@ class RegionPresetsDialog(QDialog):
             x2, y2 = p.get("x2", 0), p.get("y2", 0)
             w, h = x2 - x1, y2 - y1
             hk = p.get("hotkey")
-            hk_badge = f"[{hk.upper()}]" if hk else tr("[Нет бинда]")
-            label = f"{hk_badge:<16} {name}    ({x1}, {y1}) → ({x2}, {y2})  [{w}×{h}]"
-            item = QListWidgetItem(label)
+            hk_badge = hk.upper() if hk else tr("без бинда")
+            item = QListWidgetItem(f"{name}   ·   {w}×{h}   ·   {hk_badge}")
+            item.setToolTip(f"({x1}, {y1}) → ({x2}, {y2})")
             item.setData(Qt.UserRole, p)
             self._list.addItem(item)
 

@@ -9,6 +9,16 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+- Live monitoring of a busy region (e.g. a stream chat): the popup no longer disappears
+  and reappears on every change — it is updated in place and does not take the focus.
+- The popup is left out of screen captures, so monitoring and OCR never pick it up when
+  it lies over the watched region. It does not show in screenshots or recordings either.
+- A new translation started while another was running stopped the running one by force,
+  which could leave translation broken until a restart; the newest request now waits.
+- A popup closed shortly before a new translation could make the new one lose its result.
+- Regions dialog: the monitoring button was cut off; region rows were cut off too.
+
 ## [1.2.1] - 2026-10-21
 
 ### Added
