@@ -207,12 +207,14 @@ def _nmt_translate(
         on_chunk(translated)
 
     # Persist to the SQLite cache, keyed by backend to avoid cross-contamination.
+    # Saved under the same source key as the lookup above ("_auto" when detected),
+    # like llm_client and nllb_backend, or the next lookup would always miss.
     try:
         from cache.store import save_to_cache
 
         save_to_cache(
             text,
-            detected or cache_src,
+            cache_src,
             tgt,
             translated,
             domain_id=cache_domain,
