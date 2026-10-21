@@ -29,7 +29,6 @@ MESSAGES: dict[str, str] = {
 
     # ── main.py ──
     "Живой автомониторинг запущен": "Live auto-monitoring started",
-    "Область автоматически проверяется каждые 10 сек.": "The region is checked automatically every 10 s.",
     "Живой мониторинг остановлен": "Live monitoring stopped",
     "Автоматическое отслеживание области отключено.": "Automatic region tracking is off.",
     "Ошибка захвата экрана:\n{error}": "Screen capture error:\n{error}",
@@ -392,7 +391,6 @@ MESSAGES: dict[str, str] = {
     "Автоопределение исходного языка": "Detect the source language automatically",
     "Перевод области": "Translate region",
     "Окно настроек": "Settings window",
-    'Бинды для пресетов областей назначаются в меню трея → «Пресеты регионов».': 'Hotkeys for region presets are assigned in the tray menu → "Region presets".',
     "Цветовая схема": "Colour scheme",
     "Янтарь": "Amber",
     "Циан": "Cyan",
@@ -412,6 +410,30 @@ MESSAGES: dict[str, str] = {
         "Fits the text. Drag an edge of the popup to set your own size.",
     "Сохранён: {width} × {height}": "Saved: {width} × {height}",
     "Пройти мастер настройки заново": "Run the setup wizard again",
+
+    # ── Settings → Regions (ui/settings_dialog.py, capture/live_monitor.py) ──
+    "Регионы": "Regions",
+    "Бинды регионов — в разделе «Регионы».": "Region binds are in the Regions section.",
+    "Сохранённые области экрана. Бинд переводит область сразу, без выделения; в «Управлении» — "
+    "переименовать, удалить, назначить бинд или запустить мониторинг.":
+        "Saved screen areas. A bind translates the area at once, without selecting it; "
+        "Manage renames, deletes, sets a bind or starts monitoring.",
+    "Добавить регион": "Add region",
+    "Управление…": "Manage…",
+    "без бинда": "no bind",
+    "Регионов пока нет: нажмите «Добавить регион».": "No regions yet: click Add region.",
+    "Живой мониторинг": "Live monitoring",
+    "Мониторинг переводит область снова, когда в ней меняется текст. Запускается из меню трея "
+    "или в «Управлении» регионами; новые значения действуют со следующего запуска.":
+        "Monitoring translates an area again when its text changes. Start it from the tray menu "
+        "or in Manage regions; new values apply from the next start.",
+    "Проверять каждые:": "Check every:",
+    "Чувствительность к изменениям:": "Sensitivity to changes:",
+    "Высокая — ловит даже мелкие изменения": "High — catches even small changes",
+    "Средняя (рекомендуется)": "Medium (recommended)",
+    "Низкая — только заметные изменения": "Low — only noticeable changes",
+    "Область автоматически проверяется каждые {seconds} сек.":
+        "The area is checked automatically every {seconds} s.",
 
     # ── One-click update (ui/main_window.py, updater/install_update.py) ──
     "Обновить": "Update",

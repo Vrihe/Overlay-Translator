@@ -291,6 +291,9 @@ class SettingsWidget(QWidget):
     hotkeys_changed = pyqtSignal()
     #: A hotkey field gained (True) / lost (False) focus: pause / resume the global hooks.
     hotkey_capture = pyqtSignal(bool)
+    #: Regions page: select a new region / open the presets dialog (handled in main.py).
+    add_region_requested = pyqtSignal()
+    manage_regions_requested = pyqtSignal()
     # Restart-only settings were saved and the user chose to restart now.
     restart_requested = pyqtSignal()
 
@@ -342,6 +345,7 @@ class SettingsWidget(QWidget):
     _SECTIONS = (
         (N_("Перевод"), "translate"),
         (N_("Хоткеи"), "hotkeys"),
+        (N_("Регионы"), "regions"),
         (N_("Распознавание"), "ocr"),
         (N_("Попап"), "popup"),
         (N_("Интерфейс"), "interface"),
@@ -792,11 +796,62 @@ class SettingsWidget(QWidget):
         self._hotkey_status.setWordWrap(True)
         self._hotkey_status.setStyleSheet(self._status_css())
         hotkeys_layout.addWidget(self._hotkey_status)
-        lbl_hk_hint = QLabel(tr("Бинды для пресетов областей назначаются в меню трея → «Пресеты регионов»."))
+        lbl_hk_hint = QLabel(tr("Бинды регионов — в разделе «Регионы»."))
         lbl_hk_hint.setWordWrap(True)
         lbl_hk_hint.setStyleSheet(theme.label_css("caption"))
         hotkeys_layout.addWidget(lbl_hk_hint)
         pages["hotkeys"].addWidget(grp_hotkeys)
+
+        # ── Regions: saved screen regions with their binds ──
+        grp_regions, regions_layout = self._group(tr("Регионы"))
+        lbl_regions = QLabel(tr("Сохранённые области экрана. Бинд переводит область сразу, без "
+                                "выделения; в «Управлении» — переименовать, удалить, назначить "
+                                "бинд или запустить мониторинг."))
+        lbl_regions.setWordWrap(True)
+        lbl_regions.setStyleSheet(theme.label_css("caption"))
+        regions_layout.addWidget(lbl_regions)
+        self._regions_list = QListWidget()
+        self._regions_list.setSelectionMode(QListWidget.NoSelection)
+        self._regions_list.setFocusPolicy(Qt.NoFocus)
+        self._regions_list.setStyleSheet(self._INPUT_CSS)
+        self._regions_list.setMinimumHeight(110)
+        regions_layout.addWidget(self._regions_list)
+        regions_buttons = QHBoxLayout()
+        self._btn_add_region = QPushButton(tr("Добавить регион"))
+        self._btn_add_region.setCursor(Qt.PointingHandCursor)
+        self._btn_add_region.setStyleSheet(theme.btn_accent("7px 14px", 9))
+        self._btn_add_region.clicked.connect(self.add_region_requested)
+        self._btn_manage_regions = QPushButton(tr("Управление…"))
+        self._btn_manage_regions.setCursor(Qt.PointingHandCursor)
+        self._btn_manage_regions.setStyleSheet(theme.btn_secondary("7px 14px", 9))
+        self._btn_manage_regions.clicked.connect(self.manage_regions_requested)
+        regions_buttons.addWidget(self._btn_add_region)
+        regions_buttons.addWidget(self._btn_manage_regions)
+        regions_buttons.addStretch()
+        regions_layout.addLayout(regions_buttons)
+        pages["regions"].addWidget(grp_regions)
+
+        # ── Live monitoring of a region ──
+        from capture.live_monitor import MAX_INTERVAL_SEC, MIN_INTERVAL_SEC
+        grp_live, live_layout = self._group(tr("Живой мониторинг"))
+        lbl_live = QLabel(tr("Мониторинг переводит область снова, когда в ней меняется текст. "
+                             "Запускается из меню трея или в «Управлении» регионами; новые "
+                             "значения действуют со следующего запуска."))
+        lbl_live.setWordWrap(True)
+        lbl_live.setStyleSheet(theme.label_css("caption"))
+        live_layout.addWidget(lbl_live)
+        self._live_interval_spin = QSpinBox()
+        self._live_interval_spin.setRange(MIN_INTERVAL_SEC, MAX_INTERVAL_SEC)
+        self._live_interval_spin.setSuffix(tr(" сек"))
+        self._live_interval_spin.setStyleSheet(self._INPUT_CSS)
+        live_layout.addLayout(self._field(tr("Проверять каждые:"), self._live_interval_spin))
+        self._live_sensitivity_combo = QComboBox()
+        self._live_sensitivity_combo.setStyleSheet(self._INPUT_CSS)
+        self._live_sensitivity_combo.addItem(tr("Высокая — ловит даже мелкие изменения"), "high")
+        self._live_sensitivity_combo.addItem(tr("Средняя (рекомендуется)"), "medium")
+        self._live_sensitivity_combo.addItem(tr("Низкая — только заметные изменения"), "low")
+        live_layout.addLayout(self._field(tr("Чувствительность к изменениям:"), self._live_sensitivity_combo))
+        pages["regions"].addWidget(grp_live)
 
         # ── Interface section ──
         grp_ui, ui_layout = self._group(tr("Интерфейс"))
@@ -1221,6 +1276,23 @@ class SettingsWidget(QWidget):
         self._nllb_status.setText(message)
         self._nllb_status.setStyleSheet(self._status_css(kind))
 
+    # ── Regions ──────────────────────────────────────────
+
+    def refresh_regions(self) -> None:
+        """List the saved regions: name, size and bind."""
+        try:
+            from settings.region_presets import load_presets
+            presets = load_presets()
+        except Exception:
+            presets = []
+        self._regions_list.clear()
+        for p in presets:
+            w, h = p.get("x2", 0) - p.get("x1", 0), p.get("y2", 0) - p.get("y1", 0)
+            hotkey = (p.get("hotkey") or "").upper() or tr("без бинда")
+            self._regions_list.addItem(f"{p.get('name', '')}   ·   {w}×{h}   ·   {hotkey}")
+        if not presets:
+            self._regions_list.addItem(tr("Регионов пока нет: нажмите «Добавить регион»."))
+
     # ── App hotkeys ──────────────────────────────────────
 
     def _show_saved_hotkeys(self) -> None:
@@ -1573,8 +1645,13 @@ class SettingsWidget(QWidget):
         idx_theme = self._theme_combo.findData(config_manager.get("ui_theme"))
         self._theme_combo.setCurrentIndex(max(idx_theme, 0))
 
-        # Hotkeys overview.
+        # Hotkeys, regions and live monitoring.
         self._show_saved_hotkeys()
+        self.refresh_regions()
+        self._live_interval_spin.setValue(int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10))
+        sensitivity = getattr(config, "LIVE_SENSITIVITY", "medium") or "medium"
+        self._live_sensitivity_combo.setCurrentIndex(
+            max(0, self._live_sensitivity_combo.findData(sensitivity)))
 
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":
@@ -1592,14 +1669,14 @@ class SettingsWidget(QWidget):
         # Autosave: every control whose setting applies without a restart.
         for combo in (self._backend_combo, self._ocr_gpu_combo, self._domain_combo,
                       self._src_lang_combo, self._lang_combo, self._engine_combo,
-                      self._model_combo, self._nllb_version_combo):
+                      self._model_combo, self._nllb_version_combo, self._live_sensitivity_combo):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
             button.toggled.connect(self._schedule_autosave)
         for switch in (self._chk_fallback, self._chk_streaming, self._chk_compact_prompt,
                        self._chk_ocr_preview):
             switch.toggled.connect(self._schedule_autosave)
-        for spin in (self._tokens_spin, self._timeout_spin):
+        for spin in (self._tokens_spin, self._timeout_spin, self._live_interval_spin):
             spin.valueChanged.connect(self._schedule_autosave)
         for edit in (self._nllb_path_edit, self._custom_model_edit, self._azure_region_input):
             edit.editingFinished.connect(self._schedule_autosave)
@@ -1703,6 +1780,8 @@ class SettingsWidget(QWidget):
         old = dict(cfg)
         cfg["translation_backend"] = self._backend_combo.currentData() or DEFAULT_BACKEND
         cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
+        cfg["live_interval_sec"] = self._live_interval_spin.value()
+        cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
         cfg["primary_provider"] = primary_choice

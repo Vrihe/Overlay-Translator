@@ -13,6 +13,10 @@ the section for that version becomes the GitHub release notes.
 - Custom hotkeys: Settings → Hotkeys changes the translate and the settings hotkey and
   applies them at once. Clashes and single ordinary keys are refused; while a field is
   being edited the global hotkeys are paused.
+- Settings → Regions: the saved screen regions with their size and bind, an "Add region"
+  button (select an area, name it) and "Manage…" for renaming, deleting and binds.
+- Live monitoring settings: how often the region is checked (1–120 s) and how big a change
+  must be to translate it again.
 - One-click update: the "Update" button in the new-version banner downloads the installer,
   checks its SHA-256, installs it silently and restarts the app.
 

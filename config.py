@@ -61,6 +61,26 @@ class _LiveConfig:
         set_value("hotkey", value)
 
     @property
+    def LIVE_INTERVAL_SEC(self):
+        """Live monitoring: seconds between two checks of the region."""
+        return _cfg("live_interval_sec")
+
+    @LIVE_INTERVAL_SEC.setter
+    def LIVE_INTERVAL_SEC(self, value):
+        from settings.config_manager import set_value
+        set_value("live_interval_sec", value)
+
+    @property
+    def LIVE_SENSITIVITY(self):
+        """Live monitoring: "high" | "medium" | "low" — how small a change counts."""
+        return _cfg("live_sensitivity")
+
+    @LIVE_SENSITIVITY.setter
+    def LIVE_SENSITIVITY(self, value):
+        from settings.config_manager import set_value
+        set_value("live_sensitivity", value)
+
+    @property
     def SETTINGS_HOTKEY(self):
         """Opens the settings; the SETTINGS_HOTKEY env var overrides settings.json."""
         return os.environ.get("SETTINGS_HOTKEY") or _cfg("settings_hotkey")

@@ -73,6 +73,8 @@ DEFAULTS: dict[str, Any] = {
     "llm_max_tokens": 350,                 # int: max completion tokens (50 - 2000)
     "hotkey": "ctrl+shift+r",              # translate a region (Settings → Hotkeys)
     "settings_hotkey": "ctrl+shift+o",     # open the settings (Settings → Hotkeys)
+    "live_interval_sec": 10,               # live monitoring: seconds between checks (1 - 120)
+    "live_sensitivity": "medium",          # live monitoring: "high" | "medium" | "low" change threshold
     "popup_timeout_sec": 10,
     "popup_size": None,                    # [w, h] set by dragging the popup edges; None = fit text
     "notification_type": "popup",          # "popup" | "windows_toast"

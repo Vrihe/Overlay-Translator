@@ -354,6 +354,8 @@ class TranslatorApp:
         self._main_window.set_tray_icon(self._tray)
         self._main_window.restart_requested.connect(self._restart)
         self._main_window.update_install_started.connect(self._quit)
+        self._main_window.add_region_requested.connect(self._add_region)
+        self._main_window.manage_regions_requested.connect(self._show_presets_dialog)
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
@@ -524,11 +526,15 @@ class TranslatorApp:
 
     def _start_live_monitoring(self, x1: int, y1: int, x2: int, y2: int) -> None:
         """D2: Start live background monitor for specified screen region."""
-        from capture.live_monitor import LiveMonitor
+        from capture.live_monitor import LiveMonitor, threshold_for
         if hasattr(self, "_live_monitor") and self._live_monitor is not None:
             self._live_monitor.stop()
 
-        self._live_monitor = LiveMonitor(x1, y1, x2, y2, interval_sec=10.0)
+        interval = int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10)
+        self._live_monitor = LiveMonitor(
+            x1, y1, x2, y2, interval_sec=interval,
+            threshold=threshold_for(getattr(config, "LIVE_SENSITIVITY", "medium")),
+        )
         self._live_monitor.region_changed.connect(
             lambda lx1, ly1, lx2, ly2: self._on_region_selected(lx1, ly1, lx2, ly2)
         )
@@ -537,7 +543,8 @@ class TranslatorApp:
         if self._tray is not None:
             self._tray.showMessage(
                 tr("Живой автомониторинг запущен"),
-                tr("Область автоматически проверяется каждые 10 сек."),
+                tr("Область автоматически проверяется каждые {seconds} сек.",
+                   seconds=int(self._live_monitor.interval_sec)),
                 TrayIcon.Information,
                 3000,
             )
@@ -661,10 +668,17 @@ class TranslatorApp:
             self._tray.act_live_monitor.setChecked(True)
 
     def _on_presets_updated(self) -> None:
-        """Refresh the registered preset hotkeys and the tray context menu."""
+        """Refresh the registered preset hotkeys, the tray menu and Settings → Regions."""
         self._register_preset_hotkeys()
         if self._tray is not None:
             self._tray.rebuild_presets_menu()
+        self._main_window.refresh_regions()
+
+    def _add_region(self) -> None:
+        """Settings → Regions → "Добавить регион": select an area, then name it."""
+        self._presets_dialog = None  # no dialog: the name is asked for on its own
+        self._preset_creation_mode = True
+        self._show_selector()
 
     def _on_new_preset_requested(self, dialog) -> None:
         """The user pressed 'Новый' (New) in the presets dialog; start region selection."""
@@ -693,6 +707,8 @@ class TranslatorApp:
                     logging.info("Preset '%s' saved (no dialog).", name.strip())
                 except ValueError as e:
                     logging.warning("Preset save failed: %s", e)
+                    from PyQt5.QtWidgets import QMessageBox
+                    QMessageBox.warning(None, tr("Ошибка"), str(e))
         self._on_presets_updated()
 
     def _on_partial_translation(self, partial_text: str) -> None:

@@ -54,7 +54,8 @@ Overlay-Translator/
 │
 ├── capture/                # Screen capture
 │   ├── screenshot.py       #   capture_region() via mss
-│   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region
+│   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region (interval,
+│                           #   change threshold: threshold_for("high"|"medium"|"low") = 1.0/2.5/5.0)
 │
 ├── ocr/                    # Text recognition
 │   ├── engine.py           #   RapidOCR singleton, preprocessing, line sorting
@@ -469,7 +470,13 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   translation, custom profiles), "Хоткеи" (`QKeySequenceEdit` per app hotkey + "По умолчанию";
   `_apply_hotkey` → `settings/hotkeys.validate_app_hotkey` → `set_value` →
   `hotkeys_changed`; a rejected one is shown and the saved one restored; focus in/out emits
-  `hotkey_capture`), "Распознавание" (OCR
+  `hotkey_capture`), "Регионы" (`refresh_regions()` lists `region_presets.load_presets()` as
+  name · size · bind; "Добавить регион" / "Управление…" emit `add_region_requested` /
+  `manage_regions_requested`, forwarded by `MainWindow` to `TranslatorApp._add_region`
+  (selector → name prompt → `save_preset`) / `_show_presets_dialog`;
+  `TranslatorApp._on_presets_updated` → `MainWindow.refresh_regions()` keeps the list current;
+  live monitoring `live_interval_sec` spin 1–120 s and `live_sensitivity` combo, autosaved,
+  read by `_start_live_monitoring` at the next start), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
   (language, colour scheme, about/updates).
   **Saving**: every no-restart setting saves itself — a change starts a 400 ms debounce
@@ -731,6 +738,8 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
+| `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
+| `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
 | `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook |
 | `tests/test_app_hotkeys.py` | app hotkeys: Qt sequence → keyboard name, validation (single key, clashes with the other hotkey / presets), `SETTINGS_HOTKEY` env override, the settings page saving / rejecting an edit and pausing the hooks on focus |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |

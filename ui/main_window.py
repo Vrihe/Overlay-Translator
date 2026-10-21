@@ -553,6 +553,8 @@ class MainWindow(QMainWindow):
     # Settings asked for a restart (restart-only options were saved).
     restart_requested = pyqtSignal()
     update_install_started = pyqtSignal()  # the update setup waits for the app to quit
+    add_region_requested = pyqtSignal()     # forwarded from SettingsWidget (Regions)
+    manage_regions_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
     hotkeys_changed = pyqtSignal()       # forwarded from SettingsWidget
     hotkey_capture = pyqtSignal(bool)    # forwarded from SettingsWidget
 
@@ -634,6 +636,11 @@ class MainWindow(QMainWindow):
                     self._tray_icon.messageClicked.connect(lambda: webbrowser.open(url))
                 except Exception:
                     pass
+
+    def refresh_regions(self):
+        """Region presets changed: update Settings → Regions if that page was built."""
+        if self._settings_widget is not None:
+            self._settings_widget.refresh_regions()
 
     def _on_update_install_clicked(self):
         """Download the new installer (or cancel that download) from the update banner."""
@@ -885,6 +892,8 @@ class MainWindow(QMainWindow):
         self._settings_widget.restart_requested.connect(self.restart_requested)
         self._settings_widget.hotkeys_changed.connect(self.hotkeys_changed)
         self._settings_widget.hotkey_capture.connect(self.hotkey_capture)
+        self._settings_widget.add_region_requested.connect(self.add_region_requested)
+        self._settings_widget.manage_regions_requested.connect(self.manage_regions_requested)
         vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)
