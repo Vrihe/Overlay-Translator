@@ -175,6 +175,15 @@ Overlay-Translator/
   imports it after PyQt5 and crashes for the same reason.
 - `class HotkeyBridge(QObject)` — `triggered = pyqtSignal()`; bridge from the `keyboard` thread to the Qt thread.
 - `class TranslationWorker(QThread)` — the whole pipeline in the background.
+  `TranslatorApp._start_translation_pipeline(..., live=False)` never kills a running worker
+  (`QThread.terminate()` mid-OCR left the engine broken): a request arriving while one runs
+  becomes `_pending_request` (only the newest is kept) and starts on the worker's `finished`;
+  each request has a sequence number and a result that is no longer the newest is dropped.
+  `_replace_worker()` parks a still-running replaced worker in `_retired_workers` until it
+  ends. `live=True` (LiveMonitor `region_changed`) keeps the open popup and updates it in
+  place with `activate=False` (no focus taken from the watched game or stream).
+  `_set_popup()` makes a popup current; its `destroyed` clears `_popup` only while it is
+  still the current one (an old popup dying late used to orphan the new one).
   Signals: `translation_done(str src, str translated, str error)`,
   `partial_result(str)` (streaming), `ocr_done(str, QRect)`.
   Constructor: `(x1, y1, x2, y2, text_override: str|None = None, ocr_only: bool = False)`.
@@ -475,6 +484,10 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `manage_regions_requested`, forwarded by `MainWindow` to `TranslatorApp._add_region`
   (selector → name prompt → `save_preset`) / `_show_presets_dialog`;
   `TranslatorApp._on_presets_updated` → `MainWindow.refresh_regions()` keeps the list current;
+  "Мониторинг" emits `monitor_region_requested(x1, y1, x2, y2)` for the selected region, or
+  `stop_monitoring_requested` while monitoring runs (`set_monitoring_active()`, fed by
+  `TranslatorApp._start/_stop_live_monitoring` through `MainWindow.set_monitoring_active`,
+  which also keeps the tray toggle in step; the presets dialog has no monitoring button);
   live monitoring `live_interval_sec` spin 1–120 s and `live_sensitivity` combo, autosaved,
   read by `_start_live_monitoring` at the next start), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
@@ -504,7 +517,14 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the left / right / bottom edges
   (the top edge is a drag handle), TTS, copy. A drag past 5 px is handed to the OS move
   loop (`QWindow.startSystemMove()`, manual `move()` only if that fails). The card fills the
-  window (no transparent border that would swallow clicks next to it). Placement
+  window (no transparent border that would swallow clicks next to it). The window is opaque
+  (no `WA_TranslucentBackground`) because `show()` calls `_exclude_from_capture()` —
+  `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`, which fails on UpdateLayeredWindow
+  windows: mss/OCR and live monitoring never see the popup (it covered tall regions such
+  as a stream chat and re-triggered monitoring in a loop); screenshots and recordings do
+  not show it either. `update_content` rebuilds the widgets; a result replacing a result
+  keeps the scroll position (`_scroll_state` / `_restore_scroll`, at the bottom it follows
+  new lines), the first result after "Переводим…" starts at the top. Placement
   (`_place`, pure geometry): under the selection (above if no room), but when that spot
   covers a visible app window (main window, dialogs) the nearest spot covering neither it
   nor the selection is used; no such spot → the usual place. When the popup grows from
@@ -738,6 +758,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
+| `tests/test_popup_live.py` | popup excluded from screen capture and kept opaque, live update without taking focus, regions dialog rows and monitoring button |
 | `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
 | `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
 | `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook |

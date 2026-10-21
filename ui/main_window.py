@@ -577,6 +577,8 @@ class MainWindow(QMainWindow):
     update_install_started = pyqtSignal()  # the update setup waits for the app to quit
     add_region_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
     manage_regions_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
+    monitor_region_requested = pyqtSignal(int, int, int, int)  # forwarded (Regions)
+    stop_monitoring_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
     hotkeys_changed = pyqtSignal()  # forwarded from SettingsWidget
     hotkey_capture = pyqtSignal(bool)  # forwarded from SettingsWidget
 
@@ -665,6 +667,12 @@ class MainWindow(QMainWindow):
         """Region presets changed: update Settings → Regions if that page was built."""
         if self._settings_widget is not None:
             self._settings_widget.refresh_regions()
+
+    def set_monitoring_active(self, active: bool):
+        """Live monitoring started / stopped: the Regions page shows Monitor or Stop."""
+        self._monitoring_active = active
+        if self._settings_widget is not None:
+            self._settings_widget.set_monitoring_active(active)
 
     def _on_update_install_clicked(self):
         """Download the new installer (or cancel that download) from the update banner."""
@@ -818,6 +826,7 @@ class MainWindow(QMainWindow):
         self._settings_placeholder.setStyleSheet("background: transparent;")
         self._stack.addWidget(self._settings_placeholder)
         self._settings_widget = None
+        self._monitoring_active = False  # applied to the settings page when it is built
 
         # Page 2: History (lazy-loaded)
         self._history_placeholder = QWidget()
@@ -917,6 +926,9 @@ class MainWindow(QMainWindow):
         self._settings_widget.hotkey_capture.connect(self.hotkey_capture)
         self._settings_widget.add_region_requested.connect(self.add_region_requested)
         self._settings_widget.manage_regions_requested.connect(self.manage_regions_requested)
+        self._settings_widget.monitor_region_requested.connect(self.monitor_region_requested)
+        self._settings_widget.stop_monitoring_requested.connect(self.stop_monitoring_requested)
+        self._settings_widget.set_monitoring_active(self._monitoring_active)
         vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)

@@ -121,14 +121,14 @@ MESSAGES: dict[str, str] = {
     "Нажмите комбинацию клавиш для этого пресета:": "Press a key combination for this preset:",
     "Например: Ctrl+Alt+1, F8, Alt+Shift+T. Бинд будет работать глобально.": "For example: Ctrl+Alt+1, F8, Alt+Shift+T. The hotkey works globally.",
     "Translator Overlay — Пресеты регионов": "Translator Overlay — Region presets",
-    "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода или запустите опциональный автомониторинг.": "Saved screen regions. Assign a hotkey for quick one-off translation "
-    "or start optional auto-monitoring.",
+    "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода; "
+    "мониторинг запускается в Настройки → Регионы.": "Saved screen regions. Assign a hotkey for quick one-off translation; "
+    "monitoring is started in Settings → Regions.",
     "Закрыть": "Close",
     "Переименовать пресет": "Rename preset",
     "Новое имя:": "New name:",
     "Удаление пресета": "Delete preset",
     "Удалить пресет «{name}»?": "Delete preset “{name}”?",
-    "[Нет бинда]": "[No hotkey]",
     "Ошибка бинда": "Hotkey error",
     "Ошибка сброса бинда": "Hotkey reset error",
     "Ошибка переименования": "Rename error",
@@ -320,7 +320,9 @@ MESSAGES: dict[str, str] = {
     "Имя": "Rename",
     "Удалить": "Delete",
     "Перевести область": "Translate region",
-    "Автомониторинг (10 сек)": "Auto-monitoring (10 s)",
+    "Мониторинг": "Monitor",
+    "Остановить мониторинг": "Stop monitoring",
+    "Переводить выбранную область снова, когда в ней меняется текст (проверка каждые {seconds} сек).": "Translate the selected area again when its text changes (checked every {seconds} s).",
     "Новый профиль контекста": "New context profile",
     "+ Добавить пример": "+ Add example",
     "+ Новый профиль": "+ New profile",
@@ -354,17 +356,17 @@ MESSAGES: dict[str, str] = {
     # ── Settings → Regions (ui/settings_dialog.py, capture/live_monitor.py) ──
     "Регионы": "Regions",
     "Бинды регионов — в разделе «Регионы».": "Region binds are in the Regions section.",
-    "Сохранённые области экрана. Бинд переводит область сразу, без выделения; в «Управлении» — "
-    "переименовать, удалить, назначить бинд или запустить мониторинг.": "Saved screen areas. A bind translates the area at once, without selecting it; "
-    "Manage renames, deletes, sets a bind or starts monitoring.",
+    "Сохранённые области экрана. Бинд переводит область сразу, без выделения. «Мониторинг» "
+    "следит за выбранной областью; в «Управлении» — переименовать, удалить или назначить бинд.": "Saved screen areas. A bind translates the area at once, without selecting it. Monitor "
+    "watches the selected area; Manage renames, deletes or sets a bind.",
     "Добавить регион": "Add region",
     "Управление…": "Manage…",
     "без бинда": "no bind",
     "Регионов пока нет: нажмите «Добавить регион».": "No regions yet: click Add region.",
     "Живой мониторинг": "Live monitoring",
-    "Мониторинг переводит область снова, когда в ней меняется текст. Запускается из меню трея "
-    "или в «Управлении» регионами; новые значения действуют со следующего запуска.": "Monitoring translates an area again when its text changes. Start it from the tray menu "
-    "or in Manage regions; new values apply from the next start.",
+    "Мониторинг переводит область снова, когда в ней меняется текст. Запускается кнопкой выше "
+    "или из меню трея; новые значения действуют со следующего запуска.": "Monitoring translates an area again when its text changes. Start it with the button "
+    "above or from the tray menu; new values apply from the next start.",
     "Проверять каждые:": "Check every:",
     "Чувствительность к изменениям:": "Sensitivity to changes:",
     "Высокая — ловит даже мелкие изменения": "High — catches even small changes",

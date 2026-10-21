@@ -15,6 +15,9 @@ Design goals:
   • Dismissable — close button, Escape key, or 10s fallback timeout
 """
 
+import ctypes
+import sys
+
 from PyQt5.QtCore import (
     QEasingCurve,
     QEvent,
@@ -24,6 +27,7 @@ from PyQt5.QtCore import (
     QSize,
     Qt,
     QTimer,
+    pyqtSignal,
 )
 from PyQt5.QtGui import QCursor, QPainter, QPen
 from PyQt5.QtWidgets import (
@@ -43,8 +47,14 @@ import config
 from i18n import tr
 from ui import icons, theme
 
+#: SetWindowDisplayAffinity: shown on screen, left out of every capture.
+_WDA_EXCLUDEFROMCAPTURE = 0x11
+
 
 class ResultPopup(QWidget):
+    #: The header's stop button: end the live monitoring that keeps updating this popup.
+    stop_monitoring_clicked = pyqtSignal()
+
     """Compact floating popup showing source text and its translation, or loading status."""
 
     _MIN_WIDTH = 300
@@ -55,7 +65,6 @@ class ResultPopup(QWidget):
     _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
     _FADE_DURATION = 150  # ms for smooth fade-out on close
     _MARGIN = 10  # gap between popup and selection edge
-    _BG_OPACITY = 0.96  # card background opacity
     _ICON_SIZE = 14  # header icon buttons
 
     def __init__(
@@ -91,6 +100,7 @@ class ResultPopup(QWidget):
         self._resize_edge: str | None = None
         self._resized = False
         self._moved_by_user = False
+        self._monitoring = False  # updated by live monitoring: offer its stop button
 
         self._setup_window()
         self._build_ui()
@@ -101,8 +111,9 @@ class ResultPopup(QWidget):
 
     def _setup_window(self) -> None:
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        # Opaque on purpose: a translucent (UpdateLayeredWindow) window cannot be kept
+        # out of screen captures, see _exclude_from_capture().
+        self.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
@@ -112,12 +123,27 @@ class ResultPopup(QWidget):
 
     def show(self) -> None:
         super().show()
+        self._exclude_from_capture()
         self.raise_()
         self.activateWindow()
         self.setFocus()
 
         if not self._is_loading:
             self._start_auto_timer()
+
+    def _exclude_from_capture(self) -> None:
+        """Keep the popup out of screen captures (Windows 10 2004+).
+
+        Live monitoring and OCR capture the screen: a popup lying over the watched
+        region would count as a change and be read as text, in a loop. The window must
+        be opaque for this (the call fails on WA_TranslucentBackground windows).
+        """
+        if sys.platform != "win32":
+            return
+        try:
+            ctypes.windll.user32.SetWindowDisplayAffinity(int(self.winId()), _WDA_EXCLUDEFROMCAPTURE)
+        except Exception:
+            pass  # older Windows: the popup stays visible to captures
 
     def _start_auto_timer(self) -> None:
         if hasattr(self, "_auto_timer") and self._auto_timer.isActive():
@@ -221,6 +247,12 @@ class ResultPopup(QWidget):
             self._btn_copy.clicked.connect(self._on_copy_translation)
             header_row.addWidget(self._btn_copy)
 
+        # Live monitoring keeps updating this popup: let it be stopped right here.
+        self._btn_stop_monitoring = self._icon_button("stop", tr("Остановить мониторинг"), danger=True)
+        self._btn_stop_monitoring.clicked.connect(self._on_stop_monitoring)
+        self._btn_stop_monitoring.setVisible(self._monitoring)
+        header_row.addWidget(self._btn_stop_monitoring)
+
         self._btn_close = self._icon_button("close", tr("Закрыть окно"), danger=True)
         self._btn_close.clicked.connect(self._fade_out_and_close)
         header_row.addWidget(self._btn_close)
@@ -289,6 +321,17 @@ class ResultPopup(QWidget):
         return label
 
     # ── TTS Speech synthesis (D3) ────────────────────────
+
+    def set_monitoring(self, active: bool) -> None:
+        """Show the stop button while live monitoring updates this popup."""
+        self._monitoring = active
+        btn = getattr(self, "_btn_stop_monitoring", None)
+        if btn is not None:
+            btn.setVisible(active)
+
+    def _on_stop_monitoring(self) -> None:
+        self.set_monitoring(False)
+        self.stop_monitoring_clicked.emit()
 
     def _on_speak_translation(self) -> None:
         """D3: Speak translated text via background TTS engine."""
@@ -365,15 +408,23 @@ class ResultPopup(QWidget):
     # ── In-place content update ──────────────────────────
 
     def update_content(
-        self, source_text: str, translated_text: str, *, is_error: bool = False, notice: str = ""
+        self, source_text: str, translated_text: str, *, is_error: bool = False, notice: str = "", activate: bool = True
     ) -> None:
         """Update popup content from loading state to final result in-place,
-        fitting the window snugly to the translated content size."""
+        fitting the window snugly to the translated content size.
+
+        ``activate=False`` (live monitoring updates) keeps it on top without taking
+        the keyboard focus from the game or browser being watched.
+        """
         if self._closing:
             return
 
         if self._dots_timer is not None:
             self._dots_timer.stop()
+
+        # A result replacing a result (live monitoring) keeps where the reader scrolled to;
+        # the first result after "Переводим…" starts at the top as before.
+        scroll = self._scroll_state() if not self._is_loading else None
 
         self._is_loading = False
         self._is_error = is_error
@@ -387,13 +438,32 @@ class ResultPopup(QWidget):
         self._fit_and_adjust_size()
         self.move(saved_pos)
         self._step_aside_if_covering()
+        if scroll is not None:
+            # After the rebuilt layout has its final size, or the range is still empty.
+            QTimer.singleShot(0, lambda: self._restore_scroll(scroll))
 
         self._start_auto_timer()
 
         self.raise_()
-        self.activateWindow()
-        self.setFocus()
+        if activate:
+            self.activateWindow()
+            self.setFocus()
         self.update()
+
+    def _scroll_state(self) -> tuple[int, bool] | None:
+        """``(value, at_bottom)`` of the text's scroll bar, None without one."""
+        if self._scroll_area is None:
+            return None
+        bar = self._scroll_area.verticalScrollBar()
+        return bar.value(), bar.maximum() > 0 and bar.value() >= bar.maximum() - 2
+
+    def _restore_scroll(self, state: tuple[int, bool]) -> None:
+        """Back where the reader was; at the bottom it follows the newest lines."""
+        if self._closing or self._scroll_area is None:
+            return
+        value, at_bottom = state
+        bar = self._scroll_area.verticalScrollBar()
+        bar.setValue(bar.maximum() if at_bottom else min(value, bar.maximum()))
 
     def _fit_and_adjust_size(self) -> None:
         """Size the window: the size the user dragged to, otherwise fit the content."""
@@ -631,17 +701,12 @@ class ResultPopup(QWidget):
         else:
             super().keyPressEvent(event)
 
-    # ── Square HUD card with true alpha ──────────────────
+    # ── Square HUD card ──────────────────────────────────
 
     def paintEvent(self, _event):
         painter = QPainter(self)
-
-        painter.setCompositionMode(QPainter.CompositionMode_Clear)
-        painter.fillRect(self.rect(), Qt.transparent)
-        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
-
         r = self.rect().adjusted(0, 0, -1, -1)
-        painter.fillRect(self.rect(), theme.qcolor("bg", int(255 * self._BG_OPACITY)))
+        painter.fillRect(self.rect(), theme.qcolor("bg"))
 
         if self._is_loading:
             border = theme.qcolor("dim")
@@ -748,9 +813,11 @@ def show_result(
     notice: str = "",
     tray_icon=None,
     existing_popup: ResultPopup | None = None,
+    activate: bool = True,
 ) -> ResultPopup | None:
     """Display translation result or error via popup or Windows toast according
-    to config.NOTIFICATION_TYPE.
+    to config.NOTIFICATION_TYPE. ``activate=False``: an open popup is updated
+    without taking the keyboard focus (live monitoring).
     """
     if config.NOTIFICATION_TYPE == "windows_toast":
         if existing_popup is not None and not existing_popup._closing:
@@ -774,7 +841,9 @@ def show_result(
         return None
     else:
         if existing_popup is not None and not existing_popup._closing:
-            existing_popup.update_content(source_text, translated_text, is_error=is_error, notice=notice)
+            existing_popup.update_content(
+                source_text, translated_text, is_error=is_error, notice=notice, activate=activate
+            )
             return existing_popup
         else:
             popup = ResultPopup(source_text, translated_text, anchor, is_error=is_error, notice=notice)

@@ -50,7 +50,7 @@ def _get_user_data_dir() -> Path:
 
 # A module-level literal so pyproject.toml (setuptools) and build.py can read
 # the version without importing config.
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 
 
 class _LiveConfig:
