@@ -3,7 +3,8 @@ ui/result_popup.py — lightweight floating popup and notification helper.
 
 Design goals:
   • Non-intrusive — compact, near-opaque HUD card (1 px accent frame), instant appearance
-  • Resizable & Draggable — stretchable from all 4 edges & 4 corners (max 850x550, min 300x80);
+  • Resizable & Draggable — stretchable from the left, right and bottom edges and bottom corners
+    (the top edge is the drag handle; max 850x550, min 300x80);
     a size set by hand is saved (``config.POPUP_SIZE``) and reused by later updates,
     popups and launches (text wraps to it)
   • Streaming — partial text goes to the body (``show_partial``), the header keeps
@@ -22,7 +23,7 @@ from PyQt5.QtCore import (
     Qt, QTimer, QPoint, QRect, QEvent, QSize,
     QPropertyAnimation, QEasingCurve,
 )
-from PyQt5.QtGui import QColor, QPainter, QPen, QCursor
+from PyQt5.QtGui import QPainter, QPen, QCursor
 
 import config
 from i18n import tr
@@ -76,6 +77,7 @@ class ResultPopup(QWidget):
         self._is_dragging = False
         self._resize_edge: str | None = None
         self._resized = False
+        self._moved_by_user = False
 
         self._setup_window()
         self._build_ui()
@@ -157,7 +159,7 @@ class ResultPopup(QWidget):
         layout = self.layout()
         if layout is None:
             layout = QVBoxLayout(self)
-            layout.setContentsMargins(4, 4, 4, 4)
+            layout.setContentsMargins(0, 0, 0, 0)  # the card fills the window: no invisible border eating clicks
             layout.setSpacing(0)
 
         self._card = QWidget(self)
@@ -350,6 +352,7 @@ class ResultPopup(QWidget):
             saved_pos = self.pos()
             self._fit_and_adjust_size()
             self.move(saved_pos)
+            self._step_aside_if_covering()
         if self._scroll_area is not None:  # follow the newest text
             bar = self._scroll_area.verticalScrollBar()
             bar.setValue(bar.maximum())
@@ -377,6 +380,7 @@ class ResultPopup(QWidget):
         self._install_click_filter(self._card)
         self._fit_and_adjust_size()
         self.move(saved_pos)
+        self._step_aside_if_covering()
 
         self._start_auto_timer()
 
@@ -387,8 +391,8 @@ class ResultPopup(QWidget):
 
     def _fit_and_adjust_size(self) -> None:
         """Size the window: the size the user dragged to, otherwise fit the content."""
-        self.setMinimumSize(self._MIN_WIDTH + 8, self._MIN_HEIGHT + 8)
-        self.setMaximumSize(self._MAX_WIDTH + 8, self._MAX_HEIGHT + 8)
+        self.setMinimumSize(self._MIN_WIDTH, self._MIN_HEIGHT)
+        self.setMaximumSize(self._MAX_WIDTH, self._MAX_HEIGHT)
         if self._scroll_area is not None:
             self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
@@ -403,8 +407,8 @@ class ResultPopup(QWidget):
             self._scroll_area.widget().layout().activate()
 
         hint = self.sizeHint()
-        w = max(self._MIN_WIDTH + 8, min(self._MAX_WIDTH + 8, hint.width()))
-        h = max(self._MIN_HEIGHT + 8, min(self._MAX_HEIGHT + 8, hint.height()))
+        w = max(self._MIN_WIDTH, min(self._MAX_WIDTH, hint.width()))
+        h = max(self._MIN_HEIGHT, min(self._MAX_HEIGHT, hint.height()))
         self.resize(w, h)
 
         # QScrollArea's size hint ignores word wrap: grow to the wrapped text height.
@@ -415,7 +419,7 @@ class ResultPopup(QWidget):
             needed = (content.heightForWidth(viewport.width()) if content.hasHeightForWidth()
                       else content.sizeHint().height())
             if needed > viewport.height():
-                h = min(self._MAX_HEIGHT + 8, self.height() + needed - viewport.height())
+                h = min(self._MAX_HEIGHT, self.height() + needed - viewport.height())
                 self.resize(w, h)
 
     # ── Edge detection & Mouse Resizing / Dragging ────────
@@ -425,27 +429,21 @@ class ResultPopup(QWidget):
         m = self._RESIZE_MARGIN
         x, y, w, h = pos.x(), pos.y(), r.width(), r.height()
 
+        # No top edge: it is the header, so grabbing it always moves the window.
         on_right = (x >= w - m)
         on_bottom = (y >= h - m)
         on_left = (x <= m)
-        on_top = (y <= m)
 
         if on_right and on_bottom:
             return "br"
         elif on_left and on_bottom:
             return "bl"
-        elif on_right and on_top:
-            return "tr"
-        elif on_left and on_top:
-            return "tl"
         elif on_right:
             return "r"
         elif on_bottom:
             return "b"
         elif on_left:
             return "l"
-        elif on_top:
-            return "t"
         return None
 
     def _update_cursor_for_edge(self, edge: str | None) -> None:
@@ -470,8 +468,8 @@ class ResultPopup(QWidget):
         edge = self._resize_edge
         g = self._start_geom
         x0, y0, w0, h0 = g.x(), g.y(), g.width(), g.height()
-        min_w, max_w = self._MIN_WIDTH + 8, self._MAX_WIDTH + 8
-        min_h, max_h = self._MIN_HEIGHT + 8, self._MAX_HEIGHT + 8
+        min_w, max_w = self._MIN_WIDTH, self._MAX_WIDTH
+        min_h, max_h = self._MIN_HEIGHT, self._MAX_HEIGHT
 
         new_x, new_y, new_w, new_h = x0, y0, w0, h0
 
@@ -505,8 +503,8 @@ class ResultPopup(QWidget):
             w, h = (int(v) for v in value)
         except (TypeError, ValueError):
             return None  # None / malformed hand-edited value
-        w = max(cls._MIN_WIDTH + 8, min(cls._MAX_WIDTH + 8, w))
-        h = max(cls._MIN_HEIGHT + 8, min(cls._MAX_HEIGHT + 8, h))
+        w = max(cls._MIN_WIDTH, min(cls._MAX_WIDTH, w))
+        h = max(cls._MIN_HEIGHT, min(cls._MAX_HEIGHT, h))
         return QSize(w, h)
 
     def _finish_resize(self) -> None:
@@ -550,13 +548,8 @@ class ResultPopup(QWidget):
                 if self._resize_edge:
                     self._perform_resize(event.globalPos())
                     return True
-                else:
-                    dist = (event.globalPos() - self._press_pos).manhattanLength()
-                    if dist > 5 or self._is_dragging:
-                        self._is_dragging = True
-                        self.setCursor(Qt.ClosedHandCursor)
-                        self.move(event.globalPos() - self._drag_offset)
-                        return True
+                elif self._drag_move(event.globalPos()):
+                    return True
         elif event.type() == QEvent.MouseButtonPress:
             if event.button() == Qt.LeftButton:
                 pos_local = self.mapFromGlobal(event.globalPos())
@@ -593,13 +586,26 @@ class ResultPopup(QWidget):
             if self._resize_edge:
                 self._perform_resize(event.globalPos())
                 event.accept()
-            else:
-                dist = (event.globalPos() - self._press_pos).manhattanLength()
-                if dist > 5 or self._is_dragging:
-                    self._is_dragging = True
-                    self.setCursor(Qt.ClosedHandCursor)
-                    self.move(event.globalPos() - self._drag_offset)
-                    event.accept()
+            elif self._drag_move(event.globalPos()):
+                event.accept()
+
+    def _drag_move(self, global_pos: QPoint) -> bool:
+        """Move the window for a left-button drag; False until the 5 px threshold."""
+        if not self._is_dragging:
+            if (global_pos - self._press_pos).manhattanLength() <= 5:
+                return False
+            self._moved_by_user = True
+            # The OS move loop tracks the cursor smoothly even while Python is busy
+            # and skips a repaint of the translucent window per mouse move. It eats
+            # the button release, so the press state is cleared right here.
+            handle = self.windowHandle()
+            if handle is not None and handle.startSystemMove():
+                self._press_pos = None
+                return True
+            self._is_dragging = True
+            self.setCursor(Qt.ClosedHandCursor)
+        self.move(global_pos - self._drag_offset)
+        return True
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -627,8 +633,8 @@ class ResultPopup(QWidget):
         painter.fillRect(self.rect(), Qt.transparent)
         painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
 
-        r = self.rect().adjusted(4, 4, -5, -5)
-        painter.fillRect(r, theme.qcolor("bg", int(255 * self._BG_OPACITY)))
+        r = self.rect().adjusted(0, 0, -1, -1)
+        painter.fillRect(self.rect(), theme.qcolor("bg", int(255 * self._BG_OPACITY)))
 
         if self._is_loading:
             border = theme.qcolor("dim")
@@ -643,42 +649,79 @@ class ResultPopup(QWidget):
     # ── Positioning ──────────────────────────────────────
 
     def _position_near_anchor(self) -> None:
-        if self._anchor is None:
-            cursor = QCursor.pos()
-            screen = self._screen_at(cursor)
-        else:
-            a = self._anchor
-            screen = self._screen_at(QPoint(a.center().x(), a.center().y()))
-
-        sg = screen.availableGeometry()
-
         self._fit_and_adjust_size()
-        ps = self.size()
+        self.move(self._place(self.size(), self._anchor, self._screen_rect(),
+                              self._app_window_rects(), self._MARGIN))
 
+    def _step_aside_if_covering(self) -> None:
+        """After the popup grew in place, move it off an app window it now covers.
+
+        A popup the user dragged stays where they put it.
+        """
+        if self._moved_by_user:
+            return
+        avoid = self._app_window_rects()
+        if any(self.frameGeometry().intersects(r) for r in avoid):
+            self.move(self._place(self.size(), self._anchor, self._screen_rect(),
+                                  avoid, self._MARGIN))
+
+    def _screen_rect(self) -> QRect:
         if self._anchor is None:
-            x = sg.x() + (sg.width() - ps.width()) // 2
-            y = sg.y() + (sg.height() - ps.height()) // 2
+            screen = self._screen_at(QCursor.pos())
         else:
-            a = self._anchor
-            x = a.left() + (a.width() - ps.width()) // 2
-            y = a.bottom() + self._MARGIN
+            screen = self._screen_at(self._anchor.center())
+        return screen.availableGeometry()
 
-            if y + ps.height() > sg.y() + sg.height():
-                y = a.top() - ps.height() - self._MARGIN
+    def _app_window_rects(self) -> list:
+        """Visible windows and dialogs of the app (the main window first of all)."""
+        return [w.frameGeometry() for w in QApplication.topLevelWidgets()
+                if w is not self and w.isVisible() and not w.isMinimized()
+                and w.windowType() in (Qt.Window, Qt.Dialog)]
 
-        min_x = sg.x() + self._MARGIN
-        max_x = sg.x() + sg.width() - ps.width() - self._MARGIN
-        if max_x < min_x:
-            max_x = min_x
-        x = max(min_x, min(x, max_x))
+    @staticmethod
+    def _place(size: QSize, anchor: QRect | None, screen: QRect, avoid: list,
+               margin: int) -> QPoint:
+        """Top-left for a popup of *size*.
 
-        min_y = sg.y() + self._MARGIN
-        max_y = sg.y() + sg.height() - ps.height() - self._MARGIN
-        if max_y < min_y:
-            max_y = min_y
-        y = max(min_y, min(y, max_y))
+        Preferred spot: under the anchor (above it when there is no room below),
+        centred on it; without an anchor, the screen centre. When that spot covers
+        one of the *avoid* windows, the nearest spot that covers neither them nor
+        the anchor is used; if the screen has none, the preferred spot stays.
+        """
+        w, h = size.width(), size.height()
+        max_x = max(screen.x() + margin, screen.x() + screen.width() - w - margin)
+        max_y = max(screen.y() + margin, screen.y() + screen.height() - h - margin)
 
-        self.move(x, y)
+        def clamp(x: int, y: int) -> QPoint:
+            return QPoint(max(screen.x() + margin, min(x, max_x)),
+                          max(screen.y() + margin, min(y, max_y)))
+
+        if anchor is None:
+            xs = [screen.x() + (screen.width() - w) // 2]
+            ys = [screen.y() + (screen.height() - h) // 2]
+        else:
+            xs = [anchor.left() + (anchor.width() - w) // 2]
+            below, above = anchor.bottom() + margin, anchor.top() - h - margin
+            ys = [below, above] if below + h <= screen.y() + screen.height() else [above, below]
+        preferred = clamp(xs[0], ys[0])
+
+        def covers_window(p: QPoint) -> bool:
+            return any(QRect(p, size).intersects(o) for o in avoid)
+
+        def is_free(p: QPoint) -> bool:
+            return not covers_window(p) and (anchor is None or not QRect(p, size).intersects(anchor))
+
+        if not covers_window(preferred):
+            return preferred
+
+        for o in avoid:  # beside / above / below each window in the way
+            xs += [o.left() - w - margin, o.right() + 1 + margin]
+            ys += [o.top() - h - margin, o.bottom() + 1 + margin]
+        spots = {(p.x(), p.y()) for p in (clamp(x, y) for x in xs for y in ys)}
+        free = [QPoint(x, y) for x, y in spots if is_free(QPoint(x, y))]
+        if not free:
+            return preferred
+        return min(free, key=lambda p: ((p - preferred).manhattanLength(), p.y(), p.x()))
 
     @staticmethod
     def _screen_at(pos: QPoint):

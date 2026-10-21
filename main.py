@@ -111,7 +111,6 @@ if __name__ == "__main__":
         sys.exit(0)
 
 import ctypes
-import time
 
 # onnxruntime must be imported BEFORE PyQt5. PyQt5 ships an old MSVC runtime
 # (msvcp140.dll 14.26) next to Qt5Core.dll; once Qt loads it, onnxruntime (needs
@@ -148,7 +147,6 @@ def _qt_message_handler(mode, context, message):
 qInstallMessageHandler(_qt_message_handler)
 
 import config
-import settings
 from i18n import tr
 from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
@@ -289,7 +287,7 @@ class OcrWarmupWorker(QThread):
     """Pre-loads the RapidOCR engine and the langid model in a background thread.
 
     Scheduled 3 s after app start so the ONNX model load plus the first DirectML
-    run (~2-4 s) and the langid model load (~3 s) happen silently while the user
+    run (~2-4 s) and, for backends that use it, the langid model load (~1.5 s) happen silently while the user
     reads the UI — not on their first hotkey press.
     """
 
@@ -302,6 +300,11 @@ class OcrWarmupWorker(QThread):
         except Exception:
             logging.exception("OcrWarmupWorker: pre-load failed (non-fatal, will retry on first use)")
         try:
+            # Unpickling the langid model holds the GIL for ~1 s and freezes the UI;
+            # skip it unless the backend needs it (it still loads on first use).
+            from translate.backend import uses_langid
+            if not uses_langid():
+                return
             from translate.lang_detect import get_detector
             get_detector("langid").detect("warm up")
             logging.info("OcrWarmupWorker: langid model ready.")

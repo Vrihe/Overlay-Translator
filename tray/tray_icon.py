@@ -14,9 +14,8 @@ Menu items:
 
 import logging
 
-from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QAction, QApplication
+from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtGui import QIcon
 
 from tray.icon_gen import create_tray_icon
 import config

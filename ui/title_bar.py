@@ -14,8 +14,7 @@ import ctypes
 import sys
 from ctypes import wintypes
 
-from PyQt5.QtCore import QSize, Qt
-from PyQt5.QtGui import QCursor
+from PyQt5.QtCore import QPoint, QSize, Qt
 from PyQt5.QtWidgets import QAbstractButton, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from ui import icons, theme
@@ -24,6 +23,8 @@ ENABLED = sys.platform == "win32"
 
 _WM_NCCALCSIZE = 0x0083
 _WM_NCHITTEST = 0x0084
+_WM_MOUSEACTIVATE = 0x0021
+_MA_ACTIVATE = 1
 _HTCAPTION = 2
 # (left, right, top, bottom) → hit-test code
 _HIT_CODES = {
@@ -103,6 +104,12 @@ def native_event(window: QWidget, title_bar: "TitleBar", message) -> tuple[bool,
                 r.right -= b
                 r.bottom -= b
         return True, 0
+    if msg.message == _WM_MOUSEACTIVATE and (msg.lParam & 0xFFFF) == _HTCAPTION:
+        # Clicking the drawn caption while another window of the app is active (the
+        # result popup, or right after it closed) left this window inactive, and the
+        # caption drag never started until a click inside activated it. Activate first.
+        ctypes.windll.user32.SetForegroundWindow(msg.hWnd)
+        return True, _MA_ACTIVATE
     if msg.message == _WM_NCHITTEST:
         if not window.isMaximized():
             u = ctypes.windll.user32
@@ -117,11 +124,29 @@ def native_event(window: QWidget, title_bar: "TitleBar", message) -> tuple[bool,
             if code is not None:
                 return True, code
         if title_bar is not None and title_bar.isVisible():
-            local = title_bar.mapFromGlobal(QCursor.pos())
+            local = _title_bar_point(window, title_bar, msg)
             if title_bar.rect().contains(local) and not isinstance(
                     title_bar.childAt(local), QAbstractButton):
                 return True, _HTCAPTION
     return None
+
+
+def _title_bar_point(window: QWidget, title_bar: "TitleBar", msg) -> QPoint:
+    """The hit-test point in ``title_bar`` coordinates, from native geometry only.
+
+    ``mapFromGlobal`` trusts Qt's idea of where the client area starts. Qt derives
+    that from the window styles, and since WS_CAPTION is added behind its back
+    (``install_native_frame``) it can come to believe in a ~31 px native caption
+    and put the drag strip that much too low. The message's own screen point minus
+    the native client origin has no such cache.
+    """
+    x = ctypes.c_short(msg.lParam & 0xFFFF).value          # GET_X_LPARAM: signed, multi-monitor
+    y = ctypes.c_short((msg.lParam >> 16) & 0xFFFF).value
+    origin = wintypes.POINT(0, 0)
+    ctypes.windll.user32.ClientToScreen(msg.hWnd, ctypes.byref(origin))
+    dpr = window.devicePixelRatioF() or 1.0
+    in_window = QPoint(round((x - origin.x) / dpr), round((y - origin.y) / dpr))
+    return in_window - title_bar.mapTo(window, QPoint(0, 0))
 
 
 class TitleBar(QWidget):

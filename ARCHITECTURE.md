@@ -165,7 +165,9 @@ Overlay-Translator/
   Signals: `translation_done(str src, str translated, str error)`,
   `partial_result(str)` (streaming), `ocr_done(str, QRect)`.
   Constructor: `(x1, y1, x2, y2, text_override: str|None = None, ocr_only: bool = False)`.
-- `class OcrWarmupWorker(QThread)` — builds the RapidOCR engine 3 s after start.
+- `class OcrWarmupWorker(QThread)` — builds the RapidOCR engine 3 s after start, then
+  preloads langid only when `translate.backend.uses_langid()` (LLM / NLLB): its model
+  unpickle holds the GIL ~1 s and would freeze the UI for nothing on Google / DeepL / Azure.
 - `class TranslatorApp` — owns `QApplication`, `MainWindow`, `TrayIcon`, hotkeys,
   the selector, popups, live monitoring and preset hotkeys.
   Key methods: `_show_selector`, `_on_region_selected`,
@@ -196,7 +198,7 @@ so `import config; config.TARGET_LANG` reads a **property** that calls
 - Dynamic (settings.json): `HOTKEY`, `TARGET_LANG`, `SOURCE_LANG`,
   `TRANSLATION_ENGINE`, `TRANSLATION_BACKEND`, `NLLB_MODEL_PATH`, `LLM_MODEL`,
   `POPUP_TIMEOUT_SEC`, `NOTIFICATION_TYPE`,
-  `OCR_LANGUAGES`, `ACTIVE_DOMAIN`, `PRIMARY_PROVIDER`, `ENABLE_FALLBACK`,
+  `OCR_LANGUAGES`, `ACTIVE_DOMAIN`,
   `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`.
 - Static (env/constants): `MAX_RETRIES_PER_PROVIDER`, `RETRY_BACKOFF_BASE_SEC`,
   `OPENROUTER_MODEL`, `ANTHROPIC_DETECT_MODEL`, `APP_VERSION`, `GITHUB_REPO`,
@@ -372,7 +374,7 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
 - `config_manager`: `DEFAULTS` (the canonical list of keys — **unknown keys are
   dropped on save**), `load_config()`, `save_config(cfg)`,
   `get(key)`, `set_value(key, value)`. File: `%APPDATA%\translator-overlay\settings.json`.
-- `settings/__init__.py`: `get_api_key(provider)`, `set_api_key`, `delete_api_key`,
+- `settings/__init__.py`: `get_api_key(provider)`, `set_api_key`,
   `get_primary_provider()`, `save_primary_provider()`,
   `is_fallback_enabled()`, `set_fallback_enabled()`.
 - `region_presets.py`: `load_presets()`, `save_preset(...)`, `delete_preset(id)`,
@@ -425,7 +427,9 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   native `WS_CAPTION | WS_THICKFRAME | …` styles back (`install_native_frame`);
   `MainWindow.nativeEvent` → `title_bar.native_event` answers `WM_NCCALCSIZE` (whole window
   is client area; a maximised window is inset by the frame thickness) and `WM_NCHITTEST`
-  (resize edges, `HTCAPTION` for the `TitleBar` strip outside its buttons). So Aero Snap,
+  (resize edges, `HTCAPTION` for the `TitleBar` strip outside its buttons). `WM_MOUSEACTIVATE`
+  on that caption activates the window itself (`SetForegroundWindow` + `MA_ACTIVATE`): while
+  the result popup was active the click left the window inactive and no drag started. So Aero Snap,
   drag, double-click maximise, the system menu and the min/max animations stay native while
   the strip uses the palette (`rail`, accent `//`). Window sizes add `title_bar.HEIGHT`.
   Other framed windows (dialogs, stock dialogs) keep the native bar, switched to dark mode by
@@ -468,7 +472,15 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `QComboBox` / `QAbstractSpinBox` never changes its value; it goes to the nearest scroll
   area's viewport, so long pages scroll past controls. An open combo list still scrolls.
 - `ResultPopup(...)` — frameless window, streaming updates via `update_content()`,
-  auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the edges, TTS, copy. Streaming
+  auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the left / right / bottom edges
+  (the top edge is a drag handle), TTS, copy. A drag past 5 px is handed to the OS move
+  loop (`QWindow.startSystemMove()`, manual `move()` only if that fails). The card fills the
+  window (no transparent border that would swallow clicks next to it). Placement
+  (`_place`, pure geometry): under the selection (above if no room), but when that spot
+  covers a visible app window (main window, dialogs) the nearest spot covering neither it
+  nor the selection is used; no such spot → the usual place. When the popup grows from
+  "Переводим…" to the result it steps aside again only if it now covers a window and the
+  user has not dragged it (`_step_aside_if_covering`). Streaming
   chunks go to `show_partial()` (a wrapped body label; the header keeps "Переводим…").
   A size dragged by hand is saved to `settings.json` → `popup_size` (`config.POPUP_SIZE`,
   written once when the drag ends) and used by later updates, popups and launches (text wraps
@@ -666,6 +678,9 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |
 | `tests/test_popup_size.py` | saved popup size parsing/clamping, written once when a resize drag ends |
+| `tests/test_title_bar.py` | a click on the drawn caption activates the main window (drag works while the popup is active) |
+| `tests/test_popup_placement.py` | popup placed under/above the selection, steps off the main window to the nearest free spot, keeps the usual place when none |
+| `tests/test_popup_drag.py` | popup top edge drags instead of resizing; a drag goes to the OS move loop, manual move as fallback |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

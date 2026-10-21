@@ -191,10 +191,6 @@ class Segmented(QFrame):
             checked.setChecked(False)
             self._group.setExclusive(True)
 
-    def current_data(self) -> object:
-        btn = self._group.checkedButton()
-        return None if btn is None else self._data[self._group.id(btn)]
-
 
 class Switch(QAbstractButton):
     """Square 44×22 toggle. A real checkable button: Space toggles it, Tab focuses it."""

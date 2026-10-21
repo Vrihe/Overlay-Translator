@@ -114,6 +114,15 @@ def needs_llm_key() -> bool:
     )
 
 
+def uses_langid() -> bool:
+    """True when the active backend detects the source language with langid.
+
+    Google, DeepL and Azure detect it server-side, so the app need not pay
+    the langid model load (~1.5 s holding the GIL) for them.
+    """
+    return get_active_backend() not in _NMT_BACKENDS
+
+
 def _api_fallback_notice(exc: Exception) -> str:
     first_line = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
     return tr("Локальная модель NLLB недоступна ({reason}) — переведено через API.", reason=first_line)

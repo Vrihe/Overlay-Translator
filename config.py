@@ -162,24 +162,6 @@ class _LiveConfig:
         set_value("active_domain", value)
 
     @property
-    def PRIMARY_PROVIDER(self):
-        return _cfg("primary_provider")
-
-    @PRIMARY_PROVIDER.setter
-    def PRIMARY_PROVIDER(self, value):
-        from settings.config_manager import set_value
-        set_value("primary_provider", value)
-
-    @property
-    def ENABLE_FALLBACK(self):
-        return _cfg("enable_fallback")
-
-    @ENABLE_FALLBACK.setter
-    def ENABLE_FALLBACK(self, value):
-        from settings.config_manager import set_value
-        set_value("enable_fallback", value)
-
-    @property
     def ENABLE_STREAMING(self):
         return _cfg("enable_streaming")
 
@@ -256,7 +238,6 @@ class _LiveConfig:
     EASYOCR_LANGS = [lang.strip() for lang in _LANGS_RAW.split(",") if lang.strip()]
     EASYOCR_GPU = os.environ.get("EASYOCR_GPU", "auto")
     EASYOCR_CONFIDENCE_THRESHOLD = float(os.environ.get("EASYOCR_CONFIDENCE_THRESHOLD", "0.25"))
-    MIN_CHARS_FOR_DETECTION = int(os.environ.get("MIN_CHARS_FOR_DETECTION", "15"))
 
     USER_DATA_DIR = _get_user_data_dir()
     CACHE_DIR = os.environ.get("CACHE_DIR", str(USER_DATA_DIR / "cache"))

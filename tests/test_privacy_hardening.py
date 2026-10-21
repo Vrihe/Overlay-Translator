@@ -10,6 +10,9 @@ from pathlib import Path
 from unittest import mock
 
 import config
+from PIL import Image
+
+from ocr import engine
 from translate import domain_manager, llm_client
 from translate.privacy import loggable
 
@@ -25,6 +28,26 @@ class TestLoggable(unittest.TestCase):
 
     def test_none(self):
         self.assertEqual(loggable(None), "None")
+
+
+class TestOcrLogging(unittest.TestCase):
+    SECRET = "my password is hunter2"
+
+    def _extract_logs(self):
+        with mock.patch.object(engine, "_extract_single", return_value=self.SECRET), \
+                self.assertLogs(level="DEBUG") as logs:
+            self.assertEqual(engine.extract_text(Image.new("RGB", (10, 10))), self.SECRET)
+        return "\n".join(logs.output)
+
+    def test_ocr_result_hidden_by_default(self):
+        with mock.patch.object(type(config), "LOG_TEXT", False):
+            output = self._extract_logs()
+        self.assertNotIn("hunter2", output)
+        self.assertIn("<22 chars>", output)
+
+    def test_ocr_result_logged_when_enabled(self):
+        with mock.patch.object(type(config), "LOG_TEXT", True):
+            self.assertIn("hunter2", self._extract_logs())
 
 
 class TestDomainProfileIds(unittest.TestCase):

@@ -12,10 +12,10 @@ import logging
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QListWidget, QListWidgetItem,
-    QInputDialog, QMessageBox, QWidget, QKeySequenceEdit,
+    QInputDialog, QMessageBox, QKeySequenceEdit,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QKeySequence
+from PyQt5.QtGui import QKeySequence
 
 from i18n import tr
 from ui import theme

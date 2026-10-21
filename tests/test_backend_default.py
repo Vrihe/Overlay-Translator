@@ -63,5 +63,18 @@ class TestNeedsLlmKey(unittest.TestCase):
                 self.assertFalse(backend.needs_llm_key())
 
 
+class TestUsesLangid(unittest.TestCase):
+
+    def test_nmt_backends_skip_langid(self):
+        for value in ("google", "deepl", "azure", None):
+            with _backend_is(value):
+                self.assertFalse(backend.uses_langid(), value)
+
+    def test_llm_and_local_model_use_langid(self):
+        for value in ("api", "nllb"):
+            with _backend_is(value):
+                self.assertTrue(backend.uses_langid(), value)
+
+
 if __name__ == "__main__":
     unittest.main()

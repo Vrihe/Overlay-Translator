@@ -37,6 +37,7 @@ from PIL import Image
 import numpy as np
 
 import config
+from translate.privacy import loggable
 
 # ── Singleton state ───────────────────────────────────────────────────────────
 _reader = None
@@ -98,18 +99,6 @@ def _dml_available() -> bool:
         return False
     logging.debug("onnxruntime providers: %s", providers)
     return "DmlExecutionProvider" in providers
-
-
-def _resolve_gpu(gpu_setting) -> bool:
-    """Resolve GPU setting value into a boolean (legacy .env support)."""
-    if isinstance(gpu_setting, bool):
-        return gpu_setting
-    val = str(gpu_setting).strip().lower()
-    if val in ("true", "1"):
-        return True
-    if val in ("false", "0"):
-        return False
-    return _dml_available()
 
 
 def _should_use_gpu() -> bool:
@@ -339,9 +328,6 @@ def _sort_results(results: list) -> str:
     return "\n".join(text_lines)
 
 
-_sort_text_results = _sort_results
-
-
 # ── Strip helpers (1.6) ───────────────────────────────────────────────────────
 
 def _prepare_strip(strip_img: Image.Image, y_offset: int):
@@ -497,10 +483,7 @@ def extract_text(image: Image.Image) -> str:
     else:
         text = _extract_strips(image)
 
-    logging.debug(
-        f"Extracted OCR text result: '{text[:50]}...'" if len(text) > 50
-        else f"Extracted OCR text result: '{text}'"
-    )
+    logging.debug(f"Extracted OCR text result: {loggable(text)}")
     return text
 
 

@@ -236,7 +236,6 @@ All settings can be overridden in `.env`:
 | `TARGET_LANG` | `ru` | Target translation language |
 | `SOURCE_LANG` | `en` | Source language (fallback when auto-detect is off or text is too short) |
 | `LANG_DETECT_ENGINE` | `langid` | Source language detection engine: `langid` (offline ML), `llm` (via API), `off` (fixed) |
-| `MIN_CHARS_FOR_DETECTION` | `15` | Minimum character count for auto-detection; shorter texts use fixed `SOURCE_LANG` |
 | `EASYOCR_LANGS` | `ru,en` | Comma-separated list of OCR languages (a Cyrillic code selects the `eslav` model, otherwise `en`) |
 | `EASYOCR_GPU` | `auto` | OCR GPU mode: `auto` (DirectML if available), `true`, or `false` |
 | `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
@@ -375,7 +374,7 @@ You can switch engines in the Settings dialog (Ctrl+Shift+O) under "Перево
 
 ### Limitations
 
-- **Short texts** (< 15 characters by default): Auto-detection is unreliable on very short messages (1–3 words, gamer tags, slang). The app falls back to the fixed `SOURCE_LANG` for texts below the `MIN_CHARS_FOR_DETECTION` threshold.
+- **Short texts**: Auto-detection is unreliable on very short messages (1–3 words, gamer tags, slang). Cyrillic text is always treated as `ru`; for other short texts set a fixed source language if detection guesses wrong.
 - **Same-language skip**: If the detected source language matches the target language, translation is skipped and the original text is shown as-is — saving an unnecessary API call.
 
 ## 📊 Logging & Statistics

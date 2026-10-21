@@ -13,8 +13,8 @@ from PyQt5.QtCore import QSize
 import config
 from ui.result_popup import ResultPopup
 
-_MIN = QSize(ResultPopup._MIN_WIDTH + 8, ResultPopup._MIN_HEIGHT + 8)
-_MAX = QSize(ResultPopup._MAX_WIDTH + 8, ResultPopup._MAX_HEIGHT + 8)
+_MIN = QSize(ResultPopup._MIN_WIDTH, ResultPopup._MIN_HEIGHT)
+_MAX = QSize(ResultPopup._MAX_WIDTH, ResultPopup._MAX_HEIGHT)
 
 
 class TestParseSize(unittest.TestCase):

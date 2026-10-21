@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import config
 from ocr import engine
-from ocr.engine import preprocess, _sort_text_results, _resolve_gpu, recognise
+from ocr.engine import preprocess, _sort_results, _should_use_gpu, recognise
 
 
 def _engine_output(items):
@@ -91,7 +91,7 @@ class TestBoundingBoxSorting(unittest.TestCase):
             ([[10, 40], [100, 40], [100, 55], [10, 55]], "Вторая строка", 0.95),
             ([[10, 10], [100, 10], [100, 25], [10, 25]], "Первая строка", 0.98),
         ]
-        result_text = _sort_text_results(raw_results)
+        result_text = _sort_results(raw_results)
         lines = result_text.split("\n")
         self.assertEqual(len(lines), 2)
         self.assertEqual(lines[0], "Первая строка")
@@ -103,25 +103,33 @@ class TestBoundingBoxSorting(unittest.TestCase):
             ([[120, 10], [200, 10], [200, 25], [120, 25]], "мир!", 0.9),
             ([[10, 10], [100, 10], [100, 25], [10, 25]], "Привет", 0.95),
         ]
-        result_text = _sort_text_results(raw_results)
+        result_text = _sort_results(raw_results)
         self.assertEqual(result_text, "Привет мир!")
 
     def test_empty_results(self):
-        self.assertEqual(_sort_text_results([]), "")
+        self.assertEqual(_sort_results([]), "")
 
 
 class TestGPUResolution(unittest.TestCase):
     """Test GPU option resolving."""
 
-    def test_explicit_boolean(self):
-        self.assertTrue(_resolve_gpu(True))
-        self.assertFalse(_resolve_gpu(False))
+    def _decide(self, legacy="auto", mode="auto", dml=True):
+        with patch.object(type(config), "EASYOCR_GPU", legacy), \
+                patch.object(type(config), "OCR_GPU_MODE", mode), \
+                patch.object(engine, "_dml_available", return_value=dml):
+            return _should_use_gpu()
 
-    def test_string_modes(self):
-        self.assertTrue(_resolve_gpu("true"))
-        self.assertTrue(_resolve_gpu("1"))
-        self.assertFalse(_resolve_gpu("false"))
-        self.assertFalse(_resolve_gpu("0"))
+    def test_auto_follows_directml(self):
+        self.assertTrue(self._decide(dml=True))
+        self.assertFalse(self._decide(dml=False))
+
+    def test_cpu_mode_never_uses_gpu(self):
+        self.assertFalse(self._decide(mode="cpu", dml=True))
+
+    def test_legacy_env_override(self):
+        self.assertTrue(self._decide(legacy="true", mode="cpu", dml=True))
+        self.assertFalse(self._decide(legacy="true", dml=False))
+        self.assertFalse(self._decide(legacy="0", dml=True))
 
 
 class TestGPUMode(unittest.TestCase):
