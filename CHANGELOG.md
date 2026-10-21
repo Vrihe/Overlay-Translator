@@ -9,6 +9,8 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-21
+
 ### Added
 - Custom hotkeys: Settings → Hotkeys changes the translate and the settings hotkey and
   applies them at once. Clashes and single ordinary keys are refused; while a field is
@@ -23,6 +25,10 @@ the section for that version becomes the GitHub release notes.
 ### Changed
 - Releases carry only `Setup.exe`; its SHA-256 is in the release notes instead of a
   separate `.sha256` file.
+
+### Fixed
+- Saving a new region with an unusable name (empty, taken, or over the limit) failed
+  silently; the reason is now shown.
 
 ## [1.1.0] - 2026-10-21
 
@@ -62,6 +68,7 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...v1.2.1
 [1.1.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Vrihe/Overlay-Translator/releases/tag/v1.0.0
