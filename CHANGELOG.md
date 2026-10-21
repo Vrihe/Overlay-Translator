@@ -12,10 +12,17 @@ the section for that version becomes the GitHub release notes.
 ### Added
 - Updates are checked every 30 minutes while the app runs, not only at launch; each new
   version is announced once.
+- Documentation site (https://vrihe.github.io/Overlay-Translator/): installation, configuration,
+  the local model, privacy, FAQ, how it works, training and reproducing the experiments.
+- GPU acceleration for the offline model without a CUDA install: with an NVIDIA driver,
+  Settings → local model offers "Download for the GPU", which fetches cuBLAS from PyPI
+  (~530 MB, SHA-256 checked). Translation on the GPU is about 3× faster.
+- Settings → local model → Device: "Auto" or "CPU only" (keeps the GPU free, e.g. for games).
 
 ### Changed
 - The popup can stay up to 10 minutes before it hides itself (was 1 minute), with a hint
   next to the setting.
+- The README now starts with what the app does and a 3-step install; the details moved to the docs.
 
 ### Fixed
 - A popup of a region (live monitoring, a region bind) that you dragged somewhere came

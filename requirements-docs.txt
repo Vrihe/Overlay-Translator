@@ -1,0 +1,5 @@
+# Documentation site (docs/, built with MkDocs; not part of the app).
+#   pip install -r requirements-docs.txt
+#   mkdocs serve          # preview at http://127.0.0.1:8000
+#   mkdocs build --strict # what CI runs
+mkdocs-material>=9.5,<10

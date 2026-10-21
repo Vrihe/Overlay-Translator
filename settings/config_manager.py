@@ -64,6 +64,7 @@ DEFAULTS: dict[str, Any] = {
     "translation_engine": "llm_text",  # "llm_text" | "llm_vision" | "api"
     "translation_backend": "google",  # "google" (keyless by default) | "api" | "deepl" | "azure" | "nllb"
     "nllb_model_path": "",  # optional explicit path to the CTranslate2 NLLB dir
+    "nllb_device": "auto",  # "auto" (NVIDIA GPU when cuBLAS is there) | "cpu"
     "ocr_gpu_mode": "auto",  # "auto" | "cpu" — OCR on the GPU via DirectML ("gpu" = "auto")
     "azure_region": "global",  # Azure Translator region (default "global")
     "llm_model": "poolside/laguna-s-2.1:free",

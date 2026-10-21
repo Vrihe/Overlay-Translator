@@ -32,7 +32,7 @@ run.bat --console           # start the app with a visible log
 Optional parts:
 
 - `install.bat --gpu`: cuBLAS for GPU inference of the local NLLB model.
-- `download_model.bat`: the offline NLLB model (see README → Local Offline Translation).
+- `download_model.bat`: the offline NLLB model (see [docs/local-model.md](docs/local-model.md)).
 - `requirements-train.txt`: a separate venv for fine-tuning (`training/`), not needed for the app.
 
 API keys go in through the first-run dialog or `.env` (see `.env.example`).

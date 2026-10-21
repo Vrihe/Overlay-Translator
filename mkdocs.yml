@@ -1,0 +1,64 @@
+site_name: Translator Overlay
+site_description: Screen region translator for Windows with offline OCR and an optional offline NLLB model
+site_url: https://vrihe.github.io/Overlay-Translator/
+repo_url: https://github.com/Vrihe/Overlay-Translator
+repo_name: Vrihe/Overlay-Translator
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+# Broken links and anchors fail `mkdocs build --strict` (CI). Link to files outside
+# docs/ with a full GitHub URL: relative paths there do not exist on the site.
+validation:
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+
+nav:
+  - Home: index.md
+  - Using the app:
+      - Installation: installation.md
+      - Configuration: configuration.md
+      - Local offline model: local-model.md
+      - Privacy: privacy.md
+      - FAQ: faq.md
+  - How it works: how-it-works.md
+  - Model development:
+      - Training: training.md
+      - Reproducing experiments: experiments.md
+      - "Baseline evaluation (v0)": baseline_eval.md
+      - "Fine-tune v1: process": finetune_v1_process.md
+      - "Fine-tune v1: evaluation": finetune_v1_eval.md
+      - "Fine-tune v2: process and results": finetune_v2_process.md
+  - Development: development.md

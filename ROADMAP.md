@@ -6,9 +6,15 @@
 
 Условные обозначения: `[ ]` — не сделано, `[x]` — сделано. Оценка в рабочих днях при ~3–4 часах в день.
 
+Предстоящие работы разделены на две части: **A — локальная модель (NLLB)** и **B — приложение и остальное**. Номера этапов сохранены, поэтому порядок и зависимости в сводке ссылаются на них; смешанные этапы 8 и 10 разделены на 8a/8b и 10a/10b.
+
 ---
 
-## Этап 0. Гигиена репозитория
+## Сделано
+
+Полностью закрытые этапы.
+
+### Этап 0. Гигиена репозитория
 
 **Срок:** 1–2 дня
 
@@ -30,7 +36,7 @@
 
 ---
 
-## Этап 1. CI и качество кода
+### Этап 1. CI и качество кода
 
 **Срок:** 2–3 дня
 
@@ -50,7 +56,11 @@
 
 ---
 
-## Этап 2. Воспроизводимое обучение
+## Часть A. Локальная модель (NLLB)
+
+Всё, что касается офлайн-модели: данные, обучение, оценка, реестр, доставка модели в приложение и её инференс.
+
+### Этап 2. Воспроизводимое обучение
 
 **Срок:** 4–6 дней
 
@@ -72,7 +82,7 @@
 
 ---
 
-## Этап 3. Трекинг экспериментов
+### Этап 3. Трекинг экспериментов
 
 **Срок:** 2–3 дня
 
@@ -90,7 +100,7 @@
 
 ---
 
-## Этап 4. Честная оценка качества
+### Этап 4. Честная оценка качества
 
 **Срок:** 4–7 дней
 
@@ -112,7 +122,7 @@
 
 ---
 
-## Этап 5. Модель v3 (улучшение качества)
+### Этап 5. Модель v3 (улучшение качества)
 
 **Срок:** 5–8 дней
 
@@ -132,7 +142,7 @@
 
 ---
 
-## Этап 6. Реестр моделей и манифест
+### Этап 6. Реестр моделей и манифест
 
 **Срок:** 2–3 дня
 
@@ -150,7 +160,7 @@
 
 ---
 
-## Этап 7. CI/CD для модели и quality gate
+### Этап 7. CI/CD для модели и quality gate
 
 **Срок:** 3–4 дня
 
@@ -168,20 +178,13 @@
 
 ---
 
-## Этап 8. Релиз приложения
+### Этап 8a. Сборка с GPU для локальной модели
 
-**Срок:** 4–6 дней
+**Срок:** 1–2 дня
 
-- [x] GitHub Actions `release.yml`: сборка PyInstaller на `windows-latest` по тегу `v*`, загрузка артефактов в GitHub Release
-- [x] Установщик (Inno Setup или MSIX), ярлык, деинсталлятор; рассмотреть подпись кода
 - [ ] Две сборки: CPU (лёгкая) и GPU (с cuBLAS), либо скачивание GPU-компонентов при первом запуске
-- [x] Мастер первого запуска: выбор режима (API / офлайн), кнопка «Скачать офлайн-модель» с прогрессом и проверкой sha256
-- [x] Проверка работы апдейтера на реальном релизе (сейчас релизов нет)
-- [x] Changelog (`CHANGELOG.md`, Keep a Changelog) и SemVer-теги
-- [x] Тестирование на чистой Windows (виртуалка): установка → первый запуск → перевод → удаление
-- [x] Выпустить `v1.0.0`
 
-**Критерий готовности:** незнакомый человек скачивает установщик со страницы релиза и переводит текст за пять минут без терминала.
+**Критерий готовности:** установщик или первый запуск даёт NLLB на GPU (cuBLAS), а лёгкая CPU-сборка не растёт в размере.
 
 **Исполнитель:** ______________________________
 
@@ -189,33 +192,10 @@
 
 ---
 
-## Этап 9. Продукт и документация
+### Этап 10a. Мониторинг модели и дообучение по отзывам
 
-**Срок:** 3–5 дней
+**Срок:** 2–3 дня
 
-- [x] Интерфейс на английском и русском (i18n через `QTranslator` или простой словарь), выбор языка в настройках
-- [ ] Демо-GIF (до 10 МБ) и скриншоты в README: офлайн-перевод `lf2m`, `wts … pm me`, live-режим
-- [ ] README: первым экраном — ценность и установка в 3 шага; ниже — режимы, приватность, FAQ, ограничения
-- [ ] Раздел «Как это работает» с диаграммой пайплайна (OCR → glossary → NLLB → popup) и MLOps-диаграммой (data → train → eval → registry → app)
-- [ ] `docs/` как сайт (GitHub Pages / MkDocs): установка, настройка, обучение, воспроизведение экспериментов
-- [ ] Страница «Приватность»: что уходит в API, что остаётся локально, как работает логирование
-- [ ] Обработка типовых проблем в FAQ: нет GPU, антивирус, нет прав на хоткеи
-
-**Критерий готовности:** новый пользователь и новый разработчик находят всё нужное в README и docs без вопросов вам.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-## Этап 10. Обратная связь и мониторинг
-
-**Срок:** 4–6 дней
-
-- [ ] Кнопка 👎/👍 в popup результата; негативные примеры сохраняются локально в SQLite
-- [ ] Экспорт отзывов в `jsonl` (кнопка «Поделиться данными для улучшения модели», с предпросмотром и согласием)
-- [ ] Опциональная анонимная телеметрия (по умолчанию выключена): версия приложения и модели, backend, латентность, cache-hit, тип ошибки; без текста с экрана
 - [ ] Скрипт отчёта по накопленным данным: доля строк с неизвестными токенами вне глоссария, топ-N потерянных keep-терминов, распределение латентности
 - [ ] Детектор дрейфа: сигнал «пора обновить глоссарий / переобучить», когда доля неизвестных токенов растёт
 - [ ] Процесс: отзывы → ручная проверка → датасет v4 → новый цикл этапов 2–7
@@ -228,7 +208,7 @@
 
 ---
 
-## Этап 11. Локальный сервис инференса
+### Этап 11. Локальный сервис инференса
 
 **Срок:** 3–5 дней
 
@@ -246,7 +226,67 @@
 
 ---
 
-## Этап 12. Резюме, диплом и публикация
+## Часть B. Приложение и остальное
+
+Приложение, продукт и документация, обратная связь от пользователей, публикация. От работ над моделью зависит только там, где это указано в «Зависимостях».
+
+### Этап 8b. Релиз приложения
+
+**Срок:** 4–6 дней
+
+- [x] GitHub Actions `release.yml`: сборка PyInstaller на `windows-latest` по тегу `v*`, загрузка артефактов в GitHub Release
+- [x] Установщик (Inno Setup или MSIX), ярлык, деинсталлятор; рассмотреть подпись кода
+- [x] Мастер первого запуска: выбор режима (API / офлайн), кнопка «Скачать офлайн-модель» с прогрессом и проверкой sha256
+- [x] Проверка работы апдейтера на реальном релизе (сейчас релизов нет)
+- [x] Changelog (`CHANGELOG.md`, Keep a Changelog) и SemVer-теги
+- [x] Тестирование на чистой Windows (виртуалка): установка → первый запуск → перевод → удаление
+- [x] Выпустить `v1.0.0`
+
+**Критерий готовности:** незнакомый человек скачивает установщик со страницы релиза и переводит текст за пять минут без терминала.
+
+**Исполнитель:** ______________________________
+
+**Срок (дата):** ______________________________
+
+---
+
+### Этап 9. Продукт и документация
+
+**Срок:** 3–5 дней
+
+- [x] Интерфейс на английском и русском (i18n через `QTranslator` или простой словарь), выбор языка в настройках
+- [ ] Демо-GIF (до 10 МБ) и скриншоты в README: офлайн-перевод `lf2m`, `wts … pm me`, live-режим
+- [x] README: первым экраном — ценность и установка в 3 шага; ниже — режимы, приватность, FAQ, ограничения
+- [x] Раздел «Как это работает» с диаграммой пайплайна (OCR → glossary → NLLB → popup) и MLOps-диаграммой (data → train → eval → registry → app)
+- [x] `docs/` как сайт (GitHub Pages / MkDocs): установка, настройка, обучение, воспроизведение экспериментов
+- [x] Страница «Приватность»: что уходит в API, что остаётся локально, как работает логирование
+- [x] Обработка типовых проблем в FAQ: нет GPU, антивирус, нет прав на хоткеи
+
+**Критерий готовности:** новый пользователь и новый разработчик находят всё нужное в README и docs без вопросов вам.
+
+**Исполнитель:** ______________________________
+
+**Срок (дата):** ______________________________
+
+---
+
+### Этап 10b. Обратная связь и телеметрия в приложении
+
+**Срок:** 2–3 дня
+
+- [ ] Кнопка 👎/👍 в popup результата; негативные примеры сохраняются локально в SQLite
+- [ ] Экспорт отзывов в `jsonl` (кнопка «Поделиться данными для улучшения модели», с предпросмотром и согласием)
+- [ ] Опциональная анонимная телеметрия (по умолчанию выключена): версия приложения и модели, backend, латентность, cache-hit, тип ошибки; без текста с экрана
+
+**Критерий готовности:** пользователь может отметить плохой перевод и поделиться отзывами с предпросмотром и согласием; телеметрия по умолчанию выключена и не содержит текста с экрана.
+
+**Исполнитель:** ______________________________
+
+**Срок (дата):** ______________________________
+
+---
+
+### Этап 12. Резюме, диплом и публикация
 
 **Срок:** 3–4 дня
 
@@ -268,26 +308,28 @@
 
 ## Сводка
 
-| Этап | Название | Срок, дней | Исполнитель |
-|---|---|---|---|
-| 0 | Гигиена репозитория | 1–2 | |
-| 1 | CI и качество кода | 2–3 | |
-| 2 | Воспроизводимое обучение | 4–6 | |
-| 3 | Трекинг экспериментов | 2–3 | |
-| 4 | Честная оценка качества | 4–7 | |
-| 5 | Модель v3 | 5–8 | |
-| 6 | Реестр моделей и манифест | 2–3 | |
-| 7 | CI/CD для модели | 3–4 | |
-| 8 | Релиз приложения | 4–6 | |
-| 9 | Продукт и документация | 3–5 | |
-| 10 | Обратная связь и мониторинг | 4–6 | |
-| 11 | Сервис инференса | 3–5 | |
-| 12 | Резюме, диплом, публикация | 3–4 | |
+| Этап | Часть | Название | Срок, дней | Исполнитель |
+|---|---|---|---|---|
+| 0 | сделано | Гигиена репозитория | 1–2 | |
+| 1 | сделано | CI и качество кода | 2–3 | |
+| 2 | A | Воспроизводимое обучение | 4–6 | |
+| 3 | A | Трекинг экспериментов | 2–3 | |
+| 4 | A | Честная оценка качества | 4–7 | |
+| 5 | A | Модель v3 | 5–8 | |
+| 6 | A | Реестр моделей и манифест | 2–3 | |
+| 7 | A | CI/CD для модели | 3–4 | |
+| 8a | A | Сборка с GPU для локальной модели | 1–2 | |
+| 8b | B | Релиз приложения (сделано) | 4–6 | |
+| 9 | B | Продукт и документация | 3–5 | |
+| 10a | A | Мониторинг модели и дообучение по отзывам | 2–3 | |
+| 10b | B | Обратная связь и телеметрия в приложении | 2–3 | |
+| 11 | A | Сервис инференса | 3–5 | |
+| 12 | B | Резюме, диплом, публикация | 3–4 | |
 
-**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 9 → 5 → 10 → 11 → 12.
-Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 12. Этапы 5, 10, 11 усиливают проект, но их можно отложить.
+**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 9 → 5 → 10b → 10a → 11 → 12 (8b уже сделан).
+Части A и B можно вести параллельно. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 12. Этапы 5, 10a/10b, 11 усиливают проект, но их можно отложить.
 
-**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8; этап 2 нужен до 3 и 5.
+**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8a; этап 2 нужен до 3 и 5; этап 10b (отзывы в приложении) нужен до 10a.
 
 ---
 ---
@@ -300,9 +342,15 @@ Goal: turn the project into (1) an app people want to use and (2) a strong MLOps
 
 Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3–4 hours a day.
 
+Upcoming work is split into two parts: **A — the local model (NLLB)** and **B — the app and the rest**. Stage numbers are kept, so the order and dependencies in the summary refer to them; the mixed stages 8 and 10 are split into 8a/8b and 10a/10b.
+
 ---
 
-## Stage 0. Repository hygiene
+## Done
+
+Fully closed stages.
+
+### Stage 0. Repository hygiene
 
 **Time:** 1–2 days
 
@@ -324,7 +372,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 1. CI and code quality
+### Stage 1. CI and code quality
 
 **Time:** 2–3 days
 
@@ -344,7 +392,11 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 2. Reproducible training
+## Part A. Local model (NLLB)
+
+Everything about the offline model: data, training, evaluation, registry, delivering the model to the app and running it.
+
+### Stage 2. Reproducible training
 
 **Time:** 4–6 days
 
@@ -366,7 +418,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 3. Experiment tracking
+### Stage 3. Experiment tracking
 
 **Time:** 2–3 days
 
@@ -384,7 +436,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 4. Honest quality evaluation
+### Stage 4. Honest quality evaluation
 
 **Time:** 4–7 days
 
@@ -406,7 +458,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 5. Model v3 (quality improvements)
+### Stage 5. Model v3 (quality improvements)
 
 **Time:** 5–8 days
 
@@ -426,7 +478,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 6. Model registry and manifest
+### Stage 6. Model registry and manifest
 
 **Time:** 2–3 days
 
@@ -444,7 +496,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 7. Model CI/CD and quality gate
+### Stage 7. Model CI/CD and quality gate
 
 **Time:** 3–4 days
 
@@ -462,20 +514,13 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 8. App release
+### Stage 8a. GPU build for the local model
 
-**Time:** 4–6 days
+**Time:** 1–2 days
 
-- [x] GitHub Actions `release.yml`: PyInstaller build on `windows-latest` for `v*` tags, artifacts uploaded to a GitHub Release
-- [x] Installer (Inno Setup or MSIX), shortcut, uninstaller; consider code signing
 - [ ] Two builds: CPU (light) and GPU (with cuBLAS), or download GPU components on first launch
-- [x] First-run wizard: mode choice (API / offline), a "Download offline model" button with progress and a sha256 check
-- [x] Check the updater against a real release (there are no releases yet)
-- [x] Changelog (`CHANGELOG.md`, Keep a Changelog) and SemVer tags
-- [x] Test on a clean Windows (VM): install → first launch → translation → uninstall
-- [x] Release `v1.0.0`
 
-**Done when:** a stranger downloads the installer from the release page and translates text within five minutes without a terminal.
+**Done when:** the installer or the first launch gives NLLB on the GPU (cuBLAS), and the light CPU build does not grow.
 
 **Owner:** ______________________________
 
@@ -483,33 +528,10 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 9. Product and documentation
+### Stage 10a. Model monitoring and retraining from feedback
 
-**Time:** 3–5 days
+**Time:** 2–3 days
 
-- [x] English and Russian interface (i18n via `QTranslator` or a simple dictionary), language choice in settings
-- [ ] Demo GIF (up to 10 MB) and screenshots in the README: offline translation of `lf2m`, `wts … pm me`, live mode
-- [ ] README: the first screen shows the value and a 3-step install; below — modes, privacy, FAQ, limitations
-- [ ] A "How it works" section with a pipeline diagram (OCR → glossary → NLLB → popup) and an MLOps diagram (data → train → eval → registry → app)
-- [ ] `docs/` as a site (GitHub Pages / MkDocs): installation, configuration, training, reproducing experiments
-- [ ] A "Privacy" page: what goes to the API, what stays local, how logging works
-- [ ] Common problems in the FAQ: no GPU, antivirus, no rights for hotkeys
-
-**Done when:** a new user and a new developer find everything they need in the README and docs without asking you.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-## Stage 10. Feedback and monitoring
-
-**Time:** 4–6 days
-
-- [ ] A 👎/👍 button in the result popup; negative examples are stored locally in SQLite
-- [ ] Export feedback to `jsonl` (a "Share data to improve the model" button, with a preview and consent)
-- [ ] Optional anonymous telemetry (off by default): app and model version, backend, latency, cache hit, error type; no screen text
 - [ ] A report script over the collected data: the share of lines with unknown tokens outside the glossary, top-N lost keep terms, latency distribution
 - [ ] A drift detector: a "time to update the glossary / retrain" signal when the share of unknown tokens grows
 - [ ] Process: feedback → manual review → dataset v4 → a new cycle of stages 2–7
@@ -522,7 +544,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 11. Local inference service
+### Stage 11. Local inference service
 
 **Time:** 3–5 days
 
@@ -540,7 +562,67 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ---
 
-## Stage 12. CV, thesis and publication
+## Part B. App and the rest
+
+The app, product and documentation, user feedback, publication. It depends on the model work only where the dependencies below say so.
+
+### Stage 8b. App release
+
+**Time:** 4–6 days
+
+- [x] GitHub Actions `release.yml`: PyInstaller build on `windows-latest` for `v*` tags, artifacts uploaded to a GitHub Release
+- [x] Installer (Inno Setup or MSIX), shortcut, uninstaller; consider code signing
+- [x] First-run wizard: mode choice (API / offline), a "Download offline model" button with progress and a sha256 check
+- [x] Check the updater against a real release (there are no releases yet)
+- [x] Changelog (`CHANGELOG.md`, Keep a Changelog) and SemVer tags
+- [x] Test on a clean Windows (VM): install → first launch → translation → uninstall
+- [x] Release `v1.0.0`
+
+**Done when:** a stranger downloads the installer from the release page and translates text within five minutes without a terminal.
+
+**Owner:** ______________________________
+
+**Due:** ______________________________
+
+---
+
+### Stage 9. Product and documentation
+
+**Time:** 3–5 days
+
+- [x] English and Russian interface (i18n via `QTranslator` or a simple dictionary), language choice in settings
+- [ ] Demo GIF (up to 10 MB) and screenshots in the README: offline translation of `lf2m`, `wts … pm me`, live mode
+- [x] README: the first screen shows the value and a 3-step install; below — modes, privacy, FAQ, limitations
+- [x] A "How it works" section with a pipeline diagram (OCR → glossary → NLLB → popup) and an MLOps diagram (data → train → eval → registry → app)
+- [x] `docs/` as a site (GitHub Pages / MkDocs): installation, configuration, training, reproducing experiments
+- [x] A "Privacy" page: what goes to the API, what stays local, how logging works
+- [x] Common problems in the FAQ: no GPU, antivirus, no rights for hotkeys
+
+**Done when:** a new user and a new developer find everything they need in the README and docs without asking you.
+
+**Owner:** ______________________________
+
+**Due:** ______________________________
+
+---
+
+### Stage 10b. Feedback and telemetry in the app
+
+**Time:** 2–3 days
+
+- [ ] A 👎/👍 button in the result popup; negative examples are stored locally in SQLite
+- [ ] Export feedback to `jsonl` (a "Share data to improve the model" button, with a preview and consent)
+- [ ] Optional anonymous telemetry (off by default): app and model version, backend, latency, cache hit, error type; no screen text
+
+**Done when:** a user can flag a bad translation and share feedback with a preview and consent; telemetry is off by default and has no screen text.
+
+**Owner:** ______________________________
+
+**Due:** ______________________________
+
+---
+
+### Stage 12. CV, thesis and publication
 
 **Time:** 3–4 days
 
@@ -562,23 +644,25 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 ## Summary
 
-| Stage | Name | Days | Owner |
-|---|---|---|---|
-| 0 | Repository hygiene | 1–2 | |
-| 1 | CI and code quality | 2–3 | |
-| 2 | Reproducible training | 4–6 | |
-| 3 | Experiment tracking | 2–3 | |
-| 4 | Honest quality evaluation | 4–7 | |
-| 5 | Model v3 | 5–8 | |
-| 6 | Model registry and manifest | 2–3 | |
-| 7 | Model CI/CD | 3–4 | |
-| 8 | App release | 4–6 | |
-| 9 | Product and documentation | 3–5 | |
-| 10 | Feedback and monitoring | 4–6 | |
-| 11 | Inference service | 3–5 | |
-| 12 | CV, thesis, publication | 3–4 | |
+| Stage | Part | Name | Days | Owner |
+|---|---|---|---|---|
+| 0 | done | Repository hygiene | 1–2 | |
+| 1 | done | CI and code quality | 2–3 | |
+| 2 | A | Reproducible training | 4–6 | |
+| 3 | A | Experiment tracking | 2–3 | |
+| 4 | A | Honest quality evaluation | 4–7 | |
+| 5 | A | Model v3 | 5–8 | |
+| 6 | A | Model registry and manifest | 2–3 | |
+| 7 | A | Model CI/CD | 3–4 | |
+| 8a | A | GPU build for the local model | 1–2 | |
+| 8b | B | App release (done) | 4–6 | |
+| 9 | B | Product and documentation | 3–5 | |
+| 10a | A | Model monitoring and retraining from feedback | 2–3 | |
+| 10b | B | Feedback and telemetry in the app | 2–3 | |
+| 11 | A | Inference service | 3–5 | |
+| 12 | B | CV, thesis, publication | 3–4 | |
 
-**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 9 → 5 → 10 → 11 → 12.
-The minimum for a strong CV: stages 0–4, 6–8 and 12. Stages 5, 10, 11 strengthen the project but can wait.
+**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 9 → 5 → 10b → 10a → 11 → 12 (8b is done).
+Parts A and B can run in parallel. The minimum for a strong CV: stages 0–4, 6–8 and 12. Stages 5, 10a/10b, 11 strengthen the project but can wait.
 
-**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8; stage 2 before 3 and 5.
+**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8a; stage 2 before 3 and 5; stage 10b (feedback in the app) before 10a.

@@ -79,8 +79,8 @@ MESSAGES: dict[str, str] = {
     "Каталог модели {path} неполон — отсутствуют файлы: {files}": "The model directory {path} is incomplete — missing files: {files}",
     "Не удалось загрузить локальную модель из {path}: {error}": "Failed to load the local model from {path}: {error}",
     "Сбой инференса NLLB: {error}": "NLLB inference failed: {error}",
-    "Скачайте готовую модель командой python scripts/download_model.py или укажите путь к ней в Настройках (см. README, раздел про NLLB).": "Download the prebuilt model with python scripts/download_model.py "
-    "or set its path in Settings (see the NLLB section of the README).",
+    "Скачайте готовую модель командой python scripts/download_model.py или укажите путь к ней в Настройках (см. docs/local-model.md).": "Download the prebuilt model with python scripts/download_model.py "
+    "or set its path in Settings (see docs/local-model.md).",
     "Не установлены пакеты для локального перевода. Выполните: pip install ctranslate2 sentencepiece": "The packages for local translation are not installed. Run: pip install ctranslate2 sentencepiece",
     "Локальная модель NLLB не найдена.\n": "The local NLLB model was not found.\n",
     # ── tray/tray_icon.py ──
@@ -399,6 +399,19 @@ MESSAGES: dict[str, str] = {
     "Добавьте Ctrl, Alt, Shift или Win: одна обычная клавиша срабатывала бы при наборе текста.": "Add Ctrl, Alt, Shift or Win: a single ordinary key would fire while you type.",
     "Комбинация '{hotkey}' уже занята для другого действия.": "'{hotkey}' is already used for the other action.",
     "Комбинация '{hotkey}' уже назначена пресету «{name}».": "'{hotkey}' is already assigned to the preset \"{name}\".",
+    "Устройство:": "Device:",
+    "Авто (видеокарта NVIDIA, если доступна)": "Auto (NVIDIA GPU when available)",
+    "Только процессор": "CPU only",
+    "Скачать для видеокарты": "Download for the GPU",
+    "На видеокарте NVIDIA перевод в несколько раз быстрее. Нужна библиотека cuBLAS: "
+    "~530 МБ загрузки, ~740 МБ на диске.": "Translation is several times faster on an NVIDIA GPU. It needs the cuBLAS library: "
+    "~530 MB to download, ~740 MB on disk.",
+    "✓ Библиотека CUDA найдена: модель работает на видеокарте NVIDIA.": "✓ CUDA library found: the model runs on the NVIDIA GPU.",
+    "Библиотека CUDA есть, но выбрано «Только процессор»: видеокарта не используется.": "The CUDA library is there, but \"CPU only\" is selected: the GPU is not used.",
+    "Драйвер NVIDIA слишком старый для CUDA 12. Обновите драйвер, чтобы переводить на видеокарте.": "The NVIDIA driver is too old for CUDA 12. Update the driver to translate on the GPU.",
+    "⏳ Скачивание cuBLAS…": "⏳ Downloading cuBLAS…",
+    "⏳ Скачивание cuBLAS: {done} / {total} МБ ({pct}%)": "⏳ Downloading cuBLAS: {done} / {total} MB ({pct}%)",
+    "⚠ Не удалось скачать cuBLAS: {error}": "⚠ Could not download cuBLAS: {error}",
     # ── ui/setup_wizard.py ──
     "Назад": "Back",
     "Далее": "Next",

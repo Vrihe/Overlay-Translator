@@ -33,12 +33,14 @@ class TestFindCublasDir(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        # Start from a clean slate: no CUDA env vars, no real site-packages, no default toolkit.
+        # Start from a clean slate: no CUDA env vars, no real site-packages, no default toolkit,
+        # no cuBLAS the app downloaded into the real user data folder.
         clean_env = {k: v for k, v in os.environ.items() if not k.upper().startswith("CUDA_PATH")}
         self._patches = [
             patch.dict(os.environ, clean_env, clear=True),
             patch.object(sys, "path", [str(self.root / "site-packages")]),
             patch.object(cuda_support, "_DEFAULT_TOOLKIT_ROOT", self.root / "toolkit"),
+            patch("translate.cuda_download.cuda_dir", return_value=self.root / "app-cuda"),
         ]
         for p in self._patches:
             p.start()

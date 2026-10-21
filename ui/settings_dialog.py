@@ -42,7 +42,7 @@ from settings import config_manager
 from translate.llm_client import reset_client
 from ui import icons, theme
 from ui.hud_widgets import FieldLabel, Segmented, SwitchRow
-from ui.nllb_workers import NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
+from ui.nllb_workers import CudaDownloadWorker, NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
 
 _SOURCE_LANGUAGES = [
     ("auto", N_("Автоопределение")),
@@ -583,6 +583,30 @@ class SettingsWidget(QWidget):
         self._btn_load_nllb.clicked.connect(self._on_load_nllb_clicked)
         status_row.addWidget(self._btn_load_nllb, 0, Qt.AlignTop)
         nllb_inner.addLayout(status_row)
+
+        # Device: the GPU needs cuBLAS; "CPU only" keeps the GPU free (games, weak cards).
+        self._nllb_device_combo = QComboBox()
+        self._nllb_device_combo.setStyleSheet(self._INPUT_CSS)
+        self._nllb_device_combo.addItem(tr("Авто (видеокарта NVIDIA, если доступна)"), "auto")
+        self._nllb_device_combo.addItem(tr("Только процессор"), "cpu")
+        self._nllb_device_combo.currentIndexChanged.connect(lambda _i: self._refresh_cuda_row())
+        nllb_inner.addLayout(self._field(tr("Устройство:"), self._nllb_device_combo))
+
+        # GPU acceleration: cuBLAS download for NVIDIA cards (shown only with an NVIDIA driver).
+        self._cuda_download_worker = None
+        self._cuda_widget = QWidget()
+        cuda_row = QHBoxLayout(self._cuda_widget)
+        cuda_row.setContentsMargins(0, 0, 0, 0)
+        self._cuda_status = QLabel("")
+        self._cuda_status.setWordWrap(True)
+        self._cuda_status.setStyleSheet(self._status_css())
+        cuda_row.addWidget(self._cuda_status, 1)
+        self._btn_cuda = QPushButton(tr("Скачать для видеокарты"))
+        self._btn_cuda.setCursor(Qt.PointingHandCursor)
+        self._btn_cuda.setStyleSheet(nmt_btn_css)
+        self._btn_cuda.clicked.connect(self._on_cuda_clicked)
+        cuda_row.addWidget(self._btn_cuda, 0, Qt.AlignTop)
+        nllb_inner.addWidget(self._cuda_widget)
 
         backend_layout.addWidget(self._nllb_container)
 
@@ -1447,6 +1471,77 @@ class SettingsWidget(QWidget):
                 self.hotkey_capture.emit(False)
         return super().eventFilter(obj, event)
 
+    # ── GPU acceleration (cuBLAS download) ───────────────
+
+    def _refresh_cuda_row(self) -> None:
+        """Offer the cuBLAS download only to NVIDIA owners who lack it."""
+        if self._cuda_download_worker is not None:
+            return  # the download progress owns the row
+        from translate.cuda_download import driver_cuda_version, gpu_offer
+        from translate.cuda_support import find_cublas_dir
+
+        offer = gpu_offer(driver_cuda_version(), find_cublas_dir() is not None)
+        self._cuda_widget.setVisible(offer != "none")
+        self._btn_cuda.setText(tr("Скачать для видеокарты"))
+        self._btn_cuda.setVisible(offer == "download")
+        if offer == "ready" and self._nllb_device_combo.currentData() == "cpu":
+            self._set_cuda_status(
+                tr("Библиотека CUDA есть, но выбрано «Только процессор»: видеокарта не используется.")
+            )
+        elif offer == "ready":
+            self._set_cuda_status(tr("✓ Библиотека CUDA найдена: модель работает на видеокарте NVIDIA."), "ok")
+        elif offer == "old_driver":
+            self._set_cuda_status(
+                tr("Драйвер NVIDIA слишком старый для CUDA 12. Обновите драйвер, чтобы переводить на видеокарте."),
+                "warn",
+            )
+        elif offer == "download":
+            self._set_cuda_status(
+                tr(
+                    "На видеокарте NVIDIA перевод в несколько раз быстрее. Нужна "
+                    "библиотека cuBLAS: ~530 МБ загрузки, ~740 МБ на диске."
+                )
+            )
+
+    def _set_cuda_status(self, message: str, kind: str = "muted") -> None:
+        self._cuda_status.setText(message)
+        self._cuda_status.setStyleSheet(self._status_css(kind))
+
+    def _on_cuda_clicked(self) -> None:
+        if self._cuda_download_worker is not None:
+            self._cuda_download_worker.cancel.set()
+            return
+        self._btn_cuda.setText(tr("Отмена"))
+        self._set_cuda_status(tr("⏳ Скачивание cuBLAS…"))
+        self._cuda_download_worker = CudaDownloadWorker(self)
+        self._cuda_download_worker.progress_changed.connect(
+            lambda pct, done, total: self._set_cuda_status(
+                tr("⏳ Скачивание cuBLAS: {done} / {total} МБ ({pct}%)", done=done, total=total, pct=pct)
+            )
+        )
+        self._cuda_download_worker.finished_with_status.connect(self._on_cuda_download_done)
+        self._cuda_download_worker.start()
+
+    def _on_cuda_download_done(self, ok: bool, result: str) -> None:
+        self._cuda_download_worker = None
+        if not ok:
+            self._refresh_cuda_row()
+            self._set_cuda_status(
+                tr("⚠ Не удалось скачать cuBLAS: {error}", error=result) if result else tr("Скачивание отменено."),
+                "warn" if result else "muted",
+            )
+            return
+        # The loaded model still runs on the CPU: drop it so the next load picks the GPU.
+        from translate.backend import reset as reset_backends
+
+        reset_backends()
+        self._refresh_cuda_row()
+        from translate.backend import BACKEND_NLLB
+
+        nllb_kind, _ = self._nllb_version_combo.currentData() or ("auto", None)
+        if self._backend_combo.currentData() == BACKEND_NLLB and nllb_kind != "remote":
+            self._on_load_nllb_clicked()  # warm up now, on the GPU (never starts a model download)
+
     def _refresh_nllb_status(self) -> None:
         """Show whether the local model is present, without loading it."""
         from translate.backend import BACKEND_NLLB
@@ -1458,6 +1553,7 @@ class SettingsWidget(QWidget):
         if not use_nllb:
             return
 
+        self._refresh_cuda_row()
         if self._nllb_remote_versions is None and not self._nllb_versions_error:
             self._fetch_nllb_versions()
         if self._nllb_download_worker is not None:
@@ -1668,6 +1764,8 @@ class SettingsWidget(QWidget):
                 self._backend_combo.setCurrentIndex(i)
                 break
         self._nllb_path_edit.setText(getattr(config, "NLLB_MODEL_PATH", "") or "")
+        device = getattr(config, "NLLB_DEVICE", "auto") or "auto"
+        self._nllb_device_combo.setCurrentIndex(max(0, self._nllb_device_combo.findData(device)))
         self._populate_nllb_versions(self._nllb_path_edit.text().strip())
 
         # NMT key statuses (Google / DeepL / Azure).
@@ -1791,6 +1889,7 @@ class SettingsWidget(QWidget):
             self._model_combo,
             self._nllb_version_combo,
             self._live_sensitivity_combo,
+            self._nllb_device_combo,
         ):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
@@ -1902,6 +2001,7 @@ class SettingsWidget(QWidget):
         cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
         cfg["live_interval_sec"] = self._live_interval_spin.value()
         cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
+        cfg["nllb_device"] = self._nllb_device_combo.currentData() or "auto"
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
         cfg["primary_provider"] = primary_choice
@@ -1924,9 +2024,9 @@ class SettingsWidget(QWidget):
         config_manager.save_config(cfg)
 
         # New model/provider/prompt options → fresh LLM clients (cheap). The local model
-        # is only dropped when its backend or path changes (reloading it costs seconds).
+        # is only dropped when its backend, path or device changes (reloading costs seconds).
         reset_client()
-        if changed & {"translation_backend", "nllb_model_path"}:
+        if changed & {"translation_backend", "nllb_model_path", "nllb_device"}:
             from translate.backend import reset as reset_backends
 
             reset_backends()
