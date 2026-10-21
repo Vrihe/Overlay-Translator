@@ -234,7 +234,9 @@ This guarantees that:
   (up to `CACHE_MAX_ITEMS`); clear it in the History page.
 
 ### 🔄 Automatic Update Checking
-The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
+The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a banner and a notification appear.
+
+In an app installed with the setup, the banner's **Update** button downloads the new installer, checks it against the SHA-256 GitHub publishes for it, closes the app, installs the update without any windows and starts the new version. If the app was installed for all users, Windows asks for administrator rights. A copied `dist` folder or a source run gets a link to the release page instead.
 
 ---
 

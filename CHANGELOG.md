@@ -13,6 +13,8 @@ the section for that version becomes the GitHub release notes.
 - Custom hotkeys: Settings → Hotkeys changes the translate and the settings hotkey and
   applies them at once. Clashes and single ordinary keys are refused; while a field is
   being edited the global hotkeys are paused.
+- One-click update: the "Update" button in the new-version banner downloads the installer,
+  checks its SHA-256, installs it silently and restarts the app.
 
 ### Changed
 - Releases carry only `Setup.exe`; its SHA-256 is in the release notes instead of a

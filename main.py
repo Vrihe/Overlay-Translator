@@ -353,6 +353,7 @@ class TranslatorApp:
         # ── Show main window on startup ──────────────────
         self._main_window.set_tray_icon(self._tray)
         self._main_window.restart_requested.connect(self._restart)
+        self._main_window.update_install_started.connect(self._quit)
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────

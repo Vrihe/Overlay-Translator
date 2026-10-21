@@ -413,6 +413,16 @@ MESSAGES: dict[str, str] = {
     "Сохранён: {width} × {height}": "Saved: {width} × {height}",
     "Пройти мастер настройки заново": "Run the setup wizard again",
 
+    # ── One-click update (ui/main_window.py, updater/install_update.py) ──
+    "Обновить": "Update",
+    "Скачивание обновления {version}…": "Downloading update {version}…",
+    "Скачивание обновления {version}: {pct}%": "Downloading update {version}: {pct}%",
+    "Устанавливаем {version}, приложение перезапустится…":
+        "Installing {version}, the app will restart…",
+    "Не удалось скачать обновление: {error}": "Could not download the update: {error}",
+    "Не удалось запустить установку: {error}": "Could not start the installation: {error}",
+    "в релизе нет установщика с контрольной суммой": "the release has no installer with a checksum",
+
     # ── Settings → Hotkeys (settings/hotkeys.py) ──
     "Щёлкните поле и нажмите новое сочетание. Пока поле активно, глобальные хоткеи "
     "приложения не срабатывают.":

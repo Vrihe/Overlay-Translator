@@ -111,6 +111,7 @@ Overlay-Translator/
 ├── tray/                   # System tray icon + context menu
 ├── tts/engine.py           # Text-to-speech for translations (SAPI, separate thread)
 ├── updater/check_update.py # Checks GitHub releases
+├── updater/install_update.py # One-click silent update: verified Setup.exe, waiter, /VERYSILENT
 ├── scripts/                # Offline utilities (not part of the app build)
 │   ├── download_model.py           # Fetches the pinned model build from the HF Hub
 │   ├── test_nllb_translation.py    # Local model smoke test + CPU latency
@@ -626,6 +627,16 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    into `build.py --release-notes` (changelog section + install steps + checksum; no
    separate `.sha256` file) → draft release with Setup.exe only
    (re-runs `--clobber` the files). Manual runs only upload an artifact. Process: CONTRIBUTING.md.
+   **One-click update** (`updater/install_update.py`, update banner in `MainWindow`): only when
+   `can_self_update()` (frozen + `unins000.exe` next to the exe; otherwise the release page).
+   `_UpdateInstallWorker`: `latest_release()` → `download_setup()` into
+   `%TEMP%\translator-overlay-update` (`.part`, renamed only after the SHA-256 matches) →
+   `launch_installer()`: a hidden PowerShell (`CREATE_NO_WINDOW`; with `DETACHED_PROCESS` it
+   never runs) does `Wait-Process` on the app's pid, then starts the setup `/VERYSILENT
+   /SUPPRESSMSGBOXES /NORESTART /RELAUNCH=1` → `MainWindow.update_install_started` → app
+   `_quit`. The setup must not start while the app's mutex exists: a silent setup answers
+   the AppMutex prompt with Cancel. The `.iss` `[Run]` entry `Check: RelaunchRequested`
+   (`{param:RELAUNCH|0}`) starts the new version `runasoriginaluser`.
 8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
    (`i18n.current_language()`), so a change applies after a restart. `"auto"` picks Russian
@@ -651,7 +662,7 @@ model, runs only when the backend or the model path changes.
 |---|---|
 | **OpenRouter API** (`openai` SDK, `base_url=https://openrouter.ai/api/v1`) | `translate/llm_client.py::_get_client_for`, `_call_provider` |
 | **Anthropic API** (`anthropic` SDK) | `translate/llm_client.py::_get_client_for`, `_call_provider` |
-| **GitHub Releases API** | `updater/check_update.py::check_for_update` (repository from `config.GITHUB_REPO`) |
+| **GitHub Releases API** | `updater/check_update.py::check_for_update` (repository from `config.GITHUB_REPO`); `updater/install_update.py::latest_release` (installer asset + its `digest` SHA-256, else the checksum line of the notes) |
 | **RapidOCR / ONNX Runtime (DirectML)** (local; a rec model missing from `rapidocr/models/` is downloaded from ModelScope on first launch) | `ocr/engine.py::get_reader` / `_build_engine` |
 | **CTranslate2 + sentencepiece** (local, offline) | `translate/nllb_backend.py::NllbBackend.ensure_loaded` / `_raw_translate` |
 | **cuBLAS 12** (optional; `nvidia-cublas-cu12` wheel or CUDA Toolkit 12.x) | `translate/cuda_support.py::prepare_cuda_libraries`, loaded lazily by CTranslate2 on the first GPU matmul |
@@ -720,6 +731,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
+| `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook |
 | `tests/test_app_hotkeys.py` | app hotkeys: Qt sequence → keyboard name, validation (single key, clashes with the other hotkey / presets), `SETTINGS_HOTKEY` env override, the settings page saving / rejecting an edit and pausing the hooks on focus |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
