@@ -14,10 +14,10 @@
 
 **Зачем:** без этого проект выглядит заброшенным, а вклад участников размазан по разным именам.
 
-- [ ] Добавить `.mailmap`: объединить `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` в одну личность; `Alhite`, `Gdx177303`,`Oleksandr` — в другую
+- [x] Добавить `.mailmap`: объединить `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` в одну личность; `Alhite`, `Gdx177303`,`Oleksandr` — в другую
 - [x] Добавить `LICENSE` (MIT или Apache-2.0; для модели — отдельно указать лицензию NLLB, CC-BY-NC 4.0)
 - [x] Добавить `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, шаблоны issue и PR
-- [ ] Убрать устаревшее из README: структура `translator-overlay/`, `settings.py`, описание popup «original + translation», `your-username` в clone-команде
+- [x] Убрать устаревшее из README: структура `translator-overlay/`, `settings.py`, описание popup «original + translation», `your-username` в clone-команде
 - [x] Убрать из `requirements-train.txt` привязку к китайскому зеркалу и локальные пути; вынести в комментарий «как установить CUDA torch»
 - [x] Убрать хардкод `D:\projects\overlay-translator\...` из `training/finetune_lora.py` и docs (заменить на аргумент или переменную окружения)
 - [x] Включить защиту ветки `main` (PR + зелёный CI)
@@ -308,10 +308,10 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 **Why:** without it the project looks abandoned, and contributors' work is spread over different names.
 
-- [ ] Add `.mailmap`: merge `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` into one identity; `Alhite`, `Gdx177303`, `Oleksandr` into another
+- [x] Add `.mailmap`: merge `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` into one identity; `Alhite`, `Gdx177303`, `Oleksandr` into another
 - [x] Add `LICENSE` (MIT or Apache-2.0; state the NLLB licence for the model separately, CC-BY-NC 4.0)
 - [x] Add `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and PR templates
-- [ ] Remove outdated parts of the README: the `translator-overlay/` tree, `settings.py`, the "original + translation" popup description, `your-username` in the clone command
+- [x] Remove outdated parts of the README: the `translator-overlay/` tree, `settings.py`, the "original + translation" popup description, `your-username` in the clone command
 - [x] Drop the Chinese mirror and local paths from `requirements-train.txt`; move "how to install CUDA torch" into a comment
 - [x] Remove the hardcoded `D:\projects\overlay-translator\...` from `training/finetune_lora.py` and the docs (replace with an argument or an environment variable)
 - [x] Protect the `main` branch (PR + green CI)
