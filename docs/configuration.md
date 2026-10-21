@@ -57,7 +57,7 @@ For development, keys can also go into `.env` (`copy .env.example .env`).
 | `EASYOCR_CONFIDENCE_THRESHOLD` | `0.25` | Minimum confidence for recognised text blocks (0.0–1.0) |
 | `OCR_USE_HSV_FILTER` | off | `1` enables HSV preprocessing for coloured text on busy backgrounds |
 | `NLLB_MODEL_DIR` | — | Path to a CTranslate2 NLLB model (a path set in Settings wins) |
-| `NLLB_DEVICE` | `auto` | Local model device: `auto` (GPU if usable, else CPU), `cuda`, `cpu` |
+| `NLLB_DEVICE` | `auto` | Local model device: `auto` (GPU if usable, else CPU), `cuda`, `cpu`; overrides Settings → Device |
 | `NLLB_GLOSSARY` | `1` | `0` turns off the game-chat glossary that expands terms before NLLB |
 | `NLLB_HF_REPO_ID` | `Alhite/overlay-translator-nllb-int8` | Hugging Face repo the model builds come from |
 | `NLLB_HF_REVISION` | commit of tag `v0-base` | Build that `scripts/download_model.py` downloads |

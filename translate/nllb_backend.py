@@ -708,7 +708,9 @@ def get_backend() -> NllbBackend:
     if _backend is None:
         with _backend_lock:
             if _backend is None:
-                _backend = NllbBackend()
+                # The NLLB_DEVICE env var (developers) wins over the settings value.
+                device = os.environ.get("NLLB_DEVICE") or getattr(config, "NLLB_DEVICE", None)
+                _backend = NllbBackend(device=device)
     return _backend
 
 

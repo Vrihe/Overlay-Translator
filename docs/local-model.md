@@ -88,8 +88,12 @@ Ryzen (Zen 3) + RTX 3060 Ti, one 18-token English sentence → Russian, beam siz
 | GPU, `int8_float16` | ~310 ms |
 
 Requirements: an NVIDIA GPU with a driver that supports CUDA 12, and cuBLAS for **CUDA 12.x**
-(`cublas64_12.dll`; CUDA 11 or 13 libraries do not work with CTranslate2 4.x). Either:
+(`cublas64_12.dll`; CUDA 11 or 13 libraries do not work with CTranslate2 4.x). One of:
 
+- **Easiest (installed app):** Settings → Translation backend → local model → **Download for the
+  GPU**. It appears when an NVIDIA driver is found and cuBLAS is not; the app downloads the official
+  `nvidia-cublas-cu12` wheel from PyPI (~530 MB, checked against PyPI's SHA-256) and keeps only its
+  DLLs in `%APPDATA%\translator-overlay\cuda` (~740 MB), or
 - `pip install -r requirements-gpu.txt` (the `nvidia-cublas-cu12` wheel, ~740 MB; from source:
   `install.bat --gpu`), or
 - [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-12-9-0-download-archive), found through
@@ -101,5 +105,6 @@ CPU; the reason goes to the log and is shown once in the popup and in Settings (
 `CUDA unavailable, using CPU inference (cublas64_12.dll not found …)`). Without an NVIDIA GPU the
 switch to the CPU is silent.
 
-The installer does not bundle cuBLAS: the installed app uses the GPU only when CUDA Toolkit 12.x is
-installed.
+The installer does not bundle cuBLAS: download it from the settings as above, or install CUDA
+Toolkit 12.x. **Device → CPU only** in the same settings keeps the model off the GPU (for example
+while a game needs it); the `NLLB_DEVICE` environment variable overrides it.
