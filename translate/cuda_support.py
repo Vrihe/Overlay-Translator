@@ -116,7 +116,6 @@ def prepare_cuda_libraries() -> Path | None:
 def cublas_missing_hint() -> str:
     """Explain where cuBLAS was searched for and how to install it."""
     searched = "\n".join(f"  • {path}" for path in candidate_dirs())
-    return (
-        f"{CUBLAS_DLL} not found (pip install nvidia-cublas-cu12, or install CUDA Toolkit 12.x)"
-        "\nSearched:\n" + (searched or "  (no candidate directories)")
+    return f"{CUBLAS_DLL} not found (pip install nvidia-cublas-cu12, or install CUDA Toolkit 12.x)\nSearched:\n" + (
+        searched or "  (no candidate directories)"
     )

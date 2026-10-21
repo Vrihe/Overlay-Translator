@@ -26,8 +26,7 @@ from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Same env var the app reads (translate/nllb_backend.py); override with --model
-DEFAULT_MODEL_DIR = Path(os.environ.get("NLLB_MODEL_DIR")
-                         or _PROJECT_ROOT / "models" / "nllb-200-ct2-int8")
+DEFAULT_MODEL_DIR = Path(os.environ.get("NLLB_MODEL_DIR") or _PROJECT_ROOT / "models" / "nllb-200-ct2-int8")
 
 # ISO 639-1 → FLORES-200 code used by NLLB.
 NLLB_LANG_CODES: dict[str, str] = {
@@ -77,8 +76,9 @@ def build_tokenizer(model_dir: Path):
     return spm.SentencePieceProcessor(model_file=str(sp_model))
 
 
-def translate(translator, sp, text: str, src_lang: str, tgt_lang: str,
-              *, beam_size: int = 4, max_decoding_length: int = 256) -> str:
+def translate(
+    translator, sp, text: str, src_lang: str, tgt_lang: str, *, beam_size: int = 4, max_decoding_length: int = 256
+) -> str:
     """Translate *text* from *src_lang* to *tgt_lang* (ISO 639-1 codes)."""
     src_code = NLLB_LANG_CODES[src_lang]
     tgt_code = NLLB_LANG_CODES[tgt_lang]
@@ -105,10 +105,13 @@ def translate(translator, sp, text: str, src_lang: str, tgt_lang: str,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", type=Path, default=DEFAULT_MODEL_DIR,
-                        help="path to the CTranslate2 model directory")
-    parser.add_argument("--threads", type=int, default=min(4, os.cpu_count() or 4),
-                        help="intra_threads for CTranslate2 (default: min(4, cpu_count))")
+    parser.add_argument("--model", type=Path, default=DEFAULT_MODEL_DIR, help="path to the CTranslate2 model directory")
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=min(4, os.cpu_count() or 4),
+        help="intra_threads for CTranslate2 (default: min(4, cpu_count))",
+    )
     parser.add_argument("--beam", type=int, default=4, help="beam size (default: 4)")
     args = parser.parse_args()
 

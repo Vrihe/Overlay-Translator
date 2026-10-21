@@ -41,8 +41,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = _PROJECT_ROOT / "data" / "processed"
 CHECKPOINTS = _PROJECT_ROOT / "checkpoints"
 # fp32 HF checkpoint; override with --model or the NLLB_BASE_MODEL_DIR env var
-DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR")
-                     or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
+DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR") or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
 LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "out_proj"]
 
 
@@ -56,8 +55,7 @@ def encode(rows: list[dict], tokenizer, max_len: int) -> list[dict]:
     for row in rows:
         tokenizer.tgt_lang = row["tgt_code"]
         enc = tokenizer(row["src"], text_target=row["tgt"], max_length=max_len, truncation=True)
-        out.append({"input_ids": enc["input_ids"], "attention_mask": enc["attention_mask"],
-                    "labels": enc["labels"]})
+        out.append({"input_ids": enc["input_ids"], "attention_mask": enc["attention_mask"], "labels": enc["labels"]})
     return out
 
 
@@ -70,8 +68,12 @@ def main() -> int:
     parser.add_argument("--epochs", type=float, default=3)
     parser.add_argument("--max-steps", type=int, default=-1, help="overrides --epochs when > 0 (trial runs)")
     parser.add_argument("--batch-size", type=int, default=4)
-    parser.add_argument("--eval-batch-size", type=int, default=None,
-                        help="default 2 x --batch-size; lower it when the long FLORES val sentences OOM")
+    parser.add_argument(
+        "--eval-batch-size",
+        type=int,
+        default=None,
+        help="default 2 x --batch-size; lower it when the long FLORES val sentences OOM",
+    )
     parser.add_argument("--grad-accum", type=int, default=4, help="effective batch = batch-size * grad-accum")
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--warmup-steps", type=int, default=30)
@@ -81,14 +83,26 @@ def main() -> int:
     parser.add_argument("--max-len", type=int, default=128)
     parser.add_argument("--logging-steps", type=int, default=10)
     parser.add_argument("--eval-steps", type=int, default=100)
-    parser.add_argument("--resume", type=Path, default=None,
-                        help="checkpoint-<step> directory of this run to continue from (same arguments)")
-    parser.add_argument("--group-by-length", action="store_true",
-                        help="batch pairs of similar length (less padding; short chat phrases dominate v2)")
-    parser.add_argument("--gpu-mem-fraction", type=float, default=0.9,
-                        help="hard cap on this process's share of GPU memory")
-    parser.add_argument("--gpu-duty", type=float, default=0.9,
-                        help="max share of wall-clock time the GPU computes; 1 disables throttling")
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help="checkpoint-<step> directory of this run to continue from (same arguments)",
+    )
+    parser.add_argument(
+        "--group-by-length",
+        action="store_true",
+        help="batch pairs of similar length (less padding; short chat phrases dominate v2)",
+    )
+    parser.add_argument(
+        "--gpu-mem-fraction", type=float, default=0.9, help="hard cap on this process's share of GPU memory"
+    )
+    parser.add_argument(
+        "--gpu-duty",
+        type=float,
+        default=0.9,
+        help="max share of wall-clock time the GPU computes; 1 disables throttling",
+    )
     args = parser.parse_args()
 
     # The 256k-token vocabulary makes the logits the largest tensor by far
@@ -96,8 +110,15 @@ def main() -> int:
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     import torch
     from peft import LoraConfig, TaskType, get_peft_model
-    from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq,
-                              Seq2SeqTrainer, Seq2SeqTrainingArguments, TrainerCallback, set_seed)
+    from transformers import (
+        AutoModelForSeq2SeqLM,
+        AutoTokenizer,
+        DataCollatorForSeq2Seq,
+        Seq2SeqTrainer,
+        Seq2SeqTrainingArguments,
+        TrainerCallback,
+        set_seed,
+    )
 
     if not torch.cuda.is_available():
         print("CUDA is not available; run with .venv-train (see requirements-train.txt)", file=sys.stderr)
@@ -112,9 +133,16 @@ def main() -> int:
     train_ds, val_ds = encode(train_rows, tokenizer, args.max_len), encode(val_rows, tokenizer, args.max_len)
 
     model = AutoModelForSeq2SeqLM.from_pretrained(args.model, dtype=torch.float32)
-    model = get_peft_model(model, LoraConfig(
-        task_type=TaskType.SEQ_2_SEQ_LM, r=args.lora_r, lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout, target_modules=LORA_TARGETS))
+    model = get_peft_model(
+        model,
+        LoraConfig(
+            task_type=TaskType.SEQ_2_SEQ_LM,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            target_modules=LORA_TARGETS,
+        ),
+    )
     trainable, total = model.get_nb_trainable_parameters()
     print(f"Trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)", flush=True)
 
@@ -132,11 +160,15 @@ def main() -> int:
 
         def on_log(self, args_, state, control, logs=None, **kwargs):
             elapsed = time.time() - self.started
-            record = {"step": state.global_step, "epoch": round(state.epoch or 0, 3), **(logs or {}),
-                      "vram_peak_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2),
-                      "vram_reserved_gb": round(torch.cuda.max_memory_reserved() / 2**30, 2),
-                      "elapsed_s": round(elapsed, 1),
-                      "steps_per_s": round((state.global_step - self.first_step) / elapsed, 2) if elapsed else None}
+            record = {
+                "step": state.global_step,
+                "epoch": round(state.epoch or 0, 3),
+                **(logs or {}),
+                "vram_peak_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2),
+                "vram_reserved_gb": round(torch.cuda.max_memory_reserved() / 2**30, 2),
+                "elapsed_s": round(elapsed, 1),
+                "steps_per_s": round((state.global_step - self.first_step) / elapsed, 2) if elapsed else None,
+            }
             with log_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record) + "\n")
 
@@ -205,15 +237,22 @@ def main() -> int:
     summary = {
         "args": {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         "lora_targets": LORA_TARGETS,
-        "train_pairs": len(train_ds), "val_pairs": len(val_ds),
-        "trainable_params": trainable, "total_params": total,
-        "steps": result.global_step, "train_loss": result.training_loss,
-        "eval_loss": final_eval["eval_loss"], "best_checkpoint": trainer.state.best_model_checkpoint,
-        "train_time_s": round(elapsed, 1), "steps_per_s": round((result.global_step - (int(args.resume.name.rsplit("-", 1)[1])
-                                                    if args.resume else 0)) / elapsed, 2),
+        "train_pairs": len(train_ds),
+        "val_pairs": len(val_ds),
+        "trainable_params": trainable,
+        "total_params": total,
+        "steps": result.global_step,
+        "train_loss": result.training_loss,
+        "eval_loss": final_eval["eval_loss"],
+        "best_checkpoint": trainer.state.best_model_checkpoint,
+        "train_time_s": round(elapsed, 1),
+        "steps_per_s": round(
+            (result.global_step - (int(args.resume.name.rsplit("-", 1)[1]) if args.resume else 0)) / elapsed, 2
+        ),
         "vram_peak_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2),
         "vram_reserved_gb": round(torch.cuda.max_memory_reserved() / 2**30, 2),
-        "gpu": torch.cuda.get_device_name(0), "torch": torch.__version__,
+        "gpu": torch.cuda.get_device_name(0),
+        "torch": torch.__version__,
     }
     (out_dir / "run_config.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2), flush=True)

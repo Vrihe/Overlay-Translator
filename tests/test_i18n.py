@@ -52,7 +52,6 @@ def _placeholders(text: str) -> set[str]:
 
 
 class TestCatalog(unittest.TestCase):
-
     def test_every_marked_string_has_an_english_entry(self):
         missing = {k: f for k, f in _marked_strings().items() if k not in MESSAGES}
         self.assertEqual(missing, {}, "add these to i18n/en.py")
@@ -69,15 +68,16 @@ class TestCatalog(unittest.TestCase):
         tree = ast.parse((ROOT / "i18n" / "en.py").read_text(encoding="utf-8"))
         keys = [
             k.value
-            for node in ast.walk(tree) if isinstance(node, ast.Dict)
-            for k in node.keys if isinstance(k, ast.Constant)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Dict)
+            for k in node.keys
+            if isinstance(k, ast.Constant)
         ]
         dupes = {k for k in keys if keys.count(k) > 1}
         self.assertEqual(dupes, set())
 
 
 class TestTr(unittest.TestCase):
-
     def tearDown(self):
         set_language(None)
 
@@ -109,7 +109,6 @@ class TestTr(unittest.TestCase):
 
 
 class TestResolveLanguage(unittest.TestCase):
-
     def test_explicit_values(self):
         self.assertEqual(resolve_language("ru"), "ru")
         self.assertEqual(resolve_language("en"), "en")

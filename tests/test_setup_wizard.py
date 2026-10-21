@@ -20,7 +20,12 @@ from settings import config_manager
 from translate.nllb_models import LocalModel, RemoteVersion
 from ui import setup_wizard
 from ui.setup_wizard import (
-    MODE_LLM, MODE_OFFLINE, MODE_ONLINE, SetupWizard, apply_choice, build_entries,
+    MODE_LLM,
+    MODE_OFFLINE,
+    MODE_ONLINE,
+    SetupWizard,
+    apply_choice,
+    build_entries,
     preferred_index,
 )
 
@@ -50,7 +55,6 @@ class _TempSettings(unittest.TestCase):
 
 
 class TestFirstRunPending(_TempSettings):
-
     def test_fresh_install_shows_the_wizard(self):
         self.assertTrue(config_manager.first_run_pending())
         self.assertFalse(self.file.exists())  # deciding writes nothing
@@ -75,7 +79,6 @@ class TestFirstRunPending(_TempSettings):
 
 
 class TestApplyChoice(_TempSettings):
-
     def test_each_mode_sets_its_backend(self):
         for mode, backend in ((MODE_ONLINE, "google"), (MODE_LLM, "api"), (MODE_OFFLINE, "nllb")):
             apply_choice(mode, "C:/models/nllb-v2-game" if mode == MODE_OFFLINE else "")
@@ -130,7 +133,6 @@ class _IdleVersionsWorker:
 
 
 class TestWizardFlow(_TempSettings):
-
     def setUp(self):
         super().setUp()
         for patcher in (
@@ -149,9 +151,9 @@ class TestWizardFlow(_TempSettings):
 
     def test_default_is_online_and_start_saves_it(self):
         with mock.patch.object(self.wizard, "accept") as accept:
-            self.wizard._on_next()   # mode → done
+            self.wizard._on_next()  # mode → done
             self.assertEqual(self.wizard._pages.currentIndex(), 2)
-            self.wizard._on_next()   # start
+            self.wizard._on_next()  # start
         accept.assert_called_once()
         self.assertEqual(self.saved()["translation_backend"], "google")
         self.assertTrue(self.saved()["first_run_done"])
@@ -182,8 +184,8 @@ class TestWizardFlow(_TempSettings):
             self.wizard._on_next()
             self.assertTrue(self.wizard._btn_next.isEnabled())
             with mock.patch.object(self.wizard, "accept"):
-                self.wizard._on_next()   # offline → done
-                self.wizard._on_next()   # start
+                self.wizard._on_next()  # offline → done
+                self.wizard._on_next()  # start
         saved = self.saved()
         self.assertEqual(saved["translation_backend"], "nllb")
         self.assertEqual(saved["nllb_model_path"], str(Path("C:/m/nllb-v2-game")))
@@ -194,7 +196,6 @@ class TestWizardFlow(_TempSettings):
 
 
 class TestClosingKeepsRunningWorkers(unittest.TestCase):
-
     def test_running_download_is_cancelled_and_parked(self):
         worker = mock.Mock(spec=QThread)
         worker.isRunning.return_value = True

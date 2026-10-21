@@ -6,16 +6,12 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import anthropic
-import openai
 
-import config
-import settings
 from i18n import set_language
 from translate import llm_client
 
 
 class TestLLMResilience(unittest.TestCase):
-
     def setUp(self):
         llm_client.reset_client()
         set_language("ru")  # error texts are asserted in Russian, whatever the user's setting
@@ -73,10 +69,13 @@ class TestLLMResilience(unittest.TestCase):
         mock_response = MagicMock(choices=[mock_choice])
         mock_openrouter_client.chat.completions.create.return_value = mock_response
 
-        with patch.dict(llm_client._clients_cache, {
-            "anthropic": mock_anthropic_client,
-            "openrouter": mock_openrouter_client,
-        }):
+        with patch.dict(
+            llm_client._clients_cache,
+            {
+                "anthropic": mock_anthropic_client,
+                "openrouter": mock_openrouter_client,
+            },
+        ):
             model_map = {"anthropic": "claude-haiku", "openrouter": "gpt-oss"}
             result, provider = llm_client._call_with_resilience("sys", "user", model_map)
 
@@ -99,10 +98,13 @@ class TestLLMResilience(unittest.TestCase):
         mock_ant_client = MagicMock()
         mock_ant_client.messages.create.side_effect = Exception("Anthropic down")
 
-        with patch.dict(llm_client._clients_cache, {
-            "openrouter": mock_or_client,
-            "anthropic": mock_ant_client,
-        }):
+        with patch.dict(
+            llm_client._clients_cache,
+            {
+                "openrouter": mock_or_client,
+                "anthropic": mock_ant_client,
+            },
+        ):
             model_map = {"openrouter": "m1", "anthropic": "m2"}
             with self.assertRaises(RuntimeError) as ctx:
                 llm_client._call_with_resilience("sys", "user", model_map)
@@ -117,13 +119,17 @@ class TestLLMResilience(unittest.TestCase):
         """get_provider_chain returns 2 providers when fallback enabled, 1 provider when disabled."""
         mock_get_key.side_effect = lambda provider: "key_val" if provider in ("openrouter", "anthropic") else None
 
-        with patch("translate.llm_client.settings.get_primary_provider", return_value="openrouter"), \
-             patch("translate.llm_client.settings.is_fallback_enabled", return_value=True):
+        with (
+            patch("translate.llm_client.settings.get_primary_provider", return_value="openrouter"),
+            patch("translate.llm_client.settings.is_fallback_enabled", return_value=True),
+        ):
             chain = llm_client.get_provider_chain()
             self.assertEqual(chain, ["openrouter", "anthropic"])
 
-        with patch("translate.llm_client.settings.get_primary_provider", return_value="openrouter"), \
-             patch("translate.llm_client.settings.is_fallback_enabled", return_value=False):
+        with (
+            patch("translate.llm_client.settings.get_primary_provider", return_value="openrouter"),
+            patch("translate.llm_client.settings.is_fallback_enabled", return_value=False),
+        ):
             chain = llm_client.get_provider_chain()
             self.assertEqual(chain, ["openrouter"])
 

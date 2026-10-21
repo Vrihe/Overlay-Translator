@@ -43,14 +43,19 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IN_JSONL = _PROJECT_ROOT / "data" / "interim" / "abbr_phrases.jsonl"
 OUT_JSONL = _PROJECT_ROOT / "data" / "interim" / "abbr_translations.jsonl"
 # fp32 HF checkpoint; override with --model or the NLLB_BASE_MODEL_DIR env var
-DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR")
-                     or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
+DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR") or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
 
 # Target languages of the fine-tune -> NLLB (FLORES-200) codes.
 LANGS = {
-    "de": "deu_Latn", "fr": "fra_Latn", "es": "spa_Latn",
-    "ru": "rus_Cyrl", "uk": "ukr_Cyrl", "be": "bel_Cyrl",
-    "pl": "pol_Latn", "cs": "ces_Latn", "hu": "hun_Latn",
+    "de": "deu_Latn",
+    "fr": "fra_Latn",
+    "es": "spa_Latn",
+    "ru": "rus_Cyrl",
+    "uk": "ukr_Cyrl",
+    "be": "bel_Cyrl",
+    "pl": "pol_Latn",
+    "cs": "ces_Latn",
+    "hu": "hun_Latn",
 }
 
 
@@ -90,8 +95,9 @@ def translate_batch(model, tokenizer, texts: list[str], lang: str, beams: int) -
 
     enc = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
     with torch.inference_mode():
-        gen = model.generate(**enc, forced_bos_token_id=tokenizer.convert_tokens_to_ids(LANGS[lang]),
-                             num_beams=beams, max_new_tokens=128)
+        gen = model.generate(
+            **enc, forced_bos_token_id=tokenizer.convert_tokens_to_ids(LANGS[lang]), num_beams=beams, max_new_tokens=128
+        )
     return tokenizer.batch_decode(gen, skip_special_tokens=True)
 
 
@@ -101,7 +107,7 @@ def repair_keep(model, tokenizer, out_path: Path, batch_size: int, beams: int) -
         todo = [r for r in rows if r["lang"] == lang and not r["keep_ok"]]
         fixed = 0
         for i in range(0, len(todo), batch_size):
-            batch = todo[i:i + batch_size]
+            batch = todo[i : i + batch_size]
             masked = [mask_terms(r["full"], r["keep_terms"]) for r in batch]
             outputs = translate_batch(model, tokenizer, [m[0] for m in masked], lang, beams)
             for row, (masked_text, restore), text in zip(batch, masked, outputs):
@@ -127,8 +133,11 @@ def main() -> int:
     parser.add_argument("--langs", nargs="+", default=list(LANGS), choices=list(LANGS))
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--beams", type=int, default=4)
-    parser.add_argument("--repair-keep", action="store_true",
-                        help="retranslate rows that lost a keep term, with the terms masked as [n]")
+    parser.add_argument(
+        "--repair-keep",
+        action="store_true",
+        help="retranslate rows that lost a keep term, with the terms masked as [n]",
+    )
     args = parser.parse_args()
 
     import torch
@@ -165,13 +174,18 @@ def main() -> int:
                 continue
             started, lost = time.time(), 0
             for i in range(0, len(todo), args.batch_size):
-                batch = todo[i:i + args.batch_size]
+                batch = todo[i : i + args.batch_size]
                 for src, text in zip(batch, translate_batch(model, tokenizer, batch, lang, args.beams)):
                     terms = explicit_terms.get(src) or find_keep_terms(src, keep_abbrs)
                     ok = keep_terms_ok(text, terms)
                     lost += not ok
-                    out.write(json.dumps({"full": src, "lang": lang, "text": text,
-                                          "keep_terms": terms, "keep_ok": ok}, ensure_ascii=False) + "\n")
+                    out.write(
+                        json.dumps(
+                            {"full": src, "lang": lang, "text": text, "keep_terms": terms, "keep_ok": ok},
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
                 out.flush()
                 print(f"[{lang}] {min(i + args.batch_size, len(todo))}/{len(todo)}", flush=True)
             print(f"[{lang}] done in {time.time() - started:.0f}s, keep terms lost in {lost} phrases", flush=True)

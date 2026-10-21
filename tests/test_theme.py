@@ -21,7 +21,7 @@ _APP = QGuiApplication.instance() or QGuiApplication(sys.argv[:1])
 
 def _luminance(hex_color: str) -> float:
     h = hex_color.lstrip("#")
-    channels = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    channels = [int(h[i : i + 2], 16) / 255 for i in (0, 2, 4)]
     lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
     return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
 
@@ -32,13 +32,29 @@ def _contrast(a: str, b: str) -> float:
 
 
 _BUILDERS = (
-    lambda: theme.label_css("title"), lambda: theme.label_css("muted"),
-    lambda: theme.label_css("error"), theme.btn_primary, theme.btn_secondary,
-    theme.btn_accent, theme.btn_danger, theme.btn_icon, theme.input_css, theme.result_css,
-    theme.combo_css, theme.check_css, lambda: theme.panel_css("x"), theme.group_css,
-    lambda: theme.chip_css("ok"), lambda: theme.chip_css("accent"), theme.scrollbar_css,
-    theme.table_css, theme.list_css, theme.menu_css, theme.tooltip_css,
-    theme.stock_dialog_css, theme.app_css,
+    lambda: theme.label_css("title"),
+    lambda: theme.label_css("muted"),
+    lambda: theme.label_css("error"),
+    theme.btn_primary,
+    theme.btn_secondary,
+    theme.btn_accent,
+    theme.btn_danger,
+    theme.btn_icon,
+    theme.input_css,
+    theme.result_css,
+    theme.combo_css,
+    theme.check_css,
+    lambda: theme.panel_css("x"),
+    theme.group_css,
+    lambda: theme.chip_css("ok"),
+    lambda: theme.chip_css("accent"),
+    theme.scrollbar_css,
+    theme.table_css,
+    theme.list_css,
+    theme.menu_css,
+    theme.tooltip_css,
+    theme.stock_dialog_css,
+    theme.app_css,
 )
 
 # A {name} left over from a forgotten f-string prefix.
@@ -46,7 +62,6 @@ _PLACEHOLDER = re.compile(r"\{[a-z_]+\}")
 
 
 class TestPalettes(unittest.TestCase):
-
     def test_three_palettes(self):
         self.assertEqual(set(theme.PALETTES), {"amber", "cyan", "crimson"})
 
@@ -65,10 +80,10 @@ class TestPalettes(unittest.TestCase):
 
     def test_current_reads_config_once(self):
         import config
+
         theme.reset()
         try:
-            with mock.patch.object(type(config), "UI_THEME", new_callable=mock.PropertyMock,
-                                   return_value="crimson"):
+            with mock.patch.object(type(config), "UI_THEME", new_callable=mock.PropertyMock, return_value="crimson"):
                 self.assertIs(theme.current(), theme.PALETTES["crimson"])
             # Cached for the run: a later settings change applies after a restart.
             self.assertIs(theme.current(), theme.PALETTES["crimson"])
@@ -77,10 +92,10 @@ class TestPalettes(unittest.TestCase):
 
     def test_current_unknown_config_value_is_amber(self):
         import config
+
         theme.reset()
         try:
-            with mock.patch.object(type(config), "UI_THEME", new_callable=mock.PropertyMock,
-                                   return_value="purple"):
+            with mock.patch.object(type(config), "UI_THEME", new_callable=mock.PropertyMock, return_value="purple"):
                 self.assertIs(theme.current(), theme.PALETTES["amber"])
         finally:
             theme.reset()
@@ -96,7 +111,6 @@ class TestPalettes(unittest.TestCase):
 
 
 class TestBuilders(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         patcher = mock.patch.object(theme, "_icon_cache_dir", return_value=Path(self._tmp.name))
@@ -133,9 +147,9 @@ class TestBuilders(unittest.TestCase):
 
 
 class TestIcons(unittest.TestCase):
-
     def test_every_icon_renders(self):
         from ui import icons
+
         for name in icons.NAMES:
             pix = icons.pixmap(name, "#ffb020", 18)
             self.assertFalse(pix.isNull(), name)

@@ -7,6 +7,7 @@ when visual text content updates. Performs an immediate translation on start.
 
 import logging
 import time
+
 from PIL import Image
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -49,7 +50,11 @@ class LiveMonitor(QThread):
     def run(self) -> None:
         logging.info(
             "LiveMonitor started for bbox (%d, %d, %d, %d) with interval=%.1fs",
-            self.x1, self.y1, self.x2, self.y2, self.interval_sec,
+            self.x1,
+            self.y1,
+            self.x2,
+            self.y2,
+            self.interval_sec,
         )
 
         # ── Step 1: Immediate initial translation ────────────────
@@ -82,7 +87,8 @@ class LiveMonitor(QThread):
                         if diff >= _DIFF_THRESHOLD:
                             logging.info(
                                 "LiveMonitor detected content change in region (diff=%.2f >= %.2f).",
-                                diff, _DIFF_THRESHOLD,
+                                diff,
+                                _DIFF_THRESHOLD,
                             )
                             self.region_changed.emit(self.x1, self.y1, self.x2, self.y2)
                             self._last_sig = cur_sig

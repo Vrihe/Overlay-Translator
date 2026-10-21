@@ -30,7 +30,6 @@ def _make_dll_dir(root: Path, *parts: str) -> Path:
 
 
 class TestFindCublasDir(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
@@ -83,8 +82,10 @@ class TestFindCublasDir(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "PATH preparation is Windows-only")
     def test_prepare_prepends_path_once(self):
         found = _make_dll_dir(self.root, "site-packages", "nvidia", "cublas", "bin")
-        with patch.object(cuda_support, "_registered", set()), \
-                patch.object(os, "add_dll_directory", lambda _p: None, create=True):
+        with (
+            patch.object(cuda_support, "_registered", set()),
+            patch.object(os, "add_dll_directory", lambda _p: None, create=True),
+        ):
             self.assertEqual(cuda_support.prepare_cuda_libraries(), found)
             cuda_support.prepare_cuda_libraries()
         self.assertEqual(os.environ["PATH"].split(os.pathsep).count(str(found)), 1)
@@ -118,7 +119,6 @@ class _FakeCTranslate2:
 
 
 class TestNllbDeviceFallback(unittest.TestCase):
-
     def _create(self, fake, device="auto", cublas_dir=Path("C:/cublas")):
         backend = NllbBackend(device=device)
         with patch("translate.cuda_support.prepare_cuda_libraries", return_value=cublas_dir):

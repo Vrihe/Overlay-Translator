@@ -14,12 +14,12 @@ Menu items:
 
 import logging
 
-from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QAction, QMenu, QSystemTrayIcon
 
-from tray.icon_gen import create_tray_icon
 import config
 from i18n import tr
+from tray.icon_gen import create_tray_icon
 from ui import theme
 
 # C2: Quick language switch — same list as settings_dialog to stay in sync.
@@ -161,6 +161,7 @@ class TrayIcon(QSystemTrayIcon):
 
         try:
             from settings.region_presets import load_presets
+
             presets = load_presets()
         except Exception:
             logger.debug("Failed to load presets for tray menu", exc_info=True)
@@ -176,8 +177,7 @@ class TrayIcon(QSystemTrayIcon):
             hk_label = f" ({hk.upper()})" if hk else ""
             act = QAction(f"▶ {name}{hk_label}  [{w}×{h}]")
             act.triggered.connect(
-                lambda checked, _x1=x1, _y1=y1, _x2=x2, _y2=y2:
-                    self.preset_quick_start.emit(_x1, _y1, _x2, _y2)
+                lambda checked, _x1=x1, _y1=y1, _x2=x2, _y2=y2: self.preset_quick_start.emit(_x1, _y1, _x2, _y2)
             )
             self._presets_menu.addAction(act)
             self._preset_quick_actions.append(act)

@@ -6,8 +6,8 @@ Creates a 64×64 icon: a flat square tile in the palette accent with an
 external asset files.
 """
 
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtGui import QPixmap, QPainter, QFont, QIcon, QPen
+from PyQt5.QtCore import QRect, Qt
+from PyQt5.QtGui import QFont, QIcon, QPainter, QPen, QPixmap
 
 from ui import theme
 

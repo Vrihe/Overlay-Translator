@@ -27,13 +27,14 @@ def _get_keyring():
         _keyring_loaded = True
         try:
             import keyring as _kr
+
             _keyring = _kr
         except ImportError:
             pass
     return _keyring
 
 
-from settings import config_manager            # noqa: F401
+from settings import config_manager  # noqa: F401
 
 # ── Keyring-based API key storage ────────────────────────
 

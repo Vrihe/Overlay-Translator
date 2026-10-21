@@ -10,12 +10,13 @@ Main window is shown on startup with sidebar navigation.
 System-tray icon runs in parallel for quick access.
 """
 
+import logging
 import os
 import sys
-import logging
 import threading
 
 # ── Early Logging Configuration ──────────────────────────
+
 
 def _init_logging() -> str:
     """Initialize logging to %APPDATA%/translator-overlay/app.log at DEBUG level before anything else."""
@@ -25,6 +26,7 @@ def _init_logging() -> str:
     log_file = os.path.join(log_dir, "app.log")
 
     from logging.handlers import RotatingFileHandler
+
     handler = RotatingFileHandler(log_file, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
     logging.basicConfig(
         level=logging.DEBUG,
@@ -41,14 +43,17 @@ def _init_logging() -> str:
     logging.info(f"Frozen executable: {getattr(sys, 'frozen', False)}")
     return log_file
 
+
 _log_file_path = _init_logging()
 
 # ── Global Exception Hooks ────────────────────────────────
+
 
 def _global_excepthook(exctype, value, tb):
     """Global hook to catch and log any unhandled exceptions in the main thread."""
     logging.critical("Uncaught exception in main thread:", exc_info=(exctype, value, tb))
     sys.__excepthook__(exctype, value, tb)
+
 
 def _thread_excepthook(args):
     """Global hook to catch and log any unhandled exceptions in worker threads."""
@@ -56,6 +61,7 @@ def _thread_excepthook(args):
         f"Uncaught exception in thread '{args.thread.name}':",
         exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
     )
+
 
 sys.excepthook = _global_excepthook
 if hasattr(threading, "excepthook"):
@@ -84,10 +90,11 @@ def _wait_for_previous_instance(timeout_ms: int = 15000) -> None:
         pid = int(sys.argv[i + 1])
     except (IndexError, ValueError):
         pid = 0
-    del sys.argv[i:i + 2]
+    del sys.argv[i : i + 2]
     if not pid or sys.platform != "win32":
         return
     import ctypes as _ctypes
+
     k32 = _ctypes.windll.kernel32
     handle = k32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
     if handle:
@@ -123,9 +130,9 @@ try:
 except Exception:
     logging.exception("onnxruntime failed to load; OCR will be unavailable")
 
-from PyQt5.QtWidgets import QApplication, QSplashScreen
-from PyQt5.QtCore import QObject, QRect, QTimer, pyqtSignal, QThread, Qt, QtMsgType, qInstallMessageHandler
 import keyboard
+from PyQt5.QtCore import QObject, QRect, Qt, QThread, QTimer, QtMsgType, pyqtSignal, qInstallMessageHandler
+from PyQt5.QtWidgets import QApplication, QSplashScreen
 
 
 def _qt_message_handler(mode, context, message):
@@ -147,17 +154,16 @@ def _qt_message_handler(mode, context, message):
 qInstallMessageHandler(_qt_message_handler)
 
 import config
-from i18n import tr
-from overlay.selector import RegionSelector
 from capture.screenshot import capture_region
+from i18n import tr
 from ocr.engine import recognise
-
-from ui.result_popup import ResultPopup
+from overlay.selector import RegionSelector
 from tray.tray_icon import TrayIcon
 from ui.main_window import MainWindow
-
+from ui.result_popup import ResultPopup
 
 # ── Hide console window on Windows ───────────────────────
+
 
 def _hide_console() -> None:
     """Hide the console window (only works when launched with python.exe)."""
@@ -171,7 +177,8 @@ def _hide_console() -> None:
 
 def _create_splash() -> QSplashScreen:
     """Create a branded splash screen shown during app initialization."""
-    from PyQt5.QtGui import QPixmap, QPainter, QPen
+    from PyQt5.QtGui import QPainter, QPen, QPixmap
+
     from ui import theme
 
     pix = QPixmap(440, 160)
@@ -196,17 +203,20 @@ def _create_splash() -> QSplashScreen:
 
 # ── Bridge: keyboard thread → Qt main thread ─────────────
 
+
 class HotkeyBridge(QObject):
     """Emits *triggered* from any thread; connected slot runs on the main thread."""
+
     triggered = pyqtSignal()
 
 
 # ── Worker: Capture → OCR → Translate on background thread ──
 
+
 class TranslationWorker(QThread):
     translation_done = pyqtSignal(str, str, str)  # (source_text, translated_text, error_message)
-    partial_result = pyqtSignal(str)              # A5: incremental translation chunk for streaming UI
-    ocr_done = pyqtSignal(str, QRect)             # D1: OCR finished, emits (recognized_text, anchor)
+    partial_result = pyqtSignal(str)  # A5: incremental translation chunk for streaming UI
+    ocr_done = pyqtSignal(str, QRect)  # D1: OCR finished, emits (recognized_text, anchor)
 
     def __init__(self, x1: int, y1: int, x2: int, y2: int, text_override: str | None = None, ocr_only: bool = False):
         super().__init__()
@@ -256,10 +266,15 @@ class TranslationWorker(QThread):
 
         # Step 3: Translation via the active backend (API or local NLLB).
         # Lazy import: openai/anthropic SDKs and ctranslate2 load here, not at startup.
-        from translate.backend import translate, detect_and_translate, take_notice
-        stream_cb = (lambda partial: self.partial_result.emit(partial)) if getattr(config, "ENABLE_STREAMING", True) else None
+        from translate.backend import detect_and_translate, take_notice, translate
+
+        stream_cb = (
+            (lambda partial: self.partial_result.emit(partial)) if getattr(config, "ENABLE_STREAMING", True) else None
+        )
         try:
-            logging.debug(f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}' (streaming={stream_cb is not None})...")
+            logging.debug(
+                f"Step 3: Translating text with domain profile '{config.ACTIVE_DOMAIN}' (streaming={stream_cb is not None})..."
+            )
             if getattr(config, "SOURCE_LANG", "auto") == "auto":
                 detected_lang, translated = detect_and_translate(
                     text,
@@ -274,7 +289,9 @@ class TranslationWorker(QThread):
                 )
         except Exception as e:
             logging.exception("Step 3 Failed: Translation error")
-            self.translation_done.emit(text, "", tr("Ошибка перевода:\n{error}\n\nРаспознанный текст:\n{text}", error=e, text=text))
+            self.translation_done.emit(
+                text, "", tr("Ошибка перевода:\n{error}\n\nРаспознанный текст:\n{text}", error=e, text=text)
+            )
             return
 
         self.backend_notice = take_notice()
@@ -282,6 +299,7 @@ class TranslationWorker(QThread):
 
 
 # ── Background OCR engine warm-up ───────────────────────
+
 
 class OcrWarmupWorker(QThread):
     """Pre-loads the RapidOCR engine and the langid model in a background thread.
@@ -295,6 +313,7 @@ class OcrWarmupWorker(QThread):
         try:
             logging.info("OcrWarmupWorker: pre-loading OCR engine...")
             from ocr.engine import warm_up
+
             warm_up()
             logging.info("OcrWarmupWorker: OCR engine ready.")
         except Exception:
@@ -303,9 +322,11 @@ class OcrWarmupWorker(QThread):
             # Unpickling the langid model holds the GIL for ~1 s and freezes the UI;
             # skip it unless the backend needs it (it still loads on first use).
             from translate.backend import uses_langid
+
             if not uses_langid():
                 return
             from translate.lang_detect import get_detector
+
             get_detector("langid").detect("warm up")
             logging.info("OcrWarmupWorker: langid model ready.")
         except Exception:
@@ -313,6 +334,7 @@ class OcrWarmupWorker(QThread):
 
 
 # ── Application ──────────────────────────────────────────
+
 
 class TranslatorApp:
     """Owns the QApplication, main window, tray icon, hotkey, selector, and result popups."""
@@ -339,9 +361,7 @@ class TranslatorApp:
             self._tray.act_settings.triggered.connect(
                 lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS)
             )
-            self._tray.act_history.triggered.connect(
-                lambda: self._main_window.show_and_switch(MainWindow.PAGE_HISTORY)
-            )
+            self._tray.act_history.triggered.connect(lambda: self._main_window.show_and_switch(MainWindow.PAGE_HISTORY))
             self._tray.act_exit.triggered.connect(self._quit)
             self._tray.act_presets.triggered.connect(self._show_presets_dialog)
             self._tray.preset_quick_start.connect(self._on_preset_translate)
@@ -360,9 +380,7 @@ class TranslatorApp:
         self._bridge.triggered.connect(self._show_selector)
 
         self._settings_bridge = HotkeyBridge()
-        self._settings_bridge.triggered.connect(
-            lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS)
-        )
+        self._settings_bridge.triggered.connect(lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS))
 
         # A repeated launch of the app signals this instance to show its window.
         self._activate_bridge = HotkeyBridge()
@@ -397,6 +415,7 @@ class TranslatorApp:
         """Pre-load recent translations into L1 in-memory cache."""
         try:
             from cache.store import warm_cache
+
             count = warm_cache(limit=50)
             logging.info(f"Cache warmed with {count} recent translations from history.")
         except Exception:
@@ -474,7 +493,9 @@ class TranslatorApp:
         except Exception:
             logging.exception("Error handling region selection in main app thread")
 
-    def _start_translation_pipeline(self, x1: int, y1: int, x2: int, y2: int, anchor: QRect, text_override: str | None = None) -> None:
+    def _start_translation_pipeline(
+        self, x1: int, y1: int, x2: int, y2: int, anchor: QRect, text_override: str | None = None
+    ) -> None:
         """Start background translation worker for (x1, y1, x2, y2) or with text_override."""
         # ── Step 0: Show loading popup immediately (only in popup mode) ──
         if config.NOTIFICATION_TYPE == "popup":
@@ -492,9 +513,7 @@ class TranslatorApp:
 
         # Start translation pipeline in background thread
         self._worker = TranslationWorker(x1, y1, x2, y2, text_override=text_override)
-        self._worker.translation_done.connect(
-            lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor)
-        )
+        self._worker.translation_done.connect(lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor))
         self._worker.partial_result.connect(
             lambda partial: self._on_partial_translation(partial),
             Qt.QueuedConnection,
@@ -504,6 +523,7 @@ class TranslatorApp:
     def _on_ocr_preview_requested(self, x1: int, y1: int, x2: int, y2: int, raw_text: str, anchor: QRect) -> None:
         """D1: Display OCR preview popup allowing user to edit text before translating."""
         from ui.ocr_preview_popup import OcrPreviewPopup
+
         self._close_popup()
         preview = OcrPreviewPopup(raw_text, anchor)
         preview.confirmed.connect(
@@ -524,6 +544,7 @@ class TranslatorApp:
     def _start_live_monitoring(self, x1: int, y1: int, x2: int, y2: int) -> None:
         """D2: Start live background monitor for specified screen region."""
         from capture.live_monitor import LiveMonitor
+
         if hasattr(self, "_live_monitor") and self._live_monitor is not None:
             self._live_monitor.stop()
 
@@ -569,6 +590,7 @@ class TranslatorApp:
 
         try:
             from settings.region_presets import load_presets
+
             presets = load_presets()
         except Exception:
             logging.exception("Failed to load presets for hotkey registration")
@@ -588,7 +610,9 @@ class TranslatorApp:
                 keyboard.add_hotkey(hk, bridge.triggered.emit)
                 self._preset_hotkeys.append(hk)
                 self._preset_bridges.append(bridge)
-                logging.info("Registered preset hotkey '%s' for '%s' (%d,%d)→(%d,%d)", hk, p.get("name"), x1, y1, x2, y2)
+                logging.info(
+                    "Registered preset hotkey '%s' for '%s' (%d,%d)→(%d,%d)", hk, p.get("name"), x1, y1, x2, y2
+                )
             except Exception:
                 logging.warning("Failed to register preset hotkey '%s'", hk, exc_info=True)
 
@@ -596,6 +620,7 @@ class TranslatorApp:
         """Open the region presets management dialog."""
         try:
             from ui.region_presets_dialog import RegionPresetsDialog
+
             dlg = RegionPresetsDialog()
             dlg.preset_translate.connect(self._on_preset_translate)
             dlg.preset_monitor.connect(self._on_preset_monitor)
@@ -613,9 +638,7 @@ class TranslatorApp:
         anchor = QRect(x1, y1, x2 - x1, y2 - y1)
         if getattr(config, "ENABLE_OCR_PREVIEW", False):
             self._worker = TranslationWorker(x1, y1, x2, y2, ocr_only=True)
-            self._worker.ocr_done.connect(
-                lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc)
-            )
+            self._worker.ocr_done.connect(lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc))
             self._worker.start()
         else:
             self._start_translation_pipeline(x1, y1, x2, y2, anchor=anchor)
@@ -647,7 +670,9 @@ class TranslatorApp:
         else:
             # Fallback: no dialog reference — open a fresh one
             from PyQt5.QtWidgets import QInputDialog
+
             from settings.region_presets import save_preset
+
             name, ok = QInputDialog.getText(
                 None,
                 tr("Имя пресета"),
@@ -693,7 +718,9 @@ class TranslatorApp:
                 logging.warning(f"Translation finished with error: {error_msg}")
                 self._show_error(error_msg, anchor)
             else:
-                logging.info(f"Translation finished successfully. Source length: {len(source)}, Translated length: {len(translated)}")
+                logging.info(
+                    f"Translation finished successfully. Source length: {len(source)}, Translated length: {len(translated)}"
+                )
                 notice = getattr(self._worker, "backend_notice", "") if self._worker is not None else ""
                 if notice:
                     logging.warning("Backend notice: %s", notice)
@@ -706,6 +733,7 @@ class TranslatorApp:
     def _show_result(self, source: str, translated: str, anchor: QRect, notice: str = "") -> None:
         try:
             from ui.result_popup import show_result
+
             self._popup = show_result(
                 source,
                 translated,
@@ -723,6 +751,7 @@ class TranslatorApp:
     def _show_error(self, message: str, anchor: QRect) -> None:
         try:
             from ui.result_popup import show_result
+
             self._popup = show_result(
                 "",
                 message,
@@ -768,6 +797,7 @@ class TranslatorApp:
     def _restart(self) -> None:
         """Start a fresh copy (it waits for this process to exit), then quit."""
         import subprocess
+
         args = [a for a in sys.argv[1:] if a != _WAIT_PID_FLAG]
         if getattr(sys, "frozen", False):
             cmd = [sys.executable, *args]
@@ -776,8 +806,9 @@ class TranslatorApp:
         cmd += [_WAIT_PID_FLAG, str(os.getpid())]
         try:
             flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-            subprocess.Popen(cmd, creationflags=flags, close_fds=True,
-                             cwd=os.path.dirname(os.path.abspath(sys.argv[0])))
+            subprocess.Popen(
+                cmd, creationflags=flags, close_fds=True, cwd=os.path.dirname(os.path.abspath(sys.argv[0]))
+            )
             logging.info("Restarting the application...")
         except Exception:
             logging.exception("Failed to start a new instance; not quitting")
@@ -802,6 +833,7 @@ class TranslatorApp:
             tray.hide()
             QApplication.processEvents()
             from PyQt5 import sip
+
             sip.delete(tray)
         except Exception:
             logging.exception("Failed to remove the tray icon")
@@ -836,13 +868,15 @@ def main() -> None:
         _set_app_user_model_id()
 
         app = QApplication(sys.argv)
+        from i18n import install_qt_translator
         from ui.theme import apply_app_theme
         from ui.wheel_guard import install_wheel_guard
-        from i18n import install_qt_translator
+
         apply_app_theme(app)
         # App-wide icon: windows shown before MainWindow (setup wizard, key dialog)
         # have no parent to inherit it from and would get the default Windows one.
         from tray.icon_gen import create_tray_icon
+
         app.setWindowIcon(create_tray_icon())
         install_wheel_guard(app)
         install_qt_translator(app)
@@ -855,20 +889,24 @@ def main() -> None:
 
         # ── First run: how to translate (online / API key / offline model) ─
         from settings.config_manager import first_run_pending
+
         if first_run_pending():
             logging.info("First launch: showing the setup wizard.")
             splash.close()  # hide splash before interactive dialog
             from ui.setup_wizard import SetupWizard
+
             if SetupWizard().exec_() != SetupWizard.Accepted:
                 logging.info("Setup wizard closed: keeping the defaults.")
                 config.FIRST_RUN_DONE = True
 
         # ── Ask for an LLM key only if the LLM backend has none ─
         from translate.backend import needs_llm_key
+
         if needs_llm_key():
             logging.info("LLM backend selected without an API key. Prompting first-run dialog.")
             splash.close()  # hide splash before interactive dialog
             from ui.first_run_dialog import FirstRunDialog
+
             dlg = FirstRunDialog()
             if dlg.exec_() != FirstRunDialog.Accepted:
                 logging.info("First-run dialog cancelled. Exiting.")

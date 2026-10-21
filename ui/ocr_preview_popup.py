@@ -2,12 +2,17 @@
 ui/ocr_preview_popup.py — Floating popup to preview and edit OCR text before translation.
 """
 
-from PyQt5.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTextEdit, QApplication,
-)
-from PyQt5.QtCore import Qt, pyqtSignal, QRect, QSize
+from PyQt5.QtCore import QRect, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QCursor
+from PyQt5.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from i18n import tr
 from ui import icons, theme
@@ -28,11 +33,7 @@ class OcrPreviewPopup(QWidget):
         self._raw_text = raw_text
         self._anchor = anchor
 
-        self.setWindowFlags(
-            Qt.FramelessWindowHint
-            | Qt.WindowStaysOnTopHint
-            | Qt.Tool
-        )
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_DeleteOnClose)
 

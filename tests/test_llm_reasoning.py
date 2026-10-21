@@ -25,7 +25,6 @@ def _reply(content=None, reasoning=None):
 
 
 class TestStripReasoning(unittest.TestCase):
-
     def test_removes_think_blocks(self):
         self.assertEqual(llm_client._strip_reasoning("<think>plan…</think>Привет"), "Привет")
         self.assertEqual(llm_client._strip_reasoning("<THINKING>x\ny</THINKING> Да"), " Да")
@@ -38,7 +37,6 @@ class TestStripReasoning(unittest.TestCase):
 
 
 class TestOpenRouterReasoning(unittest.TestCase):
-
     def setUp(self):
         set_language("ru")
         self.addCleanup(set_language, None)
@@ -48,20 +46,26 @@ class TestOpenRouterReasoning(unittest.TestCase):
         return llm_client._call_provider(self.client, "openrouter", "m", "sys", "user", on_chunk=on_chunk)
 
     def test_stream_shows_only_the_answer(self):
-        self.client.chat.completions.create.return_value = iter([
-            _chunk(reasoning="The user wants a translation. Let me think"),
-            _chunk(reasoning="… done."),
-            _chunk(content="Привет"),
-            _chunk(content=", мир"),
-        ])
+        self.client.chat.completions.create.return_value = iter(
+            [
+                _chunk(reasoning="The user wants a translation. Let me think"),
+                _chunk(reasoning="… done."),
+                _chunk(content="Привет"),
+                _chunk(content=", мир"),
+            ]
+        )
         shown = []
         self.assertEqual(self._call(on_chunk=shown.append), "Привет, мир")
         self.assertEqual(shown, ["Привет", "Привет, мир"])
 
     def test_stream_hides_inline_think_block(self):
-        self.client.chat.completions.create.return_value = iter([
-            _chunk(content="<think>translate"), _chunk(content=" it</think>"), _chunk(content="Да"),
-        ])
+        self.client.chat.completions.create.return_value = iter(
+            [
+                _chunk(content="<think>translate"),
+                _chunk(content=" it</think>"),
+                _chunk(content="Да"),
+            ]
+        )
         shown = []
         self.assertEqual(self._call(on_chunk=shown.append), "Да")
         self.assertEqual(shown, ["Да"])

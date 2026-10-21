@@ -60,24 +60,25 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def generate_icon(icon_path: Path) -> None:
     """Generate the app .ico with Pillow: the HUD tile (flat square, amber accent from
     ui/theme.py's default palette, dark "T"), matching tray/icon_gen.py."""
     try:
         from PIL import Image, ImageDraw, ImageFont
+
         icon_path.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGBA", (256, 256), color=(0, 0, 0, 0))
         d = ImageDraw.Draw(img)
-        d.rectangle([8, 8, 247, 247], fill=(0xff, 0xb0, 0x20))         # accent
+        d.rectangle([8, 8, 247, 247], fill=(0xFF, 0xB0, 0x20))  # accent
         try:
             font = ImageFont.truetype("bahnschrift.ttf", 170)
             font.set_variation_by_name("Bold")
         except Exception:
             font = ImageFont.load_default(size=170)
-        d.text((128, 132), "T", fill=(0x1a, 0x12, 0x00), anchor="mm", font=font)  # on_accent
+        d.text((128, 132), "T", fill=(0x1A, 0x12, 0x00), anchor="mm", font=font)  # on_accent
         img.save(
             icon_path,
             format="ICO",
@@ -106,8 +107,8 @@ def post_build_cleanup(dist_dir: Path) -> None:
     removed_bytes = 0
 
     patterns = [
-        "**/*.pyx",              # Cython sources
-        "**/test_*.py",          # test scripts shipped in packages
+        "**/*.pyx",  # Cython sources
+        "**/test_*.py",  # test scripts shipped in packages
         "**/tests/__init__.py",  # marks test packages (prunes discovery)
         # NOTE: **/*.pyi is intentionally excluded here.
         # In noarchive=True builds, PyInstaller creates internal .pyi stubs
@@ -147,18 +148,27 @@ def post_build_cleanup(dist_dir: Path) -> None:
             except Exception as e:
                 print(f"  Warning: Could not remove {target}: {e}")
 
-    print(f"✓ Post-build cleanup: removed {removed_count} items, "
-          f"freed ~{removed_bytes // 1024 // 1024} MB")
+    print(f"✓ Post-build cleanup: removed {removed_count} items, freed ~{removed_bytes // 1024 // 1024} MB")
 
 
 # ── Fingerprint / cache ───────────────────────────────────────────────────────
 
 # Packages whose version changes should trigger a full deps rebuild.
 _TRACKED_PACKAGES = [
-    'onnxruntime', 'onnxruntime-directml', 'rapidocr',
-    'numpy', 'opencv-python', 'opencv-python-headless',
-    'Pillow', 'pyclipper', 'shapely', 'PyYAML', 'omegaconf', 'langid',
-    'PyQt5', 'mss',
+    'onnxruntime',
+    'onnxruntime-directml',
+    'rapidocr',
+    'numpy',
+    'opencv-python',
+    'opencv-python-headless',
+    'Pillow',
+    'pyclipper',
+    'shapely',
+    'PyYAML',
+    'omegaconf',
+    'langid',
+    'PyQt5',
+    'mss',
 ]
 
 
@@ -216,6 +226,7 @@ def restore_deps_cache(root: Path, fingerprint: str) -> None:
 
 # ── PyInstaller runner ────────────────────────────────────────────────────────
 
+
 def run_pyinstaller(spec: str, *, clean: bool = False) -> None:
     """Run PyInstaller for the given spec, raising RuntimeError on failure."""
     cmd = [sys.executable, '-m', 'PyInstaller', spec, '--noconfirm']
@@ -229,6 +240,7 @@ def run_pyinstaller(spec: str, *, clean: bool = False) -> None:
 
 # ── Merge ─────────────────────────────────────────────────────────────────────
 
+
 def merge_deps_into_app(root: Path) -> None:
     """Copy deps layer files into the app dist directory.
 
@@ -241,7 +253,7 @@ def merge_deps_into_app(root: Path) -> None:
     as individual .pyc / .pyd files placed here by the deps layer.
     """
     deps_internal = root / 'dist' / 'TranslatorOverlay_deps' / '_internal'
-    app_internal  = root / 'dist' / 'TranslatorOverlay' / '_internal'
+    app_internal = root / 'dist' / 'TranslatorOverlay' / '_internal'
 
     if not deps_internal.exists():
         raise FileNotFoundError(f"Deps _internal not found at {deps_internal}")
@@ -249,7 +261,7 @@ def merge_deps_into_app(root: Path) -> None:
     added = 0
     for item in deps_internal.rglob('*'):
         if item.is_file():
-            rel    = item.relative_to(deps_internal)
+            rel = item.relative_to(deps_internal)
             target = app_internal / rel
             if not target.exists():
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -319,8 +331,11 @@ def find_iscc() -> Path | None:
     on_path = shutil.which('ISCC')
     if on_path:
         candidates.append(Path(on_path))
-    for base in (os.environ.get('ProgramFiles(x86)'), os.environ.get('ProgramFiles'),
-                 os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs')):
+    for base in (
+        os.environ.get('ProgramFiles(x86)'),
+        os.environ.get('ProgramFiles'),
+        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs'),
+    ):
         if base:
             candidates.append(Path(base) / 'Inno Setup 6' / 'ISCC.exe')
     return next((c for c in candidates if c.is_file()), None)
@@ -328,8 +343,9 @@ def find_iscc() -> Path | None:
 
 def app_version(root: Path) -> str:
     """APP_VERSION from config.py, read as text (importing config would load .env)."""
-    match = re.search(r'^\s*APP_VERSION\s*=\s*["\']([^"\']+)["\']',
-                      (root / 'config.py').read_text(encoding='utf-8'), re.MULTILINE)
+    match = re.search(
+        r'^\s*APP_VERSION\s*=\s*["\']([^"\']+)["\']', (root / 'config.py').read_text(encoding='utf-8'), re.MULTILINE
+    )
     if match is None:
         raise RuntimeError("APP_VERSION not found in config.py")
     return match.group(1)
@@ -361,7 +377,8 @@ def changelog_section(root: Path, version: str) -> str:
     text = (root / 'CHANGELOG.md').read_text(encoding='utf-8')
     match = re.search(
         rf'^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|^\[[^\]]+\]: |\Z)',
-        text, re.MULTILINE | re.DOTALL,
+        text,
+        re.MULTILINE | re.DOTALL,
     )
     return match.group(1).strip() if match else ''
 
@@ -409,6 +426,7 @@ def _arg_after(flag: str) -> str:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     root = Path(__file__).resolve().parent
 
@@ -439,11 +457,11 @@ def main() -> None:
         generate_icon(icon_path)
 
     # ── Flags ────────────────────────────────────────────────────────────────
-    force_full   = '--clean' in sys.argv or '--full' in sys.argv
-    cache_info   = '--cache-info' in sys.argv
+    force_full = '--clean' in sys.argv or '--full' in sys.argv
+    cache_info = '--cache-info' in sys.argv
 
-    fingerprint  = deps_fingerprint(root)
-    cache_dir    = get_cache_dir(root, fingerprint)
+    fingerprint = deps_fingerprint(root)
+    cache_dir = get_cache_dir(root, fingerprint)
     cache_exists = cache_dir.exists()
 
     if cache_info:
@@ -469,7 +487,9 @@ def main() -> None:
     print("=" * 60)
     print(f"  Deps fingerprint : {fingerprint}")
     print(f"  Cache exists     : {cache_exists}")
-    print(f"  Mode             : {'FULL (--clean)' if force_full else 'FULL (first run)' if not cache_exists else 'FAST (cache hit)'}")
+    print(
+        f"  Mode             : {'FULL (--clean)' if force_full else 'FULL (first run)' if not cache_exists else 'FAST (cache hit)'}"
+    )
     print()
 
     try:
@@ -505,13 +525,13 @@ def main() -> None:
 
     # ── Post-build ────────────────────────────────────────────────────────────
     dist_dir = root / 'dist' / 'TranslatorOverlay'
-    out_exe  = dist_dir / 'TranslatorOverlay.exe'
+    out_exe = dist_dir / 'TranslatorOverlay.exe'
 
     if not out_exe.exists():
         print("\n[ERROR] Build failed — TranslatorOverlay.exe not found.")
         sys.exit(1)
 
-    print(f"\n[OK] Build successful!")
+    print("\n[OK] Build successful!")
     print(f"  Output : {dist_dir}")
     print(f"  EXE    : {out_exe}")
     print("\n  Running post-build cleanup…")

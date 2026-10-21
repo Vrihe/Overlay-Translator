@@ -27,6 +27,7 @@ from typing import Any
 
 # ── Resolve the directory where settings.json lives ──────
 
+
 def _get_user_data_dir() -> Path:
     if os.name == "nt":
         appdata = os.environ.get("APPDATA")
@@ -38,6 +39,7 @@ def _get_user_data_dir() -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
 
+
 _USER_DATA_DIR = _get_user_data_dir()
 _CONFIG_FILE = _USER_DATA_DIR / "settings.json"
 
@@ -45,7 +47,7 @@ _CONFIG_FILE = _USER_DATA_DIR / "settings.json"
 if getattr(sys, "frozen", False):
     _APP_DIR = Path(sys.executable).resolve().parent
 else:
-    _APP_DIR = Path(__file__).resolve().parent.parent   # project root
+    _APP_DIR = Path(__file__).resolve().parent.parent  # project root
 
 _OLD_CONFIG_FILE = _APP_DIR / "settings.json"
 if not _CONFIG_FILE.exists() and _OLD_CONFIG_FILE.exists():
@@ -59,27 +61,27 @@ if not _CONFIG_FILE.exists() and _OLD_CONFIG_FILE.exists():
 DEFAULTS: dict[str, Any] = {
     "source_language": "auto",
     "target_language": "ru",
-    "translation_engine": "llm_text",     # "llm_text" | "llm_vision" | "api"
-    "translation_backend": "google",      # "google" (keyless by default) | "api" | "deepl" | "azure" | "nllb"
-    "nllb_model_path": "",                # optional explicit path to the CTranslate2 NLLB dir
-    "ocr_gpu_mode": "auto",               # "auto" | "cpu" — OCR on the GPU via DirectML ("gpu" = "auto")
-    "azure_region": "global",             # Azure Translator region (default "global")
+    "translation_engine": "llm_text",  # "llm_text" | "llm_vision" | "api"
+    "translation_backend": "google",  # "google" (keyless by default) | "api" | "deepl" | "azure" | "nllb"
+    "nllb_model_path": "",  # optional explicit path to the CTranslate2 NLLB dir
+    "ocr_gpu_mode": "auto",  # "auto" | "cpu" — OCR on the GPU via DirectML ("gpu" = "auto")
+    "azure_region": "global",  # Azure Translator region (default "global")
     "llm_model": "poolside/laguna-s-2.1:free",
-    "primary_provider": "openrouter",      # "openrouter" | "anthropic"
-    "enable_fallback": True,               # True | False
-    "enable_streaming": True,              # True | False (A5: live token streaming in UI)
-    "enable_ocr_preview": False,           # True | False (D1: preview/edit OCR before translation)
-    "compact_prompt": True,                # True | False (concise system prompt for ~40% faster TTFT)
-    "llm_max_tokens": 350,                 # int: max completion tokens (50 - 2000)
+    "primary_provider": "openrouter",  # "openrouter" | "anthropic"
+    "enable_fallback": True,  # True | False
+    "enable_streaming": True,  # True | False (A5: live token streaming in UI)
+    "enable_ocr_preview": False,  # True | False (D1: preview/edit OCR before translation)
+    "compact_prompt": True,  # True | False (concise system prompt for ~40% faster TTFT)
+    "llm_max_tokens": 350,  # int: max completion tokens (50 - 2000)
     "hotkey": "ctrl+shift+r",
     "popup_timeout_sec": 10,
-    "popup_size": None,                    # [w, h] set by dragging the popup edges; None = fit text
-    "notification_type": "popup",          # "popup" | "windows_toast"
+    "popup_size": None,  # [w, h] set by dragging the popup edges; None = fit text
+    "notification_type": "popup",  # "popup" | "windows_toast"
     "ocr_languages": ["en", "ru"],
     "active_domain": "general",
-    "ui_language": "auto",                 # "auto" | "ru" | "en" (applied after a restart)
-    "ui_theme": "amber",                   # "amber" | "cyan" | "crimson" (applied after a restart)
-    "first_run_done": False,               # True once the first-run wizard was finished or skipped
+    "ui_language": "auto",  # "auto" | "ru" | "en" (applied after a restart)
+    "ui_theme": "amber",  # "amber" | "cyan" | "crimson" (applied after a restart)
+    "first_run_done": False,  # True once the first-run wizard was finished or skipped
 }
 
 # ── In-memory cache ──────────────────────────────────────
@@ -97,6 +99,7 @@ def _ensure_loaded() -> dict[str, Any]:
 
 # ── Public API ───────────────────────────────────────────
 
+
 def load_config() -> dict[str, Any]:
     """Read ``settings.json`` and return a merged dict (defaults + saved).
 
@@ -108,7 +111,7 @@ def load_config() -> dict[str, Any]:
 
     if _CONFIG_FILE.exists():
         try:
-            with open(_CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(_CONFIG_FILE, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
                 cfg.update(data)
@@ -158,7 +161,7 @@ def first_run_pending() -> bool:
         return False
     if _CONFIG_FILE.exists():
         try:
-            with open(_CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(_CONFIG_FILE, encoding="utf-8") as f:
                 saved = json.load(f)
         except (json.JSONDecodeError, OSError):
             saved = {}

@@ -41,18 +41,25 @@ GLOSSARY_PATH = Path(__file__).resolve().parent / "glossary" / "game_en.json"
 _STRIP = ",.!?;:\"'()"
 # Prices like "500g", "2kk", "10k": only suffixes with a single reading in chat
 # ("2m" may be minutes, "10s" seconds).
-_NUMBER_SUFFIXES = {"g": "gold", "gp": "gold", "k": "thousand", "kk": "million",
-                    "mil": "million", "mill": "million", "cr": "credits"}
+_NUMBER_SUFFIXES = {
+    "g": "gold",
+    "gp": "gold",
+    "k": "thousand",
+    "kk": "million",
+    "mil": "million",
+    "mill": "million",
+    "cr": "credits",
+}
 _NUMBER_RE = re.compile(r"(\d+(?:[.,]\d+)?)([a-z]+)")
 _LF_N_MORE_RE = re.compile(r"lf(\d+)m")  # lf1m, lf2m, lf3m ... = looking for N more
 
 
 @dataclass
 class Prepared:
-    text: str                                   # what the model translates (terms masked as [n])
-    unmasked: str                               # same, with protected terms left as they are
+    text: str  # what the model translates (terms masked as [n])
+    unmasked: str  # same, with protected terms left as they are
     restore: dict[str, str] = field(default_factory=dict)  # "[n]" -> original spelling
-    expanded: list[str] = field(default_factory=list)      # terms replaced by their meaning
+    expanded: list[str] = field(default_factory=list)  # terms replaced by their meaning
 
     @property
     def changed(self) -> bool:
@@ -103,7 +110,7 @@ def prepare(text: str, terms: dict[str, str | None] | None = None) -> Prepared:
             unmasked.append(token)
             continue
         start = token.find(core)
-        head, tail = token[:start], token[start + len(core):]
+        head, tail = token[:start], token[start + len(core) :]
         if meaning is None:
             placeholder = f"[{len(restore) + 1}]"
             restore[placeholder] = core

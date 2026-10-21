@@ -167,8 +167,7 @@ def pixmap(name: str, color: QColor | str, size: int = 18) -> QPixmap:
     return pix
 
 
-def icon(name: str, color: QColor | str, size: int = 18, *,
-         active_color: QColor | str | None = None) -> QIcon:
+def icon(name: str, color: QColor | str, size: int = 18, *, active_color: QColor | str | None = None) -> QIcon:
     """QIcon with the icon in ``color`` (and ``active_color`` for the checked / on state)."""
     ic = QIcon()
     ic.addPixmap(pixmap(name, color, size), QIcon.Normal, QIcon.Off)

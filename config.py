@@ -12,6 +12,7 @@ or from the OS keyring via the ``settings`` package.
 import os
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # When frozen by PyInstaller, sys.executable is the .exe path.
@@ -27,9 +28,11 @@ load_dotenv(_PROJECT_DIR / '.env')
 # Imported lazily on first access so that this module can be
 # imported before the settings package is fully initialised.
 
+
 def _cfg(key: str):
     """Helper: read a value from the JSON config manager."""
     from settings.config_manager import get
+
     return get(key)
 
 
@@ -71,6 +74,7 @@ class _LiveConfig:
     @TARGET_LANG.setter
     def TARGET_LANG(self, value):
         from settings.config_manager import set_value
+
         set_value("target_language", value)
 
     @property
@@ -80,6 +84,7 @@ class _LiveConfig:
     @TRANSLATION_ENGINE.setter
     def TRANSLATION_ENGINE(self, value):
         from settings.config_manager import set_value
+
         set_value("translation_engine", value)
 
     @property
@@ -90,6 +95,7 @@ class _LiveConfig:
     @TRANSLATION_BACKEND.setter
     def TRANSLATION_BACKEND(self, value):
         from settings.config_manager import set_value
+
         set_value("translation_backend", value)
 
     @property
@@ -100,6 +106,7 @@ class _LiveConfig:
     @NLLB_MODEL_PATH.setter
     def NLLB_MODEL_PATH(self, value):
         from settings.config_manager import set_value
+
         set_value("nllb_model_path", value)
 
     @property
@@ -110,6 +117,7 @@ class _LiveConfig:
     @OCR_GPU_MODE.setter
     def OCR_GPU_MODE(self, value):
         from settings.config_manager import set_value
+
         set_value("ocr_gpu_mode", value)
 
     @property
@@ -119,6 +127,7 @@ class _LiveConfig:
     @LLM_MODEL.setter
     def LLM_MODEL(self, value):
         from settings.config_manager import set_value
+
         set_value("llm_model", value)
 
     @property
@@ -128,6 +137,7 @@ class _LiveConfig:
     @POPUP_TIMEOUT_SEC.setter
     def POPUP_TIMEOUT_SEC(self, value):
         from settings.config_manager import set_value
+
         set_value("popup_timeout_sec", value)
 
     @property
@@ -137,6 +147,7 @@ class _LiveConfig:
     @SOURCE_LANG.setter
     def SOURCE_LANG(self, value):
         from settings.config_manager import set_value
+
         set_value("source_language", value)
 
     @property
@@ -146,6 +157,7 @@ class _LiveConfig:
     @NOTIFICATION_TYPE.setter
     def NOTIFICATION_TYPE(self, value):
         from settings.config_manager import set_value
+
         set_value("notification_type", value)
 
     @property
@@ -155,6 +167,7 @@ class _LiveConfig:
     @OCR_LANGUAGES.setter
     def OCR_LANGUAGES(self, value):
         from settings.config_manager import set_value
+
         set_value("ocr_languages", value)
 
     @property
@@ -164,6 +177,7 @@ class _LiveConfig:
     @ACTIVE_DOMAIN.setter
     def ACTIVE_DOMAIN(self, value):
         from settings.config_manager import set_value
+
         set_value("active_domain", value)
 
     @property
@@ -173,6 +187,7 @@ class _LiveConfig:
     @FIRST_RUN_DONE.setter
     def FIRST_RUN_DONE(self, value):
         from settings.config_manager import set_value
+
         set_value("first_run_done", bool(value))
 
     @property
@@ -182,6 +197,7 @@ class _LiveConfig:
     @ENABLE_STREAMING.setter
     def ENABLE_STREAMING(self, value):
         from settings.config_manager import set_value
+
         set_value("enable_streaming", value)
 
     @property
@@ -191,6 +207,7 @@ class _LiveConfig:
     @COMPACT_PROMPT.setter
     def COMPACT_PROMPT(self, value):
         from settings.config_manager import set_value
+
         set_value("compact_prompt", value)
 
     @property
@@ -200,6 +217,7 @@ class _LiveConfig:
     @LLM_MAX_TOKENS.setter
     def LLM_MAX_TOKENS(self, value):
         from settings.config_manager import set_value
+
         set_value("llm_max_tokens", value)
 
     @property
@@ -209,6 +227,7 @@ class _LiveConfig:
     @POPUP_SIZE.setter
     def POPUP_SIZE(self, value):
         from settings.config_manager import set_value
+
         set_value("popup_size", value)
 
     @property
@@ -218,6 +237,7 @@ class _LiveConfig:
     @UI_THEME.setter
     def UI_THEME(self, value):
         from settings.config_manager import set_value
+
         set_value("ui_theme", value)
 
     # ── Static (from .env / hardcoded) ───────────────────
@@ -236,8 +256,7 @@ class _LiveConfig:
     # a tag can be moved to other weights later, a commit cannot. To move everyone
     # to a new build, tag it in the HF repo and put that tag's commit SHA here.
     NLLB_HF_REPO_ID = os.environ.get("NLLB_HF_REPO_ID", "Alhite/overlay-translator-nllb-int8")
-    NLLB_HF_REVISION = os.environ.get(
-        "NLLB_HF_REVISION", "0e37166ae8c6ceb2a8f2560fc41b780e5bd41f3d")  # tag v0-base
+    NLLB_HF_REVISION = os.environ.get("NLLB_HF_REVISION", "0e37166ae8c6ceb2a8f2560fc41b780e5bd41f3d")  # tag v0-base
     # Expand English game-chat terms before local translation (translate/chat_glossary.py).
     NLLB_GLOSSARY = os.environ.get("NLLB_GLOSSARY", "1").lower() not in ("0", "false", "no")
 

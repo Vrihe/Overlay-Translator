@@ -53,17 +53,19 @@ def _validate_name(name: str) -> str:
     if not name:
         raise ValueError(tr("Имя пресета не может быть пустым."))
     if len(name) > MAX_NAME_LENGTH:
-        raise ValueError(tr(
-            "Имя пресета не может быть длиннее {limit} символов (сейчас {length}).",
-            limit=MAX_NAME_LENGTH, length=len(name),
-        ))
+        raise ValueError(
+            tr(
+                "Имя пресета не может быть длиннее {limit} символов (сейчас {length}).",
+                limit=MAX_NAME_LENGTH,
+                length=len(name),
+            )
+        )
     return name
 
 
 def _validate_coordinates(x1: int, y1: int, x2: int, y2: int) -> None:
     """Ensure coordinates form a valid rectangle (x1 < x2, y1 < y2)."""
-    if not isinstance(x1, int) or not isinstance(y1, int) \
-       or not isinstance(x2, int) or not isinstance(y2, int):
+    if not isinstance(x1, int) or not isinstance(y1, int) or not isinstance(x2, int) or not isinstance(y2, int):
         raise ValueError(tr("Координаты должны быть целыми числами."))
     if x1 >= x2:
         raise ValueError(tr("Некорректные координаты: x1 ({x1}) должен быть меньше x2 ({x2}).", x1=x1, x2=x2))
@@ -93,6 +95,7 @@ def validate_hotkey(hotkey: str | None, current_preset_id: str | None = None) ->
     # Verify syntax with keyboard module
     try:
         import keyboard
+
         keyboard.parse_hotkey(hk)
     except Exception as exc:
         raise ValueError(tr("Некорректная комбинация клавиш: '{hotkey}'. ({error})", hotkey=hotkey, error=exc))
@@ -100,18 +103,25 @@ def validate_hotkey(hotkey: str | None, current_preset_id: str | None = None) ->
     # Check collision with main application hotkeys
     try:
         import config
+
         app_hotkey = getattr(config, "HOTKEY", "") or ""
         app_settings = getattr(config, "SETTINGS_HOTKEY", "") or ""
         if hk == app_hotkey.strip().lower():
-            raise ValueError(tr(
-                "Комбинация '{hotkey}' уже занята для основного перевода ({app_hotkey}).",
-                hotkey=hotkey, app_hotkey=app_hotkey,
-            ))
+            raise ValueError(
+                tr(
+                    "Комбинация '{hotkey}' уже занята для основного перевода ({app_hotkey}).",
+                    hotkey=hotkey,
+                    app_hotkey=app_hotkey,
+                )
+            )
         if hk == app_settings.strip().lower():
-            raise ValueError(tr(
-                "Комбинация '{hotkey}' уже занята для окна настроек ({app_hotkey}).",
-                hotkey=hotkey, app_hotkey=app_settings,
-            ))
+            raise ValueError(
+                tr(
+                    "Комбинация '{hotkey}' уже занята для окна настроек ({app_hotkey}).",
+                    hotkey=hotkey,
+                    app_hotkey=app_settings,
+                )
+            )
     except Exception as exc:
         if isinstance(exc, ValueError):
             raise
@@ -123,10 +133,13 @@ def validate_hotkey(hotkey: str | None, current_preset_id: str | None = None) ->
             continue
         p_hk = (p.get("hotkey") or "").strip().lower()
         if p_hk and p_hk == hk:
-            raise ValueError(tr(
-                "Комбинация '{hotkey}' уже назначена для пресета «{name}».",
-                hotkey=hotkey, name=p.get("name", "???"),
-            ))
+            raise ValueError(
+                tr(
+                    "Комбинация '{hotkey}' уже назначена для пресета «{name}».",
+                    hotkey=hotkey,
+                    name=p.get("name", "???"),
+                )
+            )
 
     return hk
 
@@ -139,7 +152,7 @@ def _read_file() -> list[dict[str, Any]]:
     if not _PRESETS_FILE.exists():
         return []
     try:
-        with open(_PRESETS_FILE, "r", encoding="utf-8") as f:
+        with open(_PRESETS_FILE, encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, list):
             # Ensure "hotkey" key exists in all loaded dicts
@@ -204,10 +217,12 @@ def save_preset(
 
     presets = _read_file()
     if len(presets) >= MAX_PRESETS:
-        raise ValueError(tr(
-            "Достигнут лимит пресетов ({limit}). Удалите ненужные пресеты перед добавлением новых.",
-            limit=MAX_PRESETS,
-        ))
+        raise ValueError(
+            tr(
+                "Достигнут лимит пресетов ({limit}). Удалите ненужные пресеты перед добавлением новых.",
+                limit=MAX_PRESETS,
+            )
+        )
 
     preset: dict[str, Any] = {
         "id": str(uuid.uuid4()),
@@ -223,7 +238,13 @@ def save_preset(
     _write_file(presets)
     logger.info(
         "Saved region preset '%s' (%d,%d)→(%d,%d), hotkey=%s, id=%s",
-        name, x1, y1, x2, y2, valid_hotkey, preset["id"],
+        name,
+        x1,
+        y1,
+        x2,
+        y2,
+        valid_hotkey,
+        preset["id"],
     )
     return preset
 

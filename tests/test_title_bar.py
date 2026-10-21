@@ -26,10 +26,8 @@ def _native_event(message: int, l_param: int):
 
 
 class TestCaptionActivation(unittest.TestCase):
-
     def test_caption_click_activates_the_window(self):
-        result, user32 = _native_event(title_bar._WM_MOUSEACTIVATE,
-                                       (0x0201 << 16) | title_bar._HTCAPTION)
+        result, user32 = _native_event(title_bar._WM_MOUSEACTIVATE, (0x0201 << 16) | title_bar._HTCAPTION)
         self.assertEqual(result, (True, title_bar._MA_ACTIVATE))
         user32.SetForegroundWindow.assert_called_once_with(0x1234)
 

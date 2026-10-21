@@ -8,18 +8,29 @@ Tabs:
   3. История    — embedded HistoryWidget
 """
 
-from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextEdit, QFileDialog, QStackedWidget,
-    QFrame, QComboBox, QBoxLayout, QScrollArea, QSizePolicy,
-)
-from PyQt5.QtCore import Qt, QThread, QEvent, pyqtSignal
-from PyQt5.QtGui import QFont
-
 import logging
 import os
 import webbrowser
 from datetime import datetime
+
+from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QBoxLayout,
+    QComboBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 import config
 from i18n import tr
@@ -27,16 +38,18 @@ from tray.icon_gen import create_tray_icon
 from ui import icons, theme, title_bar
 from ui.hud_widgets import Chip, FieldLabel, NavButton, Panel, page_title
 
-
 # ── Background worker for update checking ────────────────
+
 
 class _UpdateCheckWorker(QThread):
     """Worker to check for app updates in background."""
+
     update_done = pyqtSignal(bool, str, str)  # (has_update, version, url)
 
     def run(self):
         try:
             from updater.check_update import check_for_update
+
             has_update, version, url = check_for_update()
             self.update_done.emit(has_update, version, url)
         except Exception:
@@ -45,8 +58,10 @@ class _UpdateCheckWorker(QThread):
 
 # ── Background worker for text / image translation ───────
 
+
 class _TextTranslateWorker(QThread):
     """Translate plain text on a background thread."""
+
     text_done = pyqtSignal(str, str)  # (translated_text, error_message)
 
     def __init__(self, text: str):
@@ -57,6 +72,7 @@ class _TextTranslateWorker(QThread):
         logging.debug("TextTranslateWorker %#x: run() started", id(self))
         try:
             from translate.backend import translate
+
             result = translate(self._text, domain_id=config.ACTIVE_DOMAIN)
             self.text_done.emit(result, "")
         except Exception as e:
@@ -67,6 +83,7 @@ class _TextTranslateWorker(QThread):
 
 class _ImageTranslateWorker(QThread):
     """OCR + translate an image file on a background thread."""
+
     image_done = pyqtSignal(str, str, str)  # (source_text, translated_text, error)
 
     def __init__(self, filepath: str):
@@ -76,6 +93,7 @@ class _ImageTranslateWorker(QThread):
     def run(self):
         try:
             from PIL import Image
+
             img = Image.open(self._path)
         except Exception as e:
             self.image_done.emit("", "", tr("Ошибка загрузки изображения:\n{error}", error=e))
@@ -83,6 +101,7 @@ class _ImageTranslateWorker(QThread):
 
         try:
             from ocr.engine import recognise
+
             text = recognise(img)
         except Exception as e:
             self.image_done.emit("", "", tr("Ошибка OCR:\n{error}", error=e))
@@ -94,6 +113,7 @@ class _ImageTranslateWorker(QThread):
 
         try:
             from translate.backend import translate
+
             translated = translate(text, domain_id=config.ACTIVE_DOMAIN)
         except Exception as e:
             self.image_done.emit(text, "", tr("Ошибка перевода:\n{error}", error=e))
@@ -201,6 +221,7 @@ class _DropZone(QFrame):
 
 # ── Home page ────────────────────────────────────────────
 
+
 class _HomePage(QWidget):
     """Home tab: status chips + text translation + screenshot translation + recent."""
 
@@ -247,6 +268,7 @@ class _HomePage(QWidget):
         self._domain_combo.setMinimumWidth(150)
         self._domain_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         from translate.domain_manager import list_available_domains
+
         for d in list_available_domains():
             self._domain_combo.addItem(f"{d['display_name']} ({d['id']})", d["id"])
 
@@ -336,8 +358,7 @@ class _HomePage(QWidget):
         self.refresh_status()
 
     def resizeEvent(self, event):
-        direction = (QBoxLayout.TopToBottom if event.size().width() < self._STACK_BELOW
-                     else QBoxLayout.LeftToRight)
+        direction = QBoxLayout.TopToBottom if event.size().width() < self._STACK_BELOW else QBoxLayout.LeftToRight
         if self._columns.direction() != direction:
             self._columns.setDirection(direction)
         super().resizeEvent(event)
@@ -374,6 +395,7 @@ class _HomePage(QWidget):
 
         try:
             import cache.store as store
+
             records = store.get_all_history(limit=self._RECENT_LIMIT)
         except Exception:
             logging.exception("Failed to read recent history")
@@ -397,10 +419,7 @@ class _HomePage(QWidget):
 
             ts = rec.get("timestamp", 0)
             when = datetime.fromtimestamp(ts).strftime("%H:%M") if ts else "—"
-            meta = QLabel(
-                f"{rec.get('source_lang', '').upper()} → {rec.get('target_lang', '').upper()}"
-                f"  ·  {when}"
-            )
+            meta = QLabel(f"{rec.get('source_lang', '').upper()} → {rec.get('target_lang', '').upper()}  ·  {when}")
             meta.setFont(theme.body_font(7.5, spacing=110))
             meta.setStyleSheet(f"color: {p.muted}; background: transparent;")
             rl.addWidget(meta)
@@ -513,6 +532,7 @@ class _HomePage(QWidget):
 
 # ── Main Window ──────────────────────────────────────────
 
+
 class MainWindow(QMainWindow):
     """Main application window with a navigation rail."""
 
@@ -581,6 +601,7 @@ class MainWindow(QMainWindow):
             if hasattr(self, "_tray_icon") and self._tray_icon and hasattr(self._tray_icon, "showMessage"):
                 try:
                     from PyQt5.QtWidgets import QSystemTrayIcon
+
                     self._tray_icon.showMessage(
                         tr("Доступно обновление"),
                         tr(
@@ -618,9 +639,7 @@ class MainWindow(QMainWindow):
         rail = QFrame()
         rail.setObjectName("navRail")
         rail.setFixedWidth(self._RAIL_WIDTH)
-        rail.setStyleSheet(
-            f"#navRail {{ background: {p.rail}; border: none; border-right: 1px solid {p.line}; }}"
-        )
+        rail.setStyleSheet(f"#navRail {{ background: {p.rail}; border: none; border-right: 1px solid {p.line}; }}")
 
         sb_layout = QVBoxLayout(rail)
         sb_layout.setContentsMargins(0, 16, 0, 16)
@@ -666,8 +685,7 @@ class MainWindow(QMainWindow):
         self._update_banner = QFrame()
         self._update_banner.setObjectName("updateBanner")
         self._update_banner.setStyleSheet(
-            f"#updateBanner {{ background: {p.panel}; border: none;"
-            f" border-bottom: 1px solid {p.accent}; }}"
+            f"#updateBanner {{ background: {p.panel}; border: none; border-bottom: 1px solid {p.accent}; }}"
         )
         ub_layout = QHBoxLayout(self._update_banner)
         ub_layout.setContentsMargins(20, 8, 20, 8)
@@ -736,9 +754,7 @@ class MainWindow(QMainWindow):
         p = theme.current()
         maximized = self.isMaximized()
         self._frame_layout.setContentsMargins(*(0 if maximized else 1,) * 4)
-        self.centralWidget().setStyleSheet(
-            f"#windowFrame {{ background: {p.line if not maximized else p.bg}; }}"
-        )
+        self.centralWidget().setStyleSheet(f"#windowFrame {{ background: {p.line if not maximized else p.bg}; }}")
         if self._title_bar is not None:
             self._title_bar.sync_state()
 
@@ -779,6 +795,7 @@ class MainWindow(QMainWindow):
         """Lazy-init the settings page with SettingsWidget (it scrolls its own sections)."""
         try:
             from ui.settings_dialog import SettingsWidget
+
             settings_widget = SettingsWidget()
         except Exception:
             logging.exception("Failed to initialize settings page")
@@ -813,6 +830,7 @@ class MainWindow(QMainWindow):
         """Lazy-init the history page with HistoryWidget (it has its own title row)."""
         try:
             from history.history_window import HistoryWidget
+
             history_widget = HistoryWidget()
         except Exception:
             logging.exception("Failed to initialize history page")
@@ -840,18 +858,14 @@ class MainWindow(QMainWindow):
             self.hide()
         else:
             self.show()
-            self.setWindowState(
-                self.windowState() & ~Qt.WindowMinimized | Qt.WindowActive
-            )
+            self.setWindowState(self.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
             self.raise_()
             self.activateWindow()
 
     def show_window(self):
         """Show, restore and focus the window (e.g. on a repeated app launch)."""
         self.show()
-        self.setWindowState(
-            self.windowState() & ~Qt.WindowMinimized | Qt.WindowActive
-        )
+        self.setWindowState(self.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
         self.raise_()
         self.activateWindow()
 

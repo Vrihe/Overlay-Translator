@@ -16,8 +16,17 @@ import logging
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QPen
 from PyQt5.QtWidgets import (
-    QButtonGroup, QComboBox, QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton,
-    QRadioButton, QStackedWidget, QVBoxLayout, QWidget,
+    QButtonGroup,
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 import config
@@ -71,6 +80,7 @@ def build_entries(local: list, remote: list | None) -> list[tuple[str, tuple]]:
     on disk yet (``("remote", RemoteVersion)``).
     """
     from translate.nllb_models import match_local
+
     entries = []
     for model in local:
         name = model.tag or model.path.name
@@ -166,18 +176,30 @@ class SetupWizard(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
         p = theme.current()
-        layout.addWidget(self._text(tr("Как переводить текст с экрана? Это можно поменять "
-                                       "в любой момент в настройках.")))
+        layout.addWidget(
+            self._text(tr("Как переводить текст с экрана? Это можно поменять в любой момент в настройках."))
+        )
 
         self._mode_group = QButtonGroup(self)
         choices = [
-            (MODE_ONLINE, tr("Онлайн, без ключа — Google Translate"),
-             tr("Работает сразу. Распознанный текст отправляется в Google.")),
-            (MODE_LLM, tr("Нейросеть со своим API-ключом"),
-             tr("OpenRouter или Anthropic: лучше понимает сленг и контекст игр. Ключ OpenRouter "
-                "можно получить бесплатно. DeepL и Azure подключаются в настройках.")),
-            (MODE_OFFLINE, tr("Офлайн — локальная модель NLLB"),
-             tr("Текст не покидает компьютер. Нужно один раз скачать модель (~600 МБ).")),
+            (
+                MODE_ONLINE,
+                tr("Онлайн, без ключа — Google Translate"),
+                tr("Работает сразу. Распознанный текст отправляется в Google."),
+            ),
+            (
+                MODE_LLM,
+                tr("Нейросеть со своим API-ключом"),
+                tr(
+                    "OpenRouter или Anthropic: лучше понимает сленг и контекст игр. Ключ OpenRouter "
+                    "можно получить бесплатно. DeepL и Azure подключаются в настройках."
+                ),
+            ),
+            (
+                MODE_OFFLINE,
+                tr("Офлайн — локальная модель NLLB"),
+                tr("Текст не покидает компьютер. Нужно один раз скачать модель (~600 МБ)."),
+            ),
         ]
         for i, (mode, caption, hint) in enumerate(choices):
             radio = QRadioButton(caption)
@@ -197,8 +219,9 @@ class SetupWizard(QDialog):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
-        layout.addWidget(self._text(tr("Выберите версию модели. Её нужно скачать один раз, "
-                                       "дальше перевод работает без интернета.")))
+        layout.addWidget(
+            self._text(tr("Выберите версию модели. Её нужно скачать один раз, дальше перевод работает без интернета."))
+        )
 
         layout.addWidget(FieldLabel(tr("Версия модели")))
         row = QHBoxLayout()
@@ -239,12 +262,13 @@ class SetupWizard(QDialog):
         hotkey = str(getattr(config, "HOTKEY", "ctrl+shift+r")).upper()
         settings_hotkey = str(getattr(config, "SETTINGS_HOTKEY", "ctrl+shift+o")).upper()
         layout.addWidget(self._text(tr("Всё готово. Как пользоваться:"), p.text, 10))
-        layout.addWidget(self._text(
-            tr("1. Нажмите {hotkey} и выделите область экрана с текстом.", hotkey=hotkey)))
+        layout.addWidget(self._text(tr("1. Нажмите {hotkey} и выделите область экрана с текстом.", hotkey=hotkey)))
         layout.addWidget(self._text(tr("2. Перевод появится рядом с выделенной областью.")))
-        layout.addWidget(self._text(
-            tr("3. Настройки — {hotkey} или значок приложения в трее рядом с часами.",
-               hotkey=settings_hotkey)))
+        layout.addWidget(
+            self._text(
+                tr("3. Настройки — {hotkey} или значок приложения в трее рядом с часами.", hotkey=settings_hotkey)
+            )
+        )
         layout.addStretch()
         return page
 
@@ -290,13 +314,15 @@ class SetupWizard(QDialog):
 
     def _load_offline_entries(self, select_path: str = "") -> None:
         from translate.nllb_models import list_local_models
+
         entries = build_entries(list_local_models(), self._remote_versions)
         self._version_combo.blockSignals(True)
         self._version_combo.clear()
         for label, data in entries:
             self._version_combo.addItem(label, data)
-        index = next((i for i, (_l, (kind, value)) in enumerate(entries)
-                      if kind == "local" and value == select_path), -1)
+        index = next(
+            (i for i, (_l, (kind, value)) in enumerate(entries) if kind == "local" and value == select_path), -1
+        )
         if index < 0:
             index = preferred_index(entries, getattr(config, "NLLB_HF_REVISION", ""))
         self._version_combo.setCurrentIndex(index)
@@ -312,8 +338,7 @@ class SetupWizard(QDialog):
     def _on_versions_fetched(self, versions, error: str) -> None:
         self._versions_worker = None
         if versions is None:
-            self._set_offline_status(
-                tr("⚠ Не удалось получить список версий: {error}", error=error), "warn")
+            self._set_offline_status(tr("⚠ Не удалось получить список версий: {error}", error=error), "warn")
             if self._version_combo.count() == 0:
                 self._btn_download.setText(tr("Повторить"))
             return
@@ -357,15 +382,17 @@ class SetupWizard(QDialog):
         self._set_offline_status(tr("⏳ Скачивание {tag}…", tag=value.tag))
         self._download_worker = NllbDownloadWorker(value, self)
         self._download_worker.progress_changed.connect(
-            lambda pct, done, total: self._on_download_progress(value.tag, pct, done, total))
+            lambda pct, done, total: self._on_download_progress(value.tag, pct, done, total)
+        )
         self._download_worker.finished_with_status.connect(self._on_download_done)
         self._download_worker.start()
         self._update_offline_state()
 
     def _on_download_progress(self, tag: str, pct: int, done: int, total: int) -> None:
         self._progress.setValue(pct)
-        self._set_offline_status(tr("⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)",
-                                    tag=tag, done=done, total=total, pct=pct))
+        self._set_offline_status(
+            tr("⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)", tag=tag, done=done, total=total, pct=pct)
+        )
 
     def _on_download_done(self, ok: bool, result: str) -> None:
         self._download_worker = None

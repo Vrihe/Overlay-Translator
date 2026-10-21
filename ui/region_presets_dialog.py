@@ -9,21 +9,32 @@ Provides a QDialog listing saved region presets with controls to:
 """
 
 import logging
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QListWidget, QListWidgetItem,
-    QInputDialog, QMessageBox, QKeySequenceEdit,
-)
+
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QKeySequence
+from PyQt5.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QInputDialog,
+    QKeySequenceEdit,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from i18n import tr
-from ui import theme
-
 from settings.region_presets import (
-    load_presets, save_preset, delete_preset, rename_preset,
-    update_preset_hotkey, validate_hotkey,
+    delete_preset,
+    load_presets,
+    rename_preset,
+    save_preset,
+    update_preset_hotkey,
+    validate_hotkey,
 )
+from ui import theme
 
 logger = logging.getLogger("translator")
 
@@ -158,10 +169,12 @@ class RegionPresetsDialog(QDialog):
         lbl_title.setStyleSheet(f"color: {p.text}; background: transparent;")
         layout.addWidget(lbl_title)
 
-        lbl_hint = QLabel(tr(
-            "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода "
-            "или запустите опциональный автомониторинг."
-        ))
+        lbl_hint = QLabel(
+            tr(
+                "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода "
+                "или запустите опциональный автомониторинг."
+            )
+        )
         lbl_hint.setWordWrap(True)
         lbl_hint.setStyleSheet(theme.label_css("muted"))
         layout.addWidget(lbl_hint)
@@ -379,6 +392,8 @@ class RegionPresetsDialog(QDialog):
             return
         x1, y1 = preset.get("x1", 0), preset.get("y1", 0)
         x2, y2 = preset.get("x2", 0), preset.get("y2", 0)
-        logger.info("Starting optional live monitoring for preset '%s' (%d,%d)→(%d,%d)", preset.get("name"), x1, y1, x2, y2)
+        logger.info(
+            "Starting optional live monitoring for preset '%s' (%d,%d)→(%d,%d)", preset.get("name"), x1, y1, x2, y2
+        )
         self.preset_monitor.emit(x1, y1, x2, y2)
         self.accept()

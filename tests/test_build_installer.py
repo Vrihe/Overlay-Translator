@@ -21,7 +21,6 @@ ISS = (ROOT / "installer" / "TranslatorOverlay.iss").read_text(encoding="utf-8")
 
 
 class TestFindIscc(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
@@ -30,8 +29,10 @@ class TestFindIscc(unittest.TestCase):
         # Case-insensitive: Windows env names are, and CI runners spell them in capitals.
         hidden = {"ISCC", "PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"}
         env = {k: v for k, v in os.environ.items() if k.upper() not in hidden}
-        for patcher in (mock.patch.dict(os.environ, env, clear=True),
-                        mock.patch.object(shutil, "which", return_value=None)):
+        for patcher in (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch.object(shutil, "which", return_value=None),
+        ):
             patcher.start()
             self.addCleanup(patcher.stop)
 
@@ -61,14 +62,16 @@ class TestFindIscc(unittest.TestCase):
 
 
 class TestBuildInstaller(unittest.TestCase):
-
     def test_app_version_matches_config(self):
         import config
+
         self.assertEqual(build.app_version(ROOT), config.APP_VERSION)
 
     def test_passes_version_and_script(self):
-        with mock.patch.object(build, "find_iscc", return_value=Path("C:/Inno/ISCC.exe")), \
-                mock.patch.object(build.subprocess, "run") as run:
+        with (
+            mock.patch.object(build, "find_iscc", return_value=Path("C:/Inno/ISCC.exe")),
+            mock.patch.object(build.subprocess, "run") as run,
+        ):
             run.return_value.returncode = 0
             setup = build.build_installer(ROOT)
         cmd = run.call_args.args[0]
@@ -83,8 +86,10 @@ class TestBuildInstaller(unittest.TestCase):
                 build.build_installer(ROOT)
 
     def test_compiler_failure_is_an_error(self):
-        with mock.patch.object(build, "find_iscc", return_value=Path("C:/Inno/ISCC.exe")), \
-                mock.patch.object(build.subprocess, "run") as run:
+        with (
+            mock.patch.object(build, "find_iscc", return_value=Path("C:/Inno/ISCC.exe")),
+            mock.patch.object(build.subprocess, "run") as run,
+        ):
             run.return_value.returncode = 2
             with self.assertRaises(RuntimeError):
                 build.build_installer(ROOT)
@@ -113,7 +118,6 @@ _CHANGELOG = """# Changelog
 
 
 class TestReleaseHelpers(unittest.TestCase):
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
@@ -122,8 +126,7 @@ class TestReleaseHelpers(unittest.TestCase):
         self._version("1.2.0")
 
     def _version(self, version: str) -> None:
-        (self.root / "config.py").write_text(f'class C:\n    APP_VERSION = "{version}"\n',
-                                             encoding="utf-8")
+        (self.root / "config.py").write_text(f'class C:\n    APP_VERSION = "{version}"\n', encoding="utf-8")
 
     def test_section_stops_at_the_next_version(self):
         self.assertEqual(build.changelog_section(self.root, "1.2.0"), "### Fixed\n- A bug.")
@@ -170,8 +173,7 @@ class TestRepositoryReleaseState(unittest.TestCase):
         self.assertEqual(build.check_release_tag(ROOT, f"v{version}"), version)
 
     def test_changelog_has_an_unreleased_section(self):
-        self.assertRegex((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
-                         r"(?m)^## \[Unreleased\]$")
+        self.assertRegex((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), r"(?m)^## \[Unreleased\]$")
 
     def test_workflow_uses_existing_build_flags(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
@@ -189,8 +191,9 @@ class TestIssScript(unittest.TestCase):
         self.assertIn(f"AppMutex=Local\\{single_instance.DEFAULT_NAME}.Mutex", ISS)
 
     def test_app_user_model_id_matches_main(self):
-        aumid = re.search(r'SetCurrentProcessExplicitAppUserModelID\("([^"]+)"\)',
-                          (ROOT / "main.py").read_text(encoding="utf-8")).group(1)
+        aumid = re.search(
+            r'SetCurrentProcessExplicitAppUserModelID\("([^"]+)"\)', (ROOT / "main.py").read_text(encoding="utf-8")
+        ).group(1)
         self.assertEqual(re.findall(r'AppUserModelID: "([^"]+)"', ISS), [aumid, aumid])
 
     def test_output_name_matches_build_py(self):

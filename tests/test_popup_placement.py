@@ -21,7 +21,6 @@ def _place(anchor, avoid=()):
 
 
 class TestPlacement(unittest.TestCase):
-
     def test_under_the_anchor_by_default(self):
         anchor = QRect(700, 100, 600, 100)
         self.assertEqual(_place(anchor), QPoint(800, 100 + 100 - 1 + M))

@@ -13,8 +13,15 @@ import html
 from PyQt5.QtCore import QRectF, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPen
 from PyQt5.QtWidgets import (
-    QAbstractButton, QButtonGroup, QFrame, QHBoxLayout, QLabel,
-    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QAbstractButton,
+    QButtonGroup,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 from ui import icons, theme
@@ -101,8 +108,7 @@ class Panel(QFrame):
         if title:
             self.title_label = QLabel(title.upper())
             self.title_label.setFont(theme.display_font(10.5))
-            self.title_label.setStyleSheet(
-                f"color: {theme.current().text}; background: transparent;")
+            self.title_label.setStyleSheet(f"color: {theme.current().text}; background: transparent;")
             self.header.addWidget(self.title_label)
             self.header.addStretch()
             self.body.addLayout(self.header)

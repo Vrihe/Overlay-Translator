@@ -66,10 +66,11 @@ def translate_ct2(model_dir: Path, rows: list[dict], batch_size: int) -> list[st
     out = [""] * len(rows)
     for code, idx in by_lang(rows).items():
         for i in range(0, len(idx), batch_size):
-            chunk = idx[i:i + batch_size]
+            chunk = idx[i : i + batch_size]
             sources = [["eng_Latn", *sp.encode(rows[j]["src"], out_type=str), "</s>"] for j in chunk]
-            results = translator.translate_batch(sources, target_prefix=[[code]] * len(chunk),
-                                                 beam_size=BEAMS, max_decoding_length=MAX_NEW_TOKENS)
+            results = translator.translate_batch(
+                sources, target_prefix=[[code]] * len(chunk), beam_size=BEAMS, max_decoding_length=MAX_NEW_TOKENS
+            )
             for j, res in zip(chunk, results):
                 tokens = [t for t in res.hypotheses[0][1:] if t not in ("</s>", "<pad>", "<s>")]
                 out[j] = sp.decode(tokens)
@@ -85,16 +86,22 @@ def translate_hf(model_dir: Path, adapter: Path | None, rows: list[dict], batch_
     model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, dtype=torch.float32)
     if adapter is not None:
         from peft import PeftModel
+
         model = PeftModel.from_pretrained(model, adapter)
     model = model.to(device).eval()
     out = [""] * len(rows)
     for code, idx in by_lang(rows).items():
         for i in range(0, len(idx), batch_size):
-            chunk = idx[i:i + batch_size]
+            chunk = idx[i : i + batch_size]
             enc = tokenizer([rows[j]["src"] for j in chunk], return_tensors="pt", padding=True).to(device)
             with torch.inference_mode():
-                gen = model.generate(**enc, forced_bos_token_id=tokenizer.convert_tokens_to_ids(code),
-                                     num_beams=BEAMS, do_sample=False, max_new_tokens=MAX_NEW_TOKENS)
+                gen = model.generate(
+                    **enc,
+                    forced_bos_token_id=tokenizer.convert_tokens_to_ids(code),
+                    num_beams=BEAMS,
+                    do_sample=False,
+                    max_new_tokens=MAX_NEW_TOKENS,
+                )
             for j, text in zip(chunk, tokenizer.batch_decode(gen, skip_special_tokens=True)):
                 out[j] = text
     return out
@@ -121,16 +128,15 @@ def score(rows: list[dict], hyps: list[str], keep_terms: set[str]) -> dict:
     kinds = {k: [i for i, r in enumerate(rows) if r["kind"] == k] for k in ("abbr", "general")}
     keep_idx = [i for i in kinds["abbr"] if row_keep_terms(rows[i])]
     modes = [m for m in ("keep", "translate", "plain") if any(rows[i]["mode"] == m for i in kinds["abbr"])]
-    result = {"chrf": {k: round(corpus(v), 2) for k, v in kinds.items() if v},
-              "chrf_by_mode": {m: round(corpus([i for i in kinds["abbr"] if rows[i]["mode"] == m]), 2)
-                               for m in modes},
-              "keep_rate": round(100 * sum(keep_ok(hyps[i], row_keep_terms(rows[i]))
-                                           for i in keep_idx) / len(keep_idx), 1),
-              "chrf_by_lang": {}}
+    result = {
+        "chrf": {k: round(corpus(v), 2) for k, v in kinds.items() if v},
+        "chrf_by_mode": {m: round(corpus([i for i in kinds["abbr"] if rows[i]["mode"] == m]), 2) for m in modes},
+        "keep_rate": round(100 * sum(keep_ok(hyps[i], row_keep_terms(rows[i])) for i in keep_idx) / len(keep_idx), 1),
+        "chrf_by_lang": {},
+    }
     for kind, idx in kinds.items():
         langs = sorted({rows[i]["lang"] for i in idx})
-        result["chrf_by_lang"][kind] = {l: round(corpus([i for i in idx if rows[i]["lang"] == l]), 2)
-                                        for l in langs}
+        result["chrf_by_lang"][kind] = {l: round(corpus([i for i in idx if rows[i]["lang"] == l]), 2) for l in langs}
     return result
 
 
@@ -165,12 +171,14 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=EVAL_DIR, help="where hypotheses and summary.json go")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--gpu-mem-fraction", type=float, default=0.8,
-                        help="hard cap on this process's share of GPU memory")
+    parser.add_argument(
+        "--gpu-mem-fraction", type=float, default=0.8, help="hard cap on this process's share of GPU memory"
+    )
     parser.add_argument("--reuse", action="store_true", help="reuse saved hypotheses in checkpoints/eval/")
     args = parser.parse_args()
 
     import torch
+
     if torch.cuda.is_available():
         torch.cuda.set_per_process_memory_fraction(args.gpu_mem_fraction)
     torch.manual_seed(args.seed)
@@ -209,17 +217,19 @@ def main() -> int:
         print(f"[{name}] translated {len(rows)} pairs in {timing[name]}s", flush=True)
 
     names = list(hyps)
-    summary = {"test": str(args.test), "pairs": len(rows), "seed": args.seed,
-               "beams": BEAMS, "systems": {}}
+    summary = {"test": str(args.test), "pairs": len(rows), "seed": args.seed, "beams": BEAMS, "systems": {}}
     for name in names:
-        summary["systems"][name] = {"spec": next(s for s in args.systems if s.startswith(name + "=")),
-                                    **score(rows, hyps[name], keep_terms)}
+        summary["systems"][name] = {
+            "spec": next(s for s in args.systems if s.startswith(name + "=")),
+            **score(rows, hyps[name], keep_terms),
+        }
     ref = names[0]
     for name in names[1:]:
         summary["systems"][name]["delta_vs_" + ref] = {
             kind: bootstrap_delta(rows, hyps[ref], hyps[name], idx)
             for kind in ("abbr", "general")
-            if (idx := [i for i, r in enumerate(rows) if r["kind"] == kind])}
+            if (idx := [i for i, r in enumerate(rows) if r["kind"] == kind])
+        }
     (eval_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0

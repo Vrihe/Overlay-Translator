@@ -17,6 +17,7 @@ class NllbPreloadWorker(QThread):
 
     def run(self) -> None:
         from translate.backend import BACKEND_NLLB, preload
+
         ok, message = preload(BACKEND_NLLB)
         self.finished_with_status.emit(ok, message)
 
@@ -28,6 +29,7 @@ class NllbVersionsWorker(QThread):
 
     def run(self) -> None:
         from translate.nllb_models import list_remote_versions
+
         try:
             self.finished_with_versions.emit(list_remote_versions(), "")
         except Exception as e:
@@ -54,6 +56,7 @@ class NllbDownloadWorker(QThread):
 
     def run(self) -> None:
         from translate.nllb_models import DownloadCancelled, download_version
+
         try:
             path = download_version(self.version, progress=self._on_progress, cancel=self.cancel)
             self.finished_with_status.emit(True, str(path))

@@ -69,9 +69,14 @@ def main() -> int:
     duplicates = len(rows) - len(unique)
 
     ranked = sorted(
-        ({"abbreviation": r["Abbreviation"].strip(),
-          "expansion": r["Expansion"].strip(),
-          "zipf": abbreviation_frequency(r["Abbreviation"].strip())} for r in unique),
+        (
+            {
+                "abbreviation": r["Abbreviation"].strip(),
+                "expansion": r["Expansion"].strip(),
+                "zipf": abbreviation_frequency(r["Abbreviation"].strip()),
+            }
+            for r in unique
+        ),
         key=lambda r: (-r["zipf"], r["abbreviation"].lower()),
     )
 
@@ -88,7 +93,7 @@ def main() -> int:
     print(f"Remaining:             {len(ranked)}  (zipf > 0: {sum(r['zipf'] > 0 for r in ranked)})")
     print(f"Saved to {OUT_CSV.relative_to(_PROJECT_ROOT)}\n")
 
-    for i, r in enumerate(ranked[:args.top], 1):
+    for i, r in enumerate(ranked[: args.top], 1):
         print(f"{i:3}. {r['abbreviation']:<10} {r['zipf']:.2f}  {r['expansion']}")
     return 0
 

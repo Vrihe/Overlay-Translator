@@ -17,11 +17,9 @@ _APP = QApplication.instance() or QApplication(sys.argv[:1])
 
 
 class TestSettingsAutosave(unittest.TestCase):
-
     def setUp(self):
         self.disk = dict(config_manager.DEFAULTS)
-        self.disk.update(ui_theme="amber", ui_language="ru", target_language="ru",
-                         translation_backend="api")
+        self.disk.update(ui_theme="amber", ui_language="ru", target_language="ru", translation_backend="api")
         self.writes = []
 
         def fake_save(cfg):
@@ -33,8 +31,7 @@ class TestSettingsAutosave(unittest.TestCase):
         patches = [
             mock.patch.object(config_manager, "save_config", side_effect=fake_save),
             mock.patch.object(config_manager, "load_config", side_effect=lambda: dict(self.disk)),
-            mock.patch.object(config_manager, "set_value",
-                              side_effect=lambda k, v: fake_save({**self.disk, k: v})),
+            mock.patch.object(config_manager, "set_value", side_effect=lambda k, v: fake_save({**self.disk, k: v})),
             mock.patch("settings.save_primary_provider"),
             mock.patch("settings.set_fallback_enabled"),
             mock.patch("settings.get_api_key", return_value=None),
@@ -48,10 +45,10 @@ class TestSettingsAutosave(unittest.TestCase):
         self.addCleanup(setattr, config_manager, "_cache", None)
 
         from ui import settings_dialog
+
         self.llm_reset = mock.patch.object(settings_dialog, "reset_client").start()
         self.addCleanup(mock.patch.stopall)
-        mock.patch.object(settings_dialog.SettingsWidget, "_detect_gpu_info",
-                          staticmethod(lambda: "")).start()
+        mock.patch.object(settings_dialog.SettingsWidget, "_detect_gpu_info", staticmethod(lambda: "")).start()
         self.widget = settings_dialog.SettingsWidget()
 
     def test_opening_writes_nothing_and_save_is_off(self):

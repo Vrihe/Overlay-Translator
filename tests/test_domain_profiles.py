@@ -2,20 +2,15 @@
 tests/test_domain_profiles.py — Unit tests for domain profiles and domain-aware translation cache.
 """
 
-import os
-import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
 
-import config
 from cache import store
-from translate.domain_manager import load_domain_profile, list_available_domains
-from translate.llm_client import _build_system_prompt, translate
 from tests.store_isolation import isolate_store
+from translate.domain_manager import list_available_domains, load_domain_profile
+from translate.llm_client import _build_system_prompt
 
 
 class TestDomainProfiles(unittest.TestCase):
-
     def test_list_available_domains(self):
         domains = list_available_domains()
         domain_ids = [d["id"] for d in domains]

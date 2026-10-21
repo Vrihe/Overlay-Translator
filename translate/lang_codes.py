@@ -23,17 +23,17 @@ from __future__ import annotations
 # Any code NOT listed here is simply upper-cased (e.g. "de" → "DE").
 
 _DEEPL_TARGET_MAP: dict[str, str] = {
-    "en":    "EN-US",      # DeepL requires a variant for English targets
-    "pt":    "PT-PT",      # European Portuguese by default
+    "en": "EN-US",  # DeepL requires a variant for English targets
+    "pt": "PT-PT",  # European Portuguese by default
     "pt-br": "PT-BR",
-    "zh":    "ZH-HANS",    # Simplified Chinese
-    "zh-tw": "ZH-HANT",   # Traditional Chinese (Taiwan)
+    "zh": "ZH-HANS",  # Simplified Chinese
+    "zh-tw": "ZH-HANT",  # Traditional Chinese (Taiwan)
 }
 
 # ── Google / Azure target-language overrides ─────────────
 
 _GOOGLE_AZURE_TARGET_MAP: dict[str, str] = {
-    "zh": "zh-CN",         # Simplified Chinese
+    "zh": "zh-CN",  # Simplified Chinese
 }
 
 
