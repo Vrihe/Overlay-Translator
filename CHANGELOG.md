@@ -9,6 +9,8 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-21
+
 ### Added
 - First-run wizard: choose how to translate (online without a key, an LLM with your API key,
   or offline) and download the offline NLLB model with progress and a SHA-256 check.
@@ -45,5 +47,6 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Vrihe/Overlay-Translator/releases/tag/v1.0.0
