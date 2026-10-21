@@ -63,6 +63,7 @@ Overlay-Translator/
 │   ├── backend.py          #   * Dispatcher: picks the API or the local model
 │   ├── llm_client.py       #   * Translation backend via the cloud API
 │   ├── nllb_backend.py     #   * Offline backend: NLLB-200 (CTranslate2 int8)
+│   ├── nllb_models.py      #   Published NLLB builds (HF tags): list, match local copies, download
 │   ├── chat_glossary.py    #   Expands English game-chat terms before NLLB (wts, gg wp, lf2m)
 │   ├── glossary/game_en.json  # Term list, exported by training/game_abbreviations.py
 │   ├── cuda_support.py     #   Locates cuBLAS for optional GPU inference
@@ -674,8 +675,14 @@ runs before and after fine-tuning with the same `--seed` is meaningful.
 
 ### Switching the backend in the app
 "Настройки → Бэкенд перевода" (Settings → Translation backend): radio buttons
-"API (Anthropic / OpenRouter)" and "Локальная модель (NLLB)" (Local model), the model
-path field, and the "Загрузить модель" (Load model) button with a progress indicator.
+"API (Anthropic / OpenRouter)" and "Локальная модель (NLLB)" (Local model), the
+"Версия модели" (Model version) combo, the model path field (only for "Свой путь…"), and the "Загрузить модель" (Load model) button with a progress indicator.
+The version combo lists every tag of `NLLB_HF_REPO_ID` (`translate/nllb_models.py`, stdlib
+HTTP only, so it works in the frozen app): a tag already on disk (matched by the
+`.hf-version.json` marker or by directory name, e.g. `nllb-v1-abbr-ct2-int8`) selects that
+path; a missing one turns the button into "Скачать" (Download), which fetches the tag's commit
+into `models/nllb-<tag>` (per-user `models` in the frozen app) with SHA-256 checks on LFS
+files. "Автовыбор" (Auto) keeps the path empty → auto-discovery.
 The choice is stored in `settings.json` (`translation_backend`, `nllb_model_path`)
 and survives a restart.
 Only the "Сохранить" (Save) button writes `translation_backend`; see the known issue in section 7.
