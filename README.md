@@ -1,4 +1,8 @@
 # 🌐 Translator Overlay
+
+[![CI](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Vrihe/Overlay-Translator/badges/coverage.json)](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml?query=branch%3Amain)
+
 Screen region translator for Windows. Select any text on screen with a hotkey,
 and get an instant translation in a floating popup — powered by offline OCR and
 Google Translate, DeepL, Azure, an LLM or a fully offline NLLB model.

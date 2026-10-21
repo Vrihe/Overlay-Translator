@@ -38,9 +38,9 @@
 - [x] Pre-commit: ruff (lint + format), trailing whitespace, проверка больших файлов
 - [x] GitHub Actions `ci.yml`: ruff, pytest на Windows и Linux (Qt-тесты через `QT_QPA_PLATFORM=offscreen`)
 - [x] Отметить в тестах те, что требуют GPU/модель, маркером `@pytest.mark.slow` и не гонять их в обычном CI
-- [ ] Добавить недостающие тесты: `translate/backend.py` (выбор бэкенда и fallback), `nllb_backend` с подменой модели, `cache/store.py`, `training/build_dataset*.py` (сплиты без утечки), метрики в `training/evaluate.py`
-- [ ] Бейджи CI и покрытия в README
-- [ ] Coverage отчёт (pytest-cov), цель — не ниже 60% для `translate/`, `cache/`, `settings/`
+- [x] Добавить недостающие тесты: `translate/backend.py` (выбор бэкенда и fallback), `nllb_backend` с подменой модели, `cache/store.py`, `training/build_dataset*.py` (сплиты без утечки), метрики в `training/evaluate.py`
+- [x] Бейджи CI и покрытия в README
+- [x] Coverage отчёт (pytest-cov), цель — не ниже 60% для `translate/`, `cache/`, `settings/`
 
 **Критерий готовности:** PR нельзя смержить с красным CI; покрытие видно в README.
 
@@ -332,9 +332,9 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 - [x] Pre-commit: ruff (lint + format), trailing whitespace, large-file check
 - [x] GitHub Actions `ci.yml`: ruff, pytest on Windows and Linux (Qt tests with `QT_QPA_PLATFORM=offscreen`)
 - [x] Mark tests that need a GPU or a model with `@pytest.mark.slow` and skip them in regular CI
-- [ ] Add missing tests: `translate/backend.py` (backend choice and fallback), `nllb_backend` with a stubbed model, `cache/store.py`, `training/build_dataset*.py` (splits without leakage), metrics in `training/evaluate.py`
-- [ ] CI and coverage badges in the README
-- [ ] Coverage report (pytest-cov), target at least 60% for `translate/`, `cache/`, `settings/`
+- [x] Add missing tests: `translate/backend.py` (backend choice and fallback), `nllb_backend` with a stubbed model, `cache/store.py`, `training/build_dataset*.py` (splits without leakage), metrics in `training/evaluate.py`
+- [x] CI and coverage badges in the README
+- [x] Coverage report (pytest-cov), target at least 60% for `translate/`, `cache/`, `settings/`
 
 **Done when:** a PR cannot be merged with red CI; coverage is visible in the README.
 
