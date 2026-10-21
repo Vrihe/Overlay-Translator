@@ -9,6 +9,11 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-21
+
+### Added
+- A stop button in the popup's header while live monitoring updates it.
+
 ### Changed
 - Live monitoring is started and stopped on Settings → Regions ("Monitor" for the selected
   region, "Stop monitoring" while it runs, in step with the tray toggle) instead of the
@@ -19,6 +24,8 @@ the section for that version becomes the GitHub release notes.
   scrolled to, and follows new lines when you are at the bottom.
 - Live monitoring of a busy region (e.g. a stream chat): the popup no longer disappears
   and reappears on every change — it is updated in place and does not take the focus.
+- With a short check interval most monitoring results were thrown away as outdated; every
+  result is shown now unless you asked for another translation since.
 - The popup is left out of screen captures, so monitoring and OCR never pick it up when
   it lies over the watched region. It does not show in screenshots or recordings either.
 - A new translation started while another was running stopped the running one by force,
@@ -85,7 +92,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...v1.2.1
 [1.1.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Vrihe/Overlay-Translator/releases/tag/v1.0.0

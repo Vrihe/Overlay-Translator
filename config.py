@@ -257,7 +257,7 @@ class _LiveConfig:
     OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "poolside/laguna-s-2.1:free")
     ANTHROPIC_DETECT_MODEL = os.environ.get("ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414")
 
-    APP_VERSION = "1.2.1"
+    APP_VERSION = "1.2.2"
     GITHUB_REPO = os.environ.get("GITHUB_REPO", "Vrihe/Overlay-Translator")
 
     # ─── Local NLLB model on the Hugging Face Hub ───────────
