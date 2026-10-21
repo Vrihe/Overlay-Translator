@@ -294,6 +294,9 @@ class SettingsWidget(QWidget):
     #: Regions page: select a new region / open the presets dialog (handled in main.py).
     add_region_requested = pyqtSignal()
     manage_regions_requested = pyqtSignal()
+    #: Regions page: live monitoring of the selected region (x1, y1, x2, y2) / stop it.
+    monitor_region_requested = pyqtSignal(int, int, int, int)
+    stop_monitoring_requested = pyqtSignal()
     # Restart-only settings were saved and the user chose to restart now.
     restart_requested = pyqtSignal()
 
@@ -805,27 +808,34 @@ class SettingsWidget(QWidget):
         # ── Regions: saved screen regions with their binds ──
         grp_regions, regions_layout = self._group(tr("Регионы"))
         lbl_regions = QLabel(tr("Сохранённые области экрана. Бинд переводит область сразу, без "
-                                "выделения; в «Управлении» — переименовать, удалить, назначить "
-                                "бинд или запустить мониторинг."))
+                                "выделения. «Мониторинг» следит за выбранной областью; в "
+                                "«Управлении» — переименовать, удалить или назначить бинд."))
         lbl_regions.setWordWrap(True)
         lbl_regions.setStyleSheet(theme.label_css("caption"))
         regions_layout.addWidget(lbl_regions)
         self._regions_list = QListWidget()
-        self._regions_list.setSelectionMode(QListWidget.NoSelection)
-        self._regions_list.setFocusPolicy(Qt.NoFocus)
-        self._regions_list.setStyleSheet(self._INPUT_CSS)
+        self._regions_list.setSelectionMode(QListWidget.SingleSelection)
+        self._regions_list.setStyleSheet(theme.list_css())
         self._regions_list.setMinimumHeight(110)
+        self._regions_list.currentRowChanged.connect(lambda _row: self._update_monitor_button())
         regions_layout.addWidget(self._regions_list)
         regions_buttons = QHBoxLayout()
         self._btn_add_region = QPushButton(tr("Добавить регион"))
         self._btn_add_region.setCursor(Qt.PointingHandCursor)
         self._btn_add_region.setStyleSheet(theme.btn_accent("7px 14px", 9))
         self._btn_add_region.clicked.connect(self.add_region_requested)
+        # Live monitoring: start for the selected region; while it runs, stop it.
+        self._monitoring_active = False
+        self._btn_monitor_region = QPushButton()
+        self._btn_monitor_region.setCursor(Qt.PointingHandCursor)
+        self._btn_monitor_region.setStyleSheet(theme.btn_secondary("7px 14px", 9))
+        self._btn_monitor_region.clicked.connect(self._on_monitor_region_clicked)
         self._btn_manage_regions = QPushButton(tr("Управление…"))
         self._btn_manage_regions.setCursor(Qt.PointingHandCursor)
         self._btn_manage_regions.setStyleSheet(theme.btn_secondary("7px 14px", 9))
         self._btn_manage_regions.clicked.connect(self.manage_regions_requested)
         regions_buttons.addWidget(self._btn_add_region)
+        regions_buttons.addWidget(self._btn_monitor_region)
         regions_buttons.addWidget(self._btn_manage_regions)
         regions_buttons.addStretch()
         regions_layout.addLayout(regions_buttons)
@@ -835,8 +845,8 @@ class SettingsWidget(QWidget):
         from capture.live_monitor import MAX_INTERVAL_SEC, MIN_INTERVAL_SEC
         grp_live, live_layout = self._group(tr("Живой мониторинг"))
         lbl_live = QLabel(tr("Мониторинг переводит область снова, когда в ней меняется текст. "
-                             "Запускается из меню трея или в «Управлении» регионами; новые "
-                             "значения действуют со следующего запуска."))
+                             "Запускается кнопкой выше или из меню трея; новые значения "
+                             "действуют со следующего запуска."))
         lbl_live.setWordWrap(True)
         lbl_live.setStyleSheet(theme.label_css("caption"))
         live_layout.addWidget(lbl_live)
@@ -1289,9 +1299,45 @@ class SettingsWidget(QWidget):
         for p in presets:
             w, h = p.get("x2", 0) - p.get("x1", 0), p.get("y2", 0) - p.get("y1", 0)
             hotkey = (p.get("hotkey") or "").upper() or tr("без бинда")
-            self._regions_list.addItem(f"{p.get('name', '')}   ·   {w}×{h}   ·   {hotkey}")
-        if not presets:
-            self._regions_list.addItem(tr("Регионов пока нет: нажмите «Добавить регион»."))
+            item = QListWidgetItem(f"{p.get('name', '')}   ·   {w}×{h}   ·   {hotkey}")
+            item.setData(Qt.UserRole, p)
+            self._regions_list.addItem(item)
+        if presets:
+            self._regions_list.setCurrentRow(0)
+        else:
+            placeholder = QListWidgetItem(tr("Регионов пока нет: нажмите «Добавить регион»."))
+            placeholder.setFlags(Qt.NoItemFlags)
+            self._regions_list.addItem(placeholder)
+        self._update_monitor_button()
+
+    def set_monitoring_active(self, active: bool) -> None:
+        """Main app: live monitoring started / stopped (also from the tray)."""
+        self._monitoring_active = active
+        self._update_monitor_button()
+
+    def _update_monitor_button(self) -> None:
+        item = self._regions_list.currentItem()
+        has_region = item is not None and item.data(Qt.UserRole) is not None
+        if self._monitoring_active:
+            self._btn_monitor_region.setText(tr("Остановить мониторинг"))
+            self._btn_monitor_region.setEnabled(True)
+        else:
+            self._btn_monitor_region.setText(tr("Мониторинг"))
+            self._btn_monitor_region.setEnabled(has_region)
+        interval = self._live_interval_spin.value() if hasattr(self, "_live_interval_spin") else 10
+        self._btn_monitor_region.setToolTip(tr(
+            "Переводить выбранную область снова, когда в ней меняется текст "
+            "(проверка каждые {seconds} сек).", seconds=interval))
+
+    def _on_monitor_region_clicked(self) -> None:
+        if self._monitoring_active:
+            self.stop_monitoring_requested.emit()
+            return
+        item = self._regions_list.currentItem()
+        preset = item.data(Qt.UserRole) if item is not None else None
+        if preset:
+            self.monitor_region_requested.emit(preset.get("x1", 0), preset.get("y1", 0),
+                                               preset.get("x2", 0), preset.get("y2", 0))
 
     # ── App hotkeys ──────────────────────────────────────
 

@@ -120,14 +120,13 @@ class RegionPresetsDialog(QDialog):
     Signals:
         preset_translate(int, int, int, int): Emitted when user triggers single-shot
             translation for (x1, y1, x2, y2).
-        preset_monitor(int, int, int, int): Emitted when user explicitly starts
-            periodic auto-monitoring for (x1, y1, x2, y2).
         request_new_preset(): Emitted when user clicks 'New'.
         presets_updated(): Emitted whenever presets list or hotkeys are modified.
+
+    Live monitoring of a region is started from Settings → Regions, not here.
     """
 
     preset_translate = pyqtSignal(int, int, int, int)
-    preset_monitor = pyqtSignal(int, int, int, int)
     request_new_preset = pyqtSignal()
     presets_updated = pyqtSignal()
 
@@ -159,8 +158,8 @@ class RegionPresetsDialog(QDialog):
         layout.addWidget(lbl_title)
 
         lbl_hint = QLabel(tr(
-            "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода "
-            "или запустите опциональный автомониторинг."
+            "Сохранённые области экрана. Назначьте бинд для быстрого разового перевода; "
+            "мониторинг запускается в Настройки → Регионы."
         ))
         lbl_hint.setWordWrap(True)
         lbl_hint.setStyleSheet(theme.label_css("muted"))
@@ -209,13 +208,6 @@ class RegionPresetsDialog(QDialog):
         self._btn_translate.setStyleSheet(theme.btn_primary("9px 18px", 10))
         self._btn_translate.clicked.connect(self._on_translate_now)
         action_row.addWidget(self._btn_translate)
-
-        self._btn_monitor = QPushButton(tr("Автомониторинг (10 сек)"))
-        self._btn_monitor.setCursor(Qt.PointingHandCursor)
-        self._btn_monitor.setStyleSheet(theme.btn_accent("9px 14px", 9))
-        self._btn_monitor.clicked.connect(self._on_start_monitoring)
-        action_row.addWidget(self._btn_monitor)
-
         action_row.addStretch()
 
         self._btn_cancel = QPushButton(tr("Закрыть"))
@@ -245,15 +237,14 @@ class RegionPresetsDialog(QDialog):
             x2, y2 = p.get("x2", 0), p.get("y2", 0)
             w, h = x2 - x1, y2 - y1
             hk = p.get("hotkey")
-            hk_badge = f"[{hk.upper()}]" if hk else tr("[Нет бинда]")
-            label = f"{hk_badge:<16} {name}    ({x1}, {y1}) → ({x2}, {y2})  [{w}×{h}]"
-            item = QListWidgetItem(label)
+            hk_badge = hk.upper() if hk else tr("без бинда")
+            item = QListWidgetItem(f"{name}   ·   {w}×{h}   ·   {hk_badge}")
+            item.setToolTip(f"({x1}, {y1}) → ({x2}, {y2})")
             item.setData(Qt.UserRole, p)
             self._list.addItem(item)
 
         has_items = self._list.count() > 0
         self._btn_translate.setEnabled(has_items)
-        self._btn_monitor.setEnabled(has_items)
         self._btn_hotkey.setEnabled(has_items)
         self._btn_clear_hotkey.setEnabled(has_items)
         self._btn_rename.setEnabled(has_items)
@@ -372,13 +363,3 @@ class RegionPresetsDialog(QDialog):
         self.preset_translate.emit(x1, y1, x2, y2)
         self.accept()
 
-    def _on_start_monitoring(self) -> None:
-        """Secondary action: explicitly launch 10s live auto-monitoring."""
-        preset = self._selected_preset()
-        if preset is None:
-            return
-        x1, y1 = preset.get("x1", 0), preset.get("y1", 0)
-        x2, y2 = preset.get("x2", 0), preset.get("y2", 0)
-        logger.info("Starting optional live monitoring for preset '%s' (%d,%d)→(%d,%d)", preset.get("name"), x1, y1, x2, y2)
-        self.preset_monitor.emit(x1, y1, x2, y2)
-        self.accept()

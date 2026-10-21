@@ -102,6 +102,10 @@ def _check(p: QPainterPath) -> None:
     _poly(p, (5, 12), (10, 17), (19, 7))
 
 
+def _stop(p: QPainterPath) -> None:
+    p.addRect(QRectF(7, 7, 10, 10))
+
+
 def _keyboard(p: QPainterPath) -> None:
     p.addRect(QRectF(2.5, 6, 19, 12))
     for x in (6, 10, 14, 18):
@@ -126,6 +130,7 @@ _SHAPES = {
     "search": _search,
     "globe": _globe,
     "check": _check,
+    "stop": _stop,
     "keyboard": _keyboard,
 }
 
