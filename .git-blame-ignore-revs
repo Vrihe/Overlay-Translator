@@ -1,0 +1,6 @@
+# Bulk formatting commits that `git blame` should skip.
+# GitHub reads this file automatically; locally run once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# apply ruff autofixes and ruff format to the whole codebase
+2260ec22296ed1814051e7443ff163cd8fa17f49

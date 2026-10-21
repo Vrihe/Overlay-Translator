@@ -236,7 +236,6 @@ class _HomePage(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        p = theme.current()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 24)
         layout.setSpacing(16)

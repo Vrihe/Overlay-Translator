@@ -61,7 +61,12 @@ select = [
 ignore = [
     "E501",     # line length is the formatter's job; long strings and URLs stay as they are
     "B905",     # zip() without strict=: the zipped sequences are built to the same length
+    "E741",     # `l` is a fine name in comprehensions and for left/top/right/bottom
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py sets up logging and crash hooks before the heavy imports on purpose.
+"main.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["cache", "capture", "config", "history", "i18n", "ocr", "overlay", "settings",

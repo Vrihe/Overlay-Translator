@@ -98,7 +98,7 @@ def validate_hotkey(hotkey: str | None, current_preset_id: str | None = None) ->
 
         keyboard.parse_hotkey(hk)
     except Exception as exc:
-        raise ValueError(tr("Некорректная комбинация клавиш: '{hotkey}'. ({error})", hotkey=hotkey, error=exc))
+        raise ValueError(tr("Некорректная комбинация клавиш: '{hotkey}'. ({error})", hotkey=hotkey, error=exc)) from exc
 
     # Check collision with main application hotkeys
     try:

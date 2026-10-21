@@ -25,6 +25,7 @@ git clone https://github.com/Vrihe/Overlay-Translator.git
 cd Overlay-Translator
 install.bat                 # creates .venv and installs requirements.txt
 .venv\Scripts\pip install -r requirements-dev.txt
+.venv\Scripts\pre-commit install  # ruff lint/format and file checks on every commit
 run.bat --console           # start the app with a visible log
 ```
 
@@ -43,7 +44,8 @@ Never commit real keys, `.env`, models, caches or the `history/` and `data/` con
    or `fix/popup-multi-monitor`.
 2. Keep the change focused: one feature or fix per pull request.
 3. Follow the existing code style. Match the surrounding code in naming,
-   structure and how many comments it has.
+   structure and how many comments it has. Formatting and lint are ruff's job
+   (settings in `pyproject.toml`); `pre-commit run --all-files` checks the whole tree.
 4. Code, comments and docs are in **English**.
 5. User-facing UI strings are written in **Russian** inside `tr()` (or `N_()`),
    with the English translation added to `i18n/en.py`. `tests/test_i18n.py`

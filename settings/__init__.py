@@ -34,7 +34,7 @@ def _get_keyring():
     return _keyring
 
 
-from settings import config_manager  # noqa: F401
+from settings import config_manager  # noqa: E402, F401
 
 # ── Keyring-based API key storage ────────────────────────
 

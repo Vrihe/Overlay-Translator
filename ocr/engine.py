@@ -294,13 +294,13 @@ def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
 def _sort_results(results: list) -> str:
     """Sort EasyOCR results top-to-bottom, left-to-right based on bounding box coordinates."""
     items = []
-    for bbox, text, prob in results:
+    for bbox, text, _prob in results:
         text_str = text.strip() if isinstance(text, str) else ""
         if not text_str:
             continue
         xs = [pt[0] for pt in bbox]
         ys = [pt[1] for pt in bbox]
-        min_x, max_x = min(xs), max(xs)
+        min_x = min(xs)
         min_y, max_y = min(ys), max(ys)
         center_y = (min_y + max_y) / 2.0
         height = max_y - min_y

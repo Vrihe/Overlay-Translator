@@ -35,7 +35,7 @@
 **Срок:** 2–3 дня
 
 - [x] `pyproject.toml` с метаданными, зависимостями и настройками ruff/pytest/mypy
-- [ ] Pre-commit: ruff (lint + format), trailing whitespace, проверка больших файлов
+- [x] Pre-commit: ruff (lint + format), trailing whitespace, проверка больших файлов
 - [ ] GitHub Actions `ci.yml`: ruff, pytest на Windows и Linux (Qt-тесты через `QT_QPA_PLATFORM=offscreen`)
 - [ ] Отметить в тестах те, что требуют GPU/модель, маркером `@pytest.mark.slow` и не гонять их в обычном CI
 - [ ] Добавить недостающие тесты: `translate/backend.py` (выбор бэкенда и fallback), `nllb_backend` с подменой модели, `cache/store.py`, `training/build_dataset*.py` (сплиты без утечки), метрики в `training/evaluate.py`
@@ -329,7 +329,7 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 **Time:** 2–3 days
 
 - [x] `pyproject.toml` with metadata, dependencies and ruff/pytest/mypy settings
-- [ ] Pre-commit: ruff (lint + format), trailing whitespace, large-file check
+- [x] Pre-commit: ruff (lint + format), trailing whitespace, large-file check
 - [ ] GitHub Actions `ci.yml`: ruff, pytest on Windows and Linux (Qt tests with `QT_QPA_PLATFORM=offscreen`)
 - [ ] Mark tests that need a GPU or a model with `@pytest.mark.slow` and skip them in regular CI
 - [ ] Add missing tests: `translate/backend.py` (backend choice and fallback), `nllb_backend` with a stubbed model, `cache/store.py`, `training/build_dataset*.py` (splits without leakage), metrics in `training/evaluate.py`
