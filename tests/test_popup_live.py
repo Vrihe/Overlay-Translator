@@ -11,7 +11,7 @@ import sys
 import unittest
 from unittest import mock
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QPoint, QRect, Qt
 from PyQt5.QtWidgets import QApplication
 
 from ui import result_popup
@@ -107,6 +107,51 @@ class TestStopMonitoringButton(unittest.TestCase):
         self.popup.set_monitoring(True)
         self.popup.update_content("src", "новый текст", activate=False)
         self.assertFalse(self.popup._btn_stop_monitoring.isHidden())
+
+
+class TestUserPosition(unittest.TestCase):
+    """A popup dragged by the user reports where to; the next one for the region opens there."""
+
+    ANCHOR = QRect(100, 100, 300, 600)
+
+    def _popup(self, **kwargs):
+        popup = ResultPopup("src", "t", self.ANCHOR, **kwargs)
+        self.addCleanup(popup.deleteLater)
+        return popup
+
+    def test_only_moves_by_the_user_are_reported(self):
+        popup = self._popup()
+        popup.show()  # a hidden widget gets no moveEvent; the user drags a visible one
+        _APP.processEvents()
+        reported = []
+        popup.moved_by_user.connect(reported.append)
+        popup.move(500, 400)  # placement by the app itself
+        self.assertEqual(reported, [])
+        popup._moved_by_user = True  # what a drag sets
+        popup.move(520, 410)
+        self.assertEqual(reported[-1], QPoint(520, 410))
+
+    def test_new_popup_opens_at_the_remembered_position(self):
+        with mock.patch.object(type(result_popup.config), "NOTIFICATION_TYPE", "popup", create=True):
+            popup = show_result("src", "t", self.ANCHOR, position=QPoint(520, 410))
+        self.addCleanup(popup.deleteLater)
+        self.assertEqual(popup.pos(), QPoint(520, 410))
+        self.assertTrue(popup._moved_by_user)  # it will not "step aside" from there
+
+    def test_position_on_a_missing_monitor_is_ignored(self):
+        popup = self._popup()
+        before = popup.pos()
+        with mock.patch.object(result_popup.QApplication, "screenAt", return_value=None):
+            popup.place_at(QPoint(-5000, -5000))
+        self.assertEqual(popup.pos(), before)
+        self.assertFalse(popup._moved_by_user)
+
+
+class TestAutoCloseTime(unittest.TestCase):
+    def test_read_at_every_start_and_clamped(self):
+        for value, expected in ((10, 10_000), (600, 600_000), (5000, 600_000), (1, 3_000), ("x", 10_000)):
+            with mock.patch.object(type(result_popup.config), "POPUP_TIMEOUT_SEC", value, create=True):
+                self.assertEqual(ResultPopup.auto_close_ms(), expected, value)
 
 
 class TestScrollKeptOnLiveUpdates(unittest.TestCase):

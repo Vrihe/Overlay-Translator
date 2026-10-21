@@ -184,6 +184,10 @@ Overlay-Translator/
   place with `activate=False` (no focus taken from the watched game or stream).
   `_set_popup()` makes a popup current; its `destroyed` clears `_popup` only while it is
   still the current one (an old popup dying late used to orphan the new one).
+  `_user_popup_pos` remembers, per region (`_anchor_key(anchor)`), where the user dragged a
+  popup (`ResultPopup.moved_by_user`, emitted from `moveEvent` once a drag started); a new
+  popup for that region (loading one, or `show_result(position=…)`) opens there via
+  `place_at()`, unless that monitor is gone. Session only, not saved.
   Signals: `translation_done(str src, str translated, str error)`,
   `partial_result(str)` (streaming), `ocr_done(str, QRect)`.
   Constructor: `(x1, y1, x2, y2, text_override: str|None = None, ocr_only: bool = False)`.
@@ -466,7 +470,10 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   the palette caption/text/border colours.
 - `MainWindow` (72 px nav rail: `PAGE_HOME` / `PAGE_SETTINGS` / `PAGE_HISTORY`),
   `show_and_switch(page)`, `set_tray_icon(tray)`; workers `_TextTranslateWorker`,
-  `_ImageTranslateWorker`, `_UpdateCheckWorker`. Home: status chips (online, language
+  `_ImageTranslateWorker`, `_UpdateCheckWorker` (at launch and every 30 min by
+  `_update_timer`; skipped while a check runs or an update downloads; each new version is
+  announced in the tray once). The version is shown at the foot of the navigation rail
+  (`_version_label`). Home: status chips (online, language
   pair, hotkey), "Перевод текста" panel, "Из скриншота" panel with a drop zone (file
   dialog or drag-and-drop of an image file; one image at a time), "Последние" panel (the
   3 newest `cache.store.get_all_history` records, refreshed on page switch and after a
@@ -514,7 +521,8 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `QComboBox` / `QAbstractSpinBox` never changes its value; it goes to the nearest scroll
   area's viewport, so long pages scroll past controls. An open combo list still scrolls.
 - `ResultPopup(...)` — frameless window, streaming updates via `update_content()`,
-  auto-close after `config.POPUP_TIMEOUT_SEC`, resize by the left / right / bottom edges
+  auto-close after `config.POPUP_TIMEOUT_SEC` (3–600 s, read by `auto_close_ms()` at every
+  timer start, so a settings change applies at once), resize by the left / right / bottom edges
   (the top edge is a drag handle), TTS, copy. A drag past 5 px is handed to the OS move
   loop (`QWindow.startSystemMove()`, manual `move()` only if that fails). The card fills the
   window (no transparent border that would swallow clicks next to it). The window is opaque
@@ -758,6 +766,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
+| `tests/test_update_banner.py` | update check at launch and every 30 min, no check while one runs or an update downloads, each version announced once, version label |
 | `tests/test_popup_live.py` | popup excluded from screen capture and kept opaque, live update without taking focus, regions dialog rows and monitoring button |
 | `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
 | `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |

@@ -12,7 +12,8 @@ Design goals:
   • Clean header with icon buttons (speak / copy / close) — window remains open on focus
     loss or window body clicks
   • Strict screen bounds — wrapped in QScrollArea, never exceeds monitor bounds
-  • Dismissable — close button, Escape key, or 10s fallback timeout
+  • Dismissable — close button, Escape key, or the auto-hide timeout (Settings → Popup,
+    3 s – 10 min, read at every start)
 """
 
 import ctypes
@@ -54,6 +55,8 @@ _WDA_EXCLUDEFROMCAPTURE = 0x11
 class ResultPopup(QWidget):
     #: The header's stop button: end the live monitoring that keeps updating this popup.
     stop_monitoring_clicked = pyqtSignal()
+    #: Where the user dragged the popup to (top-left), while and after the drag.
+    moved_by_user = pyqtSignal(QPoint)
 
     """Compact floating popup showing source text and its translation, or loading status."""
 
@@ -62,7 +65,6 @@ class ResultPopup(QWidget):
     _MIN_HEIGHT = 80
     _MAX_HEIGHT = 550
     _RESIZE_MARGIN = 8
-    _AUTO_CLOSE_MS = config.POPUP_TIMEOUT_SEC * 1000
     _FADE_DURATION = 150  # ms for smooth fade-out on close
     _MARGIN = 10  # gap between popup and selection edge
     _ICON_SIZE = 14  # header icon buttons
@@ -121,6 +123,18 @@ class ResultPopup(QWidget):
 
     # ── Show ─────────────────────────────────────────────
 
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if self._moved_by_user:  # the OS move loop moves the window: report every step
+            self.moved_by_user.emit(self.pos())
+
+    def place_at(self, pos: QPoint) -> None:
+        """Open where the user last dragged a popup of the same region, if still on a screen."""
+        if QApplication.screenAt(pos + QPoint(20, 20)) is None:
+            return  # that monitor is gone: keep the usual placement
+        self.move(pos)
+        self._moved_by_user = True  # never "step aside" from a place the user chose
+
     def show(self) -> None:
         super().show()
         self._exclude_from_capture()
@@ -151,7 +165,16 @@ class ResultPopup(QWidget):
         self._auto_timer = QTimer(self)
         self._auto_timer.setSingleShot(True)
         self._auto_timer.timeout.connect(self._fade_out_and_close)
-        self._auto_timer.start(self._AUTO_CLOSE_MS)
+        self._auto_timer.start(self.auto_close_ms())
+
+    @staticmethod
+    def auto_close_ms() -> int:
+        """Settings → Popup → auto-hide, read at every start so a change applies at once."""
+        try:
+            seconds = int(config.POPUP_TIMEOUT_SEC or 10)
+        except (TypeError, ValueError):
+            seconds = 10  # hand-edited settings.json
+        return max(3, min(600, seconds)) * 1000
 
     # ── Close with fast fade-out ─────────────────────────
 
@@ -814,10 +837,12 @@ def show_result(
     tray_icon=None,
     existing_popup: ResultPopup | None = None,
     activate: bool = True,
+    position: QPoint | None = None,
 ) -> ResultPopup | None:
     """Display translation result or error via popup or Windows toast according
     to config.NOTIFICATION_TYPE. ``activate=False``: an open popup is updated
-    without taking the keyboard focus (live monitoring).
+    without taking the keyboard focus (live monitoring). ``position``: a new popup
+    opens there (where the user dragged the last popup of this region).
     """
     if config.NOTIFICATION_TYPE == "windows_toast":
         if existing_popup is not None and not existing_popup._closing:
@@ -847,5 +872,7 @@ def show_result(
             return existing_popup
         else:
             popup = ResultPopup(source_text, translated_text, anchor, is_error=is_error, notice=notice)
+            if position is not None:
+                popup.place_at(position)
             popup.show()
             return popup
