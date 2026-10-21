@@ -144,7 +144,8 @@ class TestHotkeyManagement(_PresetsTestCase):
 
     def test_validate_collision_with_settings_hotkey(self):
         import config
-        with mock.patch.object(config, "SETTINGS_HOTKEY", "ctrl+shift+o"):
+        with mock.patch.object(type(config), "SETTINGS_HOTKEY", new_callable=mock.PropertyMock,
+                               return_value="ctrl+shift+o"):
             with self.assertRaisesRegex(ValueError, "уже занята для окна настроек"):
                 validate_hotkey("ctrl+shift+o")
 

@@ -234,7 +234,9 @@ This guarantees that:
   (up to `CACHE_MAX_ITEMS`); clear it in the History page.
 
 ### 🔄 Automatic Update Checking
-The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a download button and notification will be displayed with a direct link to GitHub Releases.
+The application automatically checks for new releases on GitHub in the background at launch (or via the **"Проверить обновления"** ("Check for updates") button in Settings). If a new version is available, a banner and a notification appear.
+
+In an app installed with the setup, the banner's **Update** button downloads the new installer, checks it against the SHA-256 GitHub publishes for it, closes the app, installs the update without any windows and starts the new version. If the app was installed for all users, Windows asks for administrator rights. A copied `dist` folder or a source run gets a link to the release page instead.
 
 ---
 
@@ -244,8 +246,7 @@ All settings can be overridden in `.env`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `HOTKEY` | `ctrl+shift+t` | Global hotkey combo for translation |
-| `SETTINGS_HOTKEY` | `ctrl+shift+o` | Global hotkey combo for settings |
+| `SETTINGS_HOTKEY` | — | Overrides the settings hotkey. Both app hotkeys (translate: `ctrl+shift+r`, settings: `ctrl+shift+o`) are set in **Settings → Hotkeys** and apply at once |
 | `TARGET_LANG` | `ru` | Target translation language |
 | `SOURCE_LANG` | `en` | Source language (fallback when auto-detect is off or text is too short) |
 | `LANG_DETECT_ENGINE` | `langid` | Source language detection engine: `langid` (offline ML), `llm` (via API), `off` (fixed) |

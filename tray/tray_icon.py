@@ -147,6 +147,11 @@ class TrayIcon(QSystemTrayIcon):
             2000,
         )
 
+    def refresh_hotkey_labels(self) -> None:
+        """Show the current hotkeys after they were changed in the settings."""
+        self.act_translate.setText(tr("Перевести  ({hotkey})", hotkey=str(config.HOTKEY).upper()))
+        self.act_settings.setText(tr("Настройки  ({hotkey})", hotkey=str(config.SETTINGS_HOTKEY).upper()))
+
     def rebuild_lang_menu(self) -> None:
         """Refresh checkmarks when target language is changed from settings dialog."""
         for code, act in self._lang_actions.items():

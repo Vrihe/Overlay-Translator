@@ -17,6 +17,17 @@ from capture.screenshot import capture_region
 # detecting new or changed text lines.
 _DIFF_THRESHOLD = 2.5
 
+#: Settings → Regions → sensitivity ("medium" is the tested default above).
+SENSITIVITY_THRESHOLDS = {"high": 1.0, "medium": _DIFF_THRESHOLD, "low": 5.0}
+
+#: Settings → Regions → check interval limits, seconds.
+MIN_INTERVAL_SEC, MAX_INTERVAL_SEC = 1, 120
+
+
+def threshold_for(sensitivity: str | None) -> float:
+    """Change threshold for a sensitivity setting; unknown values mean "medium"."""
+    return SENSITIVITY_THRESHOLDS.get(str(sensitivity or "").lower(), _DIFF_THRESHOLD)
+
 
 class LiveMonitor(QThread):
     """Monitors a specified screen region periodically and emits region_changed
@@ -35,6 +46,7 @@ class LiveMonitor(QThread):
         x2: int,
         y2: int,
         interval_sec: float = 10.0,
+        threshold: float = _DIFF_THRESHOLD,
         parent=None,
     ):
         super().__init__(parent)
@@ -42,14 +54,15 @@ class LiveMonitor(QThread):
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
-        self.interval_sec = max(1.0, float(interval_sec))
+        self.interval_sec = min(float(MAX_INTERVAL_SEC), max(float(MIN_INTERVAL_SEC), float(interval_sec)))
+        self.threshold = float(threshold)
         self._running = True
         self._last_sig: bytes | None = None
 
     def run(self) -> None:
         logging.info(
-            "LiveMonitor started for bbox (%d, %d, %d, %d) with interval=%.1fs",
-            self.x1, self.y1, self.x2, self.y2, self.interval_sec,
+            "LiveMonitor started for bbox (%d, %d, %d, %d) with interval=%.1fs, threshold=%.1f",
+            self.x1, self.y1, self.x2, self.y2, self.interval_sec, self.threshold,
         )
 
         # ── Step 1: Immediate initial translation ────────────────
@@ -79,10 +92,10 @@ class LiveMonitor(QThread):
                     cur_sig = self._compute_signature(img)
                     if self._last_sig is not None:
                         diff = self._signature_diff(cur_sig, self._last_sig)
-                        if diff >= _DIFF_THRESHOLD:
+                        if diff >= self.threshold:
                             logging.info(
                                 "LiveMonitor detected content change in region (diff=%.2f >= %.2f).",
-                                diff, _DIFF_THRESHOLD,
+                                diff, self.threshold,
                             )
                             self.region_changed.emit(self.x1, self.y1, self.x2, self.y2)
                             self._last_sig = cur_sig

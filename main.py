@@ -353,6 +353,9 @@ class TranslatorApp:
         # ── Show main window on startup ──────────────────
         self._main_window.set_tray_icon(self._tray)
         self._main_window.restart_requested.connect(self._restart)
+        self._main_window.update_install_started.connect(self._quit)
+        self._main_window.add_region_requested.connect(self._add_region)
+        self._main_window.manage_regions_requested.connect(self._show_presets_dialog)
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
@@ -377,13 +380,13 @@ class TranslatorApp:
         self._preset_hotkeys: list[str] = []
         self._preset_bridges: list[HotkeyBridge] = []
 
-        # Register global hotkeys (fire on a background thread).
-        try:
-            keyboard.add_hotkey(config.HOTKEY, self._bridge.triggered.emit)
-            keyboard.add_hotkey(config.SETTINGS_HOTKEY, self._settings_bridge.triggered.emit)
-            logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
-        except Exception:
-            logging.exception("Failed to register global hotkeys")
+        # Register global hotkeys (fire on a background thread). Settings → Hotkeys
+        # changes them at run time; a focused hotkey field pauses them all.
+        self._app_hotkey_handles: list = []
+        self._hotkeys_paused = False
+        self._register_app_hotkeys()
+        self._main_window.hotkeys_changed.connect(self._register_app_hotkeys)
+        self._main_window.hotkey_capture.connect(self._pause_hotkeys)
 
         # Register individual preset hotkeys
         self._register_preset_hotkeys()
@@ -523,11 +526,15 @@ class TranslatorApp:
 
     def _start_live_monitoring(self, x1: int, y1: int, x2: int, y2: int) -> None:
         """D2: Start live background monitor for specified screen region."""
-        from capture.live_monitor import LiveMonitor
+        from capture.live_monitor import LiveMonitor, threshold_for
         if hasattr(self, "_live_monitor") and self._live_monitor is not None:
             self._live_monitor.stop()
 
-        self._live_monitor = LiveMonitor(x1, y1, x2, y2, interval_sec=10.0)
+        interval = int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10)
+        self._live_monitor = LiveMonitor(
+            x1, y1, x2, y2, interval_sec=interval,
+            threshold=threshold_for(getattr(config, "LIVE_SENSITIVITY", "medium")),
+        )
         self._live_monitor.region_changed.connect(
             lambda lx1, ly1, lx2, ly2: self._on_region_selected(lx1, ly1, lx2, ly2)
         )
@@ -536,7 +543,8 @@ class TranslatorApp:
         if self._tray is not None:
             self._tray.showMessage(
                 tr("Живой автомониторинг запущен"),
-                tr("Область автоматически проверяется каждые 10 сек."),
+                tr("Область автоматически проверяется каждые {seconds} сек.",
+                   seconds=int(self._live_monitor.interval_sec)),
                 TrayIcon.Information,
                 3000,
             )
@@ -555,6 +563,39 @@ class TranslatorApp:
                 )
 
     # ── Region Presets ─────────────────────────────────
+
+    def _register_app_hotkeys(self) -> None:
+        """(Re)register the translate and settings hotkeys from the current settings."""
+        for handle in self._app_hotkey_handles:
+            try:
+                keyboard.remove_hotkey(handle)
+            except Exception:
+                pass  # already gone (e.g. after a pause)
+        self._app_hotkey_handles = []
+        if self._hotkeys_paused:
+            # Saved while its field still has focus: hook it when the capture ends.
+            self._tray.refresh_hotkey_labels()
+            return
+        for hotkey, bridge in ((config.HOTKEY, self._bridge),
+                               (config.SETTINGS_HOTKEY, self._settings_bridge)):
+            try:
+                self._app_hotkey_handles.append(keyboard.add_hotkey(hotkey, bridge.triggered.emit))
+            except Exception:
+                logging.exception(f"Failed to register global hotkey '{hotkey}'")
+        logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
+        self._tray.refresh_hotkey_labels()
+
+    def _pause_hotkeys(self, capturing: bool) -> None:
+        """While a hotkey field is focused, no global hotkey may fire (e.g. the selector)."""
+        self._hotkeys_paused = capturing
+        if capturing:
+            keyboard.unhook_all_hotkeys()
+            self._app_hotkey_handles = []
+            self._preset_hotkeys.clear()
+            logging.debug("Global hotkeys paused for hotkey capture.")
+        else:
+            self._register_app_hotkeys()
+            self._register_preset_hotkeys()
 
     def _register_preset_hotkeys(self) -> None:
         """Register global keyboard shortcuts for all presets that have a hotkey defined."""
@@ -627,10 +668,17 @@ class TranslatorApp:
             self._tray.act_live_monitor.setChecked(True)
 
     def _on_presets_updated(self) -> None:
-        """Refresh the registered preset hotkeys and the tray context menu."""
+        """Refresh the registered preset hotkeys, the tray menu and Settings → Regions."""
         self._register_preset_hotkeys()
         if self._tray is not None:
             self._tray.rebuild_presets_menu()
+        self._main_window.refresh_regions()
+
+    def _add_region(self) -> None:
+        """Settings → Regions → "Добавить регион": select an area, then name it."""
+        self._presets_dialog = None  # no dialog: the name is asked for on its own
+        self._preset_creation_mode = True
+        self._show_selector()
 
     def _on_new_preset_requested(self, dialog) -> None:
         """The user pressed 'Новый' (New) in the presets dialog; start region selection."""
@@ -659,6 +707,8 @@ class TranslatorApp:
                     logging.info("Preset '%s' saved (no dialog).", name.strip())
                 except ValueError as e:
                     logging.warning("Preset save failed: %s", e)
+                    from PyQt5.QtWidgets import QMessageBox
+                    QMessageBox.warning(None, tr("Ошибка"), str(e))
         self._on_presets_updated()
 
     def _on_partial_translation(self, partial_text: str) -> None:

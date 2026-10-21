@@ -47,13 +47,15 @@ Overlay-Translator/
 ├── build*.spec             # Spec files (layered build: app + deps)
 ├── installer/TranslatorOverlay.iss  # Inno Setup script: dist/TranslatorOverlay/ → Setup.exe (build.py --installer)
 ├── .github/workflows/release.yml   # v* tag → tests, build, installer, draft GitHub release
+├── .github/workflows/ci.yml        # tests on every PR and push to main (required check of main)
 ├── CHANGELOG.md            # Keep a Changelog; the X.Y.Z section becomes the release notes
 ├── _deps_stub.py           # Stub for the layered dependency build
 ├── pyi_rth_onnxruntime.py  # Runtime hook: import onnxruntime before PyInstaller's PyQt5 hook
 │
 ├── capture/                # Screen capture
 │   ├── screenshot.py       #   capture_region() via mss
-│   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region
+│   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region (interval,
+│                           #   change threshold: threshold_for("high"|"medium"|"low") = 1.0/2.5/5.0)
 │
 ├── ocr/                    # Text recognition
 │   ├── engine.py           #   RapidOCR singleton, preprocessing, line sorting
@@ -82,6 +84,7 @@ Overlay-Translator/
 ├── settings/               # Settings persistence
 │   ├── __init__.py         #   * API keys via keyring + provider/fallback
 │   ├── config_manager.py   #   * settings.json: DEFAULTS / get / set_value
+│   ├── hotkeys.py          #   App hotkeys (translate / settings): Qt → keyboard names, validation
 │   └── region_presets.py   #   Screen-region presets + their hotkeys
 │
 ├── ui/                     # PyQt5 widgets
@@ -109,6 +112,7 @@ Overlay-Translator/
 ├── tray/                   # System tray icon + context menu
 ├── tts/engine.py           # Text-to-speech for translations (SAPI, separate thread)
 ├── updater/check_update.py # Checks GitHub releases
+├── updater/install_update.py # One-click silent update: verified Setup.exe, waiter, /VERYSILENT
 ├── scripts/                # Offline utilities (not part of the app build)
 │   ├── download_model.py           # Fetches the pinned model build from the HF Hub
 │   ├── test_nllb_translation.py    # Local model smoke test + CPU latency
@@ -178,7 +182,11 @@ Overlay-Translator/
   preloads langid only when `translate.backend.uses_langid()` (LLM / NLLB): its model
   unpickle holds the GIL ~1 s and would freeze the UI for nothing on Google / DeepL / Azure.
 - `class TranslatorApp` — owns `QApplication`, `MainWindow`, `TrayIcon`, hotkeys,
-  the selector, popups, live monitoring and preset hotkeys.
+  the selector, popups, live monitoring and preset hotkeys. `_register_app_hotkeys()`
+  (re)registers `config.HOTKEY` / `config.SETTINGS_HOTKEY` (kept handles are removed
+  first) and refreshes the tray labels; it runs at start and on `MainWindow.hotkeys_changed`.
+  `MainWindow.hotkey_capture(True)` (a hotkey field in the settings got focus) →
+  `_pause_hotkeys` unhooks every global hotkey, `False` registers app + preset ones again.
   Key methods: `_show_selector`, `_on_region_selected`,
   `_start_translation_pipeline(x1, y1, x2, y2, anchor, text_override=None)`,
   `_on_ocr_preview_requested`, `_toggle_live_monitoring`, `_register_preset_hotkeys`,
@@ -210,11 +218,12 @@ so `import config; config.TARGET_LANG` reads a **property** that calls
   `TRANSLATION_ENGINE`, `TRANSLATION_BACKEND`, `NLLB_MODEL_PATH`, `LLM_MODEL`,
   `POPUP_TIMEOUT_SEC`, `NOTIFICATION_TYPE`,
   `OCR_LANGUAGES`, `ACTIVE_DOMAIN`,
-  `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`.
+  `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`,
+  `HOTKEY`, `SETTINGS_HOTKEY` (the `SETTINGS_HOTKEY` env var overrides the latter).
 - Static (env/constants): `MAX_RETRIES_PER_PROVIDER`, `RETRY_BACKOFF_BASE_SEC`,
   `OPENROUTER_MODEL`, `ANTHROPIC_DETECT_MODEL`, `APP_VERSION`, `GITHUB_REPO`,
   `NLLB_HF_REPO_ID`, `NLLB_HF_REVISION` (the pinned model build, see section 9),
-  `SETTINGS_HOTKEY`, `EASYOCR_*`, `OVERLAY_*`, `USER_DATA_DIR`, `CACHE_DIR`,
+  `EASYOCR_*`, `OVERLAY_*`, `USER_DATA_DIR`, `CACHE_DIR`,
   `CACHE_MAX_ITEMS`, `LOG_DIR`, `LOG_FILE`.
 
 ### `translate/backend.py` — backend dispatcher ★
@@ -458,7 +467,16 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `_TARGET_LANGUAGES`, `_ENGINES`, `_UI_THEMES`, `_OPENROUTER_MODELS`, `_MODEL_HINTS`.
   Section list (`_section_list`) + `_section_stack` with one scroll page per section
   (`_SECTIONS`): "Перевод" (API key and providers, backend, fast-translator keys,
-  translation, custom profiles), "Хоткеи" (read-only overview), "Распознавание" (OCR
+  translation, custom profiles), "Хоткеи" (`QKeySequenceEdit` per app hotkey + "По умолчанию";
+  `_apply_hotkey` → `settings/hotkeys.validate_app_hotkey` → `set_value` →
+  `hotkeys_changed`; a rejected one is shown and the saved one restored; focus in/out emits
+  `hotkey_capture`), "Регионы" (`refresh_regions()` lists `region_presets.load_presets()` as
+  name · size · bind; "Добавить регион" / "Управление…" emit `add_region_requested` /
+  `manage_regions_requested`, forwarded by `MainWindow` to `TranslatorApp._add_region`
+  (selector → name prompt → `save_preset`) / `_show_presets_dialog`;
+  `TranslatorApp._on_presets_updated` → `MainWindow.refresh_regions()` keeps the list current;
+  live monitoring `live_interval_sec` spin 1–120 s and `live_sensitivity` combo, autosaved,
+  read by `_start_live_monitoring` at the next start), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
   (language, colour scheme, about/updates).
   **Saving**: every no-restart setting saves itself — a change starts a 400 ms debounce
@@ -593,6 +611,11 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    place that pins which weights `scripts/download_model.py` fetches.
 3. **`.env`** (see `.env.example`) — API keys and static overrides
    (`EASYOCR_*`, `OVERLAY_*`, `CACHE_DIR`, `LOG_DIR`, `SETTINGS_HOTKEY`, `GITHUB_REPO`).
+   **App hotkeys** — `settings.json` → `hotkey` (translate, `ctrl+shift+r`) and
+   `settings_hotkey` (`ctrl+shift+o`), set in "Настройки → Хоткеи" and applied at once.
+   `settings/hotkeys.py`: `from_key_sequence()` (Qt names → `keyboard` names, first chord
+   only), `validate_app_hotkey()` (syntax via `keyboard.parse_hotkey`; a single ordinary
+   key is refused, F1–F24 alone are fine; no clash with the other app hotkey or a preset).
 4. **Keyring** — the working store for API keys (`settings.set_api_key`).
 5. **`translate/domain_profiles/*.json`** — system prompts and few-shot examples per domain.
 6. **`region_presets.json`** — saved regions and their individual hotkeys.
@@ -611,6 +634,16 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    into `build.py --release-notes` (changelog section + install steps + checksum; no
    separate `.sha256` file) → draft release with Setup.exe only
    (re-runs `--clobber` the files). Manual runs only upload an artifact. Process: CONTRIBUTING.md.
+   **One-click update** (`updater/install_update.py`, update banner in `MainWindow`): only when
+   `can_self_update()` (frozen + `unins000.exe` next to the exe; otherwise the release page).
+   `_UpdateInstallWorker`: `latest_release()` → `download_setup()` into
+   `%TEMP%\translator-overlay-update` (`.part`, renamed only after the SHA-256 matches) →
+   `launch_installer()`: a hidden PowerShell (`CREATE_NO_WINDOW`; with `DETACHED_PROCESS` it
+   never runs) does `Wait-Process` on the app's pid, then starts the setup `/VERYSILENT
+   /SUPPRESSMSGBOXES /NORESTART /RELAUNCH=1` → `MainWindow.update_install_started` → app
+   `_quit`. The setup must not start while the app's mutex exists: a silent setup answers
+   the AppMutex prompt with Cancel. The `.iss` `[Run]` entry `Check: RelaunchRequested`
+   (`{param:RELAUNCH|0}`) starts the new version `runasoriginaluser`.
 8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
    (`i18n.current_language()`), so a change applies after a restart. `"auto"` picks Russian
@@ -636,7 +669,7 @@ model, runs only when the backend or the model path changes.
 |---|---|
 | **OpenRouter API** (`openai` SDK, `base_url=https://openrouter.ai/api/v1`) | `translate/llm_client.py::_get_client_for`, `_call_provider` |
 | **Anthropic API** (`anthropic` SDK) | `translate/llm_client.py::_get_client_for`, `_call_provider` |
-| **GitHub Releases API** | `updater/check_update.py::check_for_update` (repository from `config.GITHUB_REPO`) |
+| **GitHub Releases API** | `updater/check_update.py::check_for_update` (repository from `config.GITHUB_REPO`); `updater/install_update.py::latest_release` (installer asset + its `digest` SHA-256, else the checksum line of the notes) |
 | **RapidOCR / ONNX Runtime (DirectML)** (local; a rec model missing from `rapidocr/models/` is downloaded from ModelScope on first launch) | `ocr/engine.py::get_reader` / `_build_engine` |
 | **CTranslate2 + sentencepiece** (local, offline) | `translate/nllb_backend.py::NllbBackend.ensure_loaded` / `_raw_translate` |
 | **cuBLAS 12** (optional; `nvidia-cublas-cu12` wheel or CUDA Toolkit 12.x) | `translate/cuda_support.py::prepare_cuda_libraries`, loaded lazily by CTranslate2 on the first GPU matmul |
@@ -705,6 +738,10 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
+| `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
+| `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
+| `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook |
+| `tests/test_app_hotkeys.py` | app hotkeys: Qt sequence → keyboard name, validation (single key, clashes with the other hotkey / presets), `SETTINGS_HOTKEY` env override, the settings page saving / rejecting an edit and pausing the hooks on focus |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |

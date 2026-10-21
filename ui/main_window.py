@@ -43,6 +43,38 @@ class _UpdateCheckWorker(QThread):
             self.update_done.emit(False, "", "")
 
 
+class _UpdateInstallWorker(QThread):
+    """Fetch the latest release's installer and verify it (updater/install_update.py)."""
+    progress_changed = pyqtSignal(int, int, int)  # (percent, done MiB, total MiB)
+    finished_with_status = pyqtSignal(bool, str)  # (ok, setup path | error | "" if cancelled)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        import threading
+        self.cancel = threading.Event()
+        self._last_percent = -1
+
+    def _on_progress(self, done: int, total: int) -> None:
+        percent = done * 100 // total if total else 0
+        if percent != self._last_percent:
+            self._last_percent = percent
+            self.progress_changed.emit(percent, done >> 20, total >> 20)
+
+    def run(self):
+        from updater.install_update import DownloadCancelled, download_setup, latest_release
+        try:
+            release = latest_release()
+            if release is None:
+                self.finished_with_status.emit(False, tr("в релизе нет установщика с контрольной суммой"))
+                return
+            path = download_setup(release, progress=self._on_progress, cancel=self.cancel)
+            self.finished_with_status.emit(True, str(path))
+        except DownloadCancelled:
+            self.finished_with_status.emit(False, "")
+        except Exception as e:
+            self.finished_with_status.emit(False, str(e))
+
+
 # ── Background worker for text / image translation ───────
 
 class _TextTranslateWorker(QThread):
@@ -520,6 +552,11 @@ class MainWindow(QMainWindow):
 
     # Settings asked for a restart (restart-only options were saved).
     restart_requested = pyqtSignal()
+    update_install_started = pyqtSignal()  # the update setup waits for the app to quit
+    add_region_requested = pyqtSignal()     # forwarded from SettingsWidget (Regions)
+    manage_regions_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
+    hotkeys_changed = pyqtSignal()       # forwarded from SettingsWidget
+    hotkey_capture = pyqtSignal(bool)    # forwarded from SettingsWidget
 
     # Page indices
     PAGE_HOME = 0
@@ -570,13 +607,19 @@ class MainWindow(QMainWindow):
     def _on_update_check_finished(self, has_update: bool, version: str, url: str):
         self._update_worker = None
         if has_update and url:
+            from updater.install_update import can_self_update
+            self._update_version, self._update_url = version, url
             self._update_label.setText(tr("Доступно обновление {version}", version=version).upper())
             self._update_banner.setVisible(True)
             try:
                 self._btn_download_update.clicked.disconnect()
             except Exception:
                 pass
-            self._btn_download_update.clicked.connect(lambda: webbrowser.open(url))
+            if can_self_update():
+                self._btn_download_update.setText(tr("Обновить").upper())
+                self._btn_download_update.clicked.connect(self._on_update_install_clicked)
+            else:  # source run or a copied folder: the release page instead
+                self._btn_download_update.clicked.connect(lambda: webbrowser.open(url))
 
             if hasattr(self, "_tray_icon") and self._tray_icon and hasattr(self._tray_icon, "showMessage"):
                 try:
@@ -593,6 +636,50 @@ class MainWindow(QMainWindow):
                     self._tray_icon.messageClicked.connect(lambda: webbrowser.open(url))
                 except Exception:
                     pass
+
+    def refresh_regions(self):
+        """Region presets changed: update Settings → Regions if that page was built."""
+        if self._settings_widget is not None:
+            self._settings_widget.refresh_regions()
+
+    def _on_update_install_clicked(self):
+        """Download the new installer (or cancel that download) from the update banner."""
+        worker = getattr(self, "_update_install_worker", None)
+        if worker is not None:
+            worker.cancel.set()
+            return
+        self._btn_download_update.setText(tr("Отмена").upper())
+        self._update_label.setText(tr("Скачивание обновления {version}…", version=self._update_version).upper())
+        self._update_install_worker = _UpdateInstallWorker(self)
+        self._update_install_worker.progress_changed.connect(
+            lambda pct, done, total: self._update_label.setText(
+                tr("Скачивание обновления {version}: {pct}%", version=self._update_version, pct=pct).upper()
+            )
+        )
+        self._update_install_worker.finished_with_status.connect(self._on_update_downloaded)
+        self._update_install_worker.start()
+
+    def _on_update_downloaded(self, ok: bool, result: str):
+        self._update_install_worker = None
+        self._btn_download_update.setText(tr("Обновить").upper())
+        if ok:
+            from pathlib import Path
+            from updater.install_update import launch_installer
+            try:
+                launch_installer(Path(result))
+            except Exception as e:
+                logging.exception("Could not start the update installer")
+                self._update_label.setText(tr("Не удалось запустить установку: {error}", error=e))
+                return
+            self._update_label.setText(tr("Устанавливаем {version}, приложение перезапустится…",
+                                          version=self._update_version).upper())
+            self.update_install_started.emit()  # main.py quits; the setup starts after that
+            return
+        if result:
+            logging.warning("Update download failed: %s", result)
+            self._update_label.setText(tr("Не удалось скачать обновление: {error}", error=result))
+        else:
+            self._update_label.setText(tr("Доступно обновление {version}", version=self._update_version).upper())
 
     # ── Build UI ─────────────────────────────────────────
 
@@ -803,6 +890,10 @@ class MainWindow(QMainWindow):
             self._settings_widget.settings_saved.connect(self._tray_icon.rebuild_lang_menu)
         self._settings_widget.settings_saved.connect(self._home_page.refresh_status)
         self._settings_widget.restart_requested.connect(self.restart_requested)
+        self._settings_widget.hotkeys_changed.connect(self.hotkeys_changed)
+        self._settings_widget.hotkey_capture.connect(self.hotkey_capture)
+        self._settings_widget.add_region_requested.connect(self.add_region_requested)
+        self._settings_widget.manage_regions_requested.connect(self.manage_regions_requested)
         vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)
