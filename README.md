@@ -280,7 +280,7 @@ commit SHA rather than the tag name because a tag can later be moved to other fi
 Re-running the script only fetches files that changed. Options: `--revision <tag>` to try
 another build, `--dest <dir>` to download elsewhere (then set that path in Settings).
 
-> **License:** the model inherits NLLB-200's **CC-BY-NC-4.0** license, so it may be used for non-commercial purposes only.
+> **License:** the model inherits NLLB-200's **CC-BY-NC-4.0** license, so it may be used for non-commercial purposes only. See [MODEL_LICENSE.md](MODEL_LICENSE.md).
 
 ### 1b. Manual path: convert the original model yourself
 
@@ -421,6 +421,16 @@ $total = (Select-String "CACHE" logs\translator.log).Count
 
 ---
 
+## 🤝 Contributing
+
+Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the setup and the rules, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+---
+
 ## 📝 License
 
-MIT
+The source code is released under the [MIT License](LICENSE).
+
+The optional offline NLLB-200 model and every build made from it are licensed
+separately under **CC-BY-NC-4.0** (non-commercial use only). See [MODEL_LICENSE.md](MODEL_LICENSE.md).
