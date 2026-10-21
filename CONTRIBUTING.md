@@ -85,6 +85,9 @@ reason for the change is not obvious.
 - Link the issue it closes (`Closes #123`).
 - Add screenshots or a short GIF for UI changes.
 - Keep the branch up to date with `main` and resolve conflicts yourself.
+- `main` is protected: changes land only through a pull request, and the `tests`
+  check (`.github/workflows/ci.yml`, the test suite on Windows) must pass before it
+  can be merged. Force pushes to `main` and deleting it are blocked.
 - A maintainer reviews it. Expect questions and requests for changes; that is
   part of the process, not a rejection.
 
@@ -94,7 +97,7 @@ Versions follow [SemVer](https://semver.org/): patch for fixes, minor for new fe
 
 1. Move the `[Unreleased]` entries in `CHANGELOG.md` into a new `## [X.Y.Z] - YYYY-MM-DD`
    section and update the links at the bottom.
-2. Set `APP_VERSION = "X.Y.Z"` in `config.py`, commit, and push to `main`.
+2. Set `APP_VERSION = "X.Y.Z"` in `config.py` and merge that through a pull request.
 3. Tag and push: `git tag -a vX.Y.Z -m "Translator Overlay X.Y.Z"` and
    `git push origin vX.Y.Z`.
 4. The `Release` workflow checks that the tag matches `APP_VERSION` and the changelog,
