@@ -380,6 +380,7 @@ class TranslatorApp:
         # Register global hotkeys (fire on a background thread). Settings → Hotkeys
         # changes them at run time; a focused hotkey field pauses them all.
         self._app_hotkey_handles: list = []
+        self._hotkeys_paused = False
         self._register_app_hotkeys()
         self._main_window.hotkeys_changed.connect(self._register_app_hotkeys)
         self._main_window.hotkey_capture.connect(self._pause_hotkeys)
@@ -563,6 +564,10 @@ class TranslatorApp:
             except Exception:
                 pass  # already gone (e.g. after a pause)
         self._app_hotkey_handles = []
+        if self._hotkeys_paused:
+            # Saved while its field still has focus: hook it when the capture ends.
+            self._tray.refresh_hotkey_labels()
+            return
         for hotkey, bridge in ((config.HOTKEY, self._bridge),
                                (config.SETTINGS_HOTKEY, self._settings_bridge)):
             try:
@@ -570,11 +575,11 @@ class TranslatorApp:
             except Exception:
                 logging.exception(f"Failed to register global hotkey '{hotkey}'")
         logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
-        if hasattr(self._tray, "refresh_hotkey_labels"):
-            self._tray.refresh_hotkey_labels()
+        self._tray.refresh_hotkey_labels()
 
     def _pause_hotkeys(self, capturing: bool) -> None:
         """While a hotkey field is focused, no global hotkey may fire (e.g. the selector)."""
+        self._hotkeys_paused = capturing
         if capturing:
             keyboard.unhook_all_hotkeys()
             self._app_hotkey_handles = []
