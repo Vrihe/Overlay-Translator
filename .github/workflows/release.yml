@@ -25,6 +25,9 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 90
+    env:
+      # build.py prints → and ✓; redirected stdout on the runner is cp1252 otherwise.
+      PYTHONUTF8: "1"
     defaults:
       run:
         shell: pwsh
