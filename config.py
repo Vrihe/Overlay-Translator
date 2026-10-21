@@ -50,7 +50,7 @@ def _get_user_data_dir() -> Path:
 
 # A module-level literal so pyproject.toml (setuptools) and build.py can read
 # the version without importing config.
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.1"
 
 
 class _LiveConfig:
@@ -62,6 +62,45 @@ class _LiveConfig:
     @property
     def HOTKEY(self):
         return _cfg("hotkey")
+
+    @HOTKEY.setter
+    def HOTKEY(self, value):
+        from settings.config_manager import set_value
+
+        set_value("hotkey", value)
+
+    @property
+    def LIVE_INTERVAL_SEC(self):
+        """Live monitoring: seconds between two checks of the region."""
+        return _cfg("live_interval_sec")
+
+    @LIVE_INTERVAL_SEC.setter
+    def LIVE_INTERVAL_SEC(self, value):
+        from settings.config_manager import set_value
+
+        set_value("live_interval_sec", value)
+
+    @property
+    def LIVE_SENSITIVITY(self):
+        """Live monitoring: "high" | "medium" | "low" — how small a change counts."""
+        return _cfg("live_sensitivity")
+
+    @LIVE_SENSITIVITY.setter
+    def LIVE_SENSITIVITY(self, value):
+        from settings.config_manager import set_value
+
+        set_value("live_sensitivity", value)
+
+    @property
+    def SETTINGS_HOTKEY(self):
+        """Opens the settings; the SETTINGS_HOTKEY env var overrides settings.json."""
+        return os.environ.get("SETTINGS_HOTKEY") or _cfg("settings_hotkey")
+
+    @SETTINGS_HOTKEY.setter
+    def SETTINGS_HOTKEY(self, value):
+        from settings.config_manager import set_value
+
+        set_value("settings_hotkey", value)
 
     @property
     def ENABLE_OCR_PREVIEW(self):
@@ -261,8 +300,6 @@ class _LiveConfig:
     NLLB_GLOSSARY = os.environ.get("NLLB_GLOSSARY", "1").lower() not in ("0", "false", "no")
 
     _PROJECT_DIR = _PROJECT_DIR
-
-    SETTINGS_HOTKEY = os.environ.get("SETTINGS_HOTKEY", "ctrl+shift+o")
 
     OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
 

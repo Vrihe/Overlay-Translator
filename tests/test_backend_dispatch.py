@@ -60,7 +60,10 @@ class TestNmtBackends(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def _use(self, name, client):
-        stack = [_config("TRANSLATION_BACKEND", name), mock.patch.object(backend, "_get_nmt_client", return_value=client)]
+        stack = [
+            _config("TRANSLATION_BACKEND", name),
+            mock.patch.object(backend, "_get_nmt_client", return_value=client),
+        ]
         for p in stack:
             p.start()
             self.addCleanup(p.stop)

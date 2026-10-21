@@ -28,7 +28,6 @@ MESSAGES: dict[str, str] = {
     "Проверяем ключ…": "Checking the key…",
     # ── main.py ──
     "Живой автомониторинг запущен": "Live auto-monitoring started",
-    "Область автоматически проверяется каждые 10 сек.": "The region is checked automatically every 10 s.",
     "Живой мониторинг остановлен": "Live monitoring stopped",
     "Автоматическое отслеживание области отключено.": "Automatic region tracking is off.",
     "Ошибка захвата экрана:\n{error}": "Screen capture error:\n{error}",
@@ -335,7 +334,6 @@ MESSAGES: dict[str, str] = {
     "Автоопределение исходного языка": "Detect the source language automatically",
     "Перевод области": "Translate region",
     "Окно настроек": "Settings window",
-    'Бинды для пресетов областей назначаются в меню трея → «Пресеты регионов».': 'Hotkeys for region presets are assigned in the tray menu → "Region presets".',
     "Цветовая схема": "Colour scheme",
     "Янтарь": "Amber",
     "Циан": "Cyan",
@@ -353,6 +351,45 @@ MESSAGES: dict[str, str] = {
     "Подстраивается под текст. Растяните попап за край, чтобы задать свой размер.": "Fits the text. Drag an edge of the popup to set your own size.",
     "Сохранён: {width} × {height}": "Saved: {width} × {height}",
     "Пройти мастер настройки заново": "Run the setup wizard again",
+    # ── Settings → Regions (ui/settings_dialog.py, capture/live_monitor.py) ──
+    "Регионы": "Regions",
+    "Бинды регионов — в разделе «Регионы».": "Region binds are in the Regions section.",
+    "Сохранённые области экрана. Бинд переводит область сразу, без выделения; в «Управлении» — "
+    "переименовать, удалить, назначить бинд или запустить мониторинг.": "Saved screen areas. A bind translates the area at once, without selecting it; "
+    "Manage renames, deletes, sets a bind or starts monitoring.",
+    "Добавить регион": "Add region",
+    "Управление…": "Manage…",
+    "без бинда": "no bind",
+    "Регионов пока нет: нажмите «Добавить регион».": "No regions yet: click Add region.",
+    "Живой мониторинг": "Live monitoring",
+    "Мониторинг переводит область снова, когда в ней меняется текст. Запускается из меню трея "
+    "или в «Управлении» регионами; новые значения действуют со следующего запуска.": "Monitoring translates an area again when its text changes. Start it from the tray menu "
+    "or in Manage regions; new values apply from the next start.",
+    "Проверять каждые:": "Check every:",
+    "Чувствительность к изменениям:": "Sensitivity to changes:",
+    "Высокая — ловит даже мелкие изменения": "High — catches even small changes",
+    "Средняя (рекомендуется)": "Medium (recommended)",
+    "Низкая — только заметные изменения": "Low — only noticeable changes",
+    "Область автоматически проверяется каждые {seconds} сек.": "The area is checked automatically every {seconds} s.",
+    # ── One-click update (ui/main_window.py, updater/install_update.py) ──
+    "Обновить": "Update",
+    "Скачивание обновления {version}…": "Downloading update {version}…",
+    "Скачивание обновления {version}: {pct}%": "Downloading update {version}: {pct}%",
+    "Устанавливаем {version}, приложение перезапустится…": "Installing {version}, the app will restart…",
+    "Не удалось скачать обновление: {error}": "Could not download the update: {error}",
+    "Не удалось запустить установку: {error}": "Could not start the installation: {error}",
+    "в релизе нет установщика с контрольной суммой": "the release has no installer with a checksum",
+    # ── Settings → Hotkeys (settings/hotkeys.py) ──
+    "Щёлкните поле и нажмите новое сочетание. Пока поле активно, глобальные хоткеи "
+    "приложения не срабатывают.": "Click a field and press the new combination. While the field is active, the app's "
+    "global hotkeys do not fire.",
+    "Щёлкните и нажмите сочетание клавиш": "Click and press a key combination",
+    "По умолчанию": "Default",
+    "✓ Сохранено: {hotkey}": "✓ Saved: {hotkey}",
+    "Нажмите сочетание клавиш.": "Press a key combination.",
+    "Добавьте Ctrl, Alt, Shift или Win: одна обычная клавиша срабатывала бы при наборе текста.": "Add Ctrl, Alt, Shift or Win: a single ordinary key would fire while you type.",
+    "Комбинация '{hotkey}' уже занята для другого действия.": "'{hotkey}' is already used for the other action.",
+    "Комбинация '{hotkey}' уже назначена пресету «{name}».": "'{hotkey}' is already assigned to the preset \"{name}\".",
     # ── ui/setup_wizard.py ──
     "Назад": "Back",
     "Далее": "Next",

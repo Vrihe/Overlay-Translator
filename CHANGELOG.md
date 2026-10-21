@@ -9,13 +9,30 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+- Google, DeepL and Azure translations are now served from the cache when the source
+  language is auto-detected; before, the same text was sent to the service every time.
+
+## [1.2.1] - 2026-10-21
+
+### Added
+- Custom hotkeys: Settings → Hotkeys changes the translate and the settings hotkey and
+  applies them at once. Clashes and single ordinary keys are refused; while a field is
+  being edited the global hotkeys are paused.
+- Settings → Regions: the saved screen regions with their size and bind, an "Add region"
+  button (select an area, name it) and "Manage…" for renaming, deleting and binds.
+- Live monitoring settings: how often the region is checked (1–120 s) and how big a change
+  must be to translate it again.
+- One-click update: the "Update" button in the new-version banner downloads the installer,
+  checks its SHA-256, installs it silently and restarts the app.
+
 ### Changed
 - Releases carry only `Setup.exe`; its SHA-256 is in the release notes instead of a
   separate `.sha256` file.
 
 ### Fixed
-- Google, DeepL and Azure translations are now served from the cache when the source
-  language is auto-detected; before, the same text was sent to the service every time.
+- Saving a new region with an unusable name (empty, taken, or over the limit) failed
+  silently; the reason is now shown.
 
 ## [1.1.0] - 2026-10-21
 
@@ -55,6 +72,7 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...v1.2.1
 [1.1.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Vrihe/Overlay-Translator/releases/tag/v1.0.0
