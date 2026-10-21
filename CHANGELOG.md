@@ -9,6 +9,10 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Changed
+- Releases carry only `Setup.exe`; its SHA-256 is in the release notes instead of a
+  separate `.sha256` file.
+
 ## [1.1.0] - 2026-10-21
 
 ### Added

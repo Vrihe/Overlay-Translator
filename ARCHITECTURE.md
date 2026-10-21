@@ -607,8 +607,9 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    **Release pipeline** — `.github/workflows/release.yml` on a `v*` tag (windows-latest):
    `build.py --check-tag` (tag == `v` + `APP_VERSION`, `CHANGELOG.md` has that section) →
    `pytest` (offscreen Qt) → Inno Setup via choco if missing → deps layer restored from
-   `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → `.sha256`
-   and `build.py --release-notes` (changelog section + install steps) → draft release
+   `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → SHA-256
+   into `build.py --release-notes` (changelog section + install steps + checksum; no
+   separate `.sha256` file) → draft release with Setup.exe only
    (re-runs `--clobber` the files). Manual runs only upload an artifact. Process: CONTRIBUTING.md.
 8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process

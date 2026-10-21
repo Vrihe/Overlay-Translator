@@ -172,12 +172,12 @@
 
 **Срок:** 4–6 дней
 
-- [ ] GitHub Actions `release.yml`: сборка PyInstaller на `windows-latest` по тегу `v*`, загрузка артефактов в GitHub Release
+- [x] GitHub Actions `release.yml`: сборка PyInstaller на `windows-latest` по тегу `v*`, загрузка артефактов в GitHub Release
 - [x] Установщик (Inno Setup или MSIX), ярлык, деинсталлятор; рассмотреть подпись кода
 - [ ] Две сборки: CPU (лёгкая) и GPU (с cuBLAS), либо скачивание GPU-компонентов при первом запуске
-- [ ] Мастер первого запуска: выбор режима (API / офлайн), кнопка «Скачать офлайн-модель» с прогрессом и проверкой sha256
+- [x] Мастер первого запуска: выбор режима (API / офлайн), кнопка «Скачать офлайн-модель» с прогрессом и проверкой sha256
 - [x] Проверка работы апдейтера на реальном релизе (сейчас релизов нет)
-- [ ] Changelog (`CHANGELOG.md`, Keep a Changelog) и SemVer-теги
+- [x] Changelog (`CHANGELOG.md`, Keep a Changelog) и SemVer-теги
 - [x] Тестирование на чистой Windows (виртуалка): установка → первый запуск → перевод → удаление
 - [x] Выпустить `v1.0.0`
 
@@ -466,12 +466,12 @@ Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3�
 
 **Time:** 4–6 days
 
-- [ ] GitHub Actions `release.yml`: PyInstaller build on `windows-latest` for `v*` tags, artifacts uploaded to a GitHub Release
+- [x] GitHub Actions `release.yml`: PyInstaller build on `windows-latest` for `v*` tags, artifacts uploaded to a GitHub Release
 - [x] Installer (Inno Setup or MSIX), shortcut, uninstaller; consider code signing
 - [ ] Two builds: CPU (light) and GPU (with cuBLAS), or download GPU components on first launch
-- [ ] First-run wizard: mode choice (API / offline), a "Download offline model" button with progress and a sha256 check
+- [x] First-run wizard: mode choice (API / offline), a "Download offline model" button with progress and a sha256 check
 - [x] Check the updater against a real release (there are no releases yet)
-- [ ] Changelog (`CHANGELOG.md`, Keep a Changelog) and SemVer tags
+- [x] Changelog (`CHANGELOG.md`, Keep a Changelog) and SemVer tags
 - [x] Test on a clean Windows (VM): install → first launch → translation → uninstall
 - [x] Release `v1.0.0`
 

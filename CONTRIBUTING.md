@@ -99,7 +99,8 @@ Versions follow [SemVer](https://semver.org/): patch for fixes, minor for new fe
    `git push origin vX.Y.Z`.
 4. The `Release` workflow checks that the tag matches `APP_VERSION` and the changelog,
    runs the tests, builds the installer and creates a **draft** release with
-   `TranslatorOverlay-Setup-X.Y.Z.exe`, its `.sha256` and the changelog section as notes.
+   `TranslatorOverlay-Setup-X.Y.Z.exe`; the notes are the changelog section, install
+   steps and the installer's SHA-256.
 5. Install the draft's setup on a clean Windows (Windows Sandbox is enough), check
    install → first launch → translation → uninstall, then publish the release.
 

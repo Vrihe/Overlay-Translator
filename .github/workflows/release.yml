@@ -77,13 +77,13 @@ jobs:
       - name: Build app and installer
         run: python build.py --installer
 
+      # The checksum goes into the release notes only: the release carries just Setup.exe.
       - name: Checksum and release notes
         id: files
         run: |
           $version = python -c "import build, pathlib; print(build.app_version(pathlib.Path('.')))"
           $setup = "dist/installer/TranslatorOverlay-Setup-$version.exe"
           $sha = (Get-FileHash $setup -Algorithm SHA256).Hash
-          "$sha  TranslatorOverlay-Setup-$version.exe" | Out-File -Encoding ascii "$setup.sha256"
           python build.py --release-notes release-notes.md --sha256 $sha
           "version=$version" >> $env:GITHUB_OUTPUT
           "setup=$setup" >> $env:GITHUB_OUTPUT
@@ -94,7 +94,6 @@ jobs:
           name: TranslatorOverlay-Setup-${{ steps.files.outputs.version }}
           path: |
             ${{ steps.files.outputs.setup }}
-            ${{ steps.files.outputs.setup }}.sha256
             release-notes.md
           retention-days: 14
 
@@ -109,8 +108,8 @@ jobs:
           gh release view $env:TAG *> $null
           if ($LASTEXITCODE -eq 0) {
             # A re-run replaces the files of the existing (draft) release.
-            gh release upload $env:TAG $env:SETUP "$env:SETUP.sha256" --clobber
+            gh release upload $env:TAG $env:SETUP --clobber
           } else {
-            gh release create $env:TAG $env:SETUP "$env:SETUP.sha256" --draft --verify-tag `
+            gh release create $env:TAG $env:SETUP --draft --verify-tag `
               --title "Translator Overlay $env:VERSION" --notes-file release-notes.md
           }
