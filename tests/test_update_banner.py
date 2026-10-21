@@ -1,7 +1,6 @@
 """
 tests/test_update_banner.py — the main window checks for updates at launch and every
-30 minutes, offers each new version once, never re-checks while an update downloads,
-and shows the app version at the foot of the navigation rail.
+30 minutes, offers each new version once and never re-checks while an update downloads.
 
 The window is built offscreen; the update check worker never runs (no network).
 """
@@ -12,7 +11,6 @@ from unittest import mock
 
 from PyQt5.QtWidgets import QApplication
 
-import config
 from ui import main_window
 from ui.main_window import MainWindow
 
@@ -64,9 +62,6 @@ class TestUpdateChecks(unittest.TestCase):
         with mock.patch("updater.install_update.can_self_update", return_value=True):
             self.window._on_update_check_finished(True, "v9.9.10", "https://example.invalid")
         self.assertEqual(self.tray.showMessage.call_count, 2)
-
-    def test_version_label(self):
-        self.assertEqual(self.window._version_label.text(), f"v{config.APP_VERSION}")
 
 
 if __name__ == "__main__":

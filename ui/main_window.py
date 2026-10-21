@@ -780,13 +780,6 @@ class MainWindow(QMainWindow):
             sb_layout.addWidget(btn, 0, Qt.AlignHCenter)
 
         sb_layout.addStretch()
-
-        # Current version at the foot of the rail.
-        self._version_label = QLabel(f"v{getattr(config, 'APP_VERSION', '')}")
-        self._version_label.setAlignment(Qt.AlignCenter)
-        self._version_label.setToolTip(tr("Версия приложения: v{version}", version=config.APP_VERSION))
-        self._version_label.setStyleSheet(theme.text_css(p.muted, 7.5) + " background: transparent;")
-        sb_layout.addWidget(self._version_label, 0, Qt.AlignHCenter)
         root.addWidget(rail)
 
         # ── Right content container (Banner + Stack) ─────

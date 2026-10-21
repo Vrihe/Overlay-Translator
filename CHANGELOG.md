@@ -10,7 +10,6 @@ the section for that version becomes the GitHub release notes.
 ## [Unreleased]
 
 ### Added
-- The app version is shown at the bottom of the main window's side bar.
 - Updates are checked every 30 minutes while the app runs, not only at launch; each new
   version is announced once.
 

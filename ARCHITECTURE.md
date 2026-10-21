@@ -472,8 +472,7 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `show_and_switch(page)`, `set_tray_icon(tray)`; workers `_TextTranslateWorker`,
   `_ImageTranslateWorker`, `_UpdateCheckWorker` (at launch and every 30 min by
   `_update_timer`; skipped while a check runs or an update downloads; each new version is
-  announced in the tray once). The version is shown at the foot of the navigation rail
-  (`_version_label`). Home: status chips (online, language
+  announced in the tray once). Home: status chips (online, language
   pair, hotkey), "Перевод текста" panel, "Из скриншота" panel with a drop zone (file
   dialog or drag-and-drop of an image file; one image at a time), "Последние" panel (the
   3 newest `cache.store.get_all_history` records, refreshed on page switch and after a
@@ -766,7 +765,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
-| `tests/test_update_banner.py` | update check at launch and every 30 min, no check while one runs or an update downloads, each version announced once, version label |
+| `tests/test_update_banner.py` | update check at launch and every 30 min, no check while one runs or an update downloads, each version announced once |
 | `tests/test_popup_live.py` | popup excluded from screen capture and kept opaque, live update without taking focus, regions dialog rows and monitoring button |
 | `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
 | `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
