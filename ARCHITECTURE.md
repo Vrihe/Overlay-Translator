@@ -713,6 +713,10 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_setup_wizard.py` | when the first-run wizard shows (fresh / upgraded / unfinished), what each mode saves, offline build list and preselection, closing never drops a running worker |
 | `tests/test_popup_placement.py` | popup placed under/above the selection, steps off the main window to the nearest free spot, keeps the usual place when none |
 | `tests/test_popup_drag.py` | popup top edge drags instead of resizing; a drag goes to the OS move loop, manual move as fallback |
+| `tests/test_backend_dispatch.py` | `translate.backend` routing: NMT clients with a per-backend cache, NLLB used when it loads, missing model → API with a one-shot notice, a loaded model's error is not hidden, `preload()` never raises |
+| `tests/test_nllb_backend.py` | NLLB with a stubbed model (fake `ctranslate2` / `sentencepiece`): model discovery, load errors, FLORES codes and token layout, cache namespace, fast path, unsupported language, inference errors, singleton reset |
+| `tests/test_cache_store.py` | L1 LRU and L2 SQLite cache: round trip, key parts, eviction on both levels, `warm_cache()`, history order, `clear_history()`, rebuild of an old schema |
+| `tests/test_training_data.py` | `training/` splits without leakage (stratified abbreviation split, phrase split, disjoint FLORES pools) and the metrics in `training/evaluate.py` (keep-rate, chrF groups, paired bootstrap) |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:
@@ -723,8 +727,15 @@ py -m unittest discover -s tests -p "test_*.py" -v
 pytest tests/ -v
 ```
 
-There is no `pytest.ini` / `pyproject.toml`; run from the project root
-(modules are imported as top-level packages).
+Run from the project root (modules are imported as top-level packages). pytest,
+coverage and ruff settings live in `pyproject.toml`:
+
+- `pytest -m "not slow"` is what CI runs; a test that needs a real model or a GPU
+  is marked `@pytest.mark.slow`.
+- `pytest --cov` measures `translate/`, `cache/` and `settings/` and fails below 60 %.
+- CI (`.github/workflows/ci.yml`): ruff, then the tests on Windows (required) and
+  Linux (informational); pushes to `main` publish the coverage badge data to the
+  `badges` branch.
 
 ---
 
