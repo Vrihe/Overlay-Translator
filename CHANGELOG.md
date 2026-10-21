@@ -9,6 +9,11 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+- Custom hotkeys: Settings → Hotkeys changes the translate and the settings hotkey and
+  applies them at once. Clashes and single ordinary keys are refused; while a field is
+  being edited the global hotkeys are paused.
+
 ### Changed
 - Releases carry only `Setup.exe`; its SHA-256 is in the release notes instead of a
   separate `.sha256` file.

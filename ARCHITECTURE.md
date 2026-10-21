@@ -47,6 +47,7 @@ Overlay-Translator/
 ├── build*.spec             # Spec files (layered build: app + deps)
 ├── installer/TranslatorOverlay.iss  # Inno Setup script: dist/TranslatorOverlay/ → Setup.exe (build.py --installer)
 ├── .github/workflows/release.yml   # v* tag → tests, build, installer, draft GitHub release
+├── .github/workflows/ci.yml        # tests on every PR and push to main (required check of main)
 ├── CHANGELOG.md            # Keep a Changelog; the X.Y.Z section becomes the release notes
 ├── _deps_stub.py           # Stub for the layered dependency build
 ├── pyi_rth_onnxruntime.py  # Runtime hook: import onnxruntime before PyInstaller's PyQt5 hook
@@ -82,6 +83,7 @@ Overlay-Translator/
 ├── settings/               # Settings persistence
 │   ├── __init__.py         #   * API keys via keyring + provider/fallback
 │   ├── config_manager.py   #   * settings.json: DEFAULTS / get / set_value
+│   ├── hotkeys.py          #   App hotkeys (translate / settings): Qt → keyboard names, validation
 │   └── region_presets.py   #   Screen-region presets + their hotkeys
 │
 ├── ui/                     # PyQt5 widgets
@@ -178,7 +180,11 @@ Overlay-Translator/
   preloads langid only when `translate.backend.uses_langid()` (LLM / NLLB): its model
   unpickle holds the GIL ~1 s and would freeze the UI for nothing on Google / DeepL / Azure.
 - `class TranslatorApp` — owns `QApplication`, `MainWindow`, `TrayIcon`, hotkeys,
-  the selector, popups, live monitoring and preset hotkeys.
+  the selector, popups, live monitoring and preset hotkeys. `_register_app_hotkeys()`
+  (re)registers `config.HOTKEY` / `config.SETTINGS_HOTKEY` (kept handles are removed
+  first) and refreshes the tray labels; it runs at start and on `MainWindow.hotkeys_changed`.
+  `MainWindow.hotkey_capture(True)` (a hotkey field in the settings got focus) →
+  `_pause_hotkeys` unhooks every global hotkey, `False` registers app + preset ones again.
   Key methods: `_show_selector`, `_on_region_selected`,
   `_start_translation_pipeline(x1, y1, x2, y2, anchor, text_override=None)`,
   `_on_ocr_preview_requested`, `_toggle_live_monitoring`, `_register_preset_hotkeys`,
@@ -210,11 +216,12 @@ so `import config; config.TARGET_LANG` reads a **property** that calls
   `TRANSLATION_ENGINE`, `TRANSLATION_BACKEND`, `NLLB_MODEL_PATH`, `LLM_MODEL`,
   `POPUP_TIMEOUT_SEC`, `NOTIFICATION_TYPE`,
   `OCR_LANGUAGES`, `ACTIVE_DOMAIN`,
-  `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`.
+  `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`,
+  `HOTKEY`, `SETTINGS_HOTKEY` (the `SETTINGS_HOTKEY` env var overrides the latter).
 - Static (env/constants): `MAX_RETRIES_PER_PROVIDER`, `RETRY_BACKOFF_BASE_SEC`,
   `OPENROUTER_MODEL`, `ANTHROPIC_DETECT_MODEL`, `APP_VERSION`, `GITHUB_REPO`,
   `NLLB_HF_REPO_ID`, `NLLB_HF_REVISION` (the pinned model build, see section 9),
-  `SETTINGS_HOTKEY`, `EASYOCR_*`, `OVERLAY_*`, `USER_DATA_DIR`, `CACHE_DIR`,
+  `EASYOCR_*`, `OVERLAY_*`, `USER_DATA_DIR`, `CACHE_DIR`,
   `CACHE_MAX_ITEMS`, `LOG_DIR`, `LOG_FILE`.
 
 ### `translate/backend.py` — backend dispatcher ★
@@ -458,7 +465,10 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `_TARGET_LANGUAGES`, `_ENGINES`, `_UI_THEMES`, `_OPENROUTER_MODELS`, `_MODEL_HINTS`.
   Section list (`_section_list`) + `_section_stack` with one scroll page per section
   (`_SECTIONS`): "Перевод" (API key and providers, backend, fast-translator keys,
-  translation, custom profiles), "Хоткеи" (read-only overview), "Распознавание" (OCR
+  translation, custom profiles), "Хоткеи" (`QKeySequenceEdit` per app hotkey + "По умолчанию";
+  `_apply_hotkey` → `settings/hotkeys.validate_app_hotkey` → `set_value` →
+  `hotkeys_changed`; a rejected one is shown and the saved one restored; focus in/out emits
+  `hotkey_capture`), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
   (language, colour scheme, about/updates).
   **Saving**: every no-restart setting saves itself — a change starts a 400 ms debounce
@@ -593,6 +603,11 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    place that pins which weights `scripts/download_model.py` fetches.
 3. **`.env`** (see `.env.example`) — API keys and static overrides
    (`EASYOCR_*`, `OVERLAY_*`, `CACHE_DIR`, `LOG_DIR`, `SETTINGS_HOTKEY`, `GITHUB_REPO`).
+   **App hotkeys** — `settings.json` → `hotkey` (translate, `ctrl+shift+r`) and
+   `settings_hotkey` (`ctrl+shift+o`), set in "Настройки → Хоткеи" and applied at once.
+   `settings/hotkeys.py`: `from_key_sequence()` (Qt names → `keyboard` names, first chord
+   only), `validate_app_hotkey()` (syntax via `keyboard.parse_hotkey`; a single ordinary
+   key is refused, F1–F24 alone are fine; no clash with the other app hotkey or a preset).
 4. **Keyring** — the working store for API keys (`settings.set_api_key`).
 5. **`translate/domain_profiles/*.json`** — system prompts and few-shot examples per domain.
 6. **`region_presets.json`** — saved regions and their individual hotkeys.
@@ -705,6 +720,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
+| `tests/test_app_hotkeys.py` | app hotkeys: Qt sequence → keyboard name, validation (single key, clashes with the other hotkey / presets), `SETTINGS_HOTKEY` env override, the settings page saving / rejecting an edit and pausing the hooks on focus |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |

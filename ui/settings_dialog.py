@@ -11,8 +11,10 @@ from PyQt5.QtWidgets import (
     QPushButton, QRadioButton, QButtonGroup, QComboBox,
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
     QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem, QStackedWidget,
+    QKeySequenceEdit,
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QEvent, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QKeySequence
 
 import html
 from typing import Any
@@ -22,7 +24,7 @@ from settings import config_manager
 from translate.llm_client import reset_client
 from i18n import N_, UI_LANGUAGES, tr
 from ui import icons, theme
-from ui.hud_widgets import Chip, FieldLabel, Segmented, SwitchRow
+from ui.hud_widgets import FieldLabel, Segmented, SwitchRow
 from ui.nllb_workers import NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
 
 _SOURCE_LANGUAGES = [
@@ -285,6 +287,10 @@ class SettingsWidget(QWidget):
     """Reusable settings form widget."""
 
     settings_saved = pyqtSignal()
+    #: An app hotkey changed: re-register the global hooks.
+    hotkeys_changed = pyqtSignal()
+    #: A hotkey field gained (True) / lost (False) focus: pause / resume the global hooks.
+    hotkey_capture = pyqtSignal(bool)
     # Restart-only settings were saved and the user chose to restart now.
     restart_requested = pyqtSignal()
 
@@ -757,17 +763,35 @@ class SettingsWidget(QWidget):
 
         pages["translate"].addWidget(grp_custom)
 
-        # ── Hotkeys section (read-only overview) ──
+        # ── Hotkeys section: click a field, press the new combination ──
+        from settings import hotkeys as app_hotkeys
         grp_hotkeys, hotkeys_layout = self._group(tr("Хоткеи"))
-        self._hotkey_chip = Chip(kind="accent")
-        self._settings_hotkey_chip = Chip(kind="neutral")
-        for caption, chip in ((tr("Перевод области"), self._hotkey_chip),
-                              (tr("Окно настроек"), self._settings_hotkey_chip)):
+        lbl_hk_how = QLabel(tr("Щёлкните поле и нажмите новое сочетание. Пока поле активно, "
+                               "глобальные хоткеи приложения не срабатывают."))
+        lbl_hk_how.setWordWrap(True)
+        lbl_hk_how.setStyleSheet(theme.label_css("caption"))
+        hotkeys_layout.addWidget(lbl_hk_how)
+        self._hotkey_edits: dict[str, QKeySequenceEdit] = {}
+        for role, caption in ((app_hotkeys.TRANSLATE, tr("Перевод области")),
+                              (app_hotkeys.SETTINGS, tr("Окно настроек"))):
+            edit = QKeySequenceEdit()
+            edit.setStyleSheet(self._INPUT_CSS)
+            edit.setToolTip(tr("Щёлкните и нажмите сочетание клавиш"))
+            edit.editingFinished.connect(lambda r=role: self._on_hotkey_edited(r))
+            edit.installEventFilter(self)  # focus in/out pauses the global hotkeys
+            btn_default = QPushButton(tr("По умолчанию"))
+            btn_default.setCursor(Qt.PointingHandCursor)
+            btn_default.setStyleSheet(theme.btn_secondary("6px 12px", 9))
+            btn_default.clicked.connect(lambda _c=False, r=role: self._apply_hotkey(r, app_hotkeys.default(r)))
             row = QHBoxLayout()
-            row.addWidget(FieldLabel(caption))
-            row.addStretch()
-            row.addWidget(chip)
-            hotkeys_layout.addLayout(row)
+            row.addWidget(edit, 1)
+            row.addWidget(btn_default)
+            hotkeys_layout.addLayout(self._field_row(caption, row))
+            self._hotkey_edits[role] = edit
+        self._hotkey_status = QLabel("")
+        self._hotkey_status.setWordWrap(True)
+        self._hotkey_status.setStyleSheet(self._status_css())
+        hotkeys_layout.addWidget(self._hotkey_status)
         lbl_hk_hint = QLabel(tr("Бинды для пресетов областей назначаются в меню трея → «Пресеты регионов»."))
         lbl_hk_hint.setWordWrap(True)
         lbl_hk_hint.setStyleSheet(theme.label_css("caption"))
@@ -1197,6 +1221,49 @@ class SettingsWidget(QWidget):
         self._nllb_status.setText(message)
         self._nllb_status.setStyleSheet(self._status_css(kind))
 
+    # ── App hotkeys ──────────────────────────────────────
+
+    def _show_saved_hotkeys(self) -> None:
+        """Put the saved combinations into the hotkey fields."""
+        from settings import hotkeys as app_hotkeys
+        for role, edit in self._hotkey_edits.items():
+            edit.blockSignals(True)
+            edit.setKeySequence(QKeySequence(app_hotkeys.current(role).upper()))
+            edit.blockSignals(False)
+
+    def _on_hotkey_edited(self, role: str) -> None:
+        from settings import hotkeys as app_hotkeys
+        text = self._hotkey_edits[role].keySequence().toString()
+        self._apply_hotkey(role, app_hotkeys.from_key_sequence(text))
+
+    def _apply_hotkey(self, role: str, hotkey: str) -> None:
+        """Validate and save *hotkey*; on an error show it and put the saved one back."""
+        from settings import hotkeys as app_hotkeys
+        if hotkey == app_hotkeys.current(role):
+            self._show_saved_hotkeys()
+            return
+        try:
+            hk = app_hotkeys.validate_app_hotkey(hotkey, role)
+        except ValueError as exc:
+            self._hotkey_status.setText(f"⚠ {exc}")
+            self._hotkey_status.setStyleSheet(self._status_css("warn"))
+            self._show_saved_hotkeys()
+            return
+        config_manager.set_value(app_hotkeys.SETTING_KEYS[role], hk)
+        self._show_saved_hotkeys()
+        self._hotkey_status.setText(tr("✓ Сохранено: {hotkey}", hotkey=hk.upper()))
+        self._hotkey_status.setStyleSheet(self._status_css("ok"))
+        self.hotkeys_changed.emit()
+        self.settings_saved.emit()
+
+    def eventFilter(self, obj, event):
+        if obj in getattr(self, "_hotkey_edits", {}).values():
+            if event.type() == QEvent.FocusIn:
+                self.hotkey_capture.emit(True)
+            elif event.type() == QEvent.FocusOut:
+                self.hotkey_capture.emit(False)
+        return super().eventFilter(obj, event)
+
     def _refresh_nllb_status(self) -> None:
         """Show whether the local model is present, without loading it."""
         from translate.backend import BACKEND_NLLB
@@ -1507,8 +1574,7 @@ class SettingsWidget(QWidget):
         self._theme_combo.setCurrentIndex(max(idx_theme, 0))
 
         # Hotkeys overview.
-        self._hotkey_chip.set_chip_text(str(config.HOTKEY or "").upper())
-        self._settings_hotkey_chip.set_chip_text(str(config.SETTINGS_HOTKEY or "").upper())
+        self._show_saved_hotkeys()
 
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":

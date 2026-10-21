@@ -413,6 +413,22 @@ MESSAGES: dict[str, str] = {
     "Сохранён: {width} × {height}": "Saved: {width} × {height}",
     "Пройти мастер настройки заново": "Run the setup wizard again",
 
+    # ── Settings → Hotkeys (settings/hotkeys.py) ──
+    "Щёлкните поле и нажмите новое сочетание. Пока поле активно, глобальные хоткеи "
+    "приложения не срабатывают.":
+        "Click a field and press the new combination. While the field is active, the app's "
+        "global hotkeys do not fire.",
+    "Щёлкните и нажмите сочетание клавиш": "Click and press a key combination",
+    "По умолчанию": "Default",
+    "✓ Сохранено: {hotkey}": "✓ Saved: {hotkey}",
+    "Нажмите сочетание клавиш.": "Press a key combination.",
+    "Добавьте Ctrl, Alt, Shift или Win: одна обычная клавиша срабатывала бы при наборе текста.":
+        "Add Ctrl, Alt, Shift or Win: a single ordinary key would fire while you type.",
+    "Комбинация '{hotkey}' уже занята для другого действия.":
+        "'{hotkey}' is already used for the other action.",
+    "Комбинация '{hotkey}' уже назначена пресету «{name}».":
+        "'{hotkey}' is already assigned to the preset \"{name}\".",
+
     # ── ui/setup_wizard.py ──
     "Назад": "Back",
     "Далее": "Next",

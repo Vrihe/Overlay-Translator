@@ -520,6 +520,8 @@ class MainWindow(QMainWindow):
 
     # Settings asked for a restart (restart-only options were saved).
     restart_requested = pyqtSignal()
+    hotkeys_changed = pyqtSignal()       # forwarded from SettingsWidget
+    hotkey_capture = pyqtSignal(bool)    # forwarded from SettingsWidget
 
     # Page indices
     PAGE_HOME = 0
@@ -803,6 +805,8 @@ class MainWindow(QMainWindow):
             self._settings_widget.settings_saved.connect(self._tray_icon.rebuild_lang_menu)
         self._settings_widget.settings_saved.connect(self._home_page.refresh_status)
         self._settings_widget.restart_requested.connect(self.restart_requested)
+        self._settings_widget.hotkeys_changed.connect(self.hotkeys_changed)
+        self._settings_widget.hotkey_capture.connect(self.hotkey_capture)
         vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)

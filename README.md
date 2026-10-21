@@ -244,8 +244,7 @@ All settings can be overridden in `.env`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `HOTKEY` | `ctrl+shift+t` | Global hotkey combo for translation |
-| `SETTINGS_HOTKEY` | `ctrl+shift+o` | Global hotkey combo for settings |
+| `SETTINGS_HOTKEY` | — | Overrides the settings hotkey. Both app hotkeys (translate: `ctrl+shift+r`, settings: `ctrl+shift+o`) are set in **Settings → Hotkeys** and apply at once |
 | `TARGET_LANG` | `ru` | Target translation language |
 | `SOURCE_LANG` | `en` | Source language (fallback when auto-detect is off or text is too short) |
 | `LANG_DETECT_ENGINE` | `langid` | Source language detection engine: `langid` (offline ML), `llm` (via API), `off` (fixed) |

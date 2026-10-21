@@ -377,13 +377,12 @@ class TranslatorApp:
         self._preset_hotkeys: list[str] = []
         self._preset_bridges: list[HotkeyBridge] = []
 
-        # Register global hotkeys (fire on a background thread).
-        try:
-            keyboard.add_hotkey(config.HOTKEY, self._bridge.triggered.emit)
-            keyboard.add_hotkey(config.SETTINGS_HOTKEY, self._settings_bridge.triggered.emit)
-            logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
-        except Exception:
-            logging.exception("Failed to register global hotkeys")
+        # Register global hotkeys (fire on a background thread). Settings → Hotkeys
+        # changes them at run time; a focused hotkey field pauses them all.
+        self._app_hotkey_handles: list = []
+        self._register_app_hotkeys()
+        self._main_window.hotkeys_changed.connect(self._register_app_hotkeys)
+        self._main_window.hotkey_capture.connect(self._pause_hotkeys)
 
         # Register individual preset hotkeys
         self._register_preset_hotkeys()
@@ -555,6 +554,35 @@ class TranslatorApp:
                 )
 
     # ── Region Presets ─────────────────────────────────
+
+    def _register_app_hotkeys(self) -> None:
+        """(Re)register the translate and settings hotkeys from the current settings."""
+        for handle in self._app_hotkey_handles:
+            try:
+                keyboard.remove_hotkey(handle)
+            except Exception:
+                pass  # already gone (e.g. after a pause)
+        self._app_hotkey_handles = []
+        for hotkey, bridge in ((config.HOTKEY, self._bridge),
+                               (config.SETTINGS_HOTKEY, self._settings_bridge)):
+            try:
+                self._app_hotkey_handles.append(keyboard.add_hotkey(hotkey, bridge.triggered.emit))
+            except Exception:
+                logging.exception(f"Failed to register global hotkey '{hotkey}'")
+        logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
+        if hasattr(self._tray, "refresh_hotkey_labels"):
+            self._tray.refresh_hotkey_labels()
+
+    def _pause_hotkeys(self, capturing: bool) -> None:
+        """While a hotkey field is focused, no global hotkey may fire (e.g. the selector)."""
+        if capturing:
+            keyboard.unhook_all_hotkeys()
+            self._app_hotkey_handles = []
+            self._preset_hotkeys.clear()
+            logging.debug("Global hotkeys paused for hotkey capture.")
+        else:
+            self._register_app_hotkeys()
+            self._register_preset_hotkeys()
 
     def _register_preset_hotkeys(self) -> None:
         """Register global keyboard shortcuts for all presets that have a hotkey defined."""

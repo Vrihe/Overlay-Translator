@@ -55,6 +55,21 @@ class _LiveConfig:
     def HOTKEY(self):
         return _cfg("hotkey")
 
+    @HOTKEY.setter
+    def HOTKEY(self, value):
+        from settings.config_manager import set_value
+        set_value("hotkey", value)
+
+    @property
+    def SETTINGS_HOTKEY(self):
+        """Opens the settings; the SETTINGS_HOTKEY env var overrides settings.json."""
+        return os.environ.get("SETTINGS_HOTKEY") or _cfg("settings_hotkey")
+
+    @SETTINGS_HOTKEY.setter
+    def SETTINGS_HOTKEY(self, value):
+        from settings.config_manager import set_value
+        set_value("settings_hotkey", value)
+
     @property
     def ENABLE_OCR_PREVIEW(self):
         return _cfg("enable_ocr_preview")
@@ -237,8 +252,6 @@ class _LiveConfig:
     NLLB_GLOSSARY = os.environ.get("NLLB_GLOSSARY", "1").lower() not in ("0", "false", "no")
 
     _PROJECT_DIR = _PROJECT_DIR
-
-    SETTINGS_HOTKEY = os.environ.get("SETTINGS_HOTKEY", "ctrl+shift+o")
 
     OCR_USE_HSV_FILTER = os.environ.get("OCR_USE_HSV_FILTER", "").lower() in ("1", "true")
 
