@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import (
     Qt, QTimer, QPoint, QRect, QEvent, QSize,
-    QPropertyAnimation, QEasingCurve,
+    QPropertyAnimation, QEasingCurve, pyqtSignal,
 )
 from PyQt5.QtGui import QPainter, QPen, QCursor
 
@@ -38,6 +38,9 @@ _WDA_EXCLUDEFROMCAPTURE = 0x11
 
 
 class ResultPopup(QWidget):
+    #: The header's stop button: end the live monitoring that keeps updating this popup.
+    stop_monitoring_clicked = pyqtSignal()
+
     """Compact floating popup showing source text and its translation, or loading status."""
 
     _MIN_WIDTH = 300
@@ -84,6 +87,7 @@ class ResultPopup(QWidget):
         self._resize_edge: str | None = None
         self._resized = False
         self._moved_by_user = False
+        self._monitoring = False  # updated by live monitoring: offer its stop button
 
         self._setup_window()
         self._build_ui()
@@ -237,6 +241,12 @@ class ResultPopup(QWidget):
             self._btn_copy.clicked.connect(self._on_copy_translation)
             header_row.addWidget(self._btn_copy)
 
+        # Live monitoring keeps updating this popup: let it be stopped right here.
+        self._btn_stop_monitoring = self._icon_button("stop", tr("Остановить мониторинг"), danger=True)
+        self._btn_stop_monitoring.clicked.connect(self._on_stop_monitoring)
+        self._btn_stop_monitoring.setVisible(self._monitoring)
+        header_row.addWidget(self._btn_stop_monitoring)
+
         self._btn_close = self._icon_button("close", tr("Закрыть окно"), danger=True)
         self._btn_close.clicked.connect(self._fade_out_and_close)
         header_row.addWidget(self._btn_close)
@@ -308,6 +318,17 @@ class ResultPopup(QWidget):
         return label
 
     # ── TTS Speech synthesis (D3) ────────────────────────
+
+    def set_monitoring(self, active: bool) -> None:
+        """Show the stop button while live monitoring updates this popup."""
+        self._monitoring = active
+        btn = getattr(self, "_btn_stop_monitoring", None)
+        if btn is not None:
+            btn.setVisible(active)
+
+    def _on_stop_monitoring(self) -> None:
+        self.set_monitoring(False)
+        self.stop_monitoring_clicked.emit()
 
     def _on_speak_translation(self) -> None:
         """D3: Speak translated text via background TTS engine."""

@@ -379,6 +379,7 @@ class TranslatorApp:
         self._popup: ResultPopup | None = None
         self._worker: TranslationWorker | None = None
         self._request_seq = 0          # id of the newest translation request
+        self._last_manual_seq = 0      # id of the newest request the user made (not live)
         self._pending_request = None   # the newest request waiting for a running worker
         self._retired_workers: set = set()  # replaced workers kept alive until they finish
         self._presets_dialog = None  # RegionPresetsDialog instance (if open)
@@ -489,11 +490,13 @@ class TranslatorApp:
         A running translation is never killed: QThread.terminate() mid-OCR can leave the
         OCR engine broken for the rest of the session. The newest request waits instead
         and runs when the current one ends; an older waiting one is dropped, and a
-        finished translation that is no longer the newest request is not shown.
+        finished translation is not shown once the user has asked for a newer one.
         A live-monitoring update (``live``) keeps the open popup and refreshes it in
         place instead of replacing it with a new "Переводим…" one.
         """
         self._request_seq += 1
+        if not live:
+            self._last_manual_seq = self._request_seq
         request = (self._request_seq, x1, y1, x2, y2, anchor, text_override, live)
 
         if config.NOTIFICATION_TYPE == "popup" and not live:
@@ -511,12 +514,15 @@ class TranslatorApp:
     def _run_translation(self, request) -> None:
         seq, x1, y1, x2, y2, anchor, text_override, live = request
         worker = TranslationWorker(x1, y1, x2, y2, text_override=text_override)
+        # Shown unless the user asked for another translation after it: on a fast-changing
+        # region every result is newer than the popup's text, so live ones are never dropped
+        # just because the next live check has already been queued.
         worker.translation_done.connect(
             lambda src, tr, err: self._on_translation_finished(src, tr, err, anchor, live=live)
-            if seq == self._request_seq else logging.debug("Dropped stale translation %d.", seq)
+            if seq >= self._last_manual_seq else logging.debug("Dropped stale translation %d.", seq)
         )
         worker.partial_result.connect(
-            lambda partial: self._on_partial_translation(partial) if seq == self._request_seq else None,
+            lambda partial: self._on_partial_translation(partial) if seq >= self._last_manual_seq else None,
             Qt.QueuedConnection,
         )
         worker.finished.connect(self._on_translation_worker_finished)
@@ -592,6 +598,11 @@ class TranslatorApp:
             self._live_monitor.stop()
             self._live_monitor = None
             self._main_window.set_monitoring_active(False)
+            if self._popup is not None:
+                try:
+                    self._popup.set_monitoring(False)
+                except RuntimeError:
+                    pass  # the popup was already deleted
             if self._tray is not None:
                 self._tray.act_live_monitor.setChecked(False)
                 self._tray.showMessage(
@@ -785,6 +796,8 @@ class TranslatorApp:
                 if notice:
                     logging.warning("Backend notice: %s", notice)
                 self._show_result(source, translated, anchor, notice=notice, activate=not live)
+            if live and self._popup is not None and getattr(self, "_live_monitor", None) is not None:
+                self._popup.set_monitoring(True)  # its header offers "stop monitoring"
         except Exception:
             logging.exception("Error presenting translation result/error popup")
 
@@ -839,6 +852,7 @@ class TranslatorApp:
         """Make *popup* the current one; it forgets itself only while still current."""
         if popup is not None and popup is not self._popup:
             popup.destroyed.connect(lambda _obj=None, p=popup: self._on_popup_destroyed(p))
+            popup.stop_monitoring_clicked.connect(self._stop_live_monitoring)
         self._popup = popup
 
     def _on_popup_destroyed(self, popup) -> None:

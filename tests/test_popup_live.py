@@ -81,6 +81,31 @@ class TestLiveUpdate(unittest.TestCase):
         self.assertFalse(update.call_args.kwargs["activate"])
 
 
+class TestStopMonitoringButton(unittest.TestCase):
+
+    def setUp(self):
+        self.popup = ResultPopup("src", "перевод")
+        self.addCleanup(self.popup.deleteLater)
+
+    def test_hidden_unless_monitoring(self):
+        self.assertTrue(self.popup._btn_stop_monitoring.isHidden())
+        self.popup.set_monitoring(True)
+        self.assertFalse(self.popup._btn_stop_monitoring.isHidden())
+
+    def test_click_asks_to_stop_and_hides_the_button(self):
+        stop = mock.Mock()
+        self.popup.stop_monitoring_clicked.connect(stop)
+        self.popup.set_monitoring(True)
+        self.popup._btn_stop_monitoring.click()
+        stop.assert_called_once()
+        self.assertTrue(self.popup._btn_stop_monitoring.isHidden())
+
+    def test_kept_across_live_updates(self):
+        self.popup.set_monitoring(True)
+        self.popup.update_content("src", "новый текст", activate=False)
+        self.assertFalse(self.popup._btn_stop_monitoring.isHidden())
+
+
 class TestScrollKeptOnLiveUpdates(unittest.TestCase):
     LONG = "\n".join(f"line {i} of a long chat translation" for i in range(80))
 
