@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QSpinBox, QWidget, QApplication, QGroupBox, QMessageBox,
     QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem, QStackedWidget,
 )
-from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 
 import html
 from typing import Any
@@ -23,6 +23,7 @@ from translate.llm_client import reset_client
 from i18n import N_, UI_LANGUAGES, tr
 from ui import icons, theme
 from ui.hud_widgets import Chip, FieldLabel, Segmented, SwitchRow
+from ui.nllb_workers import NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
 
 _SOURCE_LANGUAGES = [
     ("auto", N_("Автоопределение")),
@@ -87,60 +88,6 @@ _MODEL_HINTS: dict[str, str] = {
     "poolside/laguna-s-2.1:free":  N_("✶ Бесплатно · Быстрая компактная модель для перевода"),
     "__custom__":                  N_("Впишите точный ID модели с сайта openrouter.ai"),
 }
-
-
-class _NllbPreloadWorker(QThread):
-    """Load the local NLLB model off the UI thread so the dialog stays responsive."""
-
-    finished_with_status = pyqtSignal(bool, str)  # (ok, message)
-
-    def run(self) -> None:
-        from translate.backend import BACKEND_NLLB, preload
-        ok, message = preload(BACKEND_NLLB)
-        self.finished_with_status.emit(ok, message)
-
-
-class _NllbVersionsWorker(QThread):
-    """Fetch the list of published NLLB builds (HF tags) off the UI thread."""
-
-    finished_with_versions = pyqtSignal(object, str)  # (list[RemoteVersion] | None, error)
-
-    def run(self) -> None:
-        from translate.nllb_models import list_remote_versions
-        try:
-            self.finished_with_versions.emit(list_remote_versions(), "")
-        except Exception as e:
-            self.finished_with_versions.emit(None, str(e))
-
-
-class _NllbDownloadWorker(QThread):
-    """Download one NLLB build from the HF Hub, reporting progress in percent."""
-
-    progress_changed = pyqtSignal(int, int, int)  # (percent, done MiB, total MiB)
-    finished_with_status = pyqtSignal(bool, str)  # (ok, model path | error | "" if cancelled)
-
-    def __init__(self, version, parent=None):
-        super().__init__(parent)
-        import threading
-        self.version = version
-        self.cancel = threading.Event()
-        self._last_percent = -1
-
-    def _on_progress(self, done: int, total: int) -> None:
-        percent = done * 100 // total if total else 0
-        if percent != self._last_percent:
-            self._last_percent = percent
-            self.progress_changed.emit(percent, done >> 20, total >> 20)
-
-    def run(self) -> None:
-        from translate.nllb_models import DownloadCancelled, download_version
-        try:
-            path = download_version(self.version, progress=self._on_progress, cancel=self.cancel)
-            self.finished_with_status.emit(True, str(path))
-        except DownloadCancelled:
-            self.finished_with_status.emit(False, "")
-        except Exception as e:
-            self.finished_with_status.emit(False, str(e))
 
 
 class _ExampleRowWidget(QWidget):
@@ -910,6 +857,14 @@ class SettingsWidget(QWidget):
         self._update_status_lbl.setStyleSheet(self._status_css())
         about_layout.addWidget(self._update_status_lbl)
 
+        wizard_row = QHBoxLayout()
+        wizard_row.addStretch()
+        self._btn_setup_wizard = QPushButton(tr("Пройти мастер настройки заново"))
+        self._btn_setup_wizard.setCursor(Qt.PointingHandCursor)
+        self._btn_setup_wizard.setStyleSheet(nmt_btn_css)
+        wizard_row.addWidget(self._btn_setup_wizard)
+        about_layout.addLayout(wizard_row)
+
         pages["interface"].addWidget(grp_about)
 
         for lay in pages.values():
@@ -1311,7 +1266,7 @@ class SettingsWidget(QWidget):
         if self._nllb_versions_worker is not None:
             return
         self._btn_nllb_refresh.setEnabled(False)
-        self._nllb_versions_worker = _NllbVersionsWorker(self)
+        self._nllb_versions_worker = NllbVersionsWorker(self)
         self._nllb_versions_worker.finished_with_versions.connect(self._on_nllb_versions_fetched)
         self._nllb_versions_worker.start()
 
@@ -1380,7 +1335,7 @@ class SettingsWidget(QWidget):
         self._btn_nllb_refresh.setEnabled(False)
         self._btn_load_nllb.setText(tr("Отмена"))
         self._set_nllb_status(tr("⏳ Скачивание {tag}…", tag=version.tag))
-        self._nllb_download_worker = _NllbDownloadWorker(version, self)
+        self._nllb_download_worker = NllbDownloadWorker(version, self)
         self._nllb_download_worker.progress_changed.connect(
             lambda pct, done, total: self._set_nllb_status(
                 tr("⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)",
@@ -1431,7 +1386,7 @@ class SettingsWidget(QWidget):
         self._set_nllb_status(tr("Загрузка локальной модели… (около 600 МБ, 1–5 с)"))
         QApplication.processEvents()
 
-        self._nllb_worker = _NllbPreloadWorker(self)
+        self._nllb_worker = NllbPreloadWorker(self)
         self._nllb_worker.finished_with_status.connect(self._on_nllb_preload_done)
         self._nllb_worker.start()
 
@@ -1566,6 +1521,7 @@ class SettingsWidget(QWidget):
     def _connect_signals(self) -> None:
         self._btn_save.clicked.connect(self._on_save)
         self._btn_check_update.clicked.connect(self._on_check_update)
+        self._btn_setup_wizard.clicked.connect(self._on_setup_wizard)
 
         # Autosave: every control whose setting applies without a restart.
         for combo in (self._backend_combo, self._ocr_gpu_combo, self._domain_combo,
@@ -1590,6 +1546,16 @@ class SettingsWidget(QWidget):
         # Leaving the page (or hiding the window) must not drop a pending change.
         self._flush_autosave()
         super().hideEvent(event)
+
+    def _on_setup_wizard(self) -> None:
+        """Run the first-run wizard again; it saves its choice, so reload the form."""
+        from ui.setup_wizard import SetupWizard
+        self._flush_autosave()
+        if SetupWizard(self).exec_() == SetupWizard.Accepted:
+            from translate.nllb_backend import reset_client as reset_nllb
+            reset_nllb()
+            self.reload()
+            self.settings_saved.emit()
 
     def _on_check_update(self) -> None:
         import webbrowser

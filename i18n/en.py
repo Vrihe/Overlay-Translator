@@ -411,4 +411,37 @@ MESSAGES: dict[str, str] = {
     "Подстраивается под текст. Растяните попап за край, чтобы задать свой размер.":
         "Fits the text. Drag an edge of the popup to set your own size.",
     "Сохранён: {width} × {height}": "Saved: {width} × {height}",
+    "Пройти мастер настройки заново": "Run the setup wizard again",
+
+    # ── ui/setup_wizard.py ──
+    "Назад": "Back",
+    "Далее": "Next",
+    "Начать": "Start",
+    "Повторить": "Retry",
+    "Как переводить текст с экрана? Это можно поменять в любой момент в настройках.":
+        "How should screen text be translated? You can change this any time in the settings.",
+    "Онлайн, без ключа — Google Translate": "Online, no key — Google Translate",
+    "Работает сразу. Распознанный текст отправляется в Google.":
+        "Works right away. The recognised text is sent to Google.",
+    "Нейросеть со своим API-ключом": "Neural network with your API key",
+    "OpenRouter или Anthropic: лучше понимает сленг и контекст игр. Ключ OpenRouter "
+    "можно получить бесплатно. DeepL и Azure подключаются в настройках.":
+        "OpenRouter or Anthropic: better with slang and game context. An OpenRouter key "
+        "is free. DeepL and Azure are set up in the settings.",
+    "Офлайн — локальная модель NLLB": "Offline — the local NLLB model",
+    "Текст не покидает компьютер. Нужно один раз скачать модель (~600 МБ).":
+        "Text never leaves your computer. The model is downloaded once (~600 MB).",
+    "Выберите версию модели. Её нужно скачать один раз, дальше перевод работает без интернета.":
+        "Choose a model version. It is downloaded once; after that translation works offline.",
+    "Версия модели": "Model version",
+    "Загружаем список версий…": "Loading the version list…",
+    "⚠ Не удалось получить список версий: {error}": "⚠ Could not get the version list: {error}",
+    "✓ Модель на диске, можно продолжать.": "✓ The model is on disk, you can continue.",
+    "Всё готово. Как пользоваться:": "All set. How to use it:",
+    "1. Нажмите {hotkey} и выделите область экрана с текстом.":
+        "1. Press {hotkey} and select an area of the screen with text.",
+    "2. Перевод появится рядом с выделенной областью.":
+        "2. The translation appears next to the selected area.",
+    "3. Настройки — {hotkey} или значок приложения в трее рядом с часами.":
+        "3. Settings: {hotkey} or the app icon in the tray next to the clock.",
 }

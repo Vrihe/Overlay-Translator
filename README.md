@@ -11,7 +11,7 @@ and get an instant translation in a floating popup — powered by OCR and LLM.
 
 - **Global hotkey** (`Ctrl+Shift+R` by default) — works from any application
 - **Settings hotkey** (`Ctrl+Shift+O`) — quick access to settings without leaving your workflow
-- **First-run setup** — guided API key entry with live validation on first launch
+- **First-run setup** — a wizard picks the mode (online without a key, an LLM with your API key, or offline) and downloads the offline model with progress
 - **Secure key storage** — API keys stored in OS credential vault via `keyring` (Windows Credential Locker)
 - **System Tray support** — runs quietly in the background without a cluttering console window
 - **Region selector** — fullscreen transparent overlay with mouse-drag selection
@@ -61,7 +61,8 @@ translator-overlay/
 │   └── store.py         # SQLite translation cache
 ├── ui/
 │   ├── result_popup.py  # Floating result popup (PyQt5)
-│   ├── first_run_dialog.py  # First-launch API key setup dialog
+│   ├── setup_wizard.py      # First-run wizard: online / API key / offline model download
+│   ├── first_run_dialog.py  # LLM API key dialog (LLM backend without a key)
 │   └── settings_dialog.py   # Runtime settings dialog
 ├── tray/
 │   ├── tray_icon.py     # System tray icon and context menu

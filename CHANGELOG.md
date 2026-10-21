@@ -10,10 +10,15 @@ the section for that version becomes the GitHub release notes.
 ## [Unreleased]
 
 ### Added
+- First-run wizard: choose how to translate (online without a key, an LLM with your API key,
+  or offline) and download the offline NLLB model with progress and a SHA-256 check.
+  Installs that are already set up skip it; Settings → Interface can run it again.
 - `release.yml` workflow: a `vX.Y.Z` tag runs the tests, builds the app and the installer
   on GitHub Actions and creates a draft release with `Setup.exe` and its SHA-256.
 
 ### Fixed
+- Windows shown before the main window (the setup wizard, the API key dialog) had the
+  default Windows icon instead of the app icon.
 - `build.py` precompiled no sources (the exclude pattern was passed as a string).
 
 ## [1.0.0] - 2026-10-21

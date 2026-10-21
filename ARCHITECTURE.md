@@ -88,7 +88,9 @@ Overlay-Translator/
 │   ├── main_window.py      #   MainWindow with a nav rail (Home/Settings/History)
 │   ├── settings_dialog.py  #   * SettingsWidget — all settings; ProfileEditorDialog
 │   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize)
-│   ├── first_run_dialog.py #   First-run wizard (API key entry)
+│   ├── setup_wizard.py     #   First-run wizard: online (Google) / API key / offline NLLB + download
+│   ├── first_run_dialog.py #   LLM API key entry (when the LLM backend has no key)
+│   ├── nllb_workers.py     #   QThreads shared by settings and wizard: NLLB preload, version list, download
 │   ├── theme.py            #   * HUD palettes (UI_THEME), fonts, all stylesheet builders
 │   ├── icons.py            #   Stroke icons drawn with QPainterPath (no emoji / QtSvg)
 │   ├── hud_widgets.py      #   NavButton, Panel, FieldLabel, Chip, Segmented, Switch(Row)
@@ -187,7 +189,9 @@ Overlay-Translator/
   in the new copy waits for that process before the single-instance check.
 - `main()` sets an explicit AppUserModelID (`Vrihe.TranslatorOverlay`) before Qt starts, so a
   source run gets its own taskbar button with the window icon instead of Python's.
-- `main()` — splash → first-run wizard (if there are no keys) → `TranslatorApp(app).run()` →
+- `main()` — splash → setup wizard (`config_manager.first_run_pending()`: no `settings.json`
+  yet, or the wizard was never finished; a file from a version without the wizard counts
+  as done) → LLM key dialog (only `backend.needs_llm_key()`) → `TranslatorApp(app).run()` →
   `logging.shutdown()` → `os._exit(code)`. Python finalization is skipped on purpose: the
   `keyboard` low-level hook thread and Qt window procedures could fire during module teardown
   and crashed ~1 exit in 3 (`0xC000041D` / access violation, also with EasyOCR). Nothing is
@@ -571,6 +575,12 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
      Cloud API when a Google key is saved) | `"api"` (LLM) | `"deepl"` | `"azure"` | `"nllb"`;
      unknown values fall back to Google (`backend.DEFAULT_BACKEND`). The first-run key dialog
      only appears when the LLM backend is selected without a key (`backend.needs_llm_key()`);
+   - `first_run_done`: set once the setup wizard (`ui/setup_wizard.py`) is finished or closed.
+     The wizard writes `translation_backend` (online → `google`, API key → `api`, offline →
+     `nllb`) and, offline, `nllb_model_path` of the build it found or downloaded
+     (`nllb_models.download_version`, SHA-256 checked). Closing it keeps the defaults; a
+     running worker of a closed wizard is parked until it ends. "Настройки → Интерфейс →
+     Пройти мастер настройки заново" runs it again;
    - `nllb_model_path`: explicit path to the CTranslate2 directory (`""` = auto-discovery).
    Changed in "Настройки → Бэкенд перевода" (Settings → Translation backend), which
    also has the "Загрузить модель" (Load model) button with a progress indicator and
@@ -699,6 +709,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |
 | `tests/test_popup_size.py` | saved popup size parsing/clamping, written once when a resize drag ends |
 | `tests/test_title_bar.py` | a click on the drawn caption activates the main window (drag works while the popup is active) |
+| `tests/test_setup_wizard.py` | when the first-run wizard shows (fresh / upgraded / unfinished), what each mode saves, offline build list and preselection, closing never drops a running worker |
 | `tests/test_popup_placement.py` | popup placed under/above the selection, steps off the main window to the nearest free spot, keeps the usual place when none |
 | `tests/test_popup_drag.py` | popup top edge drags instead of resizing; a drag goes to the OS move loop, manual move as fallback |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |

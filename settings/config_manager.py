@@ -79,6 +79,7 @@ DEFAULTS: dict[str, Any] = {
     "active_domain": "general",
     "ui_language": "auto",                 # "auto" | "ru" | "en" (applied after a restart)
     "ui_theme": "amber",                   # "amber" | "cyan" | "crimson" (applied after a restart)
+    "first_run_done": False,               # True once the first-run wizard was finished or skipped
 }
 
 # ── In-memory cache ──────────────────────────────────────
@@ -144,3 +145,24 @@ def set_value(key: str, value: Any) -> None:
     cfg = _ensure_loaded()
     cfg[key] = value
     save_config(cfg)
+
+
+def first_run_pending() -> bool:
+    """True when the first-run wizard should be shown.
+
+    A fresh install has no ``settings.json`` yet. Every save writes all known
+    keys, so a file without ``first_run_done`` comes from a version before the
+    wizard: that install is already set up and is marked done instead.
+    """
+    if get("first_run_done"):
+        return False
+    if _CONFIG_FILE.exists():
+        try:
+            with open(_CONFIG_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            saved = {}
+        if isinstance(saved, dict) and saved and "first_run_done" not in saved:
+            set_value("first_run_done", True)
+            return False
+    return True

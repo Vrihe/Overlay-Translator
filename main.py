@@ -840,6 +840,10 @@ def main() -> None:
         from ui.wheel_guard import install_wheel_guard
         from i18n import install_qt_translator
         apply_app_theme(app)
+        # App-wide icon: windows shown before MainWindow (setup wizard, key dialog)
+        # have no parent to inherit it from and would get the default Windows one.
+        from tray.icon_gen import create_tray_icon
+        app.setWindowIcon(create_tray_icon())
         install_wheel_guard(app)
         install_qt_translator(app)
 
@@ -849,7 +853,17 @@ def main() -> None:
         splash.show()
         app.processEvents()
 
-        # ── First-run: ask for an LLM key only if the LLM backend has none ─
+        # ── First run: how to translate (online / API key / offline model) ─
+        from settings.config_manager import first_run_pending
+        if first_run_pending():
+            logging.info("First launch: showing the setup wizard.")
+            splash.close()  # hide splash before interactive dialog
+            from ui.setup_wizard import SetupWizard
+            if SetupWizard().exec_() != SetupWizard.Accepted:
+                logging.info("Setup wizard closed: keeping the defaults.")
+                config.FIRST_RUN_DONE = True
+
+        # ── Ask for an LLM key only if the LLM backend has none ─
         from translate.backend import needs_llm_key
         if needs_llm_key():
             logging.info("LLM backend selected without an API key. Prompting first-run dialog.")

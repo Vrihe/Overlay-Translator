@@ -162,6 +162,15 @@ class _LiveConfig:
         set_value("active_domain", value)
 
     @property
+    def FIRST_RUN_DONE(self):
+        return bool(_cfg("first_run_done"))
+
+    @FIRST_RUN_DONE.setter
+    def FIRST_RUN_DONE(self, value):
+        from settings.config_manager import set_value
+        set_value("first_run_done", bool(value))
+
+    @property
     def ENABLE_STREAMING(self):
         return _cfg("enable_streaming")
 
