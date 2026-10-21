@@ -7,7 +7,7 @@ is on Hugging Face at `Alhite/overlay-translator-nllb-int8@v1-abbr`.
 
 | | |
 |---|---|
-| Base model | `facebook/nllb-200-distilled-600M`, fp32 (`D:\projects\overlay-translator\models\nllb-200-distilled-600M`) |
+| Base model | `facebook/nllb-200-distilled-600M`, fp32 (`models/nllb-200-distilled-600M`) |
 | Previous release | `v0-base`: plain CTranslate2 int8 conversion, no fine-tuning |
 | Goal | Translate English chat abbreviations correctly: expand the ones with a meaning (`brb`, `ty`, `afaik`), keep gaming terms as they are (`gg`, `pvp`, `wtb`) |
 | Directions | en → de, fr, es, ru, uk, be, pl, cs, hu |
@@ -345,7 +345,7 @@ python training\abbr_phrases.py
 :: evaluate
 .venv-train\Scripts\python training\evaluate.py --test data\processed_final\test.jsonl --out-dir checkpoints\eval_final ^
     v0-base=ct2:models\nllb-v0-base ^
-    v1-final-b=lora:D:\projects\overlay-translator\models\nllb-200-distilled-600M+checkpoints\v1-final-b\adapter
+    v1-final-b=lora:models\nllb-200-distilled-600M+checkpoints\v1-final-b\adapter
 
 :: merge + convert + smoke test
 .venv-train\Scripts\python training\merge_lora.py --adapter checkpoints\v1-final-b\adapter --out models\nllb-finetuned-v1-merged

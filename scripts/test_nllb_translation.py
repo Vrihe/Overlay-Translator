@@ -24,7 +24,10 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_MODEL_DIR = Path(r"D:\projects\overlay-translator\models\nllb-200-ct2-int8")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Same env var the app reads (translate/nllb_backend.py); override with --model
+DEFAULT_MODEL_DIR = Path(os.environ.get("NLLB_MODEL_DIR")
+                         or _PROJECT_ROOT / "models" / "nllb-200-ct2-int8")
 
 # ISO 639-1 → FLORES-200 code used by NLLB.
 NLLB_LANG_CODES: dict[str, str] = {

@@ -40,7 +40,9 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = _PROJECT_ROOT / "data" / "processed"
 CHECKPOINTS = _PROJECT_ROOT / "checkpoints"
-DEFAULT_MODEL = Path(r"D:\projects\overlay-translator\models\nllb-200-distilled-600M")
+# fp32 HF checkpoint; override with --model or the NLLB_BASE_MODEL_DIR env var
+DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR")
+                     or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
 LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "out_proj"]
 
 

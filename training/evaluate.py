@@ -23,8 +23,8 @@ Usage
 -----
     .venv-train\\Scripts\\python training/evaluate.py \\
         v0-base=ct2:models/nllb-v0-base \\
-        base-fp32=hf:D:/projects/overlay-translator/models/nllb-200-distilled-600M \\
-        v1-lora=lora:D:/projects/overlay-translator/models/nllb-200-distilled-600M+checkpoints/v1-abbr/adapter
+        base-fp32=hf:models/nllb-200-distilled-600M \\
+        v1-lora=lora:models/nllb-200-distilled-600M+checkpoints/v1-abbr/adapter
 """
 
 from __future__ import annotations

@@ -122,10 +122,13 @@ Overlay-Translator/
 - User data: `%APPDATA%\translator-overlay\`
   (`settings.json`, `region_presets.json`, `cache/translations.db`,
   `logs/translator.log`, `app.log`, `crash.log`, custom domain profiles).
-- NLLB models: `D:\projects\overlay-translator\models\` on the developer machine
-  (`nllb-200-distilled-600M` — original HF checkpoint, 2.31 GiB, needed for fine-tuning;
-  `nllb-200-ct2-int8` — CTranslate2 int8, 621 MiB, used by the app).
-  Outside the repository, never committed.
+- NLLB models: `<project>/models/` by default (git-ignored, never committed):
+  `nllb-200-distilled-600M` — original HF checkpoint, 2.31 GiB, needed for fine-tuning;
+  `nllb-200-ct2-int8` — CTranslate2 int8, 621 MiB, used by the app.
+  To keep them elsewhere, set `NLLB_BASE_MODEL_DIR` (HF checkpoint, read by
+  `training/finetune_lora.py`, `merge_lora.py`, `translate_phrases.py`) and
+  `NLLB_MODEL_DIR` (CT2 model, read by the app and `scripts/test_nllb_translation.py`),
+  or pass `--model` / `--base`.
 - Published model: Hugging Face Hub repo
   [`Alhite/overlay-translator-nllb-int8`](https://huggingface.co/Alhite/overlay-translator-nllb-int8)
   (public, CC-BY-NC-4.0). Tag `v0-base` = the plain int8 conversion before fine-tuning.
@@ -632,7 +635,7 @@ limitations and the CC-BY-NC-4.0 license inherited from NLLB-200.
 A one-off step; needs `transformers` + `torch` from `requirements-dev.txt`.
 
 ```bash
-ct2-transformers-converter   --model  D:/projects/overlay-translator/models/nllb-200-distilled-600M   --output_dir D:/projects/overlay-translator/models/nllb-200-ct2-int8   --quantization int8   --copy_files tokenizer.json tokenizer_config.json special_tokens_map.json                sentencepiece.bpe.model generation_config.json
+ct2-transformers-converter   --model  models/nllb-200-distilled-600M   --output_dir models/nllb-200-ct2-int8   --quantization int8   --copy_files tokenizer.json tokenizer_config.json special_tokens_map.json                sentencepiece.bpe.model generation_config.json
 ```
 
 Result: 2.31 GiB (fp32) → 621 MiB (int8), −73.8%.

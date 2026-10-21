@@ -85,7 +85,7 @@ from the current 398-phrase file gives a different set.
 
 | | |
 |---|---|
-| Base model | NLLB-200-distilled-600M (fp32, `D:\projects\overlay-translator\models\nllb-200-distilled-600M`) |
+| Base model | NLLB-200-distilled-600M (fp32, `models/nllb-200-distilled-600M`) |
 | Fine-tune | LoRA r=16, α=32, dropout 0.05 on `q/k/v/out_proj` of all self- and cross-attention blocks (4.7 M trainable params, 0.76 %) |
 | Training | 3 epochs, 606 steps, effective batch 16 (8 × grad-accum 2), lr 2e-4 linear, warmup 30, bf16, seed 42, 350 s on RTX 3060 Ti; best checkpoint by val loss: step 400 (val loss 1.400) |
 | Train data | 3230 pairs: 2261 abbreviation pairs (76 abbreviations) + 969 FLORES-200 dev pairs (30 %) |
