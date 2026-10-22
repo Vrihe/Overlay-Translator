@@ -18,6 +18,10 @@ the section for that version becomes the GitHub release notes.
   Settings → local model offers "Download for the GPU", which fetches cuBLAS from PyPI
   (~530 MB, SHA-256 checked). Translation on the GPU is about 3× faster.
 - Settings → local model → Device: "Auto" or "CPU only" (keeps the GPU free, e.g. for games).
+- Training: YAML configs of the published model versions (`configs/train/`), a one-command
+  pipeline `training/pipeline.py` (data → train → merge → convert → eval), a `Makefile` and a
+  training Docker image. `run_config.json` now records the git commit, library versions and
+  the dataset hash; `--precision fp16` trains on GPUs without bf16.
 
 ### Changed
 - The popup can stay up to 10 minutes before it hides itself (was 1 minute), with a hint

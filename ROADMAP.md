@@ -66,13 +66,13 @@
 
 **Зачем:** сейчас эксперименты воспроизводятся по командам в markdown. Нужно превратить их в конфиги и один пайплайн.
 
-- [ ] Конфиги обучения в YAML (`configs/train/v1.yaml`, `v2.yaml`): модель, LoRA r/alpha, lr, эпохи, сид, пути данных
-- [ ] `finetune_lora.py` читает конфиг, пишет в `run_config.json` git sha, версию библиотек и хэш датасета
+- [x] Конфиги обучения в YAML (`configs/train/v1.yaml`, `v2.yaml`): модель, LoRA r/alpha, lr, эпохи, сид, пути данных
+- [x] `finetune_lora.py` читает конфиг, пишет в `run_config.json` git sha, версию библиотек и хэш датасета
 - [ ] Dockerfile для обучения (CUDA-образ, зафиксированные версии transformers/peft/ctranslate2)
-- [ ] Makefile или `justfile`: `make data`, `make train`, `make merge`, `make convert`, `make eval`
+- [x] Makefile или `justfile`: `make data`, `make train`, `make merge`, `make convert`, `make eval`
 - [ ] Версионирование данных: DVC (remote — Google Drive, S3-совместимое хранилище или HF Datasets) для `data/processed_*`, `interim/`, глоссария
-- [ ] DVC pipeline (`dvc.yaml`): `glossary → phrases → translate → repair_keep → build_dataset → train → merge → convert → eval`
-- [ ] Воспроизвести v1 и v2 одной командой и сравнить метрики с документацией; расхождения описать в `docs/`
+- [x] DVC pipeline (`dvc.yaml`): `glossary → phrases → translate → repair_keep → build_dataset → train → merge → convert → eval`
+- [x] Воспроизвести v1 и v2 одной командой и сравнить метрики с документацией; расхождения описать в `docs/`
 
 **Критерий готовности:** на чистой машине `make all CONFIG=configs/train/v2.yaml` выдаёт модель и таблицу метрик в пределах шума относительно опубликованных чисел.
 
@@ -402,13 +402,13 @@ Everything about the offline model: data, training, evaluation, registry, delive
 
 **Why:** experiments are currently reproduced from commands in markdown. They should become configs and a single pipeline.
 
-- [ ] Training configs in YAML (`configs/train/v1.yaml`, `v2.yaml`): model, LoRA r/alpha, lr, epochs, seed, data paths
-- [ ] `finetune_lora.py` reads the config and writes the git sha, library versions and dataset hash to `run_config.json`
+- [x] Training configs in YAML (`configs/train/v1.yaml`, `v2.yaml`): model, LoRA r/alpha, lr, epochs, seed, data paths
+- [x] `finetune_lora.py` reads the config and writes the git sha, library versions and dataset hash to `run_config.json`
 - [ ] Training Dockerfile (CUDA image, pinned transformers/peft/ctranslate2 versions)
-- [ ] Makefile or `justfile`: `make data`, `make train`, `make merge`, `make convert`, `make eval`
+- [x] Makefile or `justfile`: `make data`, `make train`, `make merge`, `make convert`, `make eval`
 - [ ] Data versioning: DVC (remote — Google Drive, S3-compatible storage or HF Datasets) for `data/processed_*`, `interim/`, the glossary
-- [ ] DVC pipeline (`dvc.yaml`): `glossary → phrases → translate → repair_keep → build_dataset → train → merge → convert → eval`
-- [ ] Reproduce v1 and v2 with one command and compare metrics with the docs; describe differences in `docs/`
+- [x] DVC pipeline (`dvc.yaml`): `glossary → phrases → translate → repair_keep → build_dataset → train → merge → convert → eval`
+- [x] Reproduce v1 and v2 with one command and compare metrics with the docs; describe differences in `docs/`
 
 **Done when:** on a clean machine `make all CONFIG=configs/train/v2.yaml` produces a model and a metrics table within noise of the published numbers.
 
