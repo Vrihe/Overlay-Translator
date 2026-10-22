@@ -1,7 +1,7 @@
 # Plan: smaller updates (app layer / deps layer split)
 
-Status: build side done (`build.py --update-package`, manifest in the installer, release
-assets). The updater does not use the package yet.
+Status: implemented (build, installer, release workflow, updater). Not yet tried on a
+real release: the first app-only update needs an install that already has the manifest.
 
 ## Problem
 
@@ -82,7 +82,7 @@ would not be smaller, because the exe changes in every release.
 ## Installer changes (`installer/TranslatorOverlay.iss`)
 
 - Install `update-manifest.json` into `{app}` — done.
-- The `[UninstallDelete]` entry (below) comes with the updater change.
+- `[UninstallDelete]` for `{app}\_internal` and `{app}\.update-staging` — done.
 
 ## Release workflow (`.github/workflows/release.yml`) — done
 
@@ -91,7 +91,15 @@ would not be smaller, because the exe changes in every release.
   --app-sha256`; the updater checks the asset `digest` from the GitHub API first, like
   for `Setup.exe`). The notes say the two extra files are for the in-app updater.
 
-## Updater changes (`updater/install_update.py`)
+## Updater changes (`updater/install_update.py`) — done
+
+As built: the swap script is written to `apply-update.ps1` (UTF-8 with BOM) and run with
+`-File`, since ~650 paths do not fit `-EncodedCommand` (32K command line). On rollback it
+writes `%TEMP%\translator-overlay-update\app-update-failed-<version>.txt`; the next try
+for that version takes the installer. A read-only install dir (all-users install) takes
+the installer too. The zip's file list must equal `app_files`, and manifest paths must be
+plain relative paths. Checked by hand with real PowerShell on a fake install dir
+(success and rollback).
 
 1. `Release` gets the manifest asset URL; `latest_release` keeps working without it
    (old releases → full installer).
@@ -125,10 +133,10 @@ would not be smaller, because the exe changes in every release.
   whole app directory regardless of how it was updated.
 - **`[InstallDelete] {app}\_internal`** stays: a later full install starts clean.
 
-## UI
+## UI — done
 
-No visible change: the "Update" button works as now. The banner can show the size that
-will be downloaded ("Обновить (4 МБ)") when the light path is chosen.
+The button works as before. The download progress shows the size ("…: 40% из 14 МБ"):
+before the click the app does not know yet which path it will take.
 
 ## Tests (no network)
 
@@ -146,12 +154,12 @@ will be downloaded ("Обновить (4 МБ)") when the light path is chosen.
 
 ## Rollout
 
-1. Release N ships the manifest (in `{app}` and as an asset) and the zip, but updates still
-   use the full installer. Installs now have a manifest to compare with.
-2. Release N+1 turns on the light path in the updater. The first light update is possible
-   from N to N+1, if the deps did not change.
+The build and the updater ship together in one release N: updating to N still takes the
+installer (older installs have no manifest), and from N on, N → N+1 can be app-only when
+the deps did not change. No two-step rollout is needed: the updater never takes the
+light path without both manifests.
 
-## Docs
+## Docs — done
 
 - `ARCHITECTURE.md`: release pipeline section (new assets, manifest) and the updater section.
 - `CHANGELOG.md`: "Updates download only the changed part of the app when possible."
@@ -159,6 +167,4 @@ will be downloaded ("Обновить (4 МБ)") when the light path is chosen.
 
 ## Rough size of the work
 
-Done: `build.py` + manifest, layer split, installer manifest, workflow (release N of the
-rollout). Left: updater + waiter swap with rollback (the main part), `[UninstallDelete]`,
-UI size hint, `CHANGELOG.md`.
+All done in one branch. Left: watch the first real N → N+1 update.

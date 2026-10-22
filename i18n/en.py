@@ -383,7 +383,7 @@ MESSAGES: dict[str, str] = {
     # ── One-click update (ui/main_window.py, updater/install_update.py) ──
     "Обновить": "Update",
     "Скачивание обновления {version}…": "Downloading update {version}…",
-    "Скачивание обновления {version}: {pct}%": "Downloading update {version}: {pct}%",
+    "Скачивание обновления {version}: {pct}% из {total} МБ": "Downloading update {version}: {pct}% of {total} MB",
     "Устанавливаем {version}, приложение перезапустится…": "Installing {version}, the app will restart…",
     "Не удалось скачать обновление: {error}": "Could not download the update: {error}",
     "Не удалось запустить установку: {error}": "Could not start the installation: {error}",

@@ -9,6 +9,12 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Changed
+- Updates download only the changed part of the app (~14 MB instead of ~124 MB) when the
+  bundled libraries did not change; otherwise, or if anything goes wrong, the full
+  installer is used as before. The update banner shows the download size. The first
+  such update is possible from this version on.
+
 ## [1.3.0] - 2026-10-22
 
 ### Added

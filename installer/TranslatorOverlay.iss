@@ -74,6 +74,12 @@ Source: "{#RootDir}\dist\installer\update-manifest.json"; DestDir: "{app}"; Flag
 ; An update replaces the whole bundle: no stale modules left from the previous build.
 Type: filesandordirs; Name: "{app}\_internal"
 
+[UninstallDelete]
+; An app-only update (updater/install_update.py) adds files the uninstall log does not
+; list: remove the whole bundle however it was updated.
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\.update-staging"
+
 [Icons]
 ; Same AppUserModelID as main.py, so a pinned shortcut and the running app share one taskbar button.
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "Vrihe.TranslatorOverlay"
