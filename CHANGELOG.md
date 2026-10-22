@@ -9,6 +9,8 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-22
+
 ### Changed
 - Updates download only the changed part of the app (~14 MB instead of ~124 MB) when the
   bundled libraries did not change; otherwise, or if anything goes wrong, the full
@@ -123,7 +125,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...v1.2.1
