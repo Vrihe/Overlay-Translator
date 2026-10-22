@@ -1,0 +1,45 @@
+# Training image for the NLLB LoRA fine-tune (training/, configs/train/).
+# The PyPI torch wheel for Linux bundles the CUDA runtime, so a slim Python base is enough;
+# the host needs only the NVIDIA driver and the NVIDIA Container Toolkit (Docker Desktop + WSL2
+# on Windows).
+#
+#   docker build -f Dockerfile.train --build-arg GIT_SHA=$(git rev-parse HEAD) -t overlay-translator-train .
+#   docker run --rm --gpus all -v "$PWD/models:/app/models" -v "$PWD/data:/app/data" \
+#       -v "$PWD/checkpoints:/app/checkpoints" overlay-translator-train \
+#       make all CONFIG=configs/train/v2.yaml NAME=v2-docker
+#
+# models/, data/ and checkpoints/ stay on the host: they are large and git-ignored.
+
+FROM python:3.13-slim
+
+ENV PYTHONUTF8=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git make \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Same torch release as the published runs; override TORCH_INDEX to pick another CUDA build,
+# e.g. --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu130
+ARG TORCH_VERSION=2.14.0
+ARG TORCH_INDEX=
+RUN pip install "torch==${TORCH_VERSION}" ${TORCH_INDEX:+--index-url "$TORCH_INDEX"}
+
+COPY requirements-train.txt .
+RUN pip install -r requirements-train.txt
+
+# Only what the pipeline reads; the app itself is not needed for training.
+COPY Makefile ./
+COPY configs/ configs/
+COPY training/ training/
+COPY translate/glossary/ translate/glossary/
+
+# The image has no .git; run_config.json takes the commit from here instead.
+ARG GIT_SHA=
+ENV OVERLAY_GIT_SHA=${GIT_SHA}
+
+CMD ["make", "all"]

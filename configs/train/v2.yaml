@@ -1,0 +1,60 @@
+# v2-game: game-chat glossary on top of the v1 data.
+# Published as the HF tag v2-game; trained as run v2b-game (docs/finetune_v2_process.md).
+#
+#   .venv-train\Scripts\python training/pipeline.py all --config configs/train/v2.yaml --name v2-repro
+#
+# Builds on v1: run the v1 data stage first (data/processed_final, data/interim/abbr_phrases.jsonl).
+# training/game_abbreviations.py also rewrites translate/glossary/game_en.json (tracked by git):
+# a diff there after the data stage means the glossary build is not reproducible.
+#
+# The published v2 scores were computed on data/processed_v2/test_*.jsonl, an earlier build of
+# the v2 splits; the model itself was trained on data/processed_v2b. The eval below keeps the
+# published test files so the numbers stay comparable.
+
+name: v2b-game
+base_model: models/nllb-200-distilled-600M
+
+data:
+  dir: data/processed_v2b
+  # translate_phrases.py resumes from its output; delete it so the targets are rebuilt
+  clean:
+    - data/interim/v2/game_translations.jsonl
+  steps:
+    - training/game_abbreviations.py
+    - training/translate_phrases.py --input data/interim/v2/game_phrases.jsonl --output data/interim/v2/game_translations.jsonl --batch-size 32
+    - training/translate_phrases.py --input data/interim/v2/game_phrases.jsonl --output data/interim/v2/game_translations.jsonl --batch-size 32 --repair-keep
+    - training/build_dataset_v2.py --out-dir data/processed_v2b
+
+train:
+  seed: 42
+  epochs: 5
+  batch_size: 4
+  grad_accum: 4
+  lr: 2.0e-4
+  warmup_steps: 30
+  lora_r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  max_len: 128
+  logging_steps: 10
+  eval_steps: 200
+  group_by_length: true
+  precision: bf16
+  gpu_mem_fraction: 0.9
+  gpu_duty: 0.9
+
+merge:
+  out: models/nllb-{name}-merged
+
+convert:
+  out: models/nllb-{name}-ct2-int8
+  quantization: int8
+
+eval:
+  test:
+    - data/processed_v2/test_v2.jsonl
+    - data/processed_v2/test_v1.jsonl
+  out_dir: checkpoints/eval_{name}
+  systems:
+    v0-base: ct2:models/nllb-v0-base
+    "{name}-int8": ct2:{convert.out}
