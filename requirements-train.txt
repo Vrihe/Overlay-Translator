@@ -14,13 +14,20 @@
 # any mirror and install it from the file: pip install <torch-wheel>.whl
 # Check: .venv-train\Scripts\python -c "import torch; print(torch.cuda.is_available())"
 #
+# Versions are pinned to the ones the published v1 and v2 runs used (with torch 2.14.0 + cu130),
+# so a rerun of configs/train/*.yaml starts from the same libraries.
 transformers==5.17.0
-peft
-accelerate
+tokenizers==0.23.2
+peft==0.21.2
+accelerate==1.15.0
+safetensors==0.8.0
 sentencepiece==0.2.2
 sacrebleu==2.6.0
-pandas
-pyarrow
-huggingface_hub
+pandas==3.0.6
+pyarrow==25.0.1
+huggingface_hub==1.33.0
 ctranslate2==4.8.2
-wordfreq
+wordfreq==3.1.1
+PyYAML==6.0.3
+# data versioning: dvc.yaml, remote on Google Drive
+dvc[gdrive]==3.67.1

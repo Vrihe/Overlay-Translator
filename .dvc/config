@@ -1,0 +1,5 @@
+[core]
+    analytics = false
+    remote = gdrive
+['remote "gdrive"']
+    url = gdrive://root/overlay-translator-dvc
