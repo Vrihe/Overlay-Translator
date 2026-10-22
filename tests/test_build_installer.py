@@ -269,6 +269,14 @@ class TestUpdatePackage(unittest.TestCase):
         self.assertEqual(fingerprint(deps=self.DEPS + ["_internal/scipy/tests/x.py"]), same)
         (self.dist / "_internal" / "msvcp140.dll").write_bytes(b"newer")
         self.assertEqual(fingerprint(), same)
+        # A .pyc header (source mtime) does not: a fresh deps build keeps the fingerprint.
+        pyc = self.dist / "_internal" / "numpy" / "mod.pyc"
+        pyc.write_bytes(b"H" * 16 + b"code")
+        with_pyc = fingerprint(deps=self.DEPS + ["_internal/numpy/mod.pyc"])
+        pyc.write_bytes(b"h" * 16 + b"code")
+        self.assertEqual(fingerprint(deps=self.DEPS + ["_internal/numpy/mod.pyc"]), with_pyc)
+        pyc.write_bytes(b"h" * 16 + b"edoc")
+        self.assertNotEqual(fingerprint(deps=self.DEPS + ["_internal/numpy/mod.pyc"]), with_pyc)
         # A changed deps file does.
         (self.dist / "_internal" / "numpy" / "core.pyd").write_bytes(b"rebuilt")
         self.assertNotEqual(fingerprint(), same)

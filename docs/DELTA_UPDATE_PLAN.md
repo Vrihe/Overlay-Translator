@@ -95,8 +95,12 @@ would not be smaller, because the exe changes in every release.
 
 As built: the swap script is written to `apply-update.ps1` (UTF-8 with BOM) and run with
 `-File`, since ~650 paths do not fit `-EncodedCommand` (32K command line). On rollback it
-writes `%TEMP%\translator-overlay-update\app-update-failed-<version>.txt`; the next try
-for that version takes the installer. A read-only install dir (all-users install) takes
+writes `%APPDATA%\translator-overlay\update\app-update-failed-<version>.txt` (so does a
+swap that cannot be started); the next try for that version takes the installer. The
+`.old` files are deleted and the registry is touched only after a successful swap. The
+manifest is used only when GitHub's asset `digest` checks it. `.pyc` files are hashed
+without their header (source mtime), so a deps layer rebuilt after a CI cache eviction
+keeps its fingerprint. A read-only install dir (all-users install) takes
 the installer too. The zip's file list must equal `app_files`, and manifest paths must be
 plain relative paths. Checked by hand with real PowerShell on a fake install dir
 (success and rollback).

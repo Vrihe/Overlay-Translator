@@ -381,8 +381,21 @@ def app_layer_files(dist_dir: Path, deps_files: list[str]) -> list[str]:
     return sorted(f for f in files if f not in deps)
 
 
+def _content_sha256(path: Path) -> str:
+    """SHA-256 of a file, streamed; a .pyc without its 16-byte header.
+
+    The header holds the source's mtime and size. A deps layer rebuilt from a fresh
+    pip install (CI cache evicted) gets new mtimes, but the same bytecode must keep
+    the same fingerprint, or app-only updates would never apply after that.
+    """
+    with open(path, 'rb') as f:
+        if path.suffix == '.pyc':
+            f.seek(16)
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
 def deps_content_fingerprint(dist_dir: Path, deps_files: list[str], runtime: str) -> str:
-    """Hash of the runtime tag and the path + SHA-256 of every deps-layer file.
+    """Hash of the runtime tag and the path + content hash of every deps-layer file.
 
     An app-only update is safe only when the installed deps files are exactly the
     new build's. Hashing the files themselves catches what the package list in
@@ -390,7 +403,7 @@ def deps_content_fingerprint(dist_dir: Path, deps_files: list[str], runtime: str
     """
     digest = hashlib.sha256(runtime.encode())
     for rel in sorted(deps_files):
-        digest.update(f"\n{rel}:{hashlib.sha256((dist_dir / rel).read_bytes()).hexdigest()}".encode())
+        digest.update(f"\n{rel}:{_content_sha256(dist_dir / rel)}".encode())
     return digest.hexdigest()[:16]
 
 
@@ -423,7 +436,7 @@ def build_update_package(root: Path, version: str) -> tuple[Path, Path]:
         'runtime': info['runtime'],
         'app_zip': {
             'name': zip_path.name,
-            'sha256': hashlib.sha256(zip_path.read_bytes()).hexdigest(),
+            'sha256': _content_sha256(zip_path),
             'size': zip_path.stat().st_size,
         },
         'app_files': app_files,

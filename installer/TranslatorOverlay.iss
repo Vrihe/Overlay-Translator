@@ -79,6 +79,7 @@ Type: filesandordirs; Name: "{app}\_internal"
 ; list: remove the whole bundle however it was updated.
 Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\.update-staging"
+Type: files; Name: "{app}\*.old"
 
 [Icons]
 ; Same AppUserModelID as main.py, so a pinned shortcut and the running app share one taskbar button.

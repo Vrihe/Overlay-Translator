@@ -13,7 +13,9 @@ Flow (``MainWindow`` update banner → "Обновить" → ``prepare_update``
      PowerShell waits until this process has exited, swaps the app-layer files
      (old ones kept as ``*.old`` until the end, restored on any error), updates the
      "Apps & features" version and starts the app again.
-     Full path, or any failure of the app path before the app quits:
+     A version whose app-only update failed (download, swap or its start) is
+     marked in the user data dir and takes the full path from then on.
+     Full path, or any failure of the app path while downloading:
      ``download_setup()`` → ``launch_installer()``: the waiter runs the setup
      ``/VERYSILENT``. Inno Setup refuses to run while the app's mutex exists and a
      silent setup answers that prompt with Cancel, so it must not start before the
@@ -275,7 +277,7 @@ def fetch_manifest(release: Release) -> dict | None:
         return None
     if len(raw) > _MANIFEST_MAX_BYTES:
         return None
-    if release.manifest_sha256 and hashlib.sha256(raw).hexdigest() != release.manifest_sha256:
+    if hashlib.sha256(raw).hexdigest() != release.manifest_sha256:
         _logger.warning("Update manifest checksum mismatch")
         return None
     return parse_manifest(raw.decode("utf-8", errors="replace"))
@@ -337,9 +339,14 @@ def download_app_zip(
 
 
 def app_update_plan(installed: dict, new: dict) -> tuple[list[str], list[str]]:
-    """(files to put in place from the zip, old app files to remove), as relative paths."""
+    """(files to put in place from the zip, old app files to remove), as relative paths.
+
+    Windows paths ignore case: an old file whose name only changed case is the new
+    file, and removing it would delete the new copy.
+    """
     files = sorted(new["app_files"])
-    remove = sorted(set(installed["app_files"]) - set(files))
+    kept = {f.casefold() for f in files}
+    remove = sorted(f for f in set(installed["app_files"]) if f.casefold() not in kept)
     return files, remove
 
 
@@ -367,7 +374,8 @@ def app_waiter_script(
     Every replaced or removed file is first renamed to ``<file>.old``; on any error
     the new files are deleted, the ``.old`` files are moved back, *failed_marker* is
     written (the next update of this version takes the full installer) and the old
-    app starts again. On success the ``.old`` files go and the new app starts.
+    app starts again. Only after the swap succeeded the ``.old`` files go and the
+    "Apps & features" version is set (its errors are ignored); then the new app starts.
     """
     q = _ps_quote
     return "\n".join(
@@ -380,6 +388,7 @@ def app_waiter_script(
             f"$files = {_ps_list(files)}",
             f"$remove = {_ps_list(remove)}",
             "$stage = Join-Path $app '.update-staging'",
+            "$swapped = $false",
             "$moved = New-Object System.Collections.Generic.List[string]",
             "$added = New-Object System.Collections.Generic.List[string]",
             "function Stash($rel) {",
@@ -403,13 +412,7 @@ def app_waiter_script(
             "  }",
             f"  Stash {q(MANIFEST_NAME)}",
             f"  Copy-Item -LiteralPath $manifest -Destination (Join-Path $app {q(MANIFEST_NAME)})",
-            "  foreach ($rel in $moved) { Remove-Item -LiteralPath ((Join-Path $app $rel) + '.old') -Force -ErrorAction SilentlyContinue }",
-            "  foreach ($root in 'HKCU:', 'HKLM:') {",
-            f"    $key = $root + {q(chr(92) + _UNINSTALL_KEY)}",
-            "    if (Test-Path -LiteralPath $key) {",
-            f"      Set-ItemProperty -LiteralPath $key -Name DisplayVersion -Value {q(version)} -ErrorAction SilentlyContinue",
-            "    }",
-            "  }",
+            "  $swapped = $true",
             "} catch {",
             "  $ErrorActionPreference = 'Continue'",
             "  $err = $_ | Out-String",
@@ -419,7 +422,18 @@ def app_waiter_script(
             "    Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue",
             "    Move-Item -LiteralPath \"$p.old\" -Destination $p -Force",
             "  }",
+            f"  New-Item -ItemType Directory -Force -Path {q(str(failed_marker.parent))} | Out-Null",
             f"  Set-Content -LiteralPath {q(str(failed_marker))} -Value $err -Encoding UTF8",
+            "}",
+            "$ErrorActionPreference = 'Continue'",
+            "if ($swapped) {",
+            "  foreach ($rel in $moved) { Remove-Item -LiteralPath ((Join-Path $app $rel) + '.old') -Force -ErrorAction SilentlyContinue }",
+            "  foreach ($root in 'HKCU:', 'HKLM:') {",
+            f"    $key = $root + {q(chr(92) + _UNINSTALL_KEY)}",
+            "    if (Test-Path -LiteralPath $key -ErrorAction SilentlyContinue) {",
+            f"      Set-ItemProperty -LiteralPath $key -Name DisplayVersion -Value {q(version)} -ErrorAction SilentlyContinue",
+            "    }",
+            "  }",
             "}",
             "Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue",
             "Remove-Item -LiteralPath $zip, $manifest -Force -ErrorAction SilentlyContinue",
@@ -429,9 +443,14 @@ def app_waiter_script(
     )
 
 
-def _failed_marker(version: str, dest_dir: Path | None = None) -> Path:
-    """Written by the waiter when an app-only update to *version* was rolled back."""
-    return (dest_dir or _update_dir()) / f"app-update-failed-{version}.txt"
+def _marker_dir() -> Path:
+    # The user data dir, not %TEMP%: a temp cleanup must not retry a failing swap.
+    return Path(getattr(config, "USER_DATA_DIR", _update_dir())) / "update"
+
+
+def _failed_marker(version: str) -> Path:
+    """Marks *version* for the full installer: its app-only update failed once."""
+    return _marker_dir() / f"app-update-failed-{version}.txt"
 
 
 def _dir_writable(path: Path) -> bool:
@@ -461,7 +480,7 @@ def launch_app_update(prepared: PreparedUpdate, app_dir: Path, *, pid: int | Non
         remove=remove,
         version=version,
         pid=pid or os.getpid(),
-        failed_marker=_failed_marker(version, work_dir),
+        failed_marker=_failed_marker(version),
     )
     # A file, not -EncodedCommand: ~650 paths exceed the 32K command line. UTF-8 with
     # a BOM, or Windows PowerShell 5.1 reads it in the ANSI code page.
@@ -489,7 +508,14 @@ def prepare_update(
         return None
     app_dir = app_dir or Path(sys.executable).resolve().parent
     version = release.tag.lstrip("vV")
-    if release.manifest_url and not _failed_marker(version, dest_dir).exists() and _dir_writable(app_dir):
+    # The manifest decides which installed files are replaced or removed: unchecked
+    # (no asset digest), it is not used.
+    if (
+        release.manifest_url
+        and release.manifest_sha256
+        and not _failed_marker(version).exists()
+        and _dir_writable(app_dir)
+    ):
         new = fetch_manifest(release)
         if choose_update_path(installed_manifest(app_dir), new, release) == "app":
             try:
@@ -505,11 +531,24 @@ def prepare_update(
 
 
 def launch_update(prepared: PreparedUpdate, *, app_dir: Path | None = None, pid: int | None = None) -> None:
-    """Schedule *prepared* to be applied once this process exits."""
-    if prepared.app_only:
-        launch_app_update(prepared, app_dir or Path(sys.executable).resolve().parent, pid=pid)
-    else:
+    """Schedule *prepared* to be applied once this process exits. Raises if it cannot.
+
+    When an app-only update cannot be started, its version is marked so that the
+    next try (the user clicks again) downloads the installer.
+    """
+    if not prepared.app_only:
         launch_installer(prepared.path, pid=pid)
+        return
+    try:
+        launch_app_update(prepared, app_dir or Path(sys.executable).resolve().parent, pid=pid)
+    except Exception as e:
+        try:
+            marker = _failed_marker(prepared.release.tag.lstrip("vV"))
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(f"launch failed: {e}\n", encoding="utf-8")
+        except OSError:
+            pass
+        raise
 
 
 # ── Full installer ────────────────────────────────────────────────────────────
@@ -517,11 +556,10 @@ def launch_update(prepared: PreparedUpdate, *, app_dir: Path | None = None, pid:
 
 def waiter_script(setup: Path, pid: int) -> str:
     """PowerShell that waits for *pid* to exit, then runs *setup* silently."""
-    quoted = str(setup).replace("'", "''")
-    args = ",".join(f"'{a}'" for a in INSTALLER_ARGS)
+    args = ",".join(map(_ps_quote, INSTALLER_ARGS))
     return (
         f"Wait-Process -Id {int(pid)} -ErrorAction SilentlyContinue; "
-        f"Start-Process -FilePath '{quoted}' -ArgumentList {args}"
+        f"Start-Process -FilePath {_ps_quote(str(setup))} -ArgumentList {args}"
     )
 
 

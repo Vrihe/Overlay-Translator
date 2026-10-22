@@ -267,6 +267,11 @@ class TestChooseUpdatePath(unittest.TestCase):
         self.assertEqual(files, ["TranslatorOverlay.exe", "_internal/kept.pyd", "_internal/new.pyd"])
         self.assertEqual(remove, ["_internal/old.pyd"])
 
+    def test_plan_keeps_a_file_whose_name_only_changed_case(self):
+        installed = _manifest(files=["TranslatorOverlay.exe", "_internal/Qt5Core.dll"])
+        new = _manifest(files=["TranslatorOverlay.exe", "_internal/qt5core.dll"])
+        self.assertEqual(install_update.app_update_plan(installed, new)[1], [])
+
 
 def _zip_bytes(names):
     buf = io.BytesIO()
@@ -291,6 +296,9 @@ class TestPrepareUpdate(unittest.TestCase):
         self.zip_data = _zip_bytes(self.FILES)
         self.zip_sha = hashlib.sha256(self.zip_data).hexdigest()
         self.setup_data = b"setup"
+        patcher = mock.patch.object(install_update, "_marker_dir", return_value=self.dest / "markers")
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _urlopen(self, manifest, zip_data):
         setup_data = self.setup_data
@@ -307,12 +315,17 @@ class TestPrepareUpdate(unittest.TestCase):
 
         return fake
 
-    def _prepare(self, manifest=None, zip_data=None, cancel=None):
+    def _prepare(self, manifest=None, zip_data=None, cancel=None, manifest_digest=True):
+        manifest = manifest or _manifest(zip_sha=self.zip_sha, files=self.FILES)
         release = release_from_json(_full_release_json())
         release = install_update.Release(
-            **{**release.__dict__, "app_sha256": self.zip_sha, "sha256": hashlib.sha256(self.setup_data).hexdigest()}
+            **{
+                **release.__dict__,
+                "app_sha256": self.zip_sha,
+                "sha256": hashlib.sha256(self.setup_data).hexdigest(),
+                "manifest_sha256": hashlib.sha256(json.dumps(manifest).encode()).hexdigest() if manifest_digest else "",
+            }
         )
-        manifest = manifest or _manifest(zip_sha=self.zip_sha, files=self.FILES)
         with (
             mock.patch.object(install_update, "latest_release", return_value=release),
             mock.patch.object(
@@ -350,9 +363,12 @@ class TestPrepareUpdate(unittest.TestCase):
         self.assertFalse((self.dest / "TranslatorOverlay-app-9.9.9.zip").exists())
 
     def test_installer_after_a_rolled_back_app_update(self):
-        self.dest.mkdir()
-        (self.dest / "app-update-failed-9.9.9.txt").write_text("error", encoding="utf-8")
+        (self.dest / "markers").mkdir(parents=True)
+        (self.dest / "markers" / "app-update-failed-9.9.9.txt").write_text("error", encoding="utf-8")
         self.assertFalse(self._prepare().app_only)
+
+    def test_installer_when_the_manifest_cannot_be_checked(self):
+        self.assertFalse(self._prepare(manifest_digest=False).app_only)
 
     def test_installer_when_the_install_dir_is_read_only(self):
         with mock.patch.object(install_update, "_dir_writable", return_value=False):
@@ -396,6 +412,13 @@ class TestAppWaiter(unittest.TestCase):
         self.assertIn("DisplayVersion -Value '9.9.9'", script)
         self.assertIn("{0DF3004C-2D3C-431A-8BCA-DC181526B77D}_is1", script)
         self.assertGreater(script.index("Start-Process"), script.index("} catch {"))
+        # The .old backups go, and the registry is touched, only after the swap: an
+        # error there must not leave the rollback without its backups.
+        after = script[script.index("if ($swapped) {") :]
+        self.assertGreater(script.index("if ($swapped) {"), script.index("} catch {"))
+        self.assertIn("+ '.old') -Force", after)
+        self.assertIn("DisplayVersion", after)
+        self.assertNotIn("DisplayVersion", script[: script.index("} catch {")])
 
     def test_uninstall_key_matches_the_iss_app_id(self):
         iss = (ROOT / "installer" / "TranslatorOverlay.iss").read_text(encoding="utf-8")
@@ -430,6 +453,17 @@ class TestAppWaiter(unittest.TestCase):
             self.assertIn(r"$remove = @('_internal\old.pyd')", script)
             self.assertEqual(json.loads((work / "update-manifest.json").read_text(encoding="utf-8")), _manifest())
             self.assertTrue(popen.call_args.kwargs["creationflags"] & install_update.subprocess.CREATE_NO_WINDOW)
+
+    def test_a_failed_launch_marks_the_version_for_the_installer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            release = release_from_json(_full_release_json())
+            prepared = install_update.PreparedUpdate(release, Path(tmp) / "app.zip", _manifest())
+            with (
+                mock.patch.object(install_update, "_marker_dir", return_value=Path(tmp) / "markers"),
+                self.assertRaises(OSError),
+            ):
+                install_update.launch_update(prepared, app_dir=Path(tmp) / "no-install", pid=7)
+            self.assertTrue((Path(tmp) / "markers" / "app-update-failed-9.9.9.txt").exists())
 
     def test_full_update_still_runs_the_installer(self):
         release = release_from_json(_release_json())

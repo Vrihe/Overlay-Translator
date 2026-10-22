@@ -695,11 +695,15 @@ class MainWindow(QMainWindow):
         self._update_install_worker = _UpdateInstallWorker(self)
         self._update_install_worker.progress_changed.connect(
             lambda pct, done, total: self._update_label.setText(
-                tr(
-                    "Скачивание обновления {version}: {pct}% из {total} МБ",
-                    version=self._update_version,
-                    pct=pct,
-                    total=max(total, 1),
+                (
+                    tr(
+                        "Скачивание обновления {version}: {pct}% из {total} МБ",
+                        version=self._update_version,
+                        pct=pct,
+                        total=total,
+                    )
+                    if total
+                    else tr("Скачивание обновления {version}: {pct}%", version=self._update_version, pct=pct)
                 ).upper()
             )
         )

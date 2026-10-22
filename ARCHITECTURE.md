@@ -686,7 +686,8 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    writes `dist/installer/TranslatorOverlay-app-<version>.zip` (every file of the final
    tree not from the deps layer; the VC++ runtime DLLs count as app layer) and
    `update-manifest.json` (`version`, `deps_fingerprint` = hash of the runtime tag and the
-   path + SHA-256 of every deps-layer file in the final tree,
+   path + SHA-256 of every deps-layer file in the final tree, `.pyc` without the 16-byte
+   header with the source mtime, so a deps layer rebuilt after a CI cache eviction keeps it,
    `runtime`, `app_zip` name/sha256/size, `app_files`). The `.iss` installs the manifest
    into `{app}`.
    **Release pipeline** — `.github/workflows/release.yml` on a `v*` tag (windows-latest):
@@ -711,19 +712,24 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    first. `choose_update_path()` returns `"app"` only when the installed
    `{app}\update-manifest.json` (this `APP_VERSION`) and the release's manifest have the
    same `deps_fingerprint` and `runtime`, and the release's zip asset is the one the
-   manifest names (same SHA-256). It also needs a writable install dir (an all-users
-   install takes the setup) and no `app-update-failed-<version>.txt` from an earlier
-   rollback. `download_app_zip()` checks the SHA-256 and that the zip holds exactly
+   manifest names (same SHA-256). It also needs a manifest checked by its asset
+   `digest`, a writable install dir (an all-users install takes the setup) and no
+   `%APPDATA%\translator-overlay\update\app-update-failed-<version>.txt` (written when
+   the swap rolled back or could not start; not in `%TEMP%`, so a cleanup does not
+   retry it). `download_app_zip()` checks the SHA-256 and that the zip holds exactly
    `app_files` (safe relative paths only). Any failure before the app quits falls back
    to `download_setup()`. `launch_update()` → `launch_app_update()` writes
    `apply-update.ps1` (UTF-8 with BOM; `-File`, ~650 paths do not fit
    `-EncodedCommand`) and runs it hidden. After `Wait-Process` it extracts the zip to
    `{app}\.update-staging`, renames each replaced file and each file of the old
    `app_files` the new version drops to `*.old`, moves the new files in, writes the new
-   manifest and sets `DisplayVersion` of the Inno uninstall key. On any error it deletes
-   the new files, moves the `.old` ones back and writes the failure marker. Either way
-   it then starts `TranslatorOverlay.exe`. The `.iss` `[UninstallDelete]` removes
-   `{app}\_internal`, so files added by app updates go on uninstall too. The banner shows
+   manifest. On any error it deletes the new files, moves the `.old` ones back and
+   writes the failure marker. Only after a successful swap it deletes the `.old` files
+   and sets `DisplayVersion` of the Inno uninstall key. Either way it then starts
+   `TranslatorOverlay.exe`. The plan compares paths case-insensitively (a file renamed
+   only in case is not removed). The `.iss` `[UninstallDelete]` removes
+   `{app}\_internal`, `{app}\.update-staging` and `{app}\*.old`, so files added by app
+   updates go on uninstall too. The banner shows
    the download size ("…: 40% из 14 МБ").
 8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
