@@ -9,6 +9,8 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-22
+
 ### Added
 - Updates are checked every 30 minutes while the app runs, not only at launch; each new
   version is announced once.
@@ -115,7 +117,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.2...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.1.0...v1.2.1
 [1.1.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.0.0...v1.1.0
