@@ -675,12 +675,28 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    `AppMutex` = the `single_instance` mutex, shortcuts carry main.py's AppUserModelID,
    optional desktop icon and autostart (`HKA\…\Run`). User data in `%APPDATA%` is left on
    uninstall. `tests/test_build_installer.py` keeps these values in step with the app.
+   **Update package** (groundwork for app-only updates, `docs/DELTA_UPDATE_PLAN.md`; the
+   updater does not use it yet). The deps fingerprint also covers `runtime_tag()` (Python
+   ABI + PyInstaller version). Every build writes `dist/TranslatorOverlay.layers.json`: the
+   deps-layer files (copied by `merge_deps_into_app`, or already collected by the app spec
+   byte-identically, e.g. Qt5) and the fingerprint. Large native packages the app imports
+   (`ctranslate2`, `sentencepiece`, `pydantic_core`, `sqlite3`) live in `build_deps.spec`
+   and are excluded from `build_app.spec`, so the app layer is mostly the exe.
+   `build.py --update-package` (also run by `--installer` / `--installer-only` before ISCC)
+   writes `dist/installer/TranslatorOverlay-app-<version>.zip` (every file of the final
+   tree not from the deps layer; the VC++ runtime DLLs count as app layer) and
+   `update-manifest.json` (`version`, `deps_fingerprint` = hash of the runtime tag and the
+   path + SHA-256 of every deps-layer file in the final tree, `.pyc` without the 16-byte
+   header with the source mtime, so a deps layer rebuilt after a CI cache eviction keeps it,
+   `runtime`, `app_zip` name/sha256/size, `app_files`). The `.iss` installs the manifest
+   into `{app}`.
    **Release pipeline** — `.github/workflows/release.yml` on a `v*` tag (windows-latest):
    `build.py --check-tag` (tag == `v` + `APP_VERSION`, `CHANGELOG.md` has that section) →
    `pytest` (offscreen Qt) → Inno Setup via choco if missing → deps layer restored from
-   `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → SHA-256
-   into `build.py --release-notes` (changelog section + install steps + checksum; no
-   separate `.sha256` file) → draft release with Setup.exe only
+   `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → SHA-256 of
+   Setup.exe and the app zip into `build.py --release-notes --sha256 --app-sha256`
+   (changelog section + install steps + checksums; no separate `.sha256` files) → draft
+   release with Setup.exe, `TranslatorOverlay-app-<version>.zip` and `update-manifest.json`
    (re-runs `--clobber` the files). Manual runs only upload an artifact. Process: CONTRIBUTING.md.
    **One-click update** (`updater/install_update.py`, update banner in `MainWindow`): only when
    `can_self_update()` (frozen + `unins000.exe` next to the exe; otherwise the release page).
@@ -692,6 +708,29 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    `_quit`. The setup must not start while the app's mutex exists: a silent setup answers
    the AppMutex prompt with Cancel. The `.iss` `[Run]` entry `Check: RelaunchRequested`
    (`{param:RELAUNCH|0}`) starts the new version `runasoriginaluser`.
+   **App-only update**: the worker calls `prepare_update()`, which tries the light path
+   first. `choose_update_path()` returns `"app"` only when the installed
+   `{app}\update-manifest.json` (this `APP_VERSION`) and the release's manifest have the
+   same `deps_fingerprint` and `runtime`, and the release's zip asset is the one the
+   manifest names (same SHA-256). It also needs a manifest checked by its asset
+   `digest`, a writable install dir (an all-users install takes the setup) and no
+   `%APPDATA%\translator-overlay\update\app-update-failed-<version>.txt` (written when
+   the swap rolled back or could not start; not in `%TEMP%`, so a cleanup does not
+   retry it). `download_app_zip()` checks the SHA-256 and that the zip holds exactly
+   `app_files` (safe relative paths only). Any failure before the app quits falls back
+   to `download_setup()`. `launch_update()` → `launch_app_update()` writes
+   `apply-update.ps1` (UTF-8 with BOM; `-File`, ~650 paths do not fit
+   `-EncodedCommand`) and runs it hidden. After `Wait-Process` it extracts the zip to
+   `{app}\.update-staging`, renames each replaced file and each file of the old
+   `app_files` the new version drops to `*.old`, moves the new files in, writes the new
+   manifest. On any error it deletes the new files, moves the `.old` ones back and
+   writes the failure marker. Only after a successful swap it deletes the `.old` files
+   and sets `DisplayVersion` of the Inno uninstall key. Either way it then starts
+   `TranslatorOverlay.exe`. The plan compares paths case-insensitively (a file renamed
+   only in case is not removed). The `.iss` `[UninstallDelete]` removes
+   `{app}\_internal`, `{app}\.update-staging` and `{app}\*.old`, so files added by app
+   updates go on uninstall too. The banner shows
+   the download size ("…: 40% из 14 МБ").
 8. **Interface language** — `settings.json` → `ui_language`: `"auto"` (default) | `"ru"` | `"en"`,
    set in "Настройки → Интерфейс" (Settings → Interface). It is resolved once per process
    (`i18n.current_language()`), so a change applies after a restart. `"auto"` picks Russian
@@ -788,7 +827,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_popup_live.py` | popup excluded from screen capture and kept opaque, live update without taking focus, regions dialog rows and monitoring button |
 | `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
 | `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
-| `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook |
+| `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook; app-only update: zip + manifest assets, manifest parsing (unsafe paths refused), `choose_update_path`, swap plan, fallback to the installer (bad zip, deps changed, read-only dir, earlier rollback), swap script with rollback, `-File` launch with a BOM |
 | `tests/test_app_hotkeys.py` | app hotkeys: Qt sequence → keyboard name, validation (single key, clashes with the other hotkey / presets), `SETTINGS_HOTKEY` env override, the settings page saving / rejecting an edit and pausing the hooks on focus |
 | `tests/test_cuda_download.py` | GPU offer states, cuBLAS wheel checksum / DLL-only unpacking / cleanup on failure and cancel, search order, NLLB device setting vs env |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |

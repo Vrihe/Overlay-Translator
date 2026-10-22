@@ -67,10 +67,19 @@ Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "{cm:OtherTa
 Source: "{#RootDir}\dist\TranslatorOverlay\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#RootDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#RootDir}\MODEL_LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+; Written by build.py before ISCC runs: the installed deps fingerprint and app file list.
+Source: "{#RootDir}\dist\installer\update-manifest.json"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
 ; An update replaces the whole bundle: no stale modules left from the previous build.
 Type: filesandordirs; Name: "{app}\_internal"
+
+[UninstallDelete]
+; An app-only update (updater/install_update.py) adds files the uninstall log does not
+; list: remove the whole bundle however it was updated.
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\.update-staging"
+Type: files; Name: "{app}\*.old"
 
 [Icons]
 ; Same AppUserModelID as main.py, so a pinned shortcut and the running app share one taskbar button.

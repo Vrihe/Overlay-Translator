@@ -57,10 +57,11 @@ class _UpdateCheckWorker(QThread):
 
 
 class _UpdateInstallWorker(QThread):
-    """Fetch the latest release's installer and verify it (updater/install_update.py)."""
+    """Fetch the latest release's update (app zip or installer) and verify it
+    (updater/install_update.py)."""
 
     progress_changed = pyqtSignal(int, int, int)  # (percent, done MiB, total MiB)
-    finished_with_status = pyqtSignal(bool, str)  # (ok, setup path | error | "" if cancelled)
+    finished_with_status = pyqtSignal(bool, object)  # (ok, PreparedUpdate | error | "" if cancelled)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -76,15 +77,14 @@ class _UpdateInstallWorker(QThread):
             self.progress_changed.emit(percent, done >> 20, total >> 20)
 
     def run(self):
-        from updater.install_update import DownloadCancelled, download_setup, latest_release
+        from updater.install_update import DownloadCancelled, prepare_update
 
         try:
-            release = latest_release()
-            if release is None:
+            prepared = prepare_update(progress=self._on_progress, cancel=self.cancel)
+            if prepared is None:
                 self.finished_with_status.emit(False, tr("в релизе нет установщика с контрольной суммой"))
                 return
-            path = download_setup(release, progress=self._on_progress, cancel=self.cancel)
-            self.finished_with_status.emit(True, str(path))
+            self.finished_with_status.emit(True, prepared)
         except DownloadCancelled:
             self.finished_with_status.emit(False, "")
         except Exception as e:
@@ -695,22 +695,29 @@ class MainWindow(QMainWindow):
         self._update_install_worker = _UpdateInstallWorker(self)
         self._update_install_worker.progress_changed.connect(
             lambda pct, done, total: self._update_label.setText(
-                tr("Скачивание обновления {version}: {pct}%", version=self._update_version, pct=pct).upper()
+                (
+                    tr(
+                        "Скачивание обновления {version}: {pct}% из {total} МБ",
+                        version=self._update_version,
+                        pct=pct,
+                        total=total,
+                    )
+                    if total
+                    else tr("Скачивание обновления {version}: {pct}%", version=self._update_version, pct=pct)
+                ).upper()
             )
         )
         self._update_install_worker.finished_with_status.connect(self._on_update_downloaded)
         self._update_install_worker.start()
 
-    def _on_update_downloaded(self, ok: bool, result: str):
+    def _on_update_downloaded(self, ok: bool, result):
         self._update_install_worker = None
         self._btn_download_update.setText(tr("Обновить").upper())
         if ok:
-            from pathlib import Path
-
-            from updater.install_update import launch_installer
+            from updater.install_update import launch_update
 
             try:
-                launch_installer(Path(result))
+                launch_update(result)
             except Exception as e:
                 logging.exception("Could not start the update installer")
                 self._update_label.setText(tr("Не удалось запустить установку: {error}", error=e))
