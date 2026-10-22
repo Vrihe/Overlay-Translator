@@ -1,0 +1,164 @@
+# Plan: smaller updates (app layer / deps layer split)
+
+Status: build side done (`build.py --update-package`, manifest in the installer, release
+assets). The updater does not use the package yet.
+
+## Problem
+
+Every update downloads the full `TranslatorOverlay-Setup-X.Y.Z.exe` (~115 MB), even though
+between releases usually only our own code changes. Most of the weight is the dependency
+layer: onnxruntime-directml, PyQt5, numpy, OpenCV. It changes rarely, and `build.py`
+already builds it as a separate PyInstaller layer with a fingerprint
+(`deps_fingerprint`, `_TRACKED_PACKAGES`).
+
+## Goal
+
+- When the deps layer did not change, an update downloads only the app layer (~14 MB
+  for 1.3.0, of which the exe is ~13 MB; Setup.exe is ~124 MB).
+- When it did change, or anything in the light path fails, fall back to today's flow:
+  download and silently run the full `Setup.exe`.
+- New installs keep using the same `Setup.exe`; nothing changes for them.
+
+## Release assets
+
+| Asset | Content | Always present |
+|---|---|---|
+| `TranslatorOverlay-Setup-X.Y.Z.exe` | full installer, as today | yes |
+| `TranslatorOverlay-app-X.Y.Z.zip` | every file of `dist/TranslatorOverlay/` that is **not** a deps-layer file, paths relative to the install dir | yes |
+| `update-manifest.json` | metadata used to choose the update path (below) | yes |
+
+There is no separate deps archive: a deps change means the full installer. That keeps one
+heavy path instead of two.
+
+`update-manifest.json`:
+
+```json
+{
+  "version": "1.3.0",
+  "deps_fingerprint": "3f2a9c...",
+  "runtime": "cp312-pyinstaller6.x",
+  "app_zip": {"name": "TranslatorOverlay-app-1.3.0.zip", "sha256": "...", "size": 4123456},
+  "app_files": ["TranslatorOverlay.exe", "_internal/base_library.zip", "..."]
+}
+```
+
+- `deps_fingerprint`: hash of `runtime` plus the path and SHA-256 of every deps-layer file
+  in the final tree. It is computed from the files, not from the package list of
+  `build.py --fingerprint` (the CI cache key): that list cannot see an untracked package
+  or a file moving between the layers, and a wrong match would break the install.
+- `runtime`: Python ABI and PyInstaller version. The bootloader lives in the app layer but
+  must match the deps layer's compiled modules, so a runtime change also forces the full
+  installer. It is also part of the cache-key fingerprint.
+- `app_files`: the full list of app-layer files, so the updater can remove files that a
+  new version no longer ships.
+
+The installer also writes this manifest to `{app}\update-manifest.json`, so the installed
+app knows its own fingerprint and file list.
+
+## Build changes (`build.py`) — done
+
+1. `merge_deps_into_app` returns the deps-layer files: the ones it copies, plus app-layer
+   files that are byte-identical to their deps-layer copy. PyInstaller collects binaries
+   for the app spec too (Qt5 DLLs, `python312.dll`); counting only copied files put
+   ~93 MB of unchanged files into the app zip. The list goes to
+   `dist/TranslatorOverlay.layers.json`, so `--installer-only` can package later.
+2. The app-layer set = all files of `dist/TranslatorOverlay/` minus the deps-layer list,
+   computed after `post_build_cleanup` and `bundle_msvc_runtime`. The MSVC runtime DLLs
+   go to the app layer (cheap, and always consistent with the exe).
+3. `build.py --update-package` writes `dist/installer/TranslatorOverlay-app-X.Y.Z.zip`
+   and `dist/installer/update-manifest.json`. `--installer` and `--installer-only` call
+   it before Inno Setup, so the manifest goes into the installer.
+4. `runtime_tag()` (Python ABI + PyInstaller version) is part of the fingerprint.
+5. Large native packages the app imports were only in the app layer: `ctranslate2`
+   (~58 MB), `pydantic_core`, `sentencepiece`, `sqlite3`. They moved to `build_deps.spec`
+   (excluded in `build_app.spec`, tracked in `_TRACKED_PACKAGES` with `pydantic`, which
+   pins the exact `pydantic-core`). The zip went from 71.6 MB to 14.3 MB. Left in the app
+   layer as not worth it (< 3 MB together): `pywin32`, `protobuf`, `jiter`, `tzdata`.
+
+What stays in the zip is mostly `TranslatorOverlay.exe` (~13 MB): its PYZ holds all
+pure-Python code, the API SDKs included. A per-file delta against the previous release
+would not be smaller, because the exe changes in every release.
+
+## Installer changes (`installer/TranslatorOverlay.iss`)
+
+- Install `update-manifest.json` into `{app}` — done.
+- The `[UninstallDelete]` entry (below) comes with the updater change.
+
+## Release workflow (`.github/workflows/release.yml`) — done
+
+- Upload the zip and `update-manifest.json` next to `Setup.exe` in the draft release.
+- Put the zip's SHA-256 into the release notes as well (`build.py --release-notes
+  --app-sha256`; the updater checks the asset `digest` from the GitHub API first, like
+  for `Setup.exe`). The notes say the two extra files are for the in-app updater.
+
+## Updater changes (`updater/install_update.py`)
+
+1. `Release` gets the manifest asset URL; `latest_release` keeps working without it
+   (old releases → full installer).
+2. `choose_update_path(installed_manifest, new_manifest) -> "app" | "full"`:
+   `"app"` only when both manifests exist and `deps_fingerprint` and `runtime` match.
+   Pure function, easy to unit-test.
+3. `download_app_zip(...)`: same `.part` + SHA-256 + cancel logic as `download_setup`
+   (reuse it, the function differs only in the asset).
+4. Applying the app zip cannot happen while the app runs (the exe and `.pyd` files are
+   locked). Reuse the waiter: the hidden PowerShell script waits for the app's pid, then
+   - extracts the zip to `{app}\.update-staging\`,
+   - renames each current app file to `*.old` and moves the new one into place,
+   - deletes app files listed in the old manifest but missing from the new one,
+   - writes the new `update-manifest.json`,
+   - on any error, restores the `*.old` files and starts the old exe (rollback),
+   - on success, deletes `*.old` and the staging folder and starts the new exe.
+   An option to keep the script small: do the file swap in a tiny Python-free PowerShell
+   function and test the plan (list of moves) in Python, not the shell itself.
+5. If the light path fails before the app exits (download error, checksum mismatch,
+   manifest unreadable), log it and fall back to `download_setup` + `launch_installer`.
+
+## Things the light path must keep in sync
+
+- **"Apps & features" version.** Inno Setup writes `DisplayVersion` under
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{AppId}_is1`. After an app-zip
+  update the waiter script updates `DisplayVersion` (and `DisplayName` if it carries the
+  version) itself. Otherwise Windows shows the old version.
+- **Uninstall.** Inno's uninstaller removes files from its own log (`unins000.dat`); files
+  added only by the app zip would be left behind. Fix: an `[UninstallDelete]` entry
+  `Type: filesandordirs; Name: "{app}\_internal"` (and the exe), so uninstall removes the
+  whole app directory regardless of how it was updated.
+- **`[InstallDelete] {app}\_internal`** stays: a later full install starts clean.
+
+## UI
+
+No visible change: the "Update" button works as now. The banner can show the size that
+will be downloaded ("Обновить (4 МБ)") when the light path is chosen.
+
+## Tests (no network)
+
+- `choose_update_path`: matching fingerprints → app; different fingerprint, different
+  runtime, missing installed or new manifest → full.
+- Manifest parsing: unknown fields ignored, broken JSON → full path.
+- `build.py` (done, `tests/test_build_installer.py`): app-layer set excludes deps files,
+  includes the exe and MSVC DLLs; manifest sha256/size match the zip; the fingerprint
+  follows deps file content (build on a fake dist tree in a temp dir).
+- Swap plan: given old and new file lists, the planned moves/deletes are correct, and the
+  rollback plan restores every moved file.
+- Waiter script text contains the expected paths and the rollback branch (like the
+  existing `waiter_script` tests).
+- Fallback: checksum mismatch on the zip → `download_setup` is called.
+
+## Rollout
+
+1. Release N ships the manifest (in `{app}` and as an asset) and the zip, but updates still
+   use the full installer. Installs now have a manifest to compare with.
+2. Release N+1 turns on the light path in the updater. The first light update is possible
+   from N to N+1, if the deps did not change.
+
+## Docs
+
+- `ARCHITECTURE.md`: release pipeline section (new assets, manifest) and the updater section.
+- `CHANGELOG.md`: "Updates download only the changed part of the app when possible."
+- `CONTRIBUTING.md`: the release process mentions the new assets.
+
+## Rough size of the work
+
+Done: `build.py` + manifest, layer split, installer manifest, workflow (release N of the
+rollout). Left: updater + waiter swap with rollback (the main part), `[UninstallDelete]`,
+UI size hint, `CHANGELOG.md`.

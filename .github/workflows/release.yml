@@ -1,7 +1,8 @@
 # Builds the Windows installer and drafts a GitHub release.
 #
-#   git tag v1.1.0 && git push origin v1.1.0   → tests, build, draft release with Setup.exe
-#   Actions → Release → Run workflow             → same build, installer as an artifact only
+#   git tag v1.1.0 && git push origin v1.1.0   → tests, build, draft release with Setup.exe,
+#                                                the app-layer zip and update-manifest.json
+#   Actions → Release → Run workflow             → same build, files as an artifact only
 #
 # The tag must equal "v" + APP_VERSION in config.py and CHANGELOG.md needs a
 # "## [X.Y.Z]" section: it becomes the release notes. The release is created as a
@@ -77,16 +78,23 @@ jobs:
       - name: Build app and installer
         run: python build.py --installer
 
-      # The checksum goes into the release notes only: the release carries just Setup.exe.
+      # Checksums go into the release notes only: no separate .sha256 files.
+      # The app zip and update-manifest.json (build.py --update-package, run by
+      # --installer) are for the in-app updater: app-only updates when deps match.
       - name: Checksum and release notes
         id: files
         run: |
           $version = python -c "import build, pathlib; print(build.app_version(pathlib.Path('.')))"
           $setup = "dist/installer/TranslatorOverlay-Setup-$version.exe"
+          $appzip = "dist/installer/TranslatorOverlay-app-$version.zip"
+          $manifest = "dist/installer/update-manifest.json"
           $sha = (Get-FileHash $setup -Algorithm SHA256).Hash
-          python build.py --release-notes release-notes.md --sha256 $sha
+          $appsha = (Get-FileHash $appzip -Algorithm SHA256).Hash
+          python build.py --release-notes release-notes.md --sha256 $sha --app-sha256 $appsha
           "version=$version" >> $env:GITHUB_OUTPUT
           "setup=$setup" >> $env:GITHUB_OUTPUT
+          "appzip=$appzip" >> $env:GITHUB_OUTPUT
+          "manifest=$manifest" >> $env:GITHUB_OUTPUT
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -94,6 +102,8 @@ jobs:
           name: TranslatorOverlay-Setup-${{ steps.files.outputs.version }}
           path: |
             ${{ steps.files.outputs.setup }}
+            ${{ steps.files.outputs.appzip }}
+            ${{ steps.files.outputs.manifest }}
             release-notes.md
           retention-days: 14
 
@@ -103,13 +113,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           SETUP: ${{ steps.files.outputs.setup }}
+          APPZIP: ${{ steps.files.outputs.appzip }}
+          MANIFEST: ${{ steps.files.outputs.manifest }}
           VERSION: ${{ steps.files.outputs.version }}
         run: |
+          $files = @($env:SETUP, $env:APPZIP, $env:MANIFEST)
           gh release view $env:TAG *> $null
           if ($LASTEXITCODE -eq 0) {
             # A re-run replaces the files of the existing (draft) release.
-            gh release upload $env:TAG $env:SETUP --clobber
+            gh release upload $env:TAG @files --clobber
           } else {
-            gh release create $env:TAG $env:SETUP --draft --verify-tag `
+            gh release create $env:TAG @files --draft --verify-tag `
               --title "Translator Overlay $env:VERSION" --notes-file release-notes.md
           }

@@ -675,12 +675,27 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    `AppMutex` = the `single_instance` mutex, shortcuts carry main.py's AppUserModelID,
    optional desktop icon and autostart (`HKA\…\Run`). User data in `%APPDATA%` is left on
    uninstall. `tests/test_build_installer.py` keeps these values in step with the app.
+   **Update package** (groundwork for app-only updates, `docs/DELTA_UPDATE_PLAN.md`; the
+   updater does not use it yet). The deps fingerprint also covers `runtime_tag()` (Python
+   ABI + PyInstaller version). Every build writes `dist/TranslatorOverlay.layers.json`: the
+   deps-layer files (copied by `merge_deps_into_app`, or already collected by the app spec
+   byte-identically, e.g. Qt5) and the fingerprint. Large native packages the app imports
+   (`ctranslate2`, `sentencepiece`, `pydantic_core`, `sqlite3`) live in `build_deps.spec`
+   and are excluded from `build_app.spec`, so the app layer is mostly the exe.
+   `build.py --update-package` (also run by `--installer` / `--installer-only` before ISCC)
+   writes `dist/installer/TranslatorOverlay-app-<version>.zip` (every file of the final
+   tree not from the deps layer; the VC++ runtime DLLs count as app layer) and
+   `update-manifest.json` (`version`, `deps_fingerprint` = hash of the runtime tag and the
+   path + SHA-256 of every deps-layer file in the final tree,
+   `runtime`, `app_zip` name/sha256/size, `app_files`). The `.iss` installs the manifest
+   into `{app}`.
    **Release pipeline** — `.github/workflows/release.yml` on a `v*` tag (windows-latest):
    `build.py --check-tag` (tag == `v` + `APP_VERSION`, `CHANGELOG.md` has that section) →
    `pytest` (offscreen Qt) → Inno Setup via choco if missing → deps layer restored from
-   `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → SHA-256
-   into `build.py --release-notes` (changelog section + install steps + checksum; no
-   separate `.sha256` file) → draft release with Setup.exe only
+   `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → SHA-256 of
+   Setup.exe and the app zip into `build.py --release-notes --sha256 --app-sha256`
+   (changelog section + install steps + checksums; no separate `.sha256` files) → draft
+   release with Setup.exe, `TranslatorOverlay-app-<version>.zip` and `update-manifest.json`
    (re-runs `--clobber` the files). Manual runs only upload an artifact. Process: CONTRIBUTING.md.
    **One-click update** (`updater/install_update.py`, update banner in `MainWindow`): only when
    `can_self_update()` (frozen + `unins000.exe` next to the exe; otherwise the release page).

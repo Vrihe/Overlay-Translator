@@ -87,6 +87,7 @@ a = Analysis(
         'shapely', 'yaml', 'langid',
         'mss', 'mss.windows',
         'unittest', 'unittest.mock',
+        'ctranslate2', 'sentencepiece', 'pydantic_core', 'sqlite3',
         # ── Unused Qt modules ─────────────────────────────────────────────────
         'PyQt5.QtSql', 'PyQt5.QtNetwork', 'PyQt5.QtXml', 'PyQt5.QtBluetooth',
         'PyQt5.QtMultimedia', 'PyQt5.QtMultimediaWidgets',

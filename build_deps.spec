@@ -17,6 +17,21 @@ Expected output: dist/TranslatorOverlay_deps/
 import sys
 from pathlib import Path
 
+# ── sentencepiece workaround (same as build_app.spec) ────────────────────────
+# find_binary_dependencies() imports every package in one isolated process, Qt
+# bindings first. PyQt5 loads its old msvcp140.dll (14.26) and the sentencepiece
+# extension then crashes (0xC0000005). Its binaries are still collected.
+import PyInstaller.building.build_main
+_orig_find_binary_deps = PyInstaller.building.build_main.find_binary_dependencies
+
+def _safe_find_binary_deps(binaries, import_packages, symlink_suppression_patterns):
+    filtered = [p for p in import_packages if not p.startswith('sentencepiece')]
+    return _orig_find_binary_deps(binaries, filtered, symlink_suppression_patterns)
+
+PyInstaller.building.build_main.find_binary_dependencies = _safe_find_binary_deps
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 block_cipher = None
 ROOT = Path(SPECPATH)
 
@@ -24,6 +39,9 @@ from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files, co
 
 # ONNX Runtime: onnxruntime.dll, DirectML.dll and the provider bridge DLL.
 onnxruntime_binaries = collect_dynamic_libs('onnxruntime')
+# CTranslate2 (offline NLLB backend): ctranslate2.dll (~56 MB) and libiomp5md.dll.
+# Kept here rather than in the app layer so app-only updates stay small.
+ctranslate2_binaries = collect_dynamic_libs('ctranslate2')
 
 # RapidOCR: config YAMLs plus only the ONNX models ocr/engine.py uses.  The app
 # copies them to the user data dir; a rec model that was not yet downloaded into
@@ -49,7 +67,7 @@ rapidocr_hiddenimports = collect_submodules(
 a = Analysis(
     [str(ROOT / '_deps_stub.py')],
     pathex=[str(ROOT)],
-    binaries=onnxruntime_binaries,
+    binaries=onnxruntime_binaries + ctranslate2_binaries,
     datas=rapidocr_datas,
     hiddenimports=[
         'unittest', 'unittest.mock',
@@ -59,6 +77,8 @@ a = Analysis(
         'numpy', 'cv2', 'shapely', 'pyclipper', 'yaml', 'omegaconf',
         'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFilter', 'PIL.ImageEnhance',
         'langid',
+        # Native packages the app imports lazily (offline backend, API SDKs, cache).
+        'ctranslate2', 'sentencepiece', 'pydantic_core', 'sqlite3',
     ] + rapidocr_hiddenimports,
     excludes=[
         # The OCR stack is torch-free; keep a leftover install out of the build.

@@ -67,6 +67,8 @@ Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "{cm:OtherTa
 Source: "{#RootDir}\dist\TranslatorOverlay\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#RootDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#RootDir}\MODEL_LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+; Written by build.py before ISCC runs: the installed deps fingerprint and app file list.
+Source: "{#RootDir}\dist\installer\update-manifest.json"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
 ; An update replaces the whole bundle: no stale modules left from the previous build.

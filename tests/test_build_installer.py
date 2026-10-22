@@ -5,11 +5,14 @@ version for the installer name, and the .iss script stays in step with the app.
 No compiler is run: ISCC lookups use temp files, subprocess is mocked.
 """
 
+import hashlib
+import json
 import os
 import re
 import shutil
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -163,6 +166,20 @@ class TestReleaseHelpers(unittest.TestCase):
         self.assertIn("Run anyway", notes)
         self.assertIn("AB" * 32, notes)
         self.assertNotIn("SHA-256", build.release_notes(self.root, "1.2.0"))
+        self.assertNotIn("TranslatorOverlay-app-", notes)
+
+    def test_release_notes_with_app_zip(self):
+        notes = build.release_notes(self.root, "1.2.0", "ab" * 32, "cd" * 32)
+        self.assertIn("SHA-256 of `TranslatorOverlay-app-1.2.0.zip`: `" + "CD" * 32 + "`", notes)
+        self.assertIn("in-app updater", notes)
+        self.assertIn("AB" * 32, notes)
+
+    def test_workflow_uploads_update_package(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertIn("TranslatorOverlay-app-$version.zip", workflow)
+        self.assertIn(f"dist/installer/{build.UPDATE_MANIFEST}", workflow)
+        self.assertIn("$files = @($env:SETUP, $env:APPZIP, $env:MANIFEST)", workflow)
+        self.assertIn("--app-sha256", workflow)
 
 
 class TestRepositoryReleaseState(unittest.TestCase):
@@ -182,6 +199,92 @@ class TestRepositoryReleaseState(unittest.TestCase):
         self.assertTrue(flags)
         for flag in flags:
             self.assertIn(f"'{flag}'", build_py, flag)
+
+
+class TestUpdatePackage(unittest.TestCase):
+    """build.py splits the merged tree into layers and packs the app layer."""
+
+    DEPS = ["_internal/numpy/core.pyd", "_internal/cv2/cv2.pyd", "_internal/msvcp140.dll"]
+    APP = ["TranslatorOverlay.exe", "_internal/base_library.zip", "_internal/python312.dll"]
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.dist = self.root / "dist" / "TranslatorOverlay"
+        for rel in self.APP + self.DEPS:
+            path = self.dist / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(rel.encode())
+
+    def _save(self, deps=None, fingerprint="f" * 16):
+        with mock.patch.object(build, "runtime_tag", return_value="cp312-pyinstaller6.0"):
+            build.save_layer_info(self.root, fingerprint, self.DEPS if deps is None else deps)
+
+    def test_merge_returns_copied_deps_files_only(self):
+        deps_internal = self.root / "dist" / "TranslatorOverlay_deps" / "_internal"
+        files = {"numpy/new.pyd": b"deps", "python312.dll": b"deps", "base_library.zip": b"_internal/base_library.zip"}
+        for rel, data in files.items():
+            (deps_internal / rel).parent.mkdir(parents=True, exist_ok=True)
+            (deps_internal / rel).write_bytes(data)
+        deps = build.merge_deps_into_app(self.root)
+        # python312.dll differs: the app's copy wins and stays app-layer. base_library.zip
+        # is byte-identical in both layers, so it counts as deps.
+        self.assertEqual(sorted(deps), ["_internal/base_library.zip", "_internal/numpy/new.pyd"])
+        self.assertEqual((self.dist / "_internal" / "python312.dll").read_bytes(), b"_internal/python312.dll")
+
+    def test_app_layer_excludes_deps_but_keeps_msvc_runtime(self):
+        files = build.app_layer_files(self.dist, self.DEPS)
+        self.assertEqual(files, sorted(self.APP + ["_internal/msvcp140.dll"]))
+
+    def test_package_zip_and_manifest(self):
+        self._save()
+        zip_path, manifest_path = build.build_update_package(self.root, "1.4.0")
+        self.assertEqual(zip_path.name, "TranslatorOverlay-app-1.4.0.zip")
+        self.assertEqual(manifest_path.name, build.UPDATE_MANIFEST)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        expected = sorted(self.APP + ["_internal/msvcp140.dll"])
+        with zipfile.ZipFile(zip_path) as zf:
+            self.assertEqual(sorted(zf.namelist()), expected)
+            self.assertEqual(zf.read("TranslatorOverlay.exe"), b"TranslatorOverlay.exe")
+        self.assertEqual(manifest["version"], "1.4.0")
+        self.assertEqual(manifest["runtime"], "cp312-pyinstaller6.0")
+        self.assertEqual(manifest["app_files"], expected)
+        self.assertEqual(manifest["app_zip"]["name"], zip_path.name)
+        self.assertEqual(manifest["app_zip"]["size"], zip_path.stat().st_size)
+        self.assertEqual(manifest["app_zip"]["sha256"], hashlib.sha256(zip_path.read_bytes()).hexdigest())
+
+    def test_fingerprint_follows_deps_content(self):
+        def fingerprint(**kwargs):
+            self._save(**kwargs)
+            _, manifest_path = build.build_update_package(self.root, "1.4.0")
+            return json.loads(manifest_path.read_text(encoding="utf-8"))["deps_fingerprint"]
+
+        same = fingerprint()
+        self.assertEqual(fingerprint(), same)
+        # The package-list fingerprint does not matter, only the files do.
+        self.assertEqual(fingerprint(fingerprint="0" * 16), same)
+        self.assertNotEqual(fingerprint(deps=self.DEPS[1:]), same)
+        # Deps files removed by post_build_cleanup do not count, nor does the VC++ runtime.
+        self.assertEqual(fingerprint(deps=self.DEPS + ["_internal/scipy/tests/x.py"]), same)
+        (self.dist / "_internal" / "msvcp140.dll").write_bytes(b"newer")
+        self.assertEqual(fingerprint(), same)
+        # A changed deps file does.
+        (self.dist / "_internal" / "numpy" / "core.pyd").write_bytes(b"rebuilt")
+        self.assertNotEqual(fingerprint(), same)
+
+    def test_needs_layer_info(self):
+        with self.assertRaisesRegex(RuntimeError, "layers.json"):
+            build.build_update_package(self.root, "1.4.0")
+
+    def test_runtime_changes_the_deps_fingerprint(self):
+        with mock.patch.object(build, "runtime_tag", return_value="cp312-pyinstaller6.0"):
+            before = build.deps_fingerprint(self.root)
+        with mock.patch.object(build, "runtime_tag", return_value="cp313-pyinstaller6.0"):
+            self.assertNotEqual(build.deps_fingerprint(self.root), before)
+
+    def test_iss_installs_the_manifest(self):
+        self.assertIn(rf'Source: "{{#RootDir}}\dist\installer\{build.UPDATE_MANIFEST}"; DestDir: "{{app}}"', ISS)
 
 
 class TestIssScript(unittest.TestCase):

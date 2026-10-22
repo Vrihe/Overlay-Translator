@@ -9,13 +9,19 @@ Usage:
                                     dist/installer/TranslatorOverlay-Setup-<version>.exe
                                     with Inno Setup 6 (installer/TranslatorOverlay.iss)
     python build.py --installer-only — only pack the existing dist/TranslatorOverlay/
+    python build.py --update-package — only write the app-layer update package of the
+                                    existing build: dist/installer/TranslatorOverlay-app-
+                                    <version>.zip + update-manifest.json (--installer and
+                                    --installer-only write it too, before Inno Setup)
 
 Release helpers (used by .github/workflows/release.yml, nothing is built):
     python build.py --fingerprint            — print the deps fingerprint (CI cache key)
     python build.py --check-tag vX.Y.Z       — fail unless the tag equals v + APP_VERSION
                                                and CHANGELOG.md has a section for it
     python build.py --release-notes OUT.md   — write the release notes for APP_VERSION
-                                               (CHANGELOG section + install steps)
+                                               (CHANGELOG section + install steps;
+                                               --sha256 / --app-sha256 add the checksums
+                                               of Setup.exe / the app zip)
 
 How it works (optimization 2.1 — layered build):
   The build is split into two independent layers:
@@ -51,13 +57,16 @@ Subsequent builds (same deps):
     Total: ~2–3 min instead of 15–20 min
 """
 
+import filecmp
 import hashlib
 import importlib.metadata
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -169,7 +178,25 @@ _TRACKED_PACKAGES = [
     'langid',
     'PyQt5',
     'mss',
+    'ctranslate2',
+    'sentencepiece',
+    'pydantic-core',
+    # Not in the deps layer, but checks the exact pydantic-core version on import.
+    'pydantic',
 ]
+
+
+def runtime_tag() -> str:
+    """Python ABI and PyInstaller version, e.g. ``cp312-pyinstaller6.11.1``.
+
+    The bootloader and pythonXY.dll ship in the app layer but must match the compiled
+    modules of the deps layer, so a change here invalidates the deps layer too.
+    """
+    try:
+        pyinstaller = importlib.metadata.version('pyinstaller')
+    except importlib.metadata.PackageNotFoundError:
+        pyinstaller = 'MISSING'
+    return f"cp{sys.version_info.major}{sys.version_info.minor}-pyinstaller{pyinstaller}"
 
 
 def deps_fingerprint(root: Path) -> str:
@@ -178,9 +205,10 @@ def deps_fingerprint(root: Path) -> str:
     The hash covers:
       - The full content of requirements.txt (if it exists)
       - The installed version of every tracked package
+      - The Python ABI and PyInstaller version (runtime_tag)
     Any change in deps (pip install/upgrade) produces a different fingerprint.
     """
-    parts: list[str] = []
+    parts: list[str] = [runtime_tag()]
 
     req_file = root / 'requirements.txt'
     if req_file.exists():
@@ -241,8 +269,13 @@ def run_pyinstaller(spec: str, *, clean: bool = False) -> None:
 # ── Merge ─────────────────────────────────────────────────────────────────────
 
 
-def merge_deps_into_app(root: Path) -> None:
-    """Copy deps layer files into the app dist directory.
+def merge_deps_into_app(root: Path) -> list[str]:
+    """Copy deps layer files into the app dist directory; return the deps-layer paths.
+
+    The returned paths are relative to dist/TranslatorOverlay/ in POSIX form
+    (``_internal/numpy/...``): the files an app-only update must leave alone. They
+    are the copied files plus the app-layer files that are byte-identical to their
+    deps-layer copy (PyInstaller also collects e.g. Qt5 DLLs for the app layer).
 
     The app layer files (PYZ, EXE, domain_profiles) already sit in
     dist/TranslatorOverlay/_internal/.  We add everything from the deps layer
@@ -258,6 +291,7 @@ def merge_deps_into_app(root: Path) -> None:
     if not deps_internal.exists():
         raise FileNotFoundError(f"Deps _internal not found at {deps_internal}")
 
+    deps_files: list[str] = []
     added = 0
     for item in deps_internal.rglob('*'):
         if item.is_file():
@@ -267,8 +301,12 @@ def merge_deps_into_app(root: Path) -> None:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(item, target)
                 added += 1
+            elif not filecmp.cmp(item, target, shallow=False):
+                continue
+            deps_files.append(f"_internal/{rel.as_posix()}")
 
     print(f"  ✓ Merged deps layer: {added:,} files added to app dist.")
+    return deps_files
 
 
 # onnxruntime imports MSVCP140.dll + MSVCP140_1.dll and needs >= 14.40, but the
@@ -316,6 +354,83 @@ def precompile_sources(root: Path) -> None:
         print("done.")
     except Exception as e:
         print(f"skipped ({e}).")
+
+
+# ── Update package (app layer only) ───────────────────────────────────────────
+
+# Written next to dist/TranslatorOverlay/ by every build: which files of the merged
+# tree came from the deps layer, and the fingerprint they were built with.
+_LAYERS_FILE = Path('dist') / 'TranslatorOverlay.layers.json'
+UPDATE_MANIFEST = 'update-manifest.json'
+
+
+def save_layer_info(root: Path, fingerprint: str, deps_files: list[str]) -> None:
+    """Record the deps-layer file list of the build in dist/ (read by --update-package)."""
+    info = {'deps_fingerprint': fingerprint, 'runtime': runtime_tag(), 'deps_files': sorted(deps_files)}
+    (root / _LAYERS_FILE).write_text(json.dumps(info, indent=1), encoding='utf-8')
+
+
+def app_layer_files(dist_dir: Path, deps_files: list[str]) -> list[str]:
+    """Files of the final tree that an app-only update ships, sorted POSIX paths.
+
+    Everything that did not come from the deps layer, plus the VC++ runtime DLLs:
+    bundle_msvc_runtime overwrites them after the merge, so they follow the exe.
+    """
+    deps = set(deps_files) - {f"_internal/{name}" for name in _MSVC_RUNTIME_DLLS}
+    files = (p.relative_to(dist_dir).as_posix() for p in dist_dir.rglob('*') if p.is_file())
+    return sorted(f for f in files if f not in deps)
+
+
+def deps_content_fingerprint(dist_dir: Path, deps_files: list[str], runtime: str) -> str:
+    """Hash of the runtime tag and the path + SHA-256 of every deps-layer file.
+
+    An app-only update is safe only when the installed deps files are exactly the
+    new build's. Hashing the files themselves catches what the package list in
+    deps_fingerprint cannot: an untracked package, or a file moving between layers.
+    """
+    digest = hashlib.sha256(runtime.encode())
+    for rel in sorted(deps_files):
+        digest.update(f"\n{rel}:{hashlib.sha256((dist_dir / rel).read_bytes()).hexdigest()}".encode())
+    return digest.hexdigest()[:16]
+
+
+def build_update_package(root: Path, version: str) -> tuple[Path, Path]:
+    """Write the app-layer zip and update-manifest.json to dist/installer/.
+
+    Needs dist/TranslatorOverlay/ and the layer info of the build that produced it.
+    """
+    dist_dir = root / 'dist' / 'TranslatorOverlay'
+    layers_file = root / _LAYERS_FILE
+    if not layers_file.is_file():
+        raise RuntimeError(f"{_LAYERS_FILE.as_posix()} not found — run python build.py first.")
+    info = json.loads(layers_file.read_text(encoding='utf-8'))
+    deps_present = [f for f in info['deps_files'] if (dist_dir / f).is_file()]
+    app_files = app_layer_files(dist_dir, deps_present)
+    deps_in_tree = sorted(set(deps_present) - set(app_files))  # minus the VC++ runtime
+    if 'TranslatorOverlay.exe' not in app_files:
+        raise RuntimeError(f"TranslatorOverlay.exe not found in {dist_dir}")
+
+    out_dir = root / 'dist' / 'installer'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = out_dir / f'TranslatorOverlay-app-{version}.zip'
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+        for rel in app_files:
+            zf.write(dist_dir / rel, rel)
+
+    manifest = {
+        'version': version,
+        'deps_fingerprint': deps_content_fingerprint(dist_dir, deps_in_tree, info['runtime']),
+        'runtime': info['runtime'],
+        'app_zip': {
+            'name': zip_path.name,
+            'sha256': hashlib.sha256(zip_path.read_bytes()).hexdigest(),
+            'size': zip_path.stat().st_size,
+        },
+        'app_files': app_files,
+    }
+    manifest_path = out_dir / UPDATE_MANIFEST
+    manifest_path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
+    return zip_path, manifest_path
 
 
 # ── Installer (Inno Setup) ────────────────────────────────────────────────────
@@ -395,9 +510,10 @@ def check_release_tag(root: Path, tag: str) -> str:
     return version
 
 
-def release_notes(root: Path, version: str, sha256: str = '') -> str:
+def release_notes(root: Path, version: str, sha256: str = '', app_sha256: str = '') -> str:
     """GitHub release notes: the CHANGELOG section plus download and install steps."""
     setup = f'TranslatorOverlay-Setup-{version}.exe'
+    app_zip = f'TranslatorOverlay-app-{version}.zip'
     lines = [
         changelog_section(root, version),
         '',
@@ -410,8 +526,16 @@ def release_notes(root: Path, version: str, sha256: str = '') -> str:
         '3. Updating: run the new setup over the old version; settings, history and models '
         'in `%APPDATA%\\translator-overlay\\` are kept.',
     ]
+    if app_sha256:
+        lines += [
+            '',
+            f'`{app_zip}` and `{UPDATE_MANIFEST}` are for the in-app updater; to install, '
+            f'you only need {setup}.',
+        ]
     if sha256:
         lines += ['', f'SHA-256 of `{setup}`: `{sha256.upper()}`']
+    if app_sha256:
+        lines += ['', f'SHA-256 of `{app_zip}`: `{app_sha256.upper()}`']
     return '\n'.join(lines) + '\n'
 
 
@@ -441,7 +565,8 @@ def main() -> None:
         if '--release-notes' in sys.argv:
             out = Path(_arg_after('--release-notes'))
             sha = _arg_after('--sha256') if '--sha256' in sys.argv else ''
-            out.write_text(release_notes(root, app_version(root), sha), encoding='utf-8')
+            app_sha = _arg_after('--app-sha256') if '--app-sha256' in sys.argv else ''
+            out.write_text(release_notes(root, app_version(root), sha, app_sha), encoding='utf-8')
             print(f"Release notes written to {out}")
             return
     except RuntimeError as exc:
@@ -470,13 +595,13 @@ def main() -> None:
         print(f"Cache exists     : {cache_exists}")
         return
 
-    if '--installer-only' in sys.argv:
+    if '--installer-only' in sys.argv or '--update-package' in sys.argv:
         # Pack the existing dist/TranslatorOverlay/ without rebuilding it.
         if not (root / 'dist' / 'TranslatorOverlay' / 'TranslatorOverlay.exe').exists():
             print("[ERROR] dist/TranslatorOverlay/TranslatorOverlay.exe not found — run python build.py first.")
             sys.exit(1)
         try:
-            print(f"  ✓ Installer: {build_installer(root)}")
+            _package(root, installer='--installer-only' in sys.argv)
         except RuntimeError as exc:
             print(f"\n[ERROR] {exc}")
             sys.exit(1)
@@ -516,7 +641,7 @@ def main() -> None:
         # ── Merge layers ──────────────────────────────────────────────────────
         print()
         print("  Merging dep layer → app dist…")
-        merge_deps_into_app(root)
+        save_layer_info(root, fingerprint, merge_deps_into_app(root))
         bundle_msvc_runtime(root / 'dist' / 'TranslatorOverlay')
 
     except RuntimeError as exc:
@@ -538,13 +663,22 @@ def main() -> None:
     post_build_cleanup(dist_dir)
 
     if '--installer' in sys.argv:
-        print("\n  Building installer (Inno Setup)…")
         try:
-            setup_exe = build_installer(root)
+            _package(root, installer=True)
         except RuntimeError as exc:
             print(f"\n[ERROR] {exc}")
             sys.exit(1)
-        print(f"  ✓ Installer: {setup_exe}")
+
+
+def _package(root: Path, *, installer: bool) -> None:
+    """Write the update package; with *installer*, then Setup.exe (it embeds the manifest)."""
+    print("\n  Building update package (app layer)…")
+    zip_path, manifest_path = build_update_package(root, app_version(root))
+    print(f"  ✓ App zip  : {zip_path} ({zip_path.stat().st_size / 1024 / 1024:.1f} MB)")
+    print(f"  ✓ Manifest : {manifest_path}")
+    if installer:
+        print("\n  Building installer (Inno Setup)…")
+        print(f"  ✓ Installer: {build_installer(root)}")
 
 
 if __name__ == '__main__':
