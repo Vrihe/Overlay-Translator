@@ -1,17 +1,18 @@
 """
 training/finetune_lora.py — stage 3 of the NLLB fine-tune: LoRA on the
-attention layers of NLLB-200-distilled-600M (transformers + peft, bf16).
+attention layers of NLLB-200-distilled-600M (transformers + peft, bf16 by default).
 
 Data  : data/processed/{train,val}.jsonl (training/build_dataset.py), or --data-dir
 Output: checkpoints/<run-name>/
           checkpoint-<step>/   Trainer checkpoints (adapter + optimizer state)
           adapter/             final LoRA adapter (peft format)
           log.jsonl            loss / eval_loss / lr / VRAM / speed per logging step
-          run_config.json      arguments, seed, data sizes, trainable params
+          run_config.json      arguments, seed, data sizes, trainable params, and provenance:
+                               git sha, library versions, dataset and config sha256
 
 LoRA goes on q/k/v/out projections of every self- and cross-attention block.
-The base model is loaded in fp32 and trained under bf16 autocast; only the
-adapter weights get gradients. Memory is dominated by the logits over the
+The base model is loaded in fp32 and trained under bf16 autocast (--precision fp16
+for GPUs without bf16, such as the T4); only the adapter weights get gradients. Memory is dominated by the logits over the
 256k-token vocabulary, hence batch 4 x grad-accum 4 (effective 16).
 
 GPU load is capped for the duration of training only (nothing system-wide changes):
@@ -26,6 +27,10 @@ Usage (run with the CUDA venv, see requirements-train.txt)
     .venv-train\\Scripts\\python training/finetune_lora.py --epochs 3 --run-name v1-abbr
     .venv-train\\Scripts\\python training/finetune_lora.py --data-dir data/processed_v2 --run-name v2-game \\
         --lora-r 32 --lora-alpha 64 --group-by-length
+    .venv-train\\Scripts\\python training/finetune_lora.py --config configs/train/v2.yaml
+
+With --config the YAML file (see training/train_config.py) supplies the run name, data
+directory, base model and the `train:` options; options given on the command line win.
 """
 
 from __future__ import annotations
@@ -44,6 +49,9 @@ CHECKPOINTS = _PROJECT_ROOT / "checkpoints"
 DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR") or _PROJECT_ROOT / "models" / "nllb-200-distilled-600M")
 LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "out_proj"]
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from train_config import load_config, provenance, resolve  # noqa: E402
+
 
 def load_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
@@ -59,8 +67,19 @@ def encode(rows: list[dict], tokenizer, max_len: int) -> list[dict]:
     return out
 
 
-def main() -> int:
+def config_defaults(cfg: dict) -> dict:
+    """Parser defaults taken from a loaded pipeline config."""
+    return {
+        **cfg["train"],
+        "run_name": cfg["name"],
+        "data_dir": resolve(cfg["data"]["dir"]),
+        "model": resolve(cfg["base_model"]),
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="LoRA fine-tune of NLLB on game-chat abbreviations.")
+    parser.add_argument("--config", type=Path, default=None, help="pipeline config (configs/train/*.yaml)")
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL, help="fp32 NLLB checkpoint directory")
     parser.add_argument("--run-name", default="v1-abbr")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR, help="directory with train/val.jsonl")
@@ -95,6 +114,12 @@ def main() -> int:
         help="batch pairs of similar length (less padding; short chat phrases dominate v2)",
     )
     parser.add_argument(
+        "--precision",
+        choices=("bf16", "fp16", "fp32"),
+        default="bf16",
+        help="mixed-precision mode; fp16 for GPUs without bf16 (T4 and older)",
+    )
+    parser.add_argument(
         "--gpu-mem-fraction", type=float, default=0.9, help="hard cap on this process's share of GPU memory"
     )
     parser.add_argument(
@@ -103,7 +128,21 @@ def main() -> int:
         default=0.9,
         help="max share of wall-clock time the GPU computes; 1 disables throttling",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, dict | None]:
+    """Command line over config over built-in defaults; returns the args and the loaded config."""
+    parser = build_parser()
+    known, _ = parser.parse_known_args(argv)
+    cfg = load_config(known.config) if known.config else None
+    if cfg:
+        parser.set_defaults(**config_defaults(cfg))
+    return parser.parse_args(argv), cfg
+
+
+def main() -> int:
+    args, cfg = parse_args()
 
     # The 256k-token vocabulary makes the logits the largest tensor by far
     # (batch x seq x 256k, cast to fp32); expandable segments avoid OOM from fragmentation.
@@ -197,7 +236,8 @@ def main() -> int:
         learning_rate=args.lr,
         lr_scheduler_type="linear",
         warmup_steps=args.warmup_steps,
-        bf16=True,
+        bf16=args.precision == "bf16",
+        fp16=args.precision == "fp16",
         logging_steps=args.logging_steps,
         eval_strategy="steps",
         eval_steps=args.eval_steps,
@@ -253,6 +293,7 @@ def main() -> int:
         "vram_reserved_gb": round(torch.cuda.max_memory_reserved() / 2**30, 2),
         "gpu": torch.cuda.get_device_name(0),
         "torch": torch.__version__,
+        "provenance": provenance(args.data_dir, cfg),
     }
     (out_dir / "run_config.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2), flush=True)

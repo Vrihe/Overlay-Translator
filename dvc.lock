@@ -1,0 +1,398 @@
+schema: '2.0'
+stages:
+  v1_phrases:
+    cmd: python training/abbr_phrases.py
+    deps:
+    - path: training/abbr_phrases.py
+      hash: md5
+      md5: 311b1d13c4c8368770c3e56026a819ca
+      size: 4621
+    - path: training/abbr_phrases.txt
+      hash: md5
+      md5: a6cb190ced6351c65a0796aaa093d672
+      size: 19936
+    outs:
+    - path: data/interim/abbr_phrases.jsonl
+      hash: md5
+      md5: 422a6dac32c93c6253da5a5fe5ad2789
+      size: 61461
+  v1_translate:
+    cmd:
+    - python training/translate_phrases.py
+    - python training/translate_phrases.py --repair-keep
+    deps:
+    - path: data/interim/abbr_phrases.jsonl
+      hash: md5
+      md5: 422a6dac32c93c6253da5a5fe5ad2789
+      size: 61461
+    - path: training/translate_phrases.py
+      hash: md5
+      md5: e15a22143018697e6f3fd5b22e5d1ff5
+      size: 9138
+    outs:
+    - path: data/interim/abbr_translations.jsonl
+      hash: md5
+      md5: 7f6fabc6f9529284778344ae900588de
+      size: 506959
+  v1_dataset:
+    cmd: python training/build_dataset.py --split-by phrase --out-dir 
+      data/processed_final
+    deps:
+    - path: data/interim/abbr_phrases.jsonl
+      hash: md5
+      md5: 422a6dac32c93c6253da5a5fe5ad2789
+      size: 61461
+    - path: data/interim/abbr_translations.jsonl
+      hash: md5
+      md5: 7f6fabc6f9529284778344ae900588de
+      size: 506959
+    - path: data/raw/flores200
+      hash: md5
+      md5: d366082e1cf792fe24dcdbf87be13480.dir
+      size: 1750465
+      nfiles: 24
+    - path: training/build_dataset.py
+      hash: md5
+      md5: 1a4b37b5675d1b511a8b2a6c9a27e735
+      size: 10110
+    - path: training/translate_phrases.py
+      hash: md5
+      md5: e15a22143018697e6f3fd5b22e5d1ff5
+      size: 9138
+    outs:
+    - path: data/processed_final
+      hash: md5
+      md5: 1d5cacf6cc006ad142db263407c3dc9b.dir
+      size: 1264636
+      nfiles: 3
+  v1_train:
+    cmd: python training/pipeline.py train --config configs/train/v1.yaml --name
+      v1-repro
+    deps:
+    - path: data/processed_final/train.jsonl
+      hash: md5
+      md5: 2ae9722a2a21f47fee15e66c640f6c7a
+      size: 766221
+    - path: data/processed_final/val.jsonl
+      hash: md5
+      md5: 73469f67d8b30e3e2840a08b79abe875
+      size: 173452
+    - path: training/finetune_lora.py
+      hash: md5
+      md5: e772c5d37df10b6424dca29ccd4d5f86
+      size: 13743
+    - path: training/train_config.py
+      hash: md5
+      md5: fddd0da624fd14781bb03529c23551df
+      size: 7125
+    params:
+      configs/train/v1.yaml:
+        train:
+          seed: 42
+          epochs: 5
+          batch_size: 4
+          grad_accum: 4
+          lr: 0.0002
+          warmup_steps: 30
+          lora_r: 16
+          lora_alpha: 32
+          lora_dropout: 0.05
+          max_len: 128
+          logging_steps: 10
+          eval_steps: 100
+          group_by_length: false
+          precision: bf16
+          gpu_mem_fraction: 0.9
+          gpu_duty: 0.9
+    outs:
+    - path: checkpoints/v1-repro
+      hash: md5
+      md5: 704cdc39debaf73e6abd096dc63436f7.dir
+      size: 229598176
+      nfiles: 27
+  v1_merge:
+    cmd: python training/pipeline.py merge --config configs/train/v1.yaml --name
+      v1-repro
+    deps:
+    - path: checkpoints/v1-repro
+      hash: md5
+      md5: 704cdc39debaf73e6abd096dc63436f7.dir
+      size: 229598176
+      nfiles: 27
+    - path: training/merge_lora.py
+      hash: md5
+      md5: 61f3e8702eee814da76df87f1a6c40eb
+      size: 3311
+    outs:
+    - path: models/nllb-v1-repro-merged
+      hash: md5
+      md5: ccf83610f7de85bb9fabc0c32ddccd33.dir
+      size: 2482543294
+      nfiles: 7
+  v1_convert:
+    cmd: python training/pipeline.py convert --config configs/train/v1.yaml 
+      --name v1-repro
+    deps:
+    - path: models/nllb-v1-repro-merged
+      hash: md5
+      md5: ccf83610f7de85bb9fabc0c32ddccd33.dir
+      size: 2482543294
+      nfiles: 7
+    params:
+      configs/train/v1.yaml:
+        convert:
+          out: models/nllb-{name}-ct2-int8
+          quantization: int8
+    outs:
+    - path: models/nllb-v1-repro-ct2-int8
+      hash: md5
+      md5: 177ca0dfb030b18f625eaf7ed8679156.dir
+      size: 650961252
+      nfiles: 8
+  v1_eval:
+    cmd: python training/pipeline.py eval --config configs/train/v1.yaml --name 
+      v1-repro
+    deps:
+    - path: data/processed_final/test.jsonl
+      hash: md5
+      md5: 61752d9112a3efd81330ae504ec10619
+      size: 324963
+    - path: models/nllb-v1-repro-ct2-int8
+      hash: md5
+      md5: 177ca0dfb030b18f625eaf7ed8679156.dir
+      size: 650961252
+      nfiles: 8
+    - path: training/evaluate.py
+      hash: md5
+      md5: 409e254d044018a7772a42c5497769a6
+      size: 10671
+    params:
+      configs/train/v1.yaml:
+        eval:
+          test:
+          - data/processed_final/test.jsonl
+          out_dir: checkpoints/eval_{name}
+          systems:
+            v0-base: ct2:models/nllb-v0-base
+            '{name}-int8': ct2:{convert.out}
+    outs:
+    - path: checkpoints/eval_v1-repro
+      hash: md5
+      md5: b2cb484282204af864f478ba4c670aee.dir
+      size: 866580
+      nfiles: 3
+  v2_glossary:
+    cmd: python training/game_abbreviations.py
+    deps:
+    - path: training/abbr_phrases.py
+      hash: md5
+      md5: 311b1d13c4c8368770c3e56026a819ca
+      size: 4621
+    - path: training/abbr_phrases.txt
+      hash: md5
+      md5: a6cb190ced6351c65a0796aaa093d672
+      size: 19936
+    - path: training/game_abbreviations.py
+      hash: md5
+      md5: 81dd6e484942a6a9faf38c45a4c02a35
+      size: 18550
+    - path: training/game_abbreviations_en.txt
+      hash: md5
+      md5: a6d764758338ed9b4de555954665780e
+      size: 121442
+    outs:
+    - path: data/interim/v2/curation_report.json
+      hash: md5
+      md5: 9617d81dd39eba001f5f869b4b774c50
+      size: 40121
+    - path: data/interim/v2/game_phrases.jsonl
+      hash: md5
+      md5: 72d91424b809539f35490f3ac23e54b9
+      size: 759776
+    - path: data/interim/v2/lexicon.json
+      hash: md5
+      md5: d376bd7ef274b1c5dc6aad5178bd3d4d
+      size: 215731
+    - path: translate/glossary/game_en.json
+      hash: md5
+      md5: 73f3c020b3bfa91e9803a76d45d66d8e
+      size: 27304
+  v2_translate:
+    cmd:
+    - python training/translate_phrases.py --input 
+      data/interim/v2/game_phrases.jsonl --output 
+      data/interim/v2/game_translations.jsonl --batch-size 32
+    - python training/translate_phrases.py --input 
+      data/interim/v2/game_phrases.jsonl --output 
+      data/interim/v2/game_translations.jsonl --batch-size 32 --repair-keep
+    deps:
+    - path: data/interim/v2/game_phrases.jsonl
+      hash: md5
+      md5: 72d91424b809539f35490f3ac23e54b9
+      size: 759776
+    - path: training/translate_phrases.py
+      hash: md5
+      md5: e15a22143018697e6f3fd5b22e5d1ff5
+      size: 9138
+    outs:
+    - path: data/interim/v2/game_translations.jsonl
+      hash: md5
+      md5: a5f2b4777982e93cf85031991ea65037
+      size: 1868370
+  v2_dataset:
+    cmd: python training/build_dataset_v2.py --out-dir data/processed_v2b
+    deps:
+    - path: data/interim/abbr_phrases.jsonl
+      hash: md5
+      md5: 422a6dac32c93c6253da5a5fe5ad2789
+      size: 61461
+    - path: data/interim/v2/game_phrases.jsonl
+      hash: md5
+      md5: 72d91424b809539f35490f3ac23e54b9
+      size: 759776
+    - path: data/interim/v2/game_translations.jsonl
+      hash: md5
+      md5: a5f2b4777982e93cf85031991ea65037
+      size: 1868370
+    - path: data/processed_final
+      hash: md5
+      md5: 1d5cacf6cc006ad142db263407c3dc9b.dir
+      size: 1264636
+      nfiles: 3
+    - path: data/raw/flores200
+      hash: md5
+      md5: d366082e1cf792fe24dcdbf87be13480.dir
+      size: 1750465
+      nfiles: 24
+    - path: training/build_dataset.py
+      hash: md5
+      md5: 1a4b37b5675d1b511a8b2a6c9a27e735
+      size: 10110
+    - path: training/build_dataset_v2.py
+      hash: md5
+      md5: f6143a9142c4fbe673528c9a28205622
+      size: 7239
+    outs:
+    - path: data/processed_v2b
+      hash: md5
+      md5: ed583639928e74423326dfcbe65109ed.dir
+      size: 6715784
+      nfiles: 4
+  v2_train:
+    cmd: python training/pipeline.py train --config configs/train/v2.yaml --name
+      v2-repro
+    deps:
+    - path: data/processed_v2b/train.jsonl
+      hash: md5
+      md5: 5fd408db22f64411b1176e71e8a1f733
+      size: 5817333
+    - path: data/processed_v2b/val.jsonl
+      hash: md5
+      md5: cf17915d8be62cf4016d2ae4a94f14bc
+      size: 252021
+    - path: training/finetune_lora.py
+      hash: md5
+      md5: e772c5d37df10b6424dca29ccd4d5f86
+      size: 13743
+    - path: training/train_config.py
+      hash: md5
+      md5: fddd0da624fd14781bb03529c23551df
+      size: 7125
+    params:
+      configs/train/v2.yaml:
+        train:
+          seed: 42
+          epochs: 5
+          batch_size: 4
+          grad_accum: 4
+          lr: 0.0002
+          warmup_steps: 30
+          lora_r: 32
+          lora_alpha: 64
+          lora_dropout: 0.05
+          max_len: 128
+          logging_steps: 10
+          eval_steps: 200
+          group_by_length: true
+          precision: bf16
+          gpu_mem_fraction: 0.9
+          gpu_duty: 0.9
+    outs:
+    - path: checkpoints/v2-repro
+      hash: md5
+      md5: afc611786b3621b2b585ee444649daca.dir
+      size: 362083655
+      nfiles: 27
+  v2_merge:
+    cmd: python training/pipeline.py merge --config configs/train/v2.yaml --name
+      v2-repro
+    deps:
+    - path: checkpoints/v2-repro
+      hash: md5
+      md5: afc611786b3621b2b585ee444649daca.dir
+      size: 362083655
+      nfiles: 27
+    - path: training/merge_lora.py
+      hash: md5
+      md5: 61f3e8702eee814da76df87f1a6c40eb
+      size: 3311
+    outs:
+    - path: models/nllb-v2-repro-merged
+      hash: md5
+      md5: a019af6c315bd9746c49d7751de4860d.dir
+      size: 2482543294
+      nfiles: 7
+  v2_convert:
+    cmd: python training/pipeline.py convert --config configs/train/v2.yaml 
+      --name v2-repro
+    deps:
+    - path: models/nllb-v2-repro-merged
+      hash: md5
+      md5: a019af6c315bd9746c49d7751de4860d.dir
+      size: 2482543294
+      nfiles: 7
+    params:
+      configs/train/v2.yaml:
+        convert:
+          out: models/nllb-{name}-ct2-int8
+          quantization: int8
+    outs:
+    - path: models/nllb-v2-repro-ct2-int8
+      hash: md5
+      md5: 987efbce063a57faa511035364cadc1a.dir
+      size: 650961252
+      nfiles: 8
+  v2_eval:
+    cmd: python training/pipeline.py eval --config configs/train/v2.yaml --name 
+      v2-repro
+    deps:
+    - path: data/processed_v2
+      hash: md5
+      md5: dc4ba72271d1a6b01f1df93e06d00b26.dir
+      size: 5734629
+      nfiles: 4
+    - path: models/nllb-v2-repro-ct2-int8
+      hash: md5
+      md5: 987efbce063a57faa511035364cadc1a.dir
+      size: 650961252
+      nfiles: 8
+    - path: training/evaluate.py
+      hash: md5
+      md5: 409e254d044018a7772a42c5497769a6
+      size: 10671
+    params:
+      configs/train/v2.yaml:
+        eval:
+          test:
+          - data/processed_v2/test_v2.jsonl
+          - data/processed_v2/test_v1.jsonl
+          out_dir: checkpoints/eval_{name}
+          systems:
+            v0-base: ct2:models/nllb-v0-base
+            '{name}-int8': ct2:{convert.out}
+    outs:
+    - path: checkpoints/eval_v2-repro
+      hash: md5
+      md5: 1b645d1e5ec3c7cd6739533b3197d307.dir
+      size: 1613871
+      nfiles: 6

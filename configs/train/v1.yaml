@@ -1,0 +1,56 @@
+# v1-abbr: SMS / chat abbreviations, release split by phrase.
+# Published as the HF tag v1-abbr; trained as run v1-final-b (docs/finetune_v1_process.md).
+#
+#   .venv-train\Scripts\python training/pipeline.py all --config configs/train/v1.yaml --name v1-repro
+#
+# Needs models/nllb-200-distilled-600M (fp32), models/nllb-v0-base (int8 baseline, see
+# docs/experiments.md) and the FLORES-200 dev parquet files in data/raw/flores200/.
+# training/prepare_abbreviations.py is not a step: it only ranks the public list for the
+# manual selection that became training/abbr_phrases.txt.
+
+name: v1-final-b
+base_model: models/nllb-200-distilled-600M
+
+data:
+  dir: data/processed_final
+  # translate_phrases.py resumes from its output; delete it so the targets are rebuilt
+  clean:
+    - data/interim/abbr_translations.jsonl
+  steps:
+    - training/abbr_phrases.py
+    - training/translate_phrases.py
+    - training/translate_phrases.py --repair-keep
+    - training/build_dataset.py --split-by phrase --out-dir data/processed_final
+
+train:
+  seed: 42
+  epochs: 5
+  batch_size: 4
+  grad_accum: 4
+  lr: 2.0e-4
+  warmup_steps: 30
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  max_len: 128
+  logging_steps: 10
+  eval_steps: 100
+  group_by_length: false
+  precision: bf16
+  gpu_mem_fraction: 0.9
+  gpu_duty: 0.9
+
+merge:
+  out: models/nllb-{name}-merged
+
+convert:
+  out: models/nllb-{name}-ct2-int8
+  quantization: int8
+
+eval:
+  test:
+    - data/processed_final/test.jsonl
+  out_dir: checkpoints/eval_{name}
+  systems:
+    v0-base: ct2:models/nllb-v0-base
+    "{name}-int8": ct2:{convert.out}

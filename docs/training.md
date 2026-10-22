@@ -55,6 +55,63 @@ flowchart TD
 | `training/evaluate.py` | chrF for abbreviation and general pairs, keep rate, per-language scores, paired bootstrap 95 % CI against the first system |
 | `training/merge_lora.py` | Merges the adapter into the base weights for conversion |
 
+## One command per stage
+
+Each published version has a config in `configs/train/` (`v1.yaml`, `v2.yaml`) with the data
+steps, the fine-tune hyperparameters and the merge, convert and eval outputs.
+`training/pipeline.py` runs it stage by stage:
+
+```powershell
+.venv-train\Scripts\python training\pipeline.py all   --config configs\train\v2.yaml --name v2-repro
+.venv-train\Scripts\python training\pipeline.py train --config configs\train\v2.yaml --name v2-repro
+.venv-train\Scripts\python training\pipeline.py all   --config configs\train\v2.yaml --dry-run
+```
+
+Stages are `data`, `train`, `merge`, `convert` and `eval`, and `all` runs them in that order.
+`--name` renames the run, and every `{name}` path in the config follows it, so a rerun never
+overwrites a published checkpoint or model. Stages that would overwrite one refuse to run
+without `--force`. `translate_phrases.py` resumes from its output file, so the `data` stage first
+deletes the files listed in `data.clean` (only paths under `data/` are allowed) and rebuilds
+the targets from scratch. Options on the `finetune_lora.py` command line win over the config, for
+example `--max-steps 50` for a trial. Set `NLLB_BASE_MODEL_DIR` when the fp32 checkpoint is
+not in `models/`.
+
+`precision` in the config is `bf16` by default (RTX 30xx and newer, A100, L4). On a GPU without
+bf16, such as the free Colab T4, use `--precision fp16`. Expect slightly different numbers then.
+
+On Linux or WSL the same stages are `make <stage> CONFIG=configs/train/v2.yaml NAME=v2-repro`.
+`Dockerfile.train` builds a training image with the pinned libraries; the header of the file has
+the `docker run` command, with `models/`, `data/` and `checkpoints/` mounted from the host.
+
+Every run writes `checkpoints/<run>/run_config.json` with a `provenance` block: the git commit
+and whether the tree was dirty, the versions of torch, transformers, peft, ctranslate2 and the
+other libraries that change results, the sha256 of `train.jsonl` + `val.jsonl`, and the path
+and sha256 of the config.
+
+## Data versioning (DVC)
+
+`dvc.yaml` describes the same stages for DVC, from the phrase lists to the scores of each
+version, so DVC knows what is stale and rebuilds only that. Data under `data/` is cached and
+pushed to a Google Drive remote (`gdrive://root/overlay-translator-dvc`). Checkpoints and models
+are only hashed (`cache: false`), because they are large and the shipped builds are on Hugging
+Face. `data/raw` (FLORES-200 dev, the public SMS list) and `data/processed_v2` (the frozen test
+files of the published v2 scores) are tracked by `data/*.dvc` pointer files.
+`data/history_pairs.jsonl` is exported screen text and is never tracked or pushed.
+
+```powershell
+.venv-train\Scripts\activate
+dvc pull              # first time: a browser window asks for Google Drive access
+dvc status            # which stages are stale
+dvc repro v2_eval     # rebuild what changed, up to the v2 scores
+dvc push              # upload new data versions
+```
+
+The DVC stages use the run names `v1-repro` and `v2-repro`, so they never overwrite the
+checkpoints of the published runs. Outputs built outside DVC (for example by
+`training/pipeline.py`) are recorded with `dvc commit -f`. That command also copies the
+`cache: false` models into the local cache, so run `dvc gc -w -f` afterwards to drop those
+copies; the workspace files stay.
+
 ## Rules the runs follow
 
 - **Criteria fixed before training.** Each version has release criteria written down before the

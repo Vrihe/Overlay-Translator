@@ -398,7 +398,9 @@ def main() -> int:
     glossary = app_glossary(rows, lexicon)
     APP_GLOSSARY.parent.mkdir(parents=True, exist_ok=True)
     APP_GLOSSARY.write_text(
-        json.dumps({"version": GLOSSARY_VERSION, "source_lang": "en", "terms": glossary}, indent=0, ensure_ascii=False),
+        # trailing newline: the committed file passes the end-of-file pre-commit hook
+        json.dumps({"version": GLOSSARY_VERSION, "source_lang": "en", "terms": glossary}, indent=0, ensure_ascii=False)
+        + "\n",
         encoding="utf-8",
     )
     with (OUT_DIR / "game_phrases.jsonl").open("w", encoding="utf-8") as f:

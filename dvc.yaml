@@ -1,0 +1,178 @@
+# DVC pipeline of the NLLB fine-tune (roadmap stage 2): data versioning + every stage.
+#
+#   .venv-train\Scripts\activate          # `python` below must be the training venv
+#   dvc pull                              # data from the Google Drive remote
+#   dvc repro v2_eval                     # rebuild only what changed, up to the v2 scores
+#   dvc status / dvc dag                  # what is stale / the stage graph
+#
+# The commands are the same as in configs/train/*.yaml (`data.steps`) and training/pipeline.py;
+# tests/test_training_pipeline.py checks they stay in sync. Data under data/ is cached and
+# pushed to the remote; checkpoints and models are only hashed (cache: false): they are large
+# and the shipped builds live on Hugging Face. The run names are the reproduction runs
+# (v1-repro, v2-repro), so the published v1-final-b and v2b-game checkpoints are never touched.
+# data/raw (FLORES-200 dev, the public SMS list) and data/processed_v2 (the test files the
+# published v2 scores used, no longer produced by build_dataset_v2.py) are tracked by .dvc files.
+# data/history_pairs.jsonl is exported screen text and is never tracked or pushed.
+
+stages:
+  # ── v1-abbr ──────────────────────────────────────────────────────────────
+  v1_phrases:
+    cmd: python training/abbr_phrases.py
+    deps:
+      - training/abbr_phrases.py
+      - training/abbr_phrases.txt
+    outs:
+      - data/interim/abbr_phrases.jsonl
+
+  v1_translate:
+    # translate, then repair the keep terms in place (one output, so one stage)
+    cmd:
+      - python training/translate_phrases.py
+      - python training/translate_phrases.py --repair-keep
+    deps:
+      - training/translate_phrases.py
+      - data/interim/abbr_phrases.jsonl
+    outs:
+      - data/interim/abbr_translations.jsonl
+
+  v1_dataset:
+    cmd: python training/build_dataset.py --split-by phrase --out-dir data/processed_final
+    deps:
+      - training/build_dataset.py
+      - training/translate_phrases.py
+      - data/interim/abbr_phrases.jsonl
+      - data/interim/abbr_translations.jsonl
+      - data/raw/flores200
+    outs:
+      - data/processed_final
+
+  v1_train:
+    cmd: python training/pipeline.py train --config configs/train/v1.yaml --name v1-repro
+    deps:
+      - training/finetune_lora.py
+      - training/train_config.py
+      - data/processed_final/train.jsonl
+      - data/processed_final/val.jsonl
+    params:
+      - configs/train/v1.yaml:
+          - train
+    outs:
+      - checkpoints/v1-repro:
+          cache: false
+
+  v1_merge:
+    cmd: python training/pipeline.py merge --config configs/train/v1.yaml --name v1-repro
+    deps:
+      - training/merge_lora.py
+      - checkpoints/v1-repro
+    outs:
+      - models/nllb-v1-repro-merged:
+          cache: false
+
+  v1_convert:
+    cmd: python training/pipeline.py convert --config configs/train/v1.yaml --name v1-repro
+    deps:
+      - models/nllb-v1-repro-merged
+    params:
+      - configs/train/v1.yaml:
+          - convert
+    outs:
+      - models/nllb-v1-repro-ct2-int8:
+          cache: false
+
+  v1_eval:
+    cmd: python training/pipeline.py eval --config configs/train/v1.yaml --name v1-repro
+    deps:
+      - training/evaluate.py
+      - models/nllb-v1-repro-ct2-int8
+      - data/processed_final/test.jsonl
+    params:
+      - configs/train/v1.yaml:
+          - eval
+    outs:
+      - checkpoints/eval_v1-repro
+
+  # ── v2-game ──────────────────────────────────────────────────────────────
+  v2_glossary:
+    cmd: python training/game_abbreviations.py
+    deps:
+      - training/game_abbreviations.py
+      - training/game_abbreviations_en.txt
+      - training/abbr_phrases.py
+      - training/abbr_phrases.txt
+    outs:
+      - data/interim/v2/game_phrases.jsonl
+      - data/interim/v2/lexicon.json
+      - data/interim/v2/curation_report.json
+      # tracked by git (the app ships it); DVC only checks it is reproduced
+      - translate/glossary/game_en.json:
+          cache: false
+
+  v2_translate:
+    cmd:
+      - python training/translate_phrases.py --input data/interim/v2/game_phrases.jsonl --output data/interim/v2/game_translations.jsonl --batch-size 32
+      - python training/translate_phrases.py --input data/interim/v2/game_phrases.jsonl --output data/interim/v2/game_translations.jsonl --batch-size 32 --repair-keep
+    deps:
+      - training/translate_phrases.py
+      - data/interim/v2/game_phrases.jsonl
+    outs:
+      - data/interim/v2/game_translations.jsonl
+
+  v2_dataset:
+    cmd: python training/build_dataset_v2.py --out-dir data/processed_v2b
+    deps:
+      - training/build_dataset_v2.py
+      - training/build_dataset.py
+      - data/processed_final
+      - data/interim/abbr_phrases.jsonl
+      - data/interim/v2/game_phrases.jsonl
+      - data/interim/v2/game_translations.jsonl
+      - data/raw/flores200
+    outs:
+      - data/processed_v2b
+
+  v2_train:
+    cmd: python training/pipeline.py train --config configs/train/v2.yaml --name v2-repro
+    deps:
+      - training/finetune_lora.py
+      - training/train_config.py
+      - data/processed_v2b/train.jsonl
+      - data/processed_v2b/val.jsonl
+    params:
+      - configs/train/v2.yaml:
+          - train
+    outs:
+      - checkpoints/v2-repro:
+          cache: false
+
+  v2_merge:
+    cmd: python training/pipeline.py merge --config configs/train/v2.yaml --name v2-repro
+    deps:
+      - training/merge_lora.py
+      - checkpoints/v2-repro
+    outs:
+      - models/nllb-v2-repro-merged:
+          cache: false
+
+  v2_convert:
+    cmd: python training/pipeline.py convert --config configs/train/v2.yaml --name v2-repro
+    deps:
+      - models/nllb-v2-repro-merged
+    params:
+      - configs/train/v2.yaml:
+          - convert
+    outs:
+      - models/nllb-v2-repro-ct2-int8:
+          cache: false
+
+  v2_eval:
+    cmd: python training/pipeline.py eval --config configs/train/v2.yaml --name v2-repro
+    deps:
+      - training/evaluate.py
+      - models/nllb-v2-repro-ct2-int8
+      - data/processed_v2
+    params:
+      - configs/train/v2.yaml:
+          - eval
+    outs:
+      - checkpoints/eval_v2-repro

@@ -119,6 +119,14 @@ Overlay-Translator/
 │   ├── test_nllb_translation.py    # Local model smoke test + CPU latency
 │   ├── export_history_dataset.py   # SQLite history → JSONL for fine-tuning
 │   └── baseline_eval_nllb.py       # NLLB chrF baseline on real pairs
+├── training/               # NLLB LoRA fine-tune (own venv: .venv-train, requirements-train.txt)
+│   ├── pipeline.py         #   One command per stage: data → train → merge → convert → eval
+│   ├── train_config.py     #   YAML config loading + run provenance (git sha, libs, dataset hash)
+│   └── …                   #   data scripts, finetune_lora.py, merge_lora.py, evaluate.py
+├── configs/train/          # Pipeline configs of the published versions (v1.yaml, v2.yaml)
+├── dvc.yaml, .dvc/         # DVC stages of both versions; data cached on a Google Drive remote
+│                           #   (data/*.dvc pointers are the only committed files under data/)
+├── Makefile, Dockerfile.train  # make <stage> wrapper and the training image (Linux / WSL)
 ├── tests/                  # unittest/pytest tests
 ├── docs/                   # Documentation site (MkDocs, mkdocs.yml; published by docs.yml)
 │   ├── index.md …          #   user and developer pages: installation, configuration,
@@ -842,6 +850,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_nllb_backend.py` | NLLB with a stubbed model (fake `ctranslate2` / `sentencepiece`): model discovery, load errors, FLORES codes and token layout, cache namespace, fast path, unsupported language, inference errors, singleton reset |
 | `tests/test_cache_store.py` | L1 LRU and L2 SQLite cache: round trip, key parts, eviction on both levels, `warm_cache()`, history order, `clear_history()`, rebuild of an old schema |
 | `tests/test_training_data.py` | `training/` splits without leakage (stratified abbreviation split, phrase split, disjoint FLORES pools) and the metrics in `training/evaluate.py` (keep-rate, chrF groups, paired bootstrap) |
+| `tests/test_training_pipeline.py` | `configs/train/*.yaml` validation and `{name}` expansion, the shipped v1/v2 hyperparameters, dataset hash and git provenance, `training/pipeline.py` stage commands and overwrite guards, config → `finetune_lora.py` defaults (no torch) |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

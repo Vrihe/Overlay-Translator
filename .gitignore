@@ -110,8 +110,10 @@ models/
 # Hugging Face download cache (used when converting the NLLB checkpoint)
 .hf-cache/
 
-# Exported datasets (contain captured screen text — user data)
-data/
+# Exported datasets (contain captured screen text — user data). Only DVC pointer files
+# (data/*.dvc) are committed; the data itself goes to the DVC remote (dvc.yaml).
+data/*
+!data/*.dvc
 
 # Training environment (CUDA torch) and its pip/HF/temp caches — kept on this drive
 .venv-train/

@@ -1,0 +1,9 @@
+# Dockerfile.train copies only what the training pipeline reads; keep the
+# multi-gigabyte models/, data/, checkpoints/ and venvs out of the build context.
+*
+!requirements-train.txt
+!Makefile
+!configs/
+!training/
+!translate/glossary/
+**/__pycache__
