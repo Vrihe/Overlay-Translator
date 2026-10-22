@@ -542,8 +542,7 @@ def release_notes(root: Path, version: str, sha256: str = '', app_sha256: str = 
     if app_sha256:
         lines += [
             '',
-            f'`{app_zip}` and `{UPDATE_MANIFEST}` are for the in-app updater; to install, '
-            f'you only need {setup}.',
+            f'`{app_zip}` and `{UPDATE_MANIFEST}` are for the in-app updater; to install, you only need {setup}.',
         ]
     if sha256:
         lines += ['', f'SHA-256 of `{setup}`: `{sha256.upper()}`']

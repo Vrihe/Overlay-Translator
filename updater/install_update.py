@@ -286,7 +286,7 @@ def fetch_manifest(release: Release) -> dict | None:
 def choose_update_path(
     installed: dict | None, new: dict | None, release: Release, app_version: str | None = None
 ) -> str:
-    """"app" when only the app layer has to change, else "full" (the installer).
+    """ "app" when only the app layer has to change, else "full" (the installer).
 
     The app zip is enough only when the installed deps layer is byte for byte the one
     the new release was built against (``deps_fingerprint`` hashes those files) on
