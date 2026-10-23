@@ -52,6 +52,11 @@ _NUMBER_SUFFIXES = {
 }
 _NUMBER_RE = re.compile(r"(\d+(?:[.,]\d+)?)([a-z]+)")
 _LF_N_MORE_RE = re.compile(r"lf(\d+)m")  # lf1m, lf2m, lf3m ... = looking for N more
+# OCR reads a leading "l" as "I" in most sans-serif fonts ("If2m", "Ifm", "Iol"),
+# sometimes as "1" or "|".
+_OCR_L_LOOKALIKES = "I1|"
+# Read with "l" these would be terms (lan, los), but as read they are a name and iOS.
+_OCR_L_KEEP = {"ian", "ios"}
 
 
 @dataclass
@@ -97,6 +102,17 @@ def _lookup(core: str, terms: dict[str, str | None]) -> tuple[bool, str | None]:
     return False, None
 
 
+def _ocr_l_fix(core: str, terms: dict[str, str | None]) -> str | None:
+    """The term an unknown token is with its misread leading "l" put back, or None.
+
+    Only for 3+ characters: "If", "Is", "Id" are words, while "lf", "ls", "ld" are terms.
+    """
+    if len(core) < 3 or core[0] not in _OCR_L_LOOKALIKES or core.lower() in _OCR_L_KEEP:
+        return None
+    fixed = "l" + core[1:]
+    return fixed if _lookup(fixed, terms)[0] else None
+
+
 def prepare(text: str, terms: dict[str, str | None] | None = None) -> Prepared:
     """Expand known chat terms in an English line; mask the ones to keep verbatim."""
     terms = load_terms() if terms is None else terms
@@ -105,6 +121,10 @@ def prepare(text: str, terms: dict[str, str | None] | None = None) -> Prepared:
     for i, token in enumerate(re.split(r"(\s+)", text)):
         core = token.strip(_STRIP)
         known, meaning = _lookup(core, terms) if core and not token.isspace() else (False, None)
+        if not known and core and (fixed := _ocr_l_fix(core, terms)):
+            token = token.replace(core, fixed, 1)
+            core = fixed
+            known, meaning = _lookup(core, terms)
         if not known:
             masked.append(token)
             unmasked.append(token)

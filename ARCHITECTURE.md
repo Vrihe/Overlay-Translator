@@ -342,6 +342,9 @@ How it differs from the API path:
   model drops a placeholder, the line is retranslated unmasked. NLLB alone drops or
   invents slang (`gg ez` → «Доброе утро»); the term list (~1300 entries) comes from the
   curated v2 fine-tune lexicon, see `docs/finetune_v2_process.md`.
+  OCR reads a leading `l` as `I` in most sans-serif fonts (`If2m`, `Ifm`, `Iol`), less
+  often as `1` or `|`: a token unknown as read but known with `l` (3+ characters, so
+  `If`/`Is`/`Id` stay words; `Ian`, `iOS` excepted) is treated as that term.
 - **No streaming** (CTranslate2 beam search does not provide it): `on_chunk`
   is called once with the final text, so the UI behaves the same way.
 - With `source_language=auto` the source language is detected offline via `langid`.
