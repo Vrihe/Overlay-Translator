@@ -255,7 +255,7 @@
 **Срок:** 3–5 дней
 
 - [x] Интерфейс на английском и русском (i18n через `QTranslator` или простой словарь), выбор языка в настройках
-- [ ] Демо-GIF (до 10 МБ) и скриншоты в README: офлайн-перевод `lf2m`, `wts … pm me`, live-режим
+- [x] Демо-GIF (до 10 МБ) и скриншоты в README: офлайн-перевод `lf2m`, `wts … pm me`, live-режим
 - [x] README: первым экраном — ценность и установка в 3 шага; ниже — режимы, приватность, FAQ, ограничения
 - [x] Раздел «Как это работает» с диаграммой пайплайна (OCR → glossary → NLLB → popup) и MLOps-диаграммой (data → train → eval → registry → app)
 - [x] `docs/` как сайт (GitHub Pages / MkDocs): установка, настройка, обучение, воспроизведение экспериментов
@@ -320,13 +320,13 @@
 | 7 | A | CI/CD для модели | 3–4 | |
 | 8a | A | Сборка с GPU для локальной модели | 1–2 | |
 | 8b | B | Релиз приложения (сделано) | 4–6 | |
-| 9 | B | Продукт и документация | 3–5 | |
+| 9 | B | Продукт и документация (сделано) | 3–5 | |
 | 10a | A | Мониторинг модели и дообучение по отзывам | 2–3 | |
 | 10b | B | Обратная связь и телеметрия в приложении | 2–3 | |
 | 11 | A | Сервис инференса | 3–5 | |
 | 12 | B | Резюме, диплом, публикация | 3–4 | |
 
-**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 9 → 5 → 10b → 10a → 11 → 12 (8b уже сделан).
+**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 5 → 10b → 10a → 11 → 12 (8b и 9 уже сделаны).
 Части A и B можно вести параллельно. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 12. Этапы 5, 10a/10b, 11 усиливают проект, но их можно отложить.
 
 **Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8a; этап 2 нужен до 3 и 5; этап 10b (отзывы в приложении) нужен до 10a.
@@ -591,7 +591,7 @@ The app, product and documentation, user feedback, publication. It depends on th
 **Time:** 3–5 days
 
 - [x] English and Russian interface (i18n via `QTranslator` or a simple dictionary), language choice in settings
-- [ ] Demo GIF (up to 10 MB) and screenshots in the README: offline translation of `lf2m`, `wts … pm me`, live mode
+- [x] Demo GIF (up to 10 MB) and screenshots in the README: offline translation of `lf2m`, `wts … pm me`, live mode
 - [x] README: the first screen shows the value and a 3-step install; below — modes, privacy, FAQ, limitations
 - [x] A "How it works" section with a pipeline diagram (OCR → glossary → NLLB → popup) and an MLOps diagram (data → train → eval → registry → app)
 - [x] `docs/` as a site (GitHub Pages / MkDocs): installation, configuration, training, reproducing experiments
@@ -656,13 +656,13 @@ The app, product and documentation, user feedback, publication. It depends on th
 | 7 | A | Model CI/CD | 3–4 | |
 | 8a | A | GPU build for the local model | 1–2 | |
 | 8b | B | App release (done) | 4–6 | |
-| 9 | B | Product and documentation | 3–5 | |
+| 9 | B | Product and documentation (done) | 3–5 | |
 | 10a | A | Model monitoring and retraining from feedback | 2–3 | |
 | 10b | B | Feedback and telemetry in the app | 2–3 | |
 | 11 | A | Inference service | 3–5 | |
 | 12 | B | CV, thesis, publication | 3–4 | |
 
-**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 9 → 5 → 10b → 10a → 11 → 12 (8b is done).
+**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 5 → 10b → 10a → 11 → 12 (8b and 9 are done).
 Parts A and B can run in parallel. The minimum for a strong CV: stages 0–4, 6–8 and 12. Stages 5, 10a/10b, 11 strengthen the project but can wait.
 
 **Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8a; stage 2 before 3 and 5; stage 10b (feedback in the app) before 10a.
