@@ -193,12 +193,61 @@ class TestRepositoryReleaseState(unittest.TestCase):
         self.assertRegex((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), r"(?m)^## \[Unreleased\]$")
 
     def test_workflow_uses_existing_build_flags(self):
-        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         build_py = (ROOT / "build.py").read_text(encoding="utf-8")
-        flags = set(re.findall(r"build\.py (--[a-z-]+)", workflow))
-        self.assertTrue(flags)
-        for flag in flags:
-            self.assertIn(f"'{flag}'", build_py, flag)
+        for name in ("release.yml", "deps-cache.yml"):
+            workflow = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+            flags = set(re.findall(r"build\.py (--[a-z-]+)", workflow))
+            self.assertTrue(flags, name)
+            for flag in flags:
+                self.assertIn(f"'{flag}'", build_py, f"{name}: {flag}")
+
+    def test_release_and_cache_install_the_lock_with_the_same_key(self):
+        workflows = ROOT / ".github" / "workflows"
+        release = (workflows / "release.yml").read_text(encoding="utf-8")
+        cache = (workflows / "deps-cache.yml").read_text(encoding="utf-8")
+        for text in (release, cache):
+            self.assertIn("pip install -r requirements-lock.txt", text)
+            self.assertIn("key: deps-layer-${{ runner.os }}-${{ steps.deps.outputs.fingerprint }}", text)
+            self.assertIn('python-version: "3.12"', text)
+        self.assertIn("branches: [main]", cache)
+
+    def test_lock_pins_every_requirement(self):
+        def norm(name):
+            return re.sub(r"[-_.]+", "-", name).lower()
+
+        lock = (ROOT / build.LOCK_FILE).read_text(encoding="utf-8")
+        pins = {norm(m.group(1)) for m in re.finditer(r"(?m)^([A-Za-z0-9_.-]+)==\S+$", lock)}
+        lines = [ln for ln in lock.splitlines() if ln.strip() and not ln.startswith("#")]
+        self.assertEqual(len(pins), len(lines))  # every line is name==version
+        required = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+        for match in re.finditer(r"(?m)^([A-Za-z0-9_.-]+)", required):
+            self.assertIn(norm(match.group(1)), pins, match.group(1))
+
+
+class TestRequirementsLock(unittest.TestCase):
+    def test_lock_from_pip_report(self):
+        report = {
+            "environment": {"python_version": "3.12"},
+            "install": [
+                {"metadata": {"name": "numpy", "version": "2.5.4"}},
+                {"metadata": {"name": "PyQt5", "version": "5.15.11"}},
+            ],
+        }
+        text = build.lock_from_report(report)
+        self.assertTrue(text.startswith("# Exact versions"))
+        self.assertIn("Python 3.12", text)
+        self.assertTrue(text.endswith("PyQt5==5.15.11\nnumpy==2.5.4\n"))
+
+    def test_lock_is_part_of_the_deps_fingerprint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "requirements.txt").write_text("numpy>=1\n", encoding="utf-8")
+            before = build.deps_fingerprint(root)
+            (root / build.LOCK_FILE).write_text("numpy==2.5.4\n", encoding="utf-8")
+            pinned = build.deps_fingerprint(root)
+            (root / build.LOCK_FILE).write_text("numpy==2.5.5\n", encoding="utf-8")
+            self.assertNotEqual(before, pinned)
+            self.assertNotEqual(build.deps_fingerprint(root), pinned)
 
 
 class TestUpdatePackage(unittest.TestCase):

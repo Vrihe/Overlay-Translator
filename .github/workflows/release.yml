@@ -40,16 +40,18 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: requirements-lock.txt
 
       - name: Check the tag against APP_VERSION and CHANGELOG
         if: startsWith(github.ref, 'refs/tags/')
         run: python build.py --check-tag "${{ github.ref_name }}"
 
+      # The exact versions of requirements-lock.txt: the deps layer then stays the
+      # same between releases, so the app-only update (update-manifest.json) applies.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest
+          python -m pip install -r requirements-lock.txt pytest
 
       - name: Run tests
         env:
@@ -64,7 +66,9 @@ jobs:
           }
 
       # The heavy dependency layer (build_deps.spec, ~15 min) is cached by build.py in
-      # _build_cache/<fingerprint>; restoring it makes a rebuild take minutes.
+      # _build_cache/<fingerprint>; restoring it makes a rebuild take minutes. A tag run
+      # cannot read a cache saved by another tag, only main's: deps-cache.yml keeps it
+      # there, so every release gets the same deps layer byte for byte.
       - name: Dependency layer fingerprint
         id: deps
         run: '"fingerprint=$(python build.py --fingerprint)" >> $env:GITHUB_OUTPUT'
