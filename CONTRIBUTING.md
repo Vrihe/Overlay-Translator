@@ -102,6 +102,11 @@ Versions follow [SemVer](https://semver.org/): patch for fixes, minor for new fe
 1. Move the `[Unreleased]` entries in `CHANGELOG.md` into a new `## [X.Y.Z] - YYYY-MM-DD`
    section and update the links at the bottom.
 2. Set `APP_VERSION = "X.Y.Z"` in `config.py` and merge that through a pull request.
+   The release installs `requirements-lock.txt`, not the ranges of `requirements.txt`.
+   After changing `requirements.txt`, run `python build.py --lock-requirements` and
+   commit the lock in the same pull request. On merge, the "Deps cache" workflow builds
+   the new dependency layer on main; wait for it before tagging, or the release builds
+   the layer itself and app-only updates to that version fall back to the installer.
 3. Tag and push: `git tag -a vX.Y.Z -m "Translator Overlay X.Y.Z"` and
    `git push origin vX.Y.Z`.
 4. The `Release` workflow checks that the tag matches `APP_VERSION` and the changelog,

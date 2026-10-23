@@ -16,6 +16,10 @@ Usage:
 
 Release helpers (used by .github/workflows/release.yml, nothing is built):
     python build.py --fingerprint            — print the deps fingerprint (CI cache key)
+    python build.py --deps-only              — build only the deps layer into the cache
+                                               (skipped when it is cached; deps-cache.yml)
+    python build.py --lock-requirements      — resolve requirements.txt into
+                                               requirements-lock.txt (nothing is installed)
     python build.py --check-tag vX.Y.Z       — fail unless the tag equals v + APP_VERSION
                                                and CHANGELOG.md has a section for it
     python build.py --release-notes OUT.md   — write the release notes for APP_VERSION
@@ -186,6 +190,39 @@ _TRACKED_PACKAGES = [
 ]
 
 
+# Exact versions of every package the release build installs (requirements.txt
+# resolved for Windows / Python 3.12). Without it each release resolves the open
+# ranges again, the deps layer changes and app-only updates never apply.
+LOCK_FILE = 'requirements-lock.txt'
+_LOCK_HEADER = """\
+# Exact versions for the release build (.github/workflows/release.yml, deps-cache.yml):
+# requirements.txt resolved for Windows, Python {python}.
+# Regenerate after changing requirements.txt: python build.py --lock-requirements
+"""
+
+
+def lock_from_report(report: dict) -> str:
+    """requirements-lock.txt text from a ``pip install --dry-run --report`` JSON."""
+    pins = sorted((item['metadata']['name'], item['metadata']['version']) for item in report['install'])
+    python = report.get('environment', {}).get('python_version', '3.12')
+    return _LOCK_HEADER.format(python=python) + ''.join(f'{name}=={version}\n' for name, version in pins)
+
+
+def write_requirements_lock(root: Path) -> Path:
+    """Resolve requirements.txt with pip (nothing is installed) and write the lock file."""
+    report = root / 'build' / 'lock-report.json'
+    report.parent.mkdir(exist_ok=True)
+    cmd = [
+        sys.executable, '-m', 'pip', 'install', '-r', str(root / 'requirements.txt'),
+        '--dry-run', '--ignore-installed', '--quiet', '--report', str(report),
+    ]  # fmt: skip
+    if subprocess.run(cmd).returncode != 0:
+        raise RuntimeError("pip could not resolve requirements.txt")
+    lock = root / LOCK_FILE
+    lock.write_text(lock_from_report(json.loads(report.read_text(encoding='utf-8'))), encoding='utf-8')
+    return lock
+
+
 def runtime_tag() -> str:
     """Python ABI and PyInstaller version, e.g. ``cp312-pyinstaller6.11.1``.
 
@@ -210,9 +247,10 @@ def deps_fingerprint(root: Path) -> str:
     """
     parts: list[str] = [runtime_tag()]
 
-    req_file = root / 'requirements.txt'
-    if req_file.exists():
-        parts.append(req_file.read_text(encoding='utf-8', errors='replace'))
+    for name in ('requirements.txt', LOCK_FILE):
+        req_file = root / name
+        if req_file.exists():
+            parts.append(req_file.read_text(encoding='utf-8', errors='replace'))
 
     for pkg in _TRACKED_PACKAGES:
         try:
@@ -581,6 +619,9 @@ def main() -> None:
             out.write_text(release_notes(root, app_version(root), sha, app_sha), encoding='utf-8')
             print(f"Release notes written to {out}")
             return
+        if '--lock-requirements' in sys.argv:
+            print(f"Written {write_requirements_lock(root)}")
+            return
     except RuntimeError as exc:
         print(f"[ERROR] {exc}")
         sys.exit(1)
@@ -605,6 +646,20 @@ def main() -> None:
         print(f"Deps fingerprint : {fingerprint}")
         print(f"Cache directory  : {cache_dir}")
         print(f"Cache exists     : {cache_exists}")
+        return
+
+    if '--deps-only' in sys.argv:
+        # .github/workflows/deps-cache.yml: build the deps layer into the cache dir
+        # unless it is there already; the app is not built.
+        if cache_exists:
+            print(f"Deps layer cached: {cache_dir}")
+            return
+        try:
+            run_pyinstaller('build_deps.spec', clean=True)
+        except RuntimeError as exc:
+            print(f"\n[ERROR] {exc}")
+            sys.exit(1)
+        save_deps_cache(root, fingerprint)
         return
 
     if '--installer-only' in sys.argv or '--update-package' in sys.argv:

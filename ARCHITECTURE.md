@@ -703,12 +703,22 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
    into `{app}`.
    **Release pipeline** — `.github/workflows/release.yml` on a `v*` tag (windows-latest):
    `build.py --check-tag` (tag == `v` + `APP_VERSION`, `CHANGELOG.md` has that section) →
-   `pytest` (offscreen Qt) → Inno Setup via choco if missing → deps layer restored from
+   packages from `requirements-lock.txt` → `pytest` (offscreen Qt) → Inno Setup via choco if missing → deps layer restored from
    `actions/cache` keyed by `build.py --fingerprint` → `build.py --installer` → SHA-256 of
    Setup.exe and the app zip into `build.py --release-notes --sha256 --app-sha256`
    (changelog section + install steps + checksums; no separate `.sha256` files) → draft
    release with Setup.exe, `TranslatorOverlay-app-<version>.zip` and `update-manifest.json`
    (re-runs `--clobber` the files). Manual runs only upload an artifact. Process: CONTRIBUTING.md.
+   **Pinned deps and the shared cache** — an app-only update applies only when the deps
+   layer is byte-identical between releases. `requirements-lock.txt` pins every package
+   (`build.py --lock-requirements` resolves `requirements.txt` with `pip --dry-run
+   --report`; it is part of the deps fingerprint). A tag run can restore only caches of
+   that tag or of main, so `.github/workflows/deps-cache.yml` (push to main touching the
+   deps, weekly, manual) installs the lock and runs `build.py --deps-only`: it builds the
+   layer into `_build_cache/<fingerprint>` once per fingerprint, and the weekly restore
+   keeps the cache from being evicted. Without it every release rebuilt the layer and
+   resolved the open ranges anew (1.4.0 → 1.4.1 got newer certifi/anthropic/jiter), so
+   the fingerprints never matched.
    **One-click update** (`updater/install_update.py`, update banner in `MainWindow`): only when
    `can_self_update()` (frozen + `unins000.exe` next to the exe; otherwise the release page).
    `_UpdateInstallWorker`: `latest_release()` → `download_setup()` into
