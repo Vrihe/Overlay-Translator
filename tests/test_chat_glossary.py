@@ -56,6 +56,20 @@ class TestPrepare(unittest.TestCase):
     def test_preserves_newlines(self):
         self.assertEqual(prepare("gg\nwp all", TERMS).text, "good game\nwell played all")
 
+    def test_leading_l_misread_by_ocr(self):
+        terms = {**TERMS, "lfm": "looking for more", "lol": None, "lf": "looking for", "lan": "local network"}
+        self.assertEqual(prepare("If2m for dungeon", terms).text, "we need 2 more players for dungeon")
+        self.assertEqual(prepare("1f2m tank", terms).text, "we need 2 more players tank")
+        self.assertEqual(prepare("Ifm healer", terms).text, "looking for more healer")
+        p = prepare("Iol nice", terms)
+        self.assertEqual((p.text, p.restore), ("[1] nice", {"[1]": "lol"}))  # put back as "lol"
+        self.assertEqual(p.unmasked, "lol nice")
+
+    def test_ocr_fix_leaves_words_alone(self):
+        terms = {**TERMS, "lf": "looking for", "ls": "life steal", "lan": "local network", "los": "line of sight"}
+        for line in ("If you want", "Is it ready", "Ian is here", "iOS only", "Ios only", "Ifrit spawned"):
+            self.assertEqual(prepare(line, terms).text, line, line)
+
 
 class TestRestore(unittest.TestCase):
     def test_restores_original_spelling(self):

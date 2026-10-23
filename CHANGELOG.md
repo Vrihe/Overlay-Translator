@@ -9,6 +9,12 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+- Offline translation of chat abbreviations that start with "l" (`lf2m`, `lfm`, `lol`):
+  in most fonts the text recognition reads that "l" as a capital "I" (`If2m`), and the
+  abbreviation was then translated word for word. Such misread abbreviations are now
+  recognised.
+
 ## [1.4.0] - 2026-10-22
 
 ### Changed
