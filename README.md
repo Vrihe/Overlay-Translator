@@ -8,7 +8,13 @@
 without a translation — the translation appears in a popup right next to it. Works without an API
 key, and can run fully offline with a local model tuned for game chat (`wts`, `lf2m`, `gg`).
 
-<!-- TODO: demo GIF (docs/demo.gif): offline lf2m, "wts … pm me", live mode -->
+<p align="center">
+  <img src="docs/assets/demo-lf2m.gif" alt="Selecting the game chat line 'lf2m tank and heal for hc dungeon' with the hotkey: the popup shows the Russian translation, abbreviation expanded, from the offline model" width="840">
+</p>
+
+| Trade chat, offline | Live mode: new messages are translated as they arrive |
+|---|---|
+| ![Selecting 'wts epic sword 500g pm me': the popup shows the offline translation](docs/assets/demo-wts.gif) | ![Live monitoring of the chat: the popup updates with each new message](docs/assets/demo-live.gif) |
 
 ## Install in 3 steps
 
