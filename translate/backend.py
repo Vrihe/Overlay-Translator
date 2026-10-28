@@ -241,6 +241,11 @@ def translate(
 
     # ── NMT backends (Google / DeepL / Azure) ────────────
     if backend in _NMT_BACKENDS:
+        # Like llm_client / nllb_backend: the source chosen in Settings, else detection.
+        if source_lang is None:
+            source_lang = getattr(config, "SOURCE_LANG", "auto")
+        if source_lang == "auto":
+            source_lang = None
         _detected, translated = _nmt_translate(
             backend,
             text,

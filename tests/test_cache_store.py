@@ -10,6 +10,7 @@ Every test writes to a temporary database (tests/store_isolation.py).
 """
 
 import sqlite3
+import threading
 import unittest
 from unittest import mock
 
@@ -113,7 +114,6 @@ class TestDiskCache(unittest.TestCase):
     def test_clear_history(self):
         store.save_to_cache("hello", "en", "ru", "привет")
         store.clear_history()
-        _clear_l1()
         self.assertEqual(store.get_all_history(), [])
         self.assertIsNone(store.get_cached("hello", "en", "ru"))
 
@@ -131,6 +131,35 @@ class TestDiskCache(unittest.TestCase):
         store.save_to_cache("hello", "en", "ru", "привет")
         store._init_db(store._get_connection())  # e.g. the next app start
         self.assertEqual(len(store.get_all_history()), 1)
+
+
+class TestCloseConnection(unittest.TestCase):
+    def setUp(self):
+        isolate_store(self)
+
+    def test_worker_thread_closes_its_connection(self):
+        seen = {}
+
+        def worker():
+            store.save_to_cache("hello", "en", "ru", "привет")
+            conn = store._thread_local.conn
+            store.close_connection()
+            seen["left"] = store._thread_local.conn
+            try:
+                conn.execute("SELECT 1")
+            except sqlite3.ProgrammingError:
+                seen["closed"] = True
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+        self.assertEqual(seen, {"left": None, "closed": True})
+
+    def test_next_call_reopens(self):
+        store.save_to_cache("hello", "en", "ru", "привет")
+        store.close_connection()
+        _clear_l1()
+        self.assertEqual(store.get_cached("hello", "en", "ru"), "привет")
 
 
 if __name__ == "__main__":

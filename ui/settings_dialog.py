@@ -85,6 +85,21 @@ _UI_THEMES = [
     ("crimson", N_("Малиновый")),
 ]
 
+# OCR languages: they only pick the recognition model, so two choices cover them all.
+# The engine is built once per run, so a change applies after a restart.
+_OCR_LANGUAGE_SETS = [
+    ("eslav", N_("Латиница и кириллица"), ["en", "ru"]),
+    ("en", N_("Только латиница"), ["en"]),
+]
+_CYRILLIC_OCR_LANGS = {"ru", "uk", "be"}
+
+
+def _ocr_language_set(langs) -> str:
+    """The _OCR_LANGUAGE_SETS id that recognises *langs* (an OCR_LANGUAGES value)."""
+    codes = {str(code).strip().lower() for code in (langs or [])}
+    return "eslav" if codes & _CYRILLIC_OCR_LANGS or not codes else "en"
+
+
 _ENGINES = [
     ("llm_text", N_("OCR → LLM (текстовый)")),
     ("llm_vision", N_("LLM Vision (картинка)")),
@@ -693,6 +708,12 @@ class SettingsWidget(QWidget):
         self._ocr_gpu_combo.addItem(tr("Авто (видеокарта через DirectML, если доступна)"), "auto")
         self._ocr_gpu_combo.addItem(tr("Только процессор (CPU)"), "cpu")
         ocr_gpu_layout.addLayout(self._field(tr("Режим OCR:"), self._ocr_gpu_combo))
+
+        self._ocr_lang_combo = QComboBox()
+        self._ocr_lang_combo.setStyleSheet(self._INPUT_CSS)
+        for code, name, _langs in _OCR_LANGUAGE_SETS:
+            self._ocr_lang_combo.addItem(tr(name), code)
+        ocr_gpu_layout.addLayout(self._field(tr("Языки распознавания:"), self._ocr_lang_combo))
 
         # D1: OCR preview switch
         self._chk_ocr_preview = SwitchRow(tr("Предпросмотр и правка OCR-текста перед переводом"))
@@ -1855,6 +1876,8 @@ class SettingsWidget(QWidget):
         # Interface language and colour scheme.
         idx_ui = self._ui_lang_combo.findData(config_manager.get("ui_language"))
         self._ui_lang_combo.setCurrentIndex(max(idx_ui, 0))
+        idx_ocr = self._ocr_lang_combo.findData(_ocr_language_set(config_manager.get("ocr_languages")))
+        self._ocr_lang_combo.setCurrentIndex(max(idx_ocr, 0))
         idx_theme = self._theme_combo.findData(config_manager.get("ui_theme"))
         self._theme_combo.setCurrentIndex(max(idx_theme, 0))
 
@@ -1904,6 +1927,7 @@ class SettingsWidget(QWidget):
         # Restart-only settings light up the save button instead.
         self._ui_lang_combo.currentIndexChanged.connect(self._update_restart_state)
         self._theme_combo.currentIndexChanged.connect(self._update_restart_state)
+        self._ocr_lang_combo.currentIndexChanged.connect(self._update_restart_state)
 
     def hideEvent(self, event):
         # Leaving the page (or hiding the window) must not drop a pending change.
@@ -2034,7 +2058,7 @@ class SettingsWidget(QWidget):
 
     # ── Restart-only settings ────────────────────────────
 
-    def _pending_restart_settings(self) -> dict[str, str]:
+    def _pending_restart_settings(self) -> dict:
         """Restart-only values in the form that differ from settings.json."""
         pending = {}
         ui_lang = self._ui_lang_combo.currentData() or "auto"
@@ -2043,6 +2067,9 @@ class SettingsWidget(QWidget):
         ui_theme = self._theme_combo.currentData() or "amber"
         if ui_theme != (config_manager.get("ui_theme") or "amber"):
             pending["ui_theme"] = ui_theme
+        ocr_set = self._ocr_lang_combo.currentData() or "eslav"
+        if ocr_set != _ocr_language_set(config_manager.get("ocr_languages")):
+            pending["ocr_languages"] = next(langs for code, _n, langs in _OCR_LANGUAGE_SETS if code == ocr_set)
         return pending
 
     def _update_restart_state(self, *_args) -> None:
@@ -2070,7 +2097,10 @@ class SettingsWidget(QWidget):
         reply = QMessageBox.question(
             self,
             tr("Перезапуск"),
-            tr("Язык интерфейса и цветовая схема применяются после перезапуска.\nПерезапустить приложение сейчас?"),
+            tr(
+                "Язык интерфейса, цветовая схема и языки OCR применяются после перезапуска.\n"
+                "Перезапустить приложение сейчас?"
+            ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )

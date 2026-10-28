@@ -47,6 +47,18 @@ def _get_connection() -> sqlite3.Connection:
     return conn
 
 
+def close_connection() -> None:
+    """Close this thread's connection; a worker thread calls it before it ends.
+
+    Otherwise each finished worker leaves an open connection (and a WAL reader)
+    until the garbage collector happens to free it.
+    """
+    conn = getattr(_thread_local, "conn", None)
+    if conn is not None:
+        _thread_local.conn = None
+        conn.close()
+
+
 def _init_db(conn: sqlite3.Connection) -> None:
     with conn:
         cursor = conn.cursor()
@@ -230,3 +242,6 @@ def clear_history() -> None:
     conn = _get_connection()
     with conn:
         conn.execute("DELETE FROM translations")
+    # The in-memory layer too, or cleared translations keep coming back as cache hits.
+    with _mem_cache_lock:
+        _mem_cache.clear()

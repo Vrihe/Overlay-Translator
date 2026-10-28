@@ -55,9 +55,9 @@ class _FakeNllb:
 class TestNmtBackends(unittest.TestCase):
     def setUp(self):
         isolate_store(self)
-        patcher = _config("TARGET_LANG", "ru")
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for patcher in (_config("TARGET_LANG", "ru"), _config("SOURCE_LANG", "auto")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def _use(self, name, client):
         stack = [
@@ -78,6 +78,13 @@ class TestNmtBackends(unittest.TestCase):
 
         self.assertEqual(client.calls, [("hello", "ru", None)], "the second call must be a cache hit")
         self.assertEqual(chunks, ["привет"])
+
+    def test_source_language_from_settings_is_passed_to_the_client(self):
+        client = _FakeNmtClient()
+        self._use("google", client)
+        with _config("SOURCE_LANG", "de"):
+            backend.translate("hallo")
+        self.assertEqual(client.calls, [("hallo", "ru", "de")])
 
     def test_cache_is_separate_per_backend(self):
         google = _FakeNmtClient(translated="от google")

@@ -79,6 +79,12 @@ _INPUT_IS_DATA = (
 )
 
 
+# SDK defaults are a 600 s timeout and 2 retries of their own on top of
+# _call_with_resilience(): a hung connection blocked the translation worker for
+# minutes and a 429 turned into a burst of requests.
+_REQUEST_TIMEOUT_SEC = 60.0
+
+
 def _get_client_for(provider_name: str):
     """Return a client instance for *provider_name* or None if API key is not set."""
     if provider_name in _clients_cache:
@@ -93,6 +99,8 @@ def _get_client_for(provider_name: str):
         client = openai.OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=key,
+            timeout=_REQUEST_TIMEOUT_SEC,
+            max_retries=0,
         )
         _clients_cache["openrouter"] = client
         return client
@@ -103,7 +111,7 @@ def _get_client_for(provider_name: str):
             return None
         import anthropic  # lazy: loaded on first translation request
 
-        client = anthropic.Anthropic(api_key=key)
+        client = anthropic.Anthropic(api_key=key, timeout=_REQUEST_TIMEOUT_SEC, max_retries=0)
         _clients_cache["anthropic"] = client
         return client
 
@@ -220,7 +228,7 @@ def _call_provider(
                         {"role": "user", "content": user_prompt},
                     ],
                     extra_headers={
-                        "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                        "HTTP-Referer": f"https://github.com/{config.GITHUB_REPO}",
                         "X-Title": "Overlay Translator",
                     },
                     extra_body=_NO_REASONING,
@@ -242,6 +250,10 @@ def _call_provider(
                 if result:
                     return result
             except Exception as stream_err:
+                # An API answer (401, 429, 5xx) or a network failure is the same without
+                # streaming: the retry loop handles it, not a second request from here.
+                if getattr(stream_err, "status_code", None) is not None or is_retryable(stream_err):
+                    raise
                 _logger.warning("Streaming error on %s: %s (falling back to standard call)", model, stream_err)
 
             _logger.info("Stream yielded empty text, falling back to non-streaming call for %s...", model)
@@ -255,7 +267,7 @@ def _call_provider(
                 {"role": "user", "content": user_prompt},
             ],
             extra_headers={
-                "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                "HTTP-Referer": f"https://github.com/{config.GITHUB_REPO}",
                 "X-Title": "Overlay Translator",
             },
             extra_body=_NO_REASONING,
@@ -480,7 +492,8 @@ def translate(
     if not is_owner:
         # Another thread is already translating this exact text — wait and reuse.
         _logger.info("COALESCE | waiting for in-flight request | text=%s", loggable(text))
-        req.event.wait(timeout=120.0)  # generous timeout; owner raises on failure
+        if not req.event.wait(timeout=120.0):  # generous timeout; owner raises on failure
+            raise RuntimeError(tr("Превышено время ожидания перевода."))
         if isinstance(req.result, Exception):
             raise req.result
         return req.result or ""
@@ -494,7 +507,7 @@ def translate(
         user_prompt = text
         model_for = {
             "openrouter": config.LLM_MODEL,
-            "anthropic": config.LLM_MODEL,
+            "anthropic": config.ANTHROPIC_MODEL,
         }
 
         translation, provider = _call_with_resilience(system_prompt, user_prompt, model_for, on_chunk=on_chunk)
@@ -616,7 +629,7 @@ def detect_and_translate(
 
     model_for = {
         "openrouter": config.LLM_MODEL or "openai/gpt-oss-20b:free",
-        "anthropic": getattr(config, "ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414"),
+        "anthropic": getattr(config, "ANTHROPIC_DETECT_MODEL", "claude-haiku-5-5"),
     }
 
     def _streaming_filter(accumulated: str) -> None:

@@ -158,6 +158,7 @@ from capture.screenshot import capture_region
 from i18n import tr
 from ocr.engine import recognise
 from overlay.selector import RegionSelector
+from translate.privacy import loggable
 from tray.tray_icon import TrayIcon
 from ui.main_window import MainWindow
 from ui.result_popup import ResultPopup
@@ -238,6 +239,14 @@ class TranslationWorker(QThread):
         self.backend_notice: str = ""
 
     def run(self):
+        try:
+            self._run()
+        finally:
+            from cache.store import close_connection
+
+            close_connection()
+
+    def _run(self):
         logging.debug(f"TranslationWorker started for bbox ({self.x1}, {self.y1}, {self.x2}, {self.y2})")
         anchor = QRect(self.x1, self.y1, self.x2 - self.x1, self.y2 - self.y1)
 
@@ -407,10 +416,12 @@ class TranslatorApp:
         self._last_manual_seq = 0  # id of the newest request the user made (not live)
         self._pending_request = None  # the newest request waiting for a running worker
         self._retired_workers: set = set()  # replaced workers kept alive until they finish
+        self._ocr_preview = None  # OcrPreviewPopup: an unreferenced one is destroyed at once
         # Where the user dragged a popup to, per region (anchor rect): the next popup for
         # that region (live monitoring, a preset bind) opens there, not at the default spot.
         self._user_popup_pos: dict[tuple[int, int, int, int], QPoint] = {}
         self._presets_dialog = None  # RegionPresetsDialog instance (if open)
+        self._preset_target_dialog = None  # the dialog that asked for a new region ("Новый")
         self._preset_hotkeys: list[str] = []
         self._preset_bridges: list[HotkeyBridge] = []
 
@@ -500,11 +511,7 @@ class TranslatorApp:
 
             # D1: Check if OCR Preview/Edit mode is enabled
             if getattr(config, "ENABLE_OCR_PREVIEW", False):
-                self._replace_worker(TranslationWorker(x1, y1, x2, y2, ocr_only=True))
-                self._worker.ocr_done.connect(
-                    lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc)
-                )
-                self._worker.start()
+                self._start_ocr_preview(x1, y1, x2, y2)
                 return
 
             # Normal path: direct translation
@@ -553,7 +560,7 @@ class TranslatorApp:
         # just because the next live check has already been queued.
         worker.translation_done.connect(
             lambda src, tr, err: (
-                self._on_translation_finished(src, tr, err, anchor, live=live)
+                self._on_translation_finished(src, tr, err, anchor, live=live, notice=worker.backend_notice)
                 if seq >= self._last_manual_seq
                 else logging.debug("Dropped stale translation %d.", seq)
             )
@@ -581,16 +588,39 @@ class TranslatorApp:
         if request is not None:
             self._run_translation(request)
 
+    def _start_ocr_preview(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        """D1: OCR the region on a worker, then let the user edit the text before translating."""
+        anchor = QRect(x1, y1, x2 - x1, y2 - y1)
+        worker = TranslationWorker(x1, y1, x2, y2, ocr_only=True)
+        worker.ocr_done.connect(lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc))
+        # Capture/OCR failures and "no text" come through translation_done, not ocr_done.
+        worker.translation_done.connect(lambda _src, _tr, err: self._show_error(err, anchor) if err else None)
+        # A request that waited for this worker (live monitoring) runs once it ends.
+        worker.finished.connect(self._on_translation_worker_finished)
+        self._replace_worker(worker)
+        worker.start()
+
     def _on_ocr_preview_requested(self, x1: int, y1: int, x2: int, y2: int, raw_text: str, anchor: QRect) -> None:
         """D1: Display OCR preview popup allowing user to edit text before translating."""
         from ui.ocr_preview_popup import OcrPreviewPopup
 
         self._close_popup()
+        if self._ocr_preview is not None:
+            try:
+                self._ocr_preview.close()
+            except RuntimeError:
+                pass  # already deleted
         preview = OcrPreviewPopup(raw_text, anchor)
         preview.confirmed.connect(
             lambda edited: self._start_translation_pipeline(x1, y1, x2, y2, anchor, text_override=edited)
         )
+        preview.destroyed.connect(lambda _obj=None, p=preview: self._on_ocr_preview_destroyed(p))
+        self._ocr_preview = preview
         preview.show()
+
+    def _on_ocr_preview_destroyed(self, preview) -> None:
+        if self._ocr_preview is preview:
+            self._ocr_preview = None
 
     # ── D2: Live Monitor Mode ────────────────────────────
 
@@ -732,28 +762,40 @@ class TranslatorApp:
                 logging.warning("Failed to register preset hotkey '%s'", hk, exc_info=True)
 
     def _show_presets_dialog(self) -> None:
-        """Open the region presets management dialog."""
+        """Open the region presets management dialog (one at a time)."""
         try:
+            if self._presets_dialog is not None:
+                self._presets_dialog.show()
+                self._presets_dialog.raise_()
+                self._presets_dialog.activateWindow()
+                return
+
             from ui.region_presets_dialog import RegionPresetsDialog
 
             dlg = RegionPresetsDialog()
             dlg.preset_translate.connect(self._on_preset_translate)
             dlg.request_new_preset.connect(lambda: self._on_new_preset_requested(dlg))
             dlg.presets_updated.connect(self._on_presets_updated)
+            # Not exec_(): hiding a dialog inside exec_() ends its event loop, so "Новый"
+            # (which hides it while a region is selected) closed the whole dialog.
+            dlg.finished.connect(lambda _result, d=dlg: self._on_presets_dialog_closed(d))
             self._presets_dialog = dlg
-            dlg.exec_()
-            self._presets_dialog = None
-            self._on_presets_updated()
+            dlg.show()
         except Exception:
             logging.exception("Error showing presets dialog")
+
+    def _on_presets_dialog_closed(self, dialog) -> None:
+        if self._presets_dialog is dialog:
+            self._presets_dialog = None
+        if self._preset_target_dialog is dialog:
+            self._preset_target_dialog = None
+        self._on_presets_updated()
 
     def _on_preset_translate(self, x1: int, y1: int, x2: int, y2: int) -> None:
         """Translate the selected preset's region once (from its hotkey or the 'Перевести' button)."""
         anchor = QRect(x1, y1, x2 - x1, y2 - y1)
         if getattr(config, "ENABLE_OCR_PREVIEW", False):
-            self._replace_worker(TranslationWorker(x1, y1, x2, y2, ocr_only=True))
-            self._worker.ocr_done.connect(lambda text, anc: self._on_ocr_preview_requested(x1, y1, x2, y2, text, anc))
-            self._worker.start()
+            self._start_ocr_preview(x1, y1, x2, y2)
         else:
             self._start_translation_pipeline(x1, y1, x2, y2, anchor=anchor)
 
@@ -770,19 +812,20 @@ class TranslatorApp:
 
     def _add_region(self) -> None:
         """Settings → Regions → "Добавить регион": select an area, then name it."""
-        self._presets_dialog = None  # no dialog: the name is asked for on its own
+        self._preset_target_dialog = None  # no dialog: the name is asked for on its own
         self._preset_creation_mode = True
         self._show_selector()
 
     def _on_new_preset_requested(self, dialog) -> None:
         """The user pressed 'Новый' (New) in the presets dialog; start region selection."""
         self._preset_creation_mode = True
+        self._preset_target_dialog = dialog
         dialog.hide()  # hide dialog while selecting region
         self._show_selector()
 
     def _on_preset_region_selected(self, x1: int, y1: int, x2: int, y2: int) -> None:
         """Handle the selected region while in preset-creation mode."""
-        dlg = self._presets_dialog
+        dlg, self._preset_target_dialog = self._preset_target_dialog, None
         if dlg is not None:
             dlg.show()
             dlg.add_new_preset(x1, y1, x2, y2)
@@ -835,17 +878,18 @@ class TranslatorApp:
             logging.debug("Ignored error in _on_partial_translation", exc_info=True)
 
     def _on_translation_finished(
-        self, source: str, translated: str, error_msg: str, anchor: QRect, *, live: bool = False
+        self, source: str, translated: str, error_msg: str, anchor: QRect, *, live: bool = False, notice: str = ""
     ) -> None:
         try:
             if error_msg:
-                logging.warning(f"Translation finished with error: {error_msg}")
+                # A translation error carries the recognised text: keep it out of the log.
+                logged = error_msg.replace(source, loggable(source)) if source else error_msg
+                logging.warning("Translation finished with error: %s", logged)
                 self._show_error(error_msg, anchor, activate=not live)
             else:
                 logging.info(
                     f"Translation finished successfully. Source length: {len(source)}, Translated length: {len(translated)}"
                 )
-                notice = getattr(self._worker, "backend_notice", "") if self._worker is not None else ""
                 if notice:
                     logging.warning("Backend notice: %s", notice)
                 self._show_result(source, translated, anchor, notice=notice, activate=not live)

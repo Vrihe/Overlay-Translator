@@ -38,6 +38,17 @@ from tray.icon_gen import create_tray_icon
 from ui import icons, theme, title_bar
 from ui.hud_widgets import Chip, FieldLabel, NavButton, Panel, page_title
 
+# A QThread whose last Python reference goes away while run() is still returning
+# aborts the process (qFatal, 0xc0000409). Workers are parked here until they finish,
+# so the result slots can drop their own references right away.
+_running_workers: set = set()
+
+
+def _keep_until_finished(worker: QThread) -> None:
+    _running_workers.add(worker)
+    worker.finished.connect(lambda w=worker: _running_workers.discard(w))
+
+
 # ── Background worker for update checking ────────────────
 
 
@@ -94,6 +105,13 @@ class _UpdateInstallWorker(QThread):
 # ── Background worker for text / image translation ───────
 
 
+def _close_cache_connection() -> None:
+    """A worker's per-thread SQLite connection is closed before the thread ends."""
+    from cache.store import close_connection
+
+    close_connection()
+
+
 class _TextTranslateWorker(QThread):
     """Translate plain text on a background thread."""
 
@@ -113,6 +131,8 @@ class _TextTranslateWorker(QThread):
         except Exception as e:
             logging.exception("TextTranslateWorker %#x: translation failed", id(self))
             self.text_done.emit("", str(e))
+        finally:
+            _close_cache_connection()
         logging.debug("TextTranslateWorker %#x: run() returning", id(self))
 
 
@@ -126,6 +146,12 @@ class _ImageTranslateWorker(QThread):
         self._path = filepath
 
     def run(self):
+        try:
+            self._run()
+        finally:
+            _close_cache_connection()
+
+    def _run(self):
         try:
             from PIL import Image
 
@@ -479,6 +505,7 @@ class _HomePage(QWidget):
 
         self._text_worker = _TextTranslateWorker(text)
         self._text_worker.text_done.connect(self._on_text_translated)
+        _keep_until_finished(self._text_worker)
         self._text_worker.start()
 
     def _on_text_translated(self, translated: str, error: str):
@@ -536,6 +563,7 @@ class _HomePage(QWidget):
 
         self._image_worker = _ImageTranslateWorker(path)
         self._image_worker.image_done.connect(self._on_image_translated)
+        _keep_until_finished(self._image_worker)
         self._image_worker.start()
 
     def _on_image_translated(self, source: str, translated: str, error: str):
@@ -634,6 +662,7 @@ class MainWindow(QMainWindow):
             return
         self._update_worker = _UpdateCheckWorker()
         self._update_worker.update_done.connect(self._on_update_check_finished)
+        _keep_until_finished(self._update_worker)
         self._update_worker.start()
 
     def _on_update_check_finished(self, has_update: bool, version: str, url: str):

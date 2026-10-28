@@ -106,6 +106,12 @@ class _LiveConfig:
     def ENABLE_OCR_PREVIEW(self):
         return _cfg("enable_ocr_preview")
 
+    @ENABLE_OCR_PREVIEW.setter
+    def ENABLE_OCR_PREVIEW(self, value):
+        from settings.config_manager import set_value
+
+        set_value("enable_ocr_preview", value)
+
     @property
     def TARGET_LANG(self):
         return _cfg("target_language")
@@ -295,7 +301,9 @@ class _LiveConfig:
     MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))
     RETRY_BACKOFF_BASE_SEC = float(os.environ.get("RETRY_BACKOFF_BASE_SEC", "1.0"))
     OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "poolside/laguna-s-2.1:free")
-    ANTHROPIC_DETECT_MODEL = os.environ.get("ANTHROPIC_DETECT_MODEL", "claude-haiku-4-20250414")
+    # LLM_MODEL is an OpenRouter id; Anthropic (primary or fallback) needs its own.
+    ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-5-5")
+    ANTHROPIC_DETECT_MODEL = os.environ.get("ANTHROPIC_DETECT_MODEL", "claude-haiku-5-5")
 
     APP_VERSION = APP_VERSION
     GITHUB_REPO = os.environ.get("GITHUB_REPO", "Vrihe/Overlay-Translator")
