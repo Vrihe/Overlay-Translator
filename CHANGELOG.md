@@ -9,6 +9,28 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-28
+
+### Added
+- Settings → OCR → "Recognition languages": "Latin and Cyrillic" or "Latin only". Applies
+  after a restart.
+
+### Fixed
+- The app could close abruptly right after a translation in the main window.
+- Error messages in the log no longer contain the recognised screen text.
+- Ukrainian ↔ Russian text was sometimes taken for the target language and left
+  untranslated; an explicitly chosen source language is now always respected.
+- The Anthropic provider used the OpenRouter model name; it now has its own
+  (`ANTHROPIC_MODEL`).
+- OCR preview mode: recognition errors are shown instead of nothing happening.
+- Google, DeepL and Azure now receive the source language chosen in the settings.
+- A stuck API request no longer hangs the translation: requests time out after 60 seconds.
+- Clearing the history also forgets translations cached in memory.
+- Settings are saved atomically, so a crash during saving cannot corrupt `settings.json`.
+- Unloading the local model during a translation shows an error instead of breaking it.
+- Text-to-speech: the second phrase in a row could stay silent.
+- Presets: "New" no longer closes the presets window.
+
 ## [1.4.1] - 2026-10-23
 
 ### Fixed
@@ -137,7 +159,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.2.2...v1.3.0
