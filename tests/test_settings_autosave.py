@@ -102,6 +102,17 @@ class TestSettingsAutosave(unittest.TestCase):
         self.assertEqual(self.disk["ui_language"], "en")
         self.assertEqual(requested, [])
 
+    def test_ocr_languages_are_a_restart_setting(self):
+        w = self.widget
+        self.assertEqual(w._ocr_lang_combo.currentData(), "eslav")  # default ["en", "ru"]
+        w._ocr_lang_combo.setCurrentIndex(w._ocr_lang_combo.findData("en"))
+        w._flush_autosave()
+        self.assertTrue(w._btn_save.isEnabled())
+        self.assertEqual(self.disk["ocr_languages"], ["en", "ru"])
+        with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.No):
+            w._on_save()
+        self.assertEqual(self.disk["ocr_languages"], ["en"])
+
     def test_reload_writes_nothing(self):
         self.widget.reload()
         self.assertEqual(self.writes, [])

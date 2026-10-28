@@ -24,6 +24,7 @@ class _IdleWorker:
 
     def __init__(self):
         self.update_done = mock.Mock()
+        self.finished = mock.Mock()
 
     def start(self):
         _IdleWorker.started += 1

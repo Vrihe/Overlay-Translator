@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import anthropic
+import openai
 
 from i18n import set_language
 from translate import llm_client
@@ -141,6 +142,59 @@ class TestLLMResilience(unittest.TestCase):
 
         llm_client.reset_client()
         self.assertEqual(len(llm_client._clients_cache), 0)
+
+
+class TestModelsAndTimeouts(unittest.TestCase):
+    def setUp(self):
+        llm_client.reset_client()
+        set_language("ru")
+
+    def tearDown(self):
+        llm_client.reset_client()
+        set_language(None)
+
+    def test_anthropic_gets_its_own_model_not_the_openrouter_one(self):
+        with (
+            patch("translate.lang_detect.is_same_language", return_value=(False, "")),
+            patch("translate.llm_client.get_cached", return_value=None),
+            patch("translate.llm_client.save_to_cache"),
+            patch("translate.llm_client._call_with_resilience", return_value=("привет", "anthropic")) as call,
+        ):
+            llm_client.translate("hello", target_lang="ru", source_lang="en", domain_id="general")
+        model_for = call.call_args.args[2]
+        self.assertEqual(model_for["anthropic"], llm_client.config.ANTHROPIC_MODEL)
+        self.assertNotEqual(model_for["anthropic"], model_for["openrouter"])
+
+    @patch("translate.llm_client.settings.get_api_key", return_value="fake_key_123")
+    def test_clients_have_a_timeout_and_no_sdk_retries(self, _key):
+        with patch("openai.OpenAI") as openai_cls, patch("anthropic.Anthropic") as anthropic_cls:
+            llm_client._get_client_for("openrouter")
+            llm_client._get_client_for("anthropic")
+        for cls in (openai_cls, anthropic_cls):
+            kwargs = cls.call_args.kwargs
+            self.assertEqual(kwargs["max_retries"], 0)
+            self.assertLessEqual(kwargs["timeout"], 60)
+
+    def test_api_error_while_streaming_is_not_repeated_without_streaming(self):
+        client = MagicMock()
+        response = MagicMock(status_code=429)
+        client.chat.completions.create.side_effect = openai.RateLimitError("slow down", response=response, body={})
+        with self.assertRaises(openai.RateLimitError):
+            llm_client._call_provider(client, "openrouter", "m", "sys", "user", on_chunk=lambda _t: None)
+        self.assertEqual(client.chat.completions.create.call_count, 1)
+
+    def test_coalesced_request_that_times_out_raises(self):
+        key = ("hello", "en", "ru", "general")
+        req = llm_client._InflightRequest()
+        req.event = MagicMock()
+        req.event.wait.return_value = False  # the owner never finished
+        with (
+            patch("translate.lang_detect.is_same_language", return_value=(False, "")),
+            patch("translate.llm_client.get_cached", return_value=None),
+            patch.dict(llm_client._in_flight, {key: req}),
+        ):
+            with self.assertRaises(RuntimeError):
+                llm_client.translate("hello", target_lang="ru", source_lang="en", domain_id="general")
 
 
 if __name__ == "__main__":

@@ -111,7 +111,7 @@ Overlay-Translator/
 │   └── en.py               #   MESSAGES: Russian source string → English
 │
 ├── tray/                   # System tray icon + context menu
-├── tts/engine.py           # Text-to-speech for translations (SAPI, separate thread)
+├── tts/engine.py           # Text-to-speech for translations (SAPI, one worker thread owns the engine)
 ├── updater/check_update.py # Checks GitHub releases
 ├── updater/install_update.py # One-click silent update: verified Setup.exe, waiter, /VERYSILENT
 ├── scripts/                # Offline utilities (not part of the app build)
@@ -245,7 +245,7 @@ so `import config; config.TARGET_LANG` reads a **property** that calls
   `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`,
   `HOTKEY`, `SETTINGS_HOTKEY` (the `SETTINGS_HOTKEY` env var overrides the latter).
 - Static (env/constants): `MAX_RETRIES_PER_PROVIDER`, `RETRY_BACKOFF_BASE_SEC`,
-  `OPENROUTER_MODEL`, `ANTHROPIC_DETECT_MODEL`, `APP_VERSION`, `GITHUB_REPO`,
+  `OPENROUTER_MODEL`, `ANTHROPIC_MODEL`, `ANTHROPIC_DETECT_MODEL`, `APP_VERSION`, `GITHUB_REPO`,
   `NLLB_HF_REPO_ID`, `NLLB_HF_REVISION` (the pinned model build, see section 9),
   `EASYOCR_*`, `OVERLAY_*`, `USER_DATA_DIR`, `CACHE_DIR`,
   `CACHE_MAX_ITEMS`, `LOG_DIR`, `LOG_FILE`.
@@ -290,11 +290,16 @@ validate_api_key(provider, key) # raises RuntimeError if the provider rejects th
 get_provider_chain() -> list[str]
 ```
 
-Internals: `_get_client_for(provider)` (lazy import of `openai`/`anthropic`),
-`_call_provider(...)` (streaming and non-streaming paths),
+Internals: `_get_client_for(provider)` (lazy import of `openai`/`anthropic`; clients get
+a 60 s timeout and `max_retries=0` — retries are only the app's own),
+`_call_provider(...)` (streaming and non-streaming paths; an API error or a network
+failure while streaming is re-raised to the retry loop, only other stream failures fall
+back to a non-streaming call),
 `_call_with_resilience(...)` (retry with exponential backoff + fallback along the
-provider chain), `_build_system_prompt(domain_id, target_lang, source_lang)` with a cache,
-request coalescing via `_in_flight` (two identical concurrent requests → one API call).
+provider chain; OpenRouter uses `LLM_MODEL`, Anthropic uses `ANTHROPIC_MODEL`),
+`_build_system_prompt(domain_id, target_lang, source_lang)` with a cache,
+request coalescing via `_in_flight` (two identical concurrent requests → one API call;
+a waiter that times out after 120 s raises instead of returning an empty translation).
 Reasoning models: only `content` is ever a translation. OpenRouter calls send
 `include_reasoning: false`; streamed `reasoning` deltas and a reply's `message.reasoning`
 are ignored, and `_strip_reasoning()` removes inline `<think>…</think>` blocks (an unclosed
@@ -408,12 +413,14 @@ directories, so a dropped-in `custom/game.json` cannot replace a built-in prompt
 ### `translate/lang_detect.py`
 `detect_script(text) -> str`,
 `is_same_language(text, target_lang, source_lang=...) -> (bool, str)`
-(fast path: if the source language equals the target, the API is not called),
+(fast path: if the source language equals the target, the API is not called; an explicit
+`source_lang` decides alone; Cyrillic text matches only a `ru` / `uk` target whose alphabet
+it fits — `uk` also needs one of `ґєії` — and other Cyrillic targets are always translated),
 `LangDetector` (ABC) → `LangidDetector`, `LLMDetector`; `get_detector(engine)`.
 
 ### `cache/store.py` — SQLite cache and history
 Two levels: L1 `OrderedDict` LRU (128 entries) + L2 SQLite (WAL),
-one connection per thread.
+one connection per thread (workers close theirs with `close_connection()` before they end).
 
 ```sql
 CREATE TABLE translations (
@@ -431,14 +438,15 @@ CREATE TABLE translations (
 API: `get_cached(text, src, tgt, *, domain_id='general') -> str|None`,
 `save_to_cache(text, src, tgt, translation, *, domain_id='general')`,
 `warm_cache(limit=50) -> int`, `get_all_history(limit=200) -> list[dict]`,
-`clear_history()`.
+`clear_history()` (also empties L1).
 Size is capped by `config.CACHE_MAX_ITEMS` (the oldest entries by `timestamp` are evicted).
 DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
 
 ### `settings/` — persistence
 - `config_manager`: `DEFAULTS` (the canonical list of keys — **unknown keys are
   dropped on save**), `load_config()`, `save_config(cfg)`,
-  `get(key)`, `set_value(key, value)`. File: `%APPDATA%\translator-overlay\settings.json`.
+  `get(key)`, `set_value(key, value)`. File: `%APPDATA%\translator-overlay\settings.json`,
+  written atomically (temp file + `os.replace`).
 - `settings/__init__.py`: `get_api_key(provider)`, `set_api_key`,
   `get_primary_provider()`, `save_primary_provider()`,
   `is_fallback_enabled()`, `set_fallback_enabled()`.
@@ -452,6 +460,8 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
 `_extract_strips` — splits tall regions into strips for accuracy.
 - Models: PP-OCRv6 small detector + PP-OCRv5 mobile recognizer (`eslav` = ru/uk/be + Latin
   when `OCR_LANGUAGES` has a Cyrillic code, else `en`); the angle classifier is off.
+  Settings → OCR "Языки распознавания" offers exactly these two sets (`["en", "ru"]` /
+  `["en"]`) as a restart-only setting: the engine is built once per run.
   `_model_dir()` = `%APPDATA%\translator-overlay\ocr_models`, seeded from `rapidocr/models/`
   (`_MODEL_FILES`); a rec model missing there is downloaded once by rapidocr.
 - Device: `OCR_GPU_MODE` `auto` (legacy `gpu` behaves the same) → DirectML when
@@ -596,8 +606,9 @@ TranslatorApp._on_region_selected → _start_translation_pipeline(...)
 TranslationWorker(QThread).run():
    1. capture.screenshot.capture_region()       → PIL.Image
    2. ocr.engine.recognise()                    → str
-      └─ if config.ENABLE_OCR_PREVIEW → ocr_done → OcrPreviewPopup →
-         pipeline restarts with text_override
+      └─ if config.ENABLE_OCR_PREVIEW → ocr_done → OcrPreviewPopup (kept in
+         TranslatorApp._ocr_preview) → pipeline restarts with text_override;
+         OCR errors arrive via translation_done and are shown as an error popup
    3. translate.backend:
       SOURCE_LANG == "auto" ? detect_and_translate() : translate()
          │
@@ -820,16 +831,16 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
 - Very little history has been collected and it is almost all test strings, so the
   baseline in `docs/baseline_eval.md` was computed on 6 pairs and is not statistically
   significant. It has to be recomputed after real use of the app.
-- Not covered by tests: most of the UI layer, `main.py`, `capture/screenshot.py`, `tts/`.
-- **Open: the app crashed once after the second NLLB translation** (2026-09-23 21:32,
+- Not covered by tests: most of the UI layer, `main.py`, `capture/screenshot.py`.
+- **Fixed: the app crashed once after the second NLLB translation** (2026-09-23 21:32,
   WER: `Qt5Core.dll`, `0xc0000409` subcode 7 = `qFatal` → `abort()`), after
-  `NLLB OK` had been logged. Not reproduced headless. Main suspect:
-  `_HomePage._on_text_translated` drops the last reference to a `QThread` that is
-  still running. Diagnostics added for the next occurrence: Qt messages go to
+  `NLLB OK` had been logged. Cause: `_HomePage._on_text_translated` (and the image and
+  update-check slots) dropped the last reference to a `QThread` still returning from
+  `run()`. The workers are now parked in `ui/main_window._running_workers` until
+  `finished`. Diagnostics kept in case it recurs: Qt messages go to
   `app.log` (`qInstallMessageHandler` in `main.py`); `faulthandler` writes all
   thread stacks to `%APPDATA%\translator-overlay\crash.log`; worker/inference
   DEBUG logs in `ui/main_window.py` and `nllb_backend._raw_translate`.
-- The hard-coded `HTTP-Referer` in the OpenRouter headers points to a placeholder repository.
 
 ---
 
@@ -840,8 +851,11 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | File | Coverage |
 |---|---|
 | `tests/test_ocr.py` | preprocessing, box sorting, GPU mode → DirectML, rec language, model dir seeding, confidence filter, strip offsets, GPU → CPU fallback (mocked engine) |
-| `tests/test_lang_detect.py` | script/language detection, "same language" fast path |
-| `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain |
+| `tests/test_lang_detect.py` | script/language detection, "same language" fast path (ru / uk / other Cyrillic, explicit source) |
+| `tests/test_llm_resilience.py` | error classification, retry/backoff, moving along the provider chain, per-provider models, client timeouts, no non-streaming repeat of an API error, coalescing timeout |
+| `tests/test_config_manager_save.py` | atomic `settings.json` write: no leftovers, a failed write keeps the old file |
+| `tests/test_tts_engine.py` | one pyttsx3 engine, created once and used only on the TTS worker thread |
+| `tests/test_worker_lifetime.py` | a main-window worker survives its result slot dropping the last reference |
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
 | `tests/test_update_banner.py` | update check at launch and every 30 min, no check while one runs or an update downloads, each version announced once |
@@ -853,7 +867,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_cuda_download.py` | GPU offer states, cuBLAS wheel checksum / DLL-only unpacking / cleanup on failure and cancel, search order, NLLB device setting vs env |
 | `tests/test_cuda_support.py` | cuBLAS search order, PATH preparation, NLLB CPU fallback for every CUDA failure mode (fake `ctranslate2`, no GPU needed) |
 | `tests/test_theme.py` | every palette defines every token, unknown `UI_THEME` → amber, builders return resolved sheets, WCAG contrast ≥ 4.5 for text/muted/text_soft/accent on bg/panel and on_accent on accent, icons render |
-| `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings light "Сохранить" and are saved + restart offered only from it |
+| `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings (incl. OCR languages) light "Сохранить" and are saved + restart offered only from it |
 | `tests/test_popup_size.py` | saved popup size parsing/clamping, written once when a resize drag ends |
 | `tests/test_title_bar.py` | a click on the drawn caption activates the main window (drag works while the popup is active) |
 | `tests/test_setup_wizard.py` | when the first-run wizard shows (fresh / upgraded / unfinished), what each mode saves, offline build list and preselection, closing never drops a running worker |
@@ -861,7 +875,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_popup_drag.py` | popup top edge drags instead of resizing; a drag goes to the OS move loop, manual move as fallback |
 | `tests/test_backend_dispatch.py` | `translate.backend` routing: NMT clients with a per-backend cache, NLLB used when it loads, missing model → API with a one-shot notice, a loaded model's error is not hidden, `preload()` never raises |
 | `tests/test_nllb_backend.py` | NLLB with a stubbed model (fake `ctranslate2` / `sentencepiece`): model discovery, load errors, FLORES codes and token layout, cache namespace, fast path, unsupported language, inference errors, singleton reset |
-| `tests/test_cache_store.py` | L1 LRU and L2 SQLite cache: round trip, key parts, eviction on both levels, `warm_cache()`, history order, `clear_history()`, rebuild of an old schema |
+| `tests/test_cache_store.py` | L1 LRU and L2 SQLite cache: round trip, key parts, eviction on both levels, `warm_cache()`, history order, `clear_history()`, rebuild of an old schema, `close_connection()` in a worker thread |
 | `tests/test_training_data.py` | `training/` splits without leakage (stratified abbreviation split, phrase split, disjoint FLORES pools) and the metrics in `training/evaluate.py` (keep-rate, chrF groups, paired bootstrap) |
 | `tests/test_training_pipeline.py` | `configs/train/*.yaml` validation and `{name}` expansion, the shipped v1/v2 hyperparameters, dataset hash and git provenance, `training/pipeline.py` stage commands and overwrite guards, config → `finetune_lora.py` defaults (no torch) |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |

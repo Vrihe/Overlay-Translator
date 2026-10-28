@@ -192,6 +192,18 @@ class TestTranslate(_TempDirTest):
         self.assertEqual(prefix, [["rus_Cyrl"]])
         self.assertEqual(chunks, ["GOOD GAME"])
 
+    def test_unload_during_inference_does_not_break_the_running_pass(self):
+        self.backend.ensure_loaded()
+        translator = self.backend._translator
+        original = translator.translate_batch
+
+        def unload_midway(*args, **kwargs):
+            self.backend.unload()  # Settings changed the device / path meanwhile
+            return original(*args, **kwargs)
+
+        translator.translate_batch = unload_midway
+        self.assertEqual(self.backend.translate("good game"), "GOOD GAME")
+
     def test_second_call_is_served_from_the_cache(self):
         self.backend.translate("good game")
         self.backend.translate("good game")

@@ -462,7 +462,12 @@ class NllbBackend:
 
     def _raw_translate(self, text: str, src_code: str, tgt_code: str) -> str:
         """Run one NLLB forward pass. Assumes the model is loaded."""
-        pieces = self._sp.encode(text, out_type=str)
+        # Local references: unload() (a settings change, "load model") may clear the
+        # attributes mid-inference; these keep the model alive until this pass ends.
+        translator, sp = self._translator, self._sp
+        if translator is None or sp is None:
+            raise NllbTranslationError(tr("Локальная модель была выгружена во время перевода. Повторите запрос."))
+        pieces = sp.encode(text, out_type=str)
         source = [src_code] + pieces + ["</s>"]
 
         # Diagnostic: which thread calls, which Translator object, how many at once.
@@ -472,12 +477,12 @@ class NllbBackend:
         _logger.debug(
             "NLLB inference start | thread=%s | translator=%#x | device=%s | in-flight=%d",
             threading.current_thread().name,
-            id(self._translator),
+            id(translator),
             self._active_device,
             inflight,
         )
         try:
-            results = self._translator.translate_batch(
+            results = translator.translate_batch(
                 [source],
                 target_prefix=[[tgt_code]],
                 beam_size=self._beam_size,
@@ -491,7 +496,7 @@ class NllbBackend:
         if hypothesis and hypothesis[0] == tgt_code:
             hypothesis = hypothesis[1:]
         hypothesis = [t for t in hypothesis if t not in ("</s>", "<pad>", "<s>")]
-        return self._sp.decode(hypothesis)
+        return sp.decode(hypothesis)
 
     @staticmethod
     def _flores(lang: str) -> str:

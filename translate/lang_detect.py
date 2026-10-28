@@ -18,6 +18,12 @@ from abc import ABC, abstractmethod
 _CYRILLIC_RE = re.compile(r'[\u0400-\u04FF]')
 _LATIN_RE = re.compile(r'[a-zA-Z]')
 
+# Cyrillic alphabets that can be told apart by their letters alone. Other Cyrillic
+# languages (bg, be, sr, ...) are not guessed: their text is always translated.
+_RU_LETTERS = frozenset("абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
+_UK_LETTERS = frozenset("абвгґдеєжзиіїйклмнопрстуфхцчшщьюя")
+_UK_MARKERS = frozenset("ґєії")  # letters Russian lacks
+
 
 def detect_script(text: str) -> str:
     """Determine the writing script of *text* by counting Unicode code points.
@@ -76,7 +82,7 @@ def is_same_language(
 
     Uses a fast multi-tier check (0 ms):
       1. Explicit source_lang setting (if not 'auto')
-      2. Unicode script matching (Cyrillic script -> Russian/Cyrillic target)
+      2. Cyrillic text: its letters must fit the ru / uk alphabet of the target
       3. Offline ML classifier (langid, if installed & confident)
 
     Returns
@@ -92,14 +98,17 @@ def is_same_language(
     # 1. Explicit source_lang check
     if source_lang and source_lang.strip().lower() != "auto":
         src = source_lang.strip().lower()
-        if src == tgt:
-            return True, src
+        return src == tgt, src
 
-    # 2. Fast Unicode Script Check (instant, 0 ms)
-    # If target is Russian (or other Cyrillic language) and text is Cyrillic:
-    script = detect_script(text)
-    if script == "cyrillic" and tgt in ("ru", "uk", "bg", "be", "mk", "sr", "kk"):
-        return True, "ru"
+    # 2. Cyrillic text (instant, 0 ms). langid confuses ru / uk / bg, so it is not
+    # asked: a Ukrainian text must not pass for Russian and stay untranslated.
+    if detect_script(text) == "cyrillic":
+        letters = {c for c in text.lower() if _CYRILLIC_RE.match(c)}
+        if tgt == "ru" and letters <= _RU_LETTERS:
+            return True, "ru"
+        if tgt == "uk" and letters <= _UK_LETTERS and letters & _UK_MARKERS:
+            return True, "uk"
+        return False, ""
 
     # 3. Offline ML classification via langid
     try:
@@ -187,9 +196,9 @@ class LLMDetector(LangDetector):
         )
         user_prompt = f"Detect the language:\n\n{text}"
 
-        if provider == "openrouter":
-            import config
+        import config
 
+        if provider == "openrouter":
             response = client.chat.completions.create(
                 model=config.OPENROUTER_MODEL,
                 messages=[
@@ -197,7 +206,7 @@ class LLMDetector(LangDetector):
                     {"role": "user", "content": user_prompt},
                 ],
                 extra_headers={
-                    "HTTP-Referer": "https://github.com/your-username/overlay-translator",
+                    "HTTP-Referer": f"https://github.com/{config.GITHUB_REPO}",
                     "X-Title": "Overlay Translator",
                 },
             )
@@ -205,7 +214,7 @@ class LLMDetector(LangDetector):
         else:
             # Anthropic
             message = client.messages.create(
-                model="claude-haiku-4-20250414",
+                model=config.ANTHROPIC_DETECT_MODEL,
                 max_tokens=8,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],

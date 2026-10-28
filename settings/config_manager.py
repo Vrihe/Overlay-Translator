@@ -127,7 +127,10 @@ def load_config() -> dict[str, Any]:
 
 
 def save_config(cfg: dict[str, Any]) -> None:
-    """Write *cfg* to ``settings.json`` (atomic-ish via write + flush).
+    """Write *cfg* to ``settings.json`` atomically (temp file + ``os.replace``).
+
+    A crash mid-write must not leave a broken file: a corrupted one is read as
+    defaults, which resets every setting and reopens the first-run wizard.
 
     Only known keys from DEFAULTS are persisted; unknown keys are ignored
     to keep the file tidy.
@@ -138,8 +141,12 @@ def save_config(cfg: dict[str, Any]) -> None:
     _cache = dict(DEFAULTS)
     _cache.update(filtered)
 
-    with open(_CONFIG_FILE, "w", encoding="utf-8") as f:
+    tmp = f"{_CONFIG_FILE}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(_cache, f, indent=2, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, _CONFIG_FILE)
 
 
 def get(key: str) -> Any:

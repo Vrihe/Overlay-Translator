@@ -13,7 +13,7 @@ import unittest
 # Ensure project root is on the path so bare ``import config`` works.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from translate.lang_detect import LangidDetector, get_detector
+from translate.lang_detect import LangidDetector, get_detector, is_same_language
 
 # ── LangidDetector accuracy tests ────────────────────────
 
@@ -111,6 +111,29 @@ class TestGetDetector(unittest.TestCase):
     def test_unknown_engine_raises(self):
         with self.assertRaises(ValueError):
             get_detector("nonexistent_engine_xyz")
+
+
+class TestIsSameLanguage(unittest.TestCase):
+    """The fast path that skips translation must not swallow a real ru <-> uk translation."""
+
+    def test_explicit_source_decides(self):
+        self.assertEqual(is_same_language("Привіт, як справи?", "ru", source_lang="uk"), (False, "uk"))
+        self.assertEqual(is_same_language("hello", "en", source_lang="en"), (True, "en"))
+
+    def test_russian_text_for_russian_target(self):
+        self.assertEqual(is_same_language("Привет, как дела?", "ru"), (True, "ru"))
+
+    def test_ukrainian_text_is_not_russian(self):
+        self.assertFalse(is_same_language("Привіт, як справи? Їжак з'їв яблуко.", "ru")[0])
+
+    def test_ukrainian_text_for_ukrainian_target(self):
+        self.assertEqual(is_same_language("Привіт, як справи?", "uk"), (True, "uk"))
+
+    def test_russian_text_is_not_ukrainian(self):
+        self.assertFalse(is_same_language("Привет, как дела? Это мы.", "uk")[0])
+
+    def test_other_cyrillic_targets_are_always_translated(self):
+        self.assertFalse(is_same_language("Привет, как дела?", "bg")[0])
 
 
 if __name__ == "__main__":
