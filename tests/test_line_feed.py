@@ -101,7 +101,9 @@ class TestAppFeeds(unittest.TestCase):
     ANCHOR = QRect(10, 20, 300, 200)
 
     def setUp(self):
-        import main
+        from tests.main_import import import_main
+
+        main = import_main()
 
         self.main = main
         self.app = mock.Mock()

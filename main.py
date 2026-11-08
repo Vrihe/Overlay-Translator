@@ -438,6 +438,12 @@ class TranslatorApp:
             _instance_guard.listen(self._activate_bridge.triggered.emit)
 
         self._selector: RegionSelector | None = None
+        # The selector opens from a global hotkey while another app has the focus, and
+        # Windows refuses to hand it the foreground: Esc never reaches its keyPressEvent.
+        # A global Esc hook lives as long as the selector does.
+        self._selector_esc_bridge = HotkeyBridge()
+        self._selector_esc_bridge.triggered.connect(self._cancel_selector)
+        self._selector_esc_handle = None
         self._popup: ResultPopup | None = None
         self._worker: TranslationWorker | None = None
         self._request_seq = 0  # id of the newest translation request
@@ -511,13 +517,37 @@ class TranslatorApp:
             self._selector.selection_cancelled.connect(self._on_cancelled)
             self._selector.destroyed.connect(self._on_selector_destroyed)
             self._selector.activate()
+            self._hook_selector_esc()
         except Exception:
             logging.exception("Error showing region selector")
+
+    def _hook_selector_esc(self) -> None:
+        if self._selector_esc_handle is not None or self._hotkeys_paused:
+            return
+        try:
+            self._selector_esc_handle = keyboard.add_hotkey(
+                "esc", self._selector_esc_bridge.triggered.emit, suppress=True
+            )
+        except Exception:
+            logging.exception("Failed to hook Esc for the region selector")
+
+    def _unhook_selector_esc(self) -> None:
+        handle, self._selector_esc_handle = self._selector_esc_handle, None
+        if handle is not None:
+            try:
+                keyboard.remove_hotkey(handle)
+            except Exception:
+                pass  # already gone (hotkeys paused / unhooked)
+
+    def _cancel_selector(self) -> None:
+        if self._selector is not None:
+            self._selector.cancel()
 
     def _on_cancelled(self) -> None:
         logging.debug("Region selection cancelled by user.")
 
     def _on_selector_destroyed(self) -> None:
+        self._unhook_selector_esc()
         self._selector = None
 
     # ── Pipeline: capture → OCR → translate → popup ──────

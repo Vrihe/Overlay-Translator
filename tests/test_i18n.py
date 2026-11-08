@@ -95,6 +95,14 @@ class TestTr(unittest.TestCase):
         set_language("ru")
         self.assertEqual(tr("Ошибка: {error}", error="boom"), "Ошибка: boom")
 
+    def test_a_text_placeholder_works(self):
+        # The translation error popup and the history export use {text}; it once raised
+        # TypeError, which left the popup on "Переводим…" forever.
+        set_language("en")
+        self.assertEqual(tr("Оригинал:   {text}", text="abc"), "Source:      abc")
+        set_language("ru")
+        self.assertEqual(tr("Оригинал:   {text}", text="abc"), "Оригинал:   abc")
+
     def test_missing_entry_falls_back_to_source(self):
         set_language("en")
         self.assertEqual(tr("Нет такой строки"), "Нет такой строки")
