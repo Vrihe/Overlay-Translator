@@ -1,6 +1,9 @@
 site_name: Translator Overlay
 site_description: Screen region translator for Windows with offline OCR and an optional offline NLLB model
-site_url: https://vrihe.github.io/Overlay-Translator/
+# The docs live under /docs/ of the Pages site; the landing page is the site root.
+# CI sets DOCS_URL and SITE_URL from landing/site.json (the one place for the base URL);
+# the defaults below are for a local `mkdocs build`.
+site_url: !ENV [DOCS_URL, "https://vrihe.github.io/Overlay-Translator/docs/"]
 repo_url: https://github.com/Vrihe/Overlay-Translator
 repo_name: Vrihe/Overlay-Translator
 edit_uri: edit/main/docs/
@@ -23,6 +26,10 @@ theme:
       toggle:
         icon: material/weather-sunny
         name: Light mode
+
+extra:
+  # The header logo links to the landing page instead of the docs home.
+  homepage: !ENV [SITE_URL, "https://vrihe.github.io/Overlay-Translator/"]
 
 markdown_extensions:
   - admonition

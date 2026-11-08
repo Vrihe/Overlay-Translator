@@ -121,3 +121,6 @@ data/*
 
 # LoRA checkpoints and training runs
 checkpoints/
+
+# Assembled Pages site (landing/ + built docs), see scripts/build_site.py
+_site/

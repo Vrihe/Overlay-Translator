@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Vrihe/Overlay-Translator/badges/coverage.json)](https://github.com/Vrihe/Overlay-Translator/actions/workflows/ci.yml?query=branch%3Amain)
-[![Docs](https://img.shields.io/badge/docs-site-blue)](https://vrihe.github.io/Overlay-Translator/)
+[![Docs](https://img.shields.io/badge/docs-site-blue)](https://vrihe.github.io/Overlay-Translator/docs/)
+
+**Project page and download: https://vrihe.github.io/Overlay-Translator/**
 
 **Translate any text on your screen with one hotkey.** Select a game chat, a stream, a program
 without a translation — the translation appears in a popup right next to it. Works without an API
@@ -26,7 +28,7 @@ key, and can run fully offline with a local model tuned for game chat (`wts`, `l
 3. **Press `Ctrl+Shift+R`** and drag over any text. Settings: `Ctrl+Shift+O`.
 
 Windows 10/11, 64-bit. Running from source, building, configuration and the model are covered in
-the [documentation](https://vrihe.github.io/Overlay-Translator/) (also in [`docs/`](docs/index.md)).
+the [documentation](https://vrihe.github.io/Overlay-Translator/docs/) (also in [`docs/`](docs/index.md)).
 
 ---
 

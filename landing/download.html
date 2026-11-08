@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download Translator Overlay for Windows 10 and 11</title>
+<meta name="description" content="Download the Translator Overlay installer for Windows 10/11 (64-bit), verify its SHA-256, and see what to do about the SmartScreen warning. Free screen translator with OCR.">
+<link rel="canonical" href="{{SITE_URL}}/download.html">
+<link rel="alternate" hreflang="en" href="{{SITE_URL}}/download.html">
+<link rel="alternate" hreflang="ru" href="{{SITE_URL}}/ru/download.html">
+<link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/download.html">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="stylesheet" href="css/style.css">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Translator Overlay">
+<meta property="og:title" content="Download Translator Overlay for Windows">
+<meta property="og:description" content="The installer for Windows 10/11 (64-bit), SHA-256 check and system requirements.">
+<meta property="og:url" content="{{SITE_URL}}/download.html">
+<meta property="og:image" content="{{SITE_URL}}/img/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Translator Overlay translating a game chat line into Russian in a popup">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="ru_RU">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Download Translator Overlay for Windows">
+<meta name="twitter:description" content="The installer for Windows 10/11 (64-bit), SHA-256 check and system requirements.">
+<meta name="twitter:image" content="{{SITE_URL}}/img/og-image.png">
+<meta name="twitter:image:alt" content="Translator Overlay translating a game chat line into Russian in a popup">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="img/favicon.png" width="28" height="28" alt="">Translator Overlay</a>
+    <nav class="nav" aria-label="Main">
+      <a href="./#features">Features</a>
+      <a href="download.html" aria-current="page">Download</a>
+      <a href="docs/">Docs</a>
+      <a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a>
+      <span class="lang" aria-label="Language">
+        <span aria-current="true">EN</span><a href="ru/download.html" hreflang="ru" lang="ru">RU</a>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Download Translator Overlay</h1>
+    <p class="lead">The installer for Windows 10 and 11, 64-bit. Free, no account, no administrator rights needed.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/Vrihe/Overlay-Translator/releases/latest" data-dl>Download for Windows<small data-dl-meta>Latest release on GitHub</small></a>
+    </div>
+    <p class="muted small">The file is named <code>TranslatorOverlay-Setup-&lt;version&gt;.exe</code>. All versions: <a href="https://github.com/Vrihe/Overlay-Translator/releases">Releases</a>.</p>
+  </div>
+</section>
+
+<section id="requirements" aria-labelledby="req-h">
+  <div class="wrap">
+    <h2 id="req-h">System requirements</h2>
+    <ul class="checks">
+      <li><strong>Windows 10 or 11, 64-bit.</strong> Windows 10 version 2004 or newer is needed for all features.</li>
+      <li><strong>No GPU required.</strong> OCR uses any DirectX 12 GPU (NVIDIA, AMD, Intel) and falls back to the CPU by itself. An NVIDIA GPU with CUDA 12 only speeds up the optional local model.</li>
+      <li><strong>Internet</strong> for the cloud translation modes, for the first-launch OCR model download (about 8 MB) and for the optional local model (about 620 MB). With the local model, translation itself needs no network.</li>
+      <li>Installs for the current user without administrator rights, or for all users if you choose so on the first page.</li>
+    </ul>
+    <p class="muted">Not for Linux or macOS. Running from source is described in the <a href="docs/installation/#from-source">installation guide</a>.</p>
+  </div>
+</section>
+
+<section id="smartscreen" aria-labelledby="ss-h">
+  <div class="wrap">
+    <h2 id="ss-h">SmartScreen says "Windows protected your PC"</h2>
+    <div class="note">
+      <p style="margin:0"><strong>Honest note:</strong> the installer is not code-signed yet. Windows therefore treats every new release as an unknown publisher, and some antivirus programs also flag the app because it installs a global keyboard hook (that is how the hotkeys work in any window). Until it is signed, the way to trust a download is to check its SHA-256 below.</p>
+    </div>
+    <ol class="checks">
+      <li>Check the SHA-256 of the file as shown below.</li>
+      <li>In the SmartScreen window click <strong>More info</strong>.</li>
+      <li>Click <strong>Run anyway</strong>.</li>
+    </ol>
+    <p>If your antivirus quarantines the app, restore it and add an exception for the install folder, or <a href="docs/installation/#from-source">run it from source</a>.</p>
+  </div>
+</section>
+
+<section id="sha256" aria-labelledby="sha-h">
+  <div class="wrap">
+    <h2 id="sha-h">Verify the download (SHA-256)</h2>
+    <p>The SHA-256 of the installer is in the release notes of every release. Compare it with the checksum of your file in PowerShell:</p>
+<pre><code>Get-FileHash .\TranslatorOverlay-Setup-&lt;version&gt;.exe -Algorithm SHA256</code></pre>
+    <p>Replace <code>&lt;version&gt;</code> with the version in the file name. The <code>Hash</code> value must be the same as in the release notes. If it is different, do not run the file and <a href="https://github.com/Vrihe/Overlay-Translator/issues">open an issue</a>.</p>
+    <p class="muted">The in-app updater checks the SHA-256 of a new installer by itself before installing it.</p>
+  </div>
+</section>
+
+<section id="next" aria-labelledby="next-h">
+  <div class="wrap">
+    <h2 id="next-h">After installing</h2>
+    <ol class="checks">
+      <li>The first-run wizard asks how to translate: online without a key, an LLM with your key, or offline (downloads the local model).</li>
+      <li>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> and drag over any text. Settings open with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>.</li>
+      <li>Uninstalling keeps <code>%APPDATA%\translator-overlay\</code> (settings, history, downloaded models); delete that folder to remove everything.</li>
+    </ol>
+    <p><a href="docs/">Read the documentation</a> or go back to the <a href="./">home page</a>.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <ul>
+      <li><a href="download.html">Download</a></li>
+      <li><a href="docs/">Documentation</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/releases">Releases</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/blob/main/CHANGELOG.md">Changelog</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/issues">Report an issue</a></li>
+      <!--discord:start-->
+      <!-- DISCORD PLACEHOLDER: this link appears once "discord_url" is set in landing/site.json -->
+      <li><a href="{{DISCORD_URL}}">Discord</a></li>
+      <!--discord:end-->
+    </ul>
+    <p><strong>Licenses.</strong> The source code is released under the <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/LICENSE">MIT License</a>. The optional offline NLLB-200 model and every build made from it are licensed separately under <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/MODEL_LICENSE.md">CC-BY-NC-4.0</a>, which allows non-commercial use only.</p>
+    <p><strong>Disclaimer.</strong> Translator Overlay is an unofficial, independent project. It is not affiliated with, endorsed by or connected to any game it can be used with, or to the publishers of such games. All game names and trademarks belong to their owners.</p>
+  </div>
+</footer>
+
+<script src="js/download.js" defer></script>
+</body>
+</html>
