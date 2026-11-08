@@ -148,8 +148,6 @@ MESSAGES: dict[str, str] = {
     "Скопировать перевод": "Copy the translation",
     # ── ui/settings_dialog.py ──
     "Автоопределение": "Auto-detect",
-    "OCR → LLM (текстовый)": "OCR → LLM (text)",
-    "LLM Vision (картинка)": "LLM Vision (image)",
     "Оригинал (напр. HP)": "Source (e.g. HP)",
     "Перевод (напр. ОЗ)": "Translation (e.g. ОЗ)",
     "Редактирование профиля": "Edit profile",
@@ -187,7 +185,6 @@ MESSAGES: dict[str, str] = {
     "⚠ Не удалось скачать модель: {error}": "⚠ Could not download the model: {error}",
     "Скачивание отменено.": "Download cancelled.",
     "Исходный язык:": "Source language:",
-    "Движок перевода:": "Translation engine:",
     "ID модели:": "Model ID:",
     "Точный ID модели с openrouter.ai/models, например {example}. Пусто — {default}.": "The exact model id from openrouter.ai/models, e.g. {example}. Empty — {default}.",
     "Потоковый вывод перевода (Streaming)": "Stream the translation as it is generated",

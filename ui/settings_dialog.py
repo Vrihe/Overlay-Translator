@@ -101,13 +101,6 @@ def _ocr_language_set(langs) -> str:
     return "eslav" if codes & _CYRILLIC_OCR_LANGS or not codes else "en"
 
 
-_ENGINES = [
-    ("llm_text", N_("OCR → LLM (текстовый)")),
-    ("llm_vision", N_("LLM Vision (картинка)")),
-    ("api", "OCR → Google/DeepL API"),
-]
-
-
 class _ExampleRowWidget(QWidget):
     """Row widget containing source text, translation text, and a remove button."""
 
@@ -739,13 +732,6 @@ class SettingsWidget(QWidget):
         self._sw_auto_lang.toggled.connect(self._on_auto_lang_toggled)
         self._src_lang_combo.currentIndexChanged.connect(self._sync_auto_lang_switch)
         trans_layout.addWidget(self._sw_auto_lang)
-
-        # Translation engine
-        self._engine_combo = QComboBox()
-        self._engine_combo.setStyleSheet(self._INPUT_CSS)
-        for eng_id, eng_label in _ENGINES:
-            self._engine_combo.addItem(tr(eng_label), eng_id)
-        trans_layout.addLayout(self._field(tr("Движок перевода:"), self._engine_combo))
 
         # LLM model: any OpenRouter model id, typed by the user (free models come and go,
         # so the app ships no preset list). Empty → DEFAULTS["llm_model"].
@@ -1805,11 +1791,6 @@ class SettingsWidget(QWidget):
         if idx >= 0:
             self._lang_combo.setCurrentIndex(idx)
 
-        # Translation engine.
-        idx_eng = self._engine_combo.findData(config.TRANSLATION_ENGINE)
-        if idx_eng >= 0:
-            self._engine_combo.setCurrentIndex(idx_eng)
-
         # LLM model: the saved id as typed.
         self._model_edit.setText(config.LLM_MODEL or "")
 
@@ -1858,7 +1839,6 @@ class SettingsWidget(QWidget):
             self._domain_combo,
             self._src_lang_combo,
             self._lang_combo,
-            self._engine_combo,
             self._nllb_version_combo,
             self._live_sensitivity_combo,
             self._nllb_device_combo,
@@ -1984,7 +1964,6 @@ class SettingsWidget(QWidget):
         cfg["active_domain"] = self._domain_combo.currentData() or cfg.get("active_domain", "general")
         cfg["source_language"] = self._src_lang_combo.currentData() or cfg.get("source_language", "auto")
         cfg["target_language"] = self._lang_combo.currentData() or cfg["target_language"]
-        cfg["translation_engine"] = self._engine_combo.currentData() or cfg["translation_engine"]
         cfg["llm_model"] = new_model
         cfg["popup_timeout_sec"] = self._timeout_spin.value()
         cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"

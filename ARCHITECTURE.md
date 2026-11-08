@@ -833,8 +833,10 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
   `%APPDATA%` paths, `.ico` icon.
 - `config.py` replaces itself in `sys.modules`, which is unusual: static analysers
   and IDEs cannot see its attributes, and `from config import X` does not behave as expected.
-- The `llm_vision` and `api` engines are listed in `_ENGINES` (UI), but the
-  `TranslationWorker` pipeline always takes the OCR → LLM text path.
+- `translation_engine` (`TRANSLATION_ENGINE`) is a leftover key the pipeline never reads;
+  its "Движок перевода" combo was removed from Settings because switching it to
+  "OCR → Google/DeepL API" looked like choosing Google but changed nothing. The backend
+  is chosen only by `translation_backend` (Settings → "Бэкенд перевода").
 - The local NLLB backend **does not use domain profiles** (prompts and few-shot):
   a seq2seq model cannot take them, so the translation context has no effect on it.
   That is exactly what the upcoming fine-tuning is for.

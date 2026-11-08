@@ -44,6 +44,10 @@ class TestModelField(SettingsWidgetCase):
         self.assertFalse(hasattr(settings_dialog, "_OPENROUTER_MODELS"))
         self.assertFalse(hasattr(self.widget, "_model_combo"))
 
+    def test_no_dead_engine_switch(self):
+        # "Движок перевода" looked like the backend choice but the pipeline never read it.
+        self.assertFalse(hasattr(self.widget, "_engine_combo"))
+
 
 class TestOneDefaultModel(unittest.TestCase):
     def test_static_openrouter_model_matches_the_settings_default(self):
