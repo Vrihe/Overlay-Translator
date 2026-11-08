@@ -78,11 +78,18 @@ class ResultPopup(QWidget):
         is_error: bool = False,
         is_loading: bool = False,
         notice: str = "",
+        blocks: list[tuple[str, str]] | None = None,
         parent=None,
     ):
         super().__init__(parent)
 
         self._translated = translated_text
+        # Translated blocks of one region, newest first, as (time stamp, text): with more
+        # than one, each gets a separator and the older ones are dimmed below the newest.
+        self._blocks = blocks or []
+        # Widgets from the top through the newest block: the window fits these, never
+        # the older blocks, so the history scrolls instead of growing the popup.
+        self._fit_widgets: list[QWidget] = []
         self._anchor = anchor
         self._is_error = is_error
         self._is_loading = is_loading
@@ -200,6 +207,7 @@ class ResultPopup(QWidget):
     # ── UI ────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
+        self._fit_widgets = []  # refilled by _add_blocks; the old widgets are deleted below
         if hasattr(self, "_card") and self._card is not None:
             self._card.setParent(None)
             self._card.deleteLater()
@@ -309,18 +317,54 @@ class ResultPopup(QWidget):
                 err = self._make_label(self._translated, size=10.5, color=p.error)
                 content_layout.addWidget(err)
             else:
-                tl = self._make_label(self._translated, size=11, color=p.text, bold=True)
-                content_layout.addWidget(tl)
+                self._add_blocks(content_layout, p)
 
             # Backend notice (e.g. local NLLB model unavailable → API was used).
             # Kept out of self._translated so copy/TTS still yield the clean text.
             if self._notice:
                 note = self._make_label(f"⚠ {self._notice}", size=8, color=p.warn)
-                content_layout.addWidget(note)
+                if self._is_error or len(self._blocks) < 2:
+                    content_layout.addWidget(note)
+                else:  # right under the newest block, above the history
+                    content_layout.insertWidget(len(self._fit_widgets), note)
+                    self._fit_widgets.append(note)
 
         self._scroll_area.setWidget(scroll_content)
         card_layout.addWidget(self._scroll_area)
         layout.addWidget(self._card)
+
+    def _add_blocks(self, content_layout: QVBoxLayout, p) -> None:
+        """The translation; with a region's history, newest first under time separators."""
+        self._fit_widgets = []
+        if len(self._blocks) < 2:
+            content_layout.addWidget(self._make_label(self._translated, size=11, color=p.text, bold=True))
+            return
+        for index, (stamp, text) in enumerate(self._blocks):
+            newest = index == 0
+            separator = self._block_separator(stamp, p)
+            label = self._make_label(text, size=11 if newest else 10, color=p.text if newest else p.muted, bold=newest)
+            content_layout.addWidget(separator)
+            content_layout.addWidget(label)
+            if newest:
+                self._fit_widgets = [separator, label]
+
+    @staticmethod
+    def _block_separator(stamp: str, p) -> QWidget:
+        """A thin rule with the block's time: ``─ 21:42:10 ─────────``."""
+        row = QWidget()
+        row.setStyleSheet("background: transparent;")
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 4, 0, 0)
+        layout.setSpacing(6)
+        time_label = QLabel(stamp)
+        time_label.setTextFormat(Qt.PlainText)
+        time_label.setStyleSheet(theme.text_css(p.muted, 8))
+        rule = QFrame()
+        rule.setFixedHeight(1)
+        rule.setStyleSheet(f"background: {p.line}; border: none;")
+        layout.addWidget(time_label)
+        layout.addWidget(rule, 1)
+        return row
 
     def _icon_button(self, name: str, tooltip: str, *, danger: bool = False) -> QPushButton:
         p = theme.current()
@@ -431,7 +475,14 @@ class ResultPopup(QWidget):
     # ── In-place content update ──────────────────────────
 
     def update_content(
-        self, source_text: str, translated_text: str, *, is_error: bool = False, notice: str = "", activate: bool = True
+        self,
+        source_text: str,
+        translated_text: str,
+        *,
+        is_error: bool = False,
+        notice: str = "",
+        activate: bool = True,
+        blocks: list[tuple[str, str]] | None = None,
     ) -> None:
         """Update popup content from loading state to final result in-place,
         fitting the window snugly to the translated content size.
@@ -453,6 +504,9 @@ class ResultPopup(QWidget):
         self._is_error = is_error
         self._translated = translated_text
         self._notice = notice
+        self._blocks = [] if is_error else (blocks or [])
+        if len(self._blocks) > 1:
+            scroll = None  # the newest block is on top: show it, not the old scroll spot
 
         saved_pos = self.pos()
 
@@ -515,12 +569,33 @@ class ResultPopup(QWidget):
         if content is not None:
             self.layout().activate()
             viewport = self._scroll_area.viewport()
-            needed = (
-                content.heightForWidth(viewport.width()) if content.hasHeightForWidth() else content.sizeHint().height()
-            )
+            if self._fit_widgets:
+                # The scroll area's hint counts the whole history: size to the newest block
+                # exactly (shrinking too), the older blocks scroll below it. Measured from
+                # the layout, not the viewport, whose geometry is stale before the first show.
+                margins = self._card.layout().contentsMargins()
+                needed = self._newest_block_height(w - margins.left() - margins.right())
+                chrome = self.sizeHint().height() - self._scroll_area.sizeHint().height()
+                h = max(self._MIN_HEIGHT, min(self._MAX_HEIGHT, chrome + needed))
+                self.resize(w, h)
+                return
+            else:
+                needed = (
+                    content.heightForWidth(viewport.width())
+                    if content.hasHeightForWidth()
+                    else content.sizeHint().height()
+                )
             if needed > viewport.height():
                 h = min(self._MAX_HEIGHT, self.height() + needed - viewport.height())
                 self.resize(w, h)
+
+    def _newest_block_height(self, width: int) -> int:
+        """Height of the content down to the end of the newest block (and its notice)."""
+        spacing = self._scroll_area.widget().layout().spacing()
+        heights = [
+            w.heightForWidth(width) if w.hasHeightForWidth() else w.sizeHint().height() for w in self._fit_widgets
+        ]
+        return sum(heights) + spacing * (len(heights) - 1)
 
     # ── Edge detection & Mouse Resizing / Dragging ────────
 
@@ -838,6 +913,7 @@ def show_result(
     existing_popup: ResultPopup | None = None,
     activate: bool = True,
     position: QPoint | None = None,
+    blocks: list[tuple[str, str]] | None = None,
 ) -> ResultPopup | None:
     """Display translation result or error via popup or Windows toast according
     to config.NOTIFICATION_TYPE. ``activate=False``: an open popup is updated
@@ -867,11 +943,11 @@ def show_result(
     else:
         if existing_popup is not None and not existing_popup._closing:
             existing_popup.update_content(
-                source_text, translated_text, is_error=is_error, notice=notice, activate=activate
+                source_text, translated_text, is_error=is_error, notice=notice, activate=activate, blocks=blocks
             )
             return existing_popup
         else:
-            popup = ResultPopup(source_text, translated_text, anchor, is_error=is_error, notice=notice)
+            popup = ResultPopup(source_text, translated_text, anchor, is_error=is_error, notice=notice, blocks=blocks)
             if position is not None:
                 popup.place_at(position)
             popup.show()

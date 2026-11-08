@@ -75,6 +75,7 @@ Overlay-Translator/
 │   ├── cuda_download.py    #   Downloads cuBLAS (PyPI wheel, SHA-256) into %APPDATA%\…\cuda
 │   ├── domain_manager.py   #   Domain profiles (prompts + few-shot)
 │   ├── lang_detect.py      #   Language detection, "same language" fast path
+│   ├── line_feed.py        #   new_lines() / RegionFeed: translate only a region's new lines
 │   ├── error_classification.py  # Whether a provider error is retryable
 │   ├── privacy.py          #   loggable(text): keeps captured screen text out of the logs
 │   └── domain_profiles/    #   general.json, chat.json, game.json, documentation.json
@@ -91,7 +92,7 @@ Overlay-Translator/
 ├── ui/                     # PyQt5 widgets
 │   ├── main_window.py      #   MainWindow with a nav rail (Home/Settings/History)
 │   ├── settings_dialog.py  #   * SettingsWidget — all settings; ProfileEditorDialog
-│   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize)
+│   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize, region history blocks)
 │   ├── setup_wizard.py     #   First-run wizard: online (Google) / API key / offline NLLB + download
 │   ├── first_run_dialog.py #   LLM API key entry (when the LLM backend has no key)
 │   ├── nllb_workers.py     #   QThreads shared by settings and wizard: NLLB preload, version list, download
@@ -194,6 +195,14 @@ Overlay-Translator/
   `_replace_worker()` parks a still-running replaced worker in `_retired_workers` until it
   ends. `live=True` (LiveMonitor `region_changed`) keeps the open popup and updates it in
   place with `activate=False` (no focus taken from the watched game or stream).
+  `_feeds` keeps a `translate.line_feed.RegionFeed` per region (`_anchor_key`, at most 20):
+  the last recognised text and up to 5 translated blocks. The worker gets that text as
+  `previous_source` and translates only `new_lines()` (exact repeats by count, OCR-noisy
+  repeats by similarity ≥ 0.85); with no new lines it sets `nothing_new` and translates
+  nothing — a live check then leaves the popup as is, the hotkey shows the previous blocks
+  with a "Новых строк нет" notice. The popup lists the blocks newest first under time
+  separators, older ones dimmed, and fits its height to the newest block only (the history
+  scrolls), so repeated translations never grow it. Errors and `text_override` skip the diff.
   `_set_popup()` makes a popup current; its `destroyed` clears `_popup` only while it is
   still the current one (an old popup dying late used to orphan the new one).
   `_user_popup_pos` remembers, per region (`_anchor_key(anchor)`), where the user dragged a
@@ -612,6 +621,8 @@ TranslatorApp._on_region_selected → _start_translation_pipeline(...)
 TranslationWorker(QThread).run():
    1. capture.screenshot.capture_region()       → PIL.Image
    2. ocr.engine.recognise()                    → str
+      └─ previous_source set → line_feed.new_lines() → only the new lines go on
+         (none → nothing_new, translation skipped)
       └─ if config.ENABLE_OCR_PREVIEW → ocr_done → OcrPreviewPopup (kept in
          TranslatorApp._ocr_preview) → pipeline restarts with text_override;
          OCR errors arrive via translation_done and are shown as an error popup
@@ -889,6 +900,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_background_call.py` | `run_in_background()` runs off the UI thread and reports back on it, errors delivered, result for a deleted widget dropped; first-run key dialog saves only after a successful check |
 | `tests/test_google_client.py` | official Cloud Translation API: key in the `X-goog-api-key` header (never the URL), response parsing, empty response |
 | `tests/test_main_live_and_hotkeys.py` | a LiveMonitor change queued before stop/restart starts nothing; a hotkey that fails to register is shown in the tray |
+| `tests/test_line_feed.py` | new-line diff (order, case/spacing, OCR noise, repeats), feed capped newest-first, popup blocks with separators and a height set by the newest block, per-region feeds in `TranslatorApp` (nothing new: live keeps the popup, hotkey shows the blocks; errors leave the feed) |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

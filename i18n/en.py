@@ -28,6 +28,7 @@ MESSAGES: dict[str, str] = {
     "Проверяем ключ…": "Checking the key…",
     # ── main.py ──
     "Живой автомониторинг запущен": "Live auto-monitoring started",
+    "Новых строк нет": "No new lines",
     "Некорректный ключ Google Cloud Translation API.": "Invalid Google Cloud Translation API key.",
     "Горячая клавиша не работает": "Hotkey not working",
     "Не удалось назначить «{hotkey}». Выберите другое сочетание в настройках.": "Could not register “{hotkey}”. Choose another combination in Settings.",
