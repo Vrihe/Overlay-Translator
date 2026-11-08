@@ -573,9 +573,13 @@ class ResultPopup(QWidget):
                 # The scroll area's hint counts the whole history: size to the newest block
                 # exactly (shrinking too), the older blocks scroll below it. Measured from
                 # the layout, not the viewport, whose geometry is stale before the first show.
-                margins = self._card.layout().contentsMargins()
+                card_layout = self._card.layout()
+                margins = card_layout.contentsMargins()
                 needed = self._newest_block_height(w - margins.left() - margins.right())
-                chrome = self.sizeHint().height() - self._scroll_area.sizeHint().height()
+                # Header row + gaps, from the layout itself: the window's size hint is capped
+                # by the card's maximum height, which made this depend on the history length.
+                header = card_layout.itemAt(0).sizeHint().height()
+                chrome = margins.top() + margins.bottom() + card_layout.spacing() + header
                 h = max(self._MIN_HEIGHT, min(self._MAX_HEIGHT, chrome + needed))
                 self.resize(w, h)
                 return
