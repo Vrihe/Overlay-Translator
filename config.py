@@ -92,6 +92,17 @@ class _LiveConfig:
         set_value("live_sensitivity", value)
 
     @property
+    def LIVE_POPUP_KEEP_OPEN(self):
+        """Live monitoring: the popup it updates stays open (no auto-hide) while it runs."""
+        return _cfg("live_popup_keep_open")
+
+    @LIVE_POPUP_KEEP_OPEN.setter
+    def LIVE_POPUP_KEEP_OPEN(self, value):
+        from settings.config_manager import set_value
+
+        set_value("live_popup_keep_open", value)
+
+    @property
     def SETTINGS_HOTKEY(self):
         """Opens the settings; the SETTINGS_HOTKEY env var overrides settings.json."""
         return os.environ.get("SETTINGS_HOTKEY") or _cfg("settings_hotkey")

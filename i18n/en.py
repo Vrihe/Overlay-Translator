@@ -28,6 +28,8 @@ MESSAGES: dict[str, str] = {
     "Проверяем ключ…": "Checking the key…",
     # ── main.py ──
     "Живой автомониторинг запущен": "Live auto-monitoring started",
+    "Не закрывать окно мониторинга по таймеру": "Keep the monitoring window open (no auto-hide)",
+    "Окно остаётся открытым, пока идёт мониторинг, даже если в чате долго ничего не происходит.": "The window stays open while monitoring runs, even when the chat is quiet for a long time.",
     "Новых строк нет": "No new lines",
     "Некорректный ключ Google Cloud Translation API.": "Invalid Google Cloud Translation API key.",
     "Горячая клавиша не работает": "Hotkey not working",

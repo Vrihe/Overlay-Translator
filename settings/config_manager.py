@@ -78,6 +78,7 @@ DEFAULTS: dict[str, Any] = {
     "settings_hotkey": "ctrl+shift+o",  # open the settings (Settings → Hotkeys)
     "live_interval_sec": 10,  # live monitoring: seconds between checks (1 - 120)
     "live_sensitivity": "medium",  # live monitoring: "high" | "medium" | "low" change threshold
+    "live_popup_keep_open": True,  # live monitoring: its popup ignores the auto-hide timer
     "popup_timeout_sec": 10,
     "popup_size": None,  # [w, h] set by dragging the popup edges; None = fit text
     "notification_type": "popup",  # "popup" | "windows_toast"

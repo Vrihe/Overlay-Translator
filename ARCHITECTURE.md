@@ -55,7 +55,10 @@ Overlay-Translator/
 ├── capture/                # Screen capture
 │   ├── screenshot.py       #   capture_region() via mss
 │   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region (interval,
-│                           #   change threshold: threshold_for("high"|"medium"|"low") = 1.0/2.5/5.0)
+│                           #   change = % of thumbnail cells changed by > 24 levels; aspect-kept
+│                           #   ~256-cell signature; threshold_for("high"|"medium"|"low") = 0.1/0.25/0.6 %.
+│                           #   A new chat line in a 320×726 region ≈ 1 %, a blinking cursor ≈ 0.04 %;
+│                           #   the old 64×64 mean metric gave 0.6 vs a 2.5 threshold and never fired)
 │
 ├── ocr/                    # Text recognition
 │   ├── engine.py           #   RapidOCR singleton, preprocessing, line sorting
@@ -557,7 +560,10 @@ interleaved lines of neighbouring strips and merged them into one row.
   `TranslatorApp._start/_stop_live_monitoring` through `MainWindow.set_monitoring_active`,
   which also keeps the tray toggle in step; the presets dialog has no monitoring button);
   live monitoring `live_interval_sec` spin 1–120 s and `live_sensitivity` combo, autosaved,
-  read by `_start_live_monitoring` at the next start), "Распознавание" (OCR
+  read by `_start_live_monitoring` at the next start; `live_popup_keep_open` switch (default
+  on): the popup a monitor updates skips the auto-hide timer while monitoring runs and gets
+  it back when monitoring stops. Starting a monitor drops the region's `RegionFeed`, so the
+  first check shows the region's whole text again), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
   (language, colour scheme, about/updates).
   **Saving**: every no-restart setting saves itself — a change starts a 400 ms debounce
@@ -908,6 +914,7 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_google_client.py` | official Cloud Translation API: key in the `X-goog-api-key` header (never the URL), response parsing, empty response |
 | `tests/test_main_live_and_hotkeys.py` | a LiveMonitor change queued before stop/restart starts nothing; a hotkey that fails to register is shown in the tray |
 | `tests/test_line_feed.py` | new-line diff (order, case/spacing, OCR noise, repeats), feed capped newest-first, popup blocks with separators and a height set by the newest block, per-region feeds in `TranslatorApp` (nothing new: live keeps the popup, hotkey shows the blocks; errors leave the feed) |
+| `tests/test_live_monitoring.py` | change detector on synthetic chat frames (a new line fires at every sensitivity, a blinking cursor does not), monitoring popup kept open / auto-hide back after stop / option off, monitor start drops the region feed, keep-open switch autosaves |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

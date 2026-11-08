@@ -710,6 +710,9 @@ class TranslatorApp:
 
         if hasattr(self, "_live_monitor") and self._live_monitor is not None:
             self._live_monitor.stop()
+        # Start from scratch: the first check shows the region's whole text. With the old
+        # feed it found "no new lines" and showed nothing once the last popup had closed.
+        self._feeds.pop(_anchor_key(QRect(x1, y1, x2 - x1, y2 - y1)), None)
 
         interval = int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10)
         self._live_monitor = LiveMonitor(

@@ -166,9 +166,15 @@ class ResultPopup(QWidget):
         except Exception:
             pass  # older Windows: the popup stays visible to captures
 
+    def _keeps_open(self) -> bool:
+        """Live monitoring with "keep open" on: the auto-hide timer does not run."""
+        return self._monitoring and bool(getattr(config, "LIVE_POPUP_KEEP_OPEN", True))
+
     def _start_auto_timer(self) -> None:
         if hasattr(self, "_auto_timer") and self._auto_timer.isActive():
             self._auto_timer.stop()
+        if self._keeps_open():
+            return
         self._auto_timer = QTimer(self)
         self._auto_timer.setSingleShot(True)
         self._auto_timer.timeout.connect(self._fade_out_and_close)
@@ -391,10 +397,16 @@ class ResultPopup(QWidget):
 
     def set_monitoring(self, active: bool) -> None:
         """Show the stop button while live monitoring updates this popup."""
+        was_kept_open = self._keeps_open()
         self._monitoring = active
         btn = getattr(self, "_btn_stop_monitoring", None)
         if btn is not None:
             btn.setVisible(active)
+        if self._keeps_open():
+            if hasattr(self, "_auto_timer"):
+                self._auto_timer.stop()
+        elif was_kept_open and not self._is_loading and not self._closing:
+            self._start_auto_timer()  # monitoring stopped: the usual auto-hide again
 
     def _on_stop_monitoring(self) -> None:
         self.set_monitoring(False)

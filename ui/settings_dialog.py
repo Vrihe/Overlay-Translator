@@ -905,6 +905,11 @@ class SettingsWidget(QWidget):
         self._live_sensitivity_combo.addItem(tr("Средняя (рекомендуется)"), "medium")
         self._live_sensitivity_combo.addItem(tr("Низкая — только заметные изменения"), "low")
         live_layout.addLayout(self._field(tr("Чувствительность к изменениям:"), self._live_sensitivity_combo))
+        self._chk_live_keep_open = SwitchRow(tr("Не закрывать окно мониторинга по таймеру"))
+        self._chk_live_keep_open.setToolTip(
+            tr("Окно остаётся открытым, пока идёт мониторинг, даже если в чате долго ничего не происходит.")
+        )
+        live_layout.addWidget(self._chk_live_keep_open)
         pages["regions"].addWidget(grp_live)
 
         # ── Interface section ──
@@ -1818,6 +1823,7 @@ class SettingsWidget(QWidget):
         self._live_interval_spin.setValue(int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10))
         sensitivity = getattr(config, "LIVE_SENSITIVITY", "medium") or "medium"
         self._live_sensitivity_combo.setCurrentIndex(max(0, self._live_sensitivity_combo.findData(sensitivity)))
+        self._chk_live_keep_open.setChecked(bool(getattr(config, "LIVE_POPUP_KEEP_OPEN", True)))
 
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":
@@ -1846,7 +1852,13 @@ class SettingsWidget(QWidget):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
             button.toggled.connect(self._schedule_autosave)
-        for switch in (self._chk_fallback, self._chk_streaming, self._chk_compact_prompt, self._chk_ocr_preview):
+        for switch in (
+            self._chk_fallback,
+            self._chk_streaming,
+            self._chk_compact_prompt,
+            self._chk_ocr_preview,
+            self._chk_live_keep_open,
+        ):
             switch.toggled.connect(self._schedule_autosave)
         for spin in (self._tokens_spin, self._timeout_spin, self._live_interval_spin):
             spin.valueChanged.connect(self._schedule_autosave)
@@ -1952,6 +1964,7 @@ class SettingsWidget(QWidget):
         cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
         cfg["live_interval_sec"] = self._live_interval_spin.value()
         cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
+        cfg["live_popup_keep_open"] = self._chk_live_keep_open.isChecked()
         cfg["nllb_device"] = self._nllb_device_combo.currentData() or "auto"
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
