@@ -193,6 +193,10 @@ thead th { background: var(--surface-2); }
 tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
 tbody th { font-weight: 600; }
 
+/* VirusTotal scan */
+.scan { margin: 1.5rem 0; }
+.scan img { width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+
 /* Lists */
 .checks { padding-left: 1.2rem; }
 .checks li { margin-bottom: 0.6rem; }

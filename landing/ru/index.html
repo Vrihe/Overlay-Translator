@@ -56,6 +56,7 @@
     <nav class="nav" aria-label="Основная навигация">
       <a href="#features">Возможности</a>
       <a href="download.html">Скачать</a>
+      <a href="#safety">Безопасность</a>
       <a href="../docs/">Документация</a>
       <a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a>
       <span class="lang" aria-label="Язык">
@@ -156,6 +157,24 @@
       <li>При запуске приложение запрашивает у GitHub последний релиз; ничего о вас и ваших текстах не отправляется.</li>
     </ul>
     <p><a href="../docs/privacy/">Всё, что отправляется и хранится</a> (на английском).</p>
+  </div>
+</section>
+
+<section id="safety" aria-labelledby="safety-h">
+  <div class="wrap">
+    <h2 id="safety-h">Безопасность: проверка VirusTotal</h2>
+    <p class="lead">Каждый установщик релиза проверяется на VirusTotal. Это проверка <code>TranslatorOverlay-Setup-1.4.2.exe</code>.</p>
+    <figure class="scan">
+      <img src="../img/virustotal-1.4.2.png" width="1800" height="540" loading="lazy" decoding="async" alt="Отчёт VirusTotal для TranslatorOverlay-Setup-1.4.2.exe: 1 из 65 антивирусных движков пометил файл, остальные ничего не обнаружили">
+      <figcaption>Результат VirusTotal для установщика 1.4.2: 1 движок из 65 (DeepInstinct) помечает файл, остальные ничего не находят.</figcaption>
+    </figure>
+    <ul class="checks">
+      <li><strong>Один движок из 65 — типичное ложное срабатывание</strong> для неподписанного установщика программы с глобальным перехватчиком клавиатуры: именно так горячие клавиши работают в любом окне.</li>
+      <li><strong>Проверьте файл сами.</strong> Сверьте SHA-256 скачанного установщика с указанным в описании релиза и при желании загрузите файл на VirusTotal для собственной проверки.</li>
+      <li><strong>Исходный код открыт.</strong> Его можно прочитать или запустить приложение из исходников вместо установщика.</li>
+    </ul>
+    <p class="small muted">SHA-256 установщика 1.4.2: <code>00e3b677af3429998bb406321bffbdc3a373132d6b9a246036ce5003667e54d7</code>. <a href="https://www.virustotal.com/gui/file/00e3b677af3429998bb406321bffbdc3a373132d6b9a246036ce5003667e54d7" rel="noopener">Полный отчёт на VirusTotal</a>.</p>
+    <p><a href="download.html#smartscreen">SmartScreen и проверка SHA-256 по шагам</a>.</p>
   </div>
 </section>
 
