@@ -282,8 +282,7 @@ def _call_provider(
         if not content:
             raise RuntimeError(
                 tr(
-                    "Модель '{model}' вернула пустой текст ответа на OpenRouter. "
-                    "Рекомендуется переключиться на 'poolside/laguna-s-2.1:free' в Настройках.",
+                    "Модель '{model}' вернула пустой текст ответа на OpenRouter. Укажите другую модель в Настройках.",
                     model=model,
                 )
             )
@@ -627,8 +626,10 @@ def detect_and_translate(
     system_prompt = "\n".join(sys_parts)
     user_prompt = f"Translate to {target_lang}:\n\n{text}"
 
+    from settings.config_manager import DEFAULTS
+
     model_for = {
-        "openrouter": config.LLM_MODEL or "openai/gpt-oss-20b:free",
+        "openrouter": config.LLM_MODEL or DEFAULTS["llm_model"],
         "anthropic": getattr(config, "ANTHROPIC_DETECT_MODEL", "claude-haiku-5-5"),
     }
 

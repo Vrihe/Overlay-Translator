@@ -41,6 +41,14 @@ logger = logging.getLogger("translator")
 
 
 class TrayIcon(QSystemTrayIcon):
+    # Bumped on every balloon: messageClicked has no payload, so a listener compares
+    # the serial to tell whether the clicked balloon is still the one it showed.
+    message_serial = 0
+
+    def showMessage(self, *args) -> None:  # noqa: N802 (Qt override)
+        self.message_serial += 1
+        super().showMessage(*args)
+
     """System-tray icon with a right-click context menu."""
 
     # Emitted when a preset is chosen from the quick-launch submenu.

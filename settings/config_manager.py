@@ -67,7 +67,7 @@ DEFAULTS: dict[str, Any] = {
     "nllb_device": "auto",  # "auto" (NVIDIA GPU when cuBLAS is there) | "cpu"
     "ocr_gpu_mode": "auto",  # "auto" | "cpu" — OCR on the GPU via DirectML ("gpu" = "auto")
     "azure_region": "global",  # Azure Translator region (default "global")
-    "llm_model": "poolside/laguna-s-2.1:free",
+    "llm_model": "google/gemma-4-31b-it:free",  # any OpenRouter model id; typed in Settings
     "primary_provider": "openrouter",  # "openrouter" | "anthropic"
     "enable_fallback": True,  # True | False
     "enable_streaming": True,  # True | False (A5: live token streaming in UI)
@@ -78,6 +78,7 @@ DEFAULTS: dict[str, Any] = {
     "settings_hotkey": "ctrl+shift+o",  # open the settings (Settings → Hotkeys)
     "live_interval_sec": 10,  # live monitoring: seconds between checks (1 - 120)
     "live_sensitivity": "medium",  # live monitoring: "high" | "medium" | "low" change threshold
+    "live_popup_keep_open": True,  # live monitoring: its popup ignores the auto-hide timer
     "popup_timeout_sec": 10,
     "popup_size": None,  # [w, h] set by dragging the popup edges; None = fit text
     "notification_type": "popup",  # "popup" | "windows_toast"

@@ -36,7 +36,7 @@ files.
 
 | Provider | Where to get a key |
 |---|---|
-| OpenRouter (free models, no card) | [openrouter.ai/keys](https://openrouter.ai/keys) → Create Key; the default model is `poolside/laguna-s-2.1:free` |
+| OpenRouter (free models, no card) | [openrouter.ai/keys](https://openrouter.ai/keys) → Create Key; type any model id in Settings; empty means `google/gemma-4-31b-it:free` |
 | Anthropic (paid) | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys), billing required |
 | DeepL | [deepl.com/your-account/keys](https://www.deepl.com/your-account/keys) (Free or Pro) |
 | Azure Translator | A Translator resource in the Azure portal → Keys and Endpoint |

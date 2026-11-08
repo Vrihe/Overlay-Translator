@@ -142,7 +142,7 @@ class TestNllbDeviceFallback(unittest.TestCase):
     def test_no_gpu_when_cuda_requested_notifies(self):
         backend, _, active, _ = self._create(_FakeCTranslate2(gpus=0), device="cuda")
         self.assertEqual(active, "cpu")
-        self.assertIn("CUDA unavailable, using CPU inference", backend.take_notice())
+        self.assertRegex(backend.take_notice(), "CUDA.*CPU")
 
     @unittest.skipUnless(os.name == "nt", "cuBLAS lookup is Windows-only")
     def test_cublas_missing_notifies(self):

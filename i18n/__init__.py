@@ -112,11 +112,12 @@ def install_qt_translator(app) -> None:
         log.info("Qt translations for %s not found in %s", lang, path)
 
 
-def tr(text: str, **kwargs) -> str:
+def tr(text: str, /, **kwargs) -> str:
     """Translate a Russian UI string into the interface language.
 
     Keyword arguments fill ``{name}`` placeholders after the lookup, so the
-    catalog key stays the same whatever the values are.
+    catalog key stays the same whatever the values are. *text* is positional-only,
+    so a ``{text}`` placeholder works (it used to raise TypeError).
     """
     if current_language() == LANG_EN:
         from i18n.en import MESSAGES

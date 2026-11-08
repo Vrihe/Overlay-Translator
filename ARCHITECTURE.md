@@ -55,7 +55,10 @@ Overlay-Translator/
 ├── capture/                # Screen capture
 │   ├── screenshot.py       #   capture_region() via mss
 │   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region (interval,
-│                           #   change threshold: threshold_for("high"|"medium"|"low") = 1.0/2.5/5.0)
+│                           #   change = % of thumbnail cells changed by > 24 levels; aspect-kept
+│                           #   ~256-cell signature; threshold_for("high"|"medium"|"low") = 0.1/0.25/0.6 %.
+│                           #   A new chat line in a 320×726 region ≈ 1 %, a blinking cursor ≈ 0.04 %;
+│                           #   the old 64×64 mean metric gave 0.6 vs a 2.5 threshold and never fired)
 │
 ├── ocr/                    # Text recognition
 │   ├── engine.py           #   RapidOCR singleton, preprocessing, line sorting
@@ -75,6 +78,7 @@ Overlay-Translator/
 │   ├── cuda_download.py    #   Downloads cuBLAS (PyPI wheel, SHA-256) into %APPDATA%\…\cuda
 │   ├── domain_manager.py   #   Domain profiles (prompts + few-shot)
 │   ├── lang_detect.py      #   Language detection, "same language" fast path
+│   ├── line_feed.py        #   new_lines() / RegionFeed: translate only a region's new lines
 │   ├── error_classification.py  # Whether a provider error is retryable
 │   ├── privacy.py          #   loggable(text): keeps captured screen text out of the logs
 │   └── domain_profiles/    #   general.json, chat.json, game.json, documentation.json
@@ -91,10 +95,11 @@ Overlay-Translator/
 ├── ui/                     # PyQt5 widgets
 │   ├── main_window.py      #   MainWindow with a nav rail (Home/Settings/History)
 │   ├── settings_dialog.py  #   * SettingsWidget — all settings; ProfileEditorDialog
-│   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize)
+│   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize, region history blocks)
 │   ├── setup_wizard.py     #   First-run wizard: online (Google) / API key / offline NLLB + download
 │   ├── first_run_dialog.py #   LLM API key entry (when the LLM backend has no key)
 │   ├── nllb_workers.py     #   QThreads shared by settings and wizard: NLLB preload, version list, download
+│   ├── background_call.py  #   run_in_background(): key / NMT / update checks off the UI thread
 │   ├── theme.py            #   * HUD palettes (UI_THEME), fonts, all stylesheet builders
 │   ├── icons.py            #   Stroke icons drawn with QPainterPath (no emoji / QtSvg)
 │   ├── hud_widgets.py      #   NavButton, Panel, FieldLabel, Chip, Segmented, Switch(Row)
@@ -193,6 +198,15 @@ Overlay-Translator/
   `_replace_worker()` parks a still-running replaced worker in `_retired_workers` until it
   ends. `live=True` (LiveMonitor `region_changed`) keeps the open popup and updates it in
   place with `activate=False` (no focus taken from the watched game or stream).
+  `_feeds` keeps a `translate.line_feed.RegionFeed` per region (`_anchor_key`, at most 20):
+  the last 4 recognised texts (`RECENT_CAPTURES`: a line the OCR misses once is not
+  "new" again when it returns) and up to 5 translated blocks. The worker gets those texts
+  as `previous_source` and translates only `new_lines()` (exact repeats by count, OCR-noisy
+  repeats by similarity ≥ 0.85); with no new lines it sets `nothing_new` and translates
+  nothing — a live check then leaves the popup as is, the hotkey shows the previous blocks
+  with a "Новых строк нет" notice. The popup lists the blocks newest first under time
+  separators, older ones dimmed, and fits its height to the newest block only (the history
+  scrolls), so repeated translations never grow it. Errors and `text_override` skip the diff.
   `_set_popup()` makes a popup current; its `destroyed` clears `_popup` only while it is
   still the current one (an old popup dying late used to orphan the new one).
   `_user_popup_pos` remembers, per region (`_anchor_key(anchor)`), where the user dragged a
@@ -266,7 +280,9 @@ reset() -> None                      # resets both backends
 
 **Local backend error policy** (agreed with the user):
 - Model not found / failed to load → quietly switch to the API, and leave a note via
-  `take_notice()`, which the popup shows as a "⚠ …" line.
+  `take_notice()`, which the popup shows as a "⚠ …" line. If no LLM key is set there is
+  nothing to fall back to: `NllbModelUnavailable` is raised with a message that names the
+  model (not "set an API key"), so an offline user sees the real cause.
 - Model loaded but the translation failed → the exception propagates and the popup
   shows an explicit error. No hidden fallback.
 
@@ -327,7 +343,8 @@ is_available() -> bool                # whether a model exists (without loading 
 NLLB_LANG_CODES: dict[str, str]       # ISO 639-1 → FLORES-200
 ```
 
-Exceptions: `NllbModelUnavailable` (infrastructure → fallback to the API) and
+Exceptions: `NllbModelUnavailable` (infrastructure → fallback to the API, or an explicit
+error when no LLM key is set) and
 `NllbTranslationError` (a specific translation failed → explicit error for the user).
 
 How it differs from the API path:
@@ -457,7 +474,11 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
 ### `ocr/engine.py`
 `get_reader()` — lazy RapidOCR singleton, `preprocess(img, scale=1) -> np.ndarray`,
 `extract_text(image) -> str`, `recognise(img, lang=None) -> str` (public entry point),
-`_extract_strips` — splits tall regions into strips for accuracy.
+`_extract_strips` — splits tall regions (≥ 400 px) into 300 px strips that overlap by
+`_STRIP_OVERLAP_PX` (48); each strip keeps only lines centred in its own zone, so a line
+on a boundary is read whole and once. Boxes come back in the padded, upscaled strip
+(`_preprocess_geometry`) and are mapped to image pixels before sorting — skipping that
+interleaved lines of neighbouring strips and merged them into one row.
 - Models: PP-OCRv6 small detector + PP-OCRv5 mobile recognizer (`eslav` = ru/uk/be + Latin
   when `OCR_LANGUAGES` has a Cyrillic code, else `en`); the angle classifier is off.
   Settings → OCR "Языки распознавания" offers exactly these two sets (`["en", "ru"]` /
@@ -466,7 +487,13 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   (`_MODEL_FILES`); a rec model missing there is downloaded once by rapidocr.
 - Device: `OCR_GPU_MODE` `auto` (legacy `gpu` behaves the same) → DirectML when
   `DmlExecutionProvider` is available, `cpu` → CPU; `EASYOCR_GPU` env still overrides.
-  A failing DirectML run rebuilds the engine on the CPU and re-runs the frame (`_safe_readtext`).
+  A failing DirectML run rebuilds the engine on the CPU and re-runs the frame (`_safe_readtext`);
+  strip mode fetches `get_reader()` per strip, so later strips use the CPU engine too. If the
+  CPU engine fails as well, the error propagates ("Ошибка OCR"), not an empty result.
+- `recognise(img, drop_edge_lines=True)` (live monitoring checks only) drops lines whose
+  box touches the region's top or bottom edge (`_EDGE_PX`): a scrolling chat's half-visible
+  line read differently on every capture and kept coming back as a garbled "new" line.
+  Nothing is dropped when every line touches an edge (a region around one line).
 - `_infer_lock` serialises inference; `_reader_lock` guards the lazy init.
   Confidence threshold: `EASYOCR_CONFIDENCE_THRESHOLD` (the env names kept their old prefix).
 
@@ -521,7 +548,8 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   translation; never logged). Columns stack below 760 px width.
 - `SettingsWidget` — all settings; methods `_build_ui()`, `_load_current()`,
   `_on_save()`, `reload()`, `_css(extra)`; constants `_SOURCE_LANGUAGES`,
-  `_TARGET_LANGUAGES`, `_ENGINES`, `_UI_THEMES`, `_OPENROUTER_MODELS`, `_MODEL_HINTS`.
+  `_TARGET_LANGUAGES`, `_ENGINES`, `_UI_THEMES`. The LLM model is a free-text OpenRouter id
+  (`_model_edit`, no preset list: free models come and go); empty saves `DEFAULTS["llm_model"]`.
   Section list (`_section_list`) + `_section_stack` with one scroll page per section
   (`_SECTIONS`): "Перевод" (API key and providers, backend, fast-translator keys,
   translation, custom profiles), "Хоткеи" (`QKeySequenceEdit` per app hotkey + "По умолчанию";
@@ -537,7 +565,10 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   `TranslatorApp._start/_stop_live_monitoring` through `MainWindow.set_monitoring_active`,
   which also keeps the tray toggle in step; the presets dialog has no monitoring button);
   live monitoring `live_interval_sec` spin 1–120 s and `live_sensitivity` combo, autosaved,
-  read by `_start_live_monitoring` at the next start), "Распознавание" (OCR
+  read by `_start_live_monitoring` at the next start; `live_popup_keep_open` switch (default
+  on): the popup a monitor updates skips the auto-hide timer while monitoring runs and gets
+  it back when monitoring stops. Starting a monitor drops the region's `RegionFeed`, so the
+  first check shows the region's whole text again), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
   (language, colour scheme, about/updates).
   **Saving**: every no-restart setting saves itself — a change starts a 400 ms debounce
@@ -606,6 +637,8 @@ TranslatorApp._on_region_selected → _start_translation_pipeline(...)
 TranslationWorker(QThread).run():
    1. capture.screenshot.capture_region()       → PIL.Image
    2. ocr.engine.recognise()                    → str
+      └─ previous_source set → line_feed.new_lines() → only the new lines go on
+         (none → nothing_new, translation skipped)
       └─ if config.ENABLE_OCR_PREVIEW → ocr_done → OcrPreviewPopup (kept in
          TranslatorApp._ocr_preview) → pipeline restarts with text_override;
          OCR errors arrive via translation_done and are shown as an error popup
@@ -624,6 +657,7 @@ TranslationWorker(QThread).run():
                │     ├─ device auto/cuda: GPU + cuBLAS found + warm-up OK → CUDA
                │     │     └─ any CUDA failure → CPU + one-shot notice via take_notice()
                │     └─ NllbModelUnavailable → fall back to llm_client + take_notice()
+               │           (no LLM key → re-raised with a "model unavailable" message)
                ├─ fast path / cache (domain_id + "|nllb")
                ├─ langid when source=auto → FLORES code
                └─ CTranslate2 translate_batch (beam=4; GPU int8_float16 or CPU int8)
@@ -663,6 +697,7 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
      Cloud API when a Google key is saved) | `"api"` (LLM) | `"deepl"` | `"azure"` | `"nllb"`;
      unknown values fall back to Google (`backend.DEFAULT_BACKEND`). The first-run key dialog
      only appears when the LLM backend is selected without a key (`backend.needs_llm_key()`);
+     cancelling it no longer exits the app: it starts without a key, so Settings stay reachable;
    - `first_run_done`: set once the setup wizard (`ui/setup_wizard.py`) is finished or closed.
      The wizard writes `translation_backend` (online → `google`, API key → `api`, offline →
      `nllb`) and, offline, `nllb_model_path` of the build it found or downloaded
@@ -813,8 +848,10 @@ Only for the offline utilities (in `requirements-dev.txt`, not part of the app):
   `%APPDATA%` paths, `.ico` icon.
 - `config.py` replaces itself in `sys.modules`, which is unusual: static analysers
   and IDEs cannot see its attributes, and `from config import X` does not behave as expected.
-- The `llm_vision` and `api` engines are listed in `_ENGINES` (UI), but the
-  `TranslationWorker` pipeline always takes the OCR → LLM text path.
+- `translation_engine` (`TRANSLATION_ENGINE`) is a leftover key the pipeline never reads;
+  its "Движок перевода" combo was removed from Settings because switching it to
+  "OCR → Google/DeepL API" looked like choosing Google but changed nothing. The backend
+  is chosen only by `translation_backend` (Settings → "Бэкенд перевода").
 - The local NLLB backend **does not use domain profiles** (prompts and few-shot):
   a seq2seq model cannot take them, so the translation context has no effect on it.
   That is exactly what the upcoming fine-tuning is for.
@@ -870,14 +907,19 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings (incl. OCR languages) light "Сохранить" and are saved + restart offered only from it |
 | `tests/test_popup_size.py` | saved popup size parsing/clamping, written once when a resize drag ends |
 | `tests/test_title_bar.py` | a click on the drawn caption activates the main window (drag works while the popup is active) |
-| `tests/test_setup_wizard.py` | when the first-run wizard shows (fresh / upgraded / unfinished), what each mode saves, offline build list and preselection, closing never drops a running worker |
+| `tests/test_setup_wizard.py` | when the first-run wizard shows (fresh / upgraded / unfinished), what each mode saves, offline build list and preselection, closing (Start or cancel) never drops a running worker |
 | `tests/test_popup_placement.py` | popup placed under/above the selection, steps off the main window to the nearest free spot, keeps the usual place when none |
 | `tests/test_popup_drag.py` | popup top edge drags instead of resizing; a drag goes to the OS move loop, manual move as fallback |
-| `tests/test_backend_dispatch.py` | `translate.backend` routing: NMT clients with a per-backend cache, NLLB used when it loads, missing model → API with a one-shot notice, a loaded model's error is not hidden, `preload()` never raises |
+| `tests/test_backend_dispatch.py` | `translate.backend` routing: NMT clients with a per-backend cache, NLLB used when it loads, missing model → API with a one-shot notice (no LLM key → explicit model error), a loaded model's error is not hidden, `preload()` never raises |
 | `tests/test_nllb_backend.py` | NLLB with a stubbed model (fake `ctranslate2` / `sentencepiece`): model discovery, load errors, FLORES codes and token layout, cache namespace, fast path, unsupported language, inference errors, singleton reset |
 | `tests/test_cache_store.py` | L1 LRU and L2 SQLite cache: round trip, key parts, eviction on both levels, `warm_cache()`, history order, `clear_history()`, rebuild of an old schema, `close_connection()` in a worker thread |
 | `tests/test_training_data.py` | `training/` splits without leakage (stratified abbreviation split, phrase split, disjoint FLORES pools) and the metrics in `training/evaluate.py` (keep-rate, chrF groups, paired bootstrap) |
 | `tests/test_training_pipeline.py` | `configs/train/*.yaml` validation and `{name}` expansion, the shipped v1/v2 hyperparameters, dataset hash and git provenance, `training/pipeline.py` stage commands and overwrite guards, config → `finetune_lora.py` defaults (no torch) |
+| `tests/test_background_call.py` | `run_in_background()` runs off the UI thread and reports back on it, errors delivered, result for a deleted widget dropped; first-run key dialog saves only after a successful check |
+| `tests/test_google_client.py` | official Cloud Translation API: key in the `X-goog-api-key` header (never the URL), response parsing, empty response |
+| `tests/test_main_live_and_hotkeys.py` | a LiveMonitor change queued before stop/restart starts nothing; a hotkey that fails to register is shown in the tray |
+| `tests/test_line_feed.py` | new-line diff (order, case/spacing, OCR noise, repeats), feed capped newest-first, popup blocks with separators and a height set by the newest block, per-region feeds in `TranslatorApp` (nothing new: live keeps the popup, hotkey shows the blocks; errors leave the feed) |
+| `tests/test_live_monitoring.py` | change detector on synthetic chat frames (a new line fires at every sensitivity, a blinking cursor does not), monitoring popup kept open / auto-hide back after stop / option off, monitor start drops the region feed, keep-open switch autosaves |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

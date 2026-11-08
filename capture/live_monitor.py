@@ -13,13 +13,18 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 from capture.screenshot import capture_region
 
-# Mean absolute difference threshold (0.0 to 255.0) on 64x64 grayscale frames.
-# Values > 2.5 filter out cursor blink and subpixel antialiasing while reliably
-# detecting new or changed text lines.
-_DIFF_THRESHOLD = 2.5
+# Percent of signature cells whose brightness changed by more than _CELL_DELTA.
+# The old metric (mean difference of a 64×64 frame) gave ~0.6 for a new chat line in a
+# 320×726 region against a 2.5 threshold, so monitoring never fired on a chat. Measured
+# on that region now: a new line ≈ 1 %, a scroll by one line ≈ 1.4 %, a blinking text
+# cursor ≈ 0.04 % — "medium" sits well between them.
+_DIFF_THRESHOLD = 0.25
+_CELL_DELTA = 24
+# The signature keeps the region's aspect ratio, about this many cells on its long side.
+_SIGNATURE_SIDE = 256
 
-#: Settings → Regions → sensitivity ("medium" is the tested default above).
-SENSITIVITY_THRESHOLDS = {"high": 1.0, "medium": _DIFF_THRESHOLD, "low": 5.0}
+#: Settings → Regions → sensitivity, in percent of changed cells.
+SENSITIVITY_THRESHOLDS = {"high": 0.1, "medium": _DIFF_THRESHOLD, "low": 0.6}
 
 #: Settings → Regions → check interval limits, seconds.
 MIN_INTERVAL_SEC, MAX_INTERVAL_SEC = 1, 120
@@ -120,13 +125,16 @@ class LiveMonitor(QThread):
 
     @staticmethod
     def _compute_signature(img: Image.Image) -> bytes:
-        """Downsample image to a compact 64x64 grayscale byte signature."""
-        small = img.convert("L").resize((64, 64), Image.Resampling.BILINEAR)
+        """Grayscale thumbnail (aspect kept, ~_SIGNATURE_SIDE cells on the long side)."""
+        w, h = img.size
+        factor = max(1, round(max(w, h) / _SIGNATURE_SIDE))
+        small = img.convert("L").resize((max(1, w // factor), max(1, h // factor)), Image.Resampling.BILINEAR)
         return small.tobytes()
 
     @staticmethod
     def _signature_diff(sig1: bytes, sig2: bytes) -> float:
-        """Calculate mean absolute pixel difference between two frame signatures."""
+        """Percent of cells that changed by more than _CELL_DELTA (100 when incomparable)."""
         if not sig1 or not sig2 or len(sig1) != len(sig2):
-            return 255.0
-        return sum(abs(b1 - b2) for b1, b2 in zip(sig1, sig2)) / len(sig1)
+            return 100.0
+        changed = sum(abs(b1 - b2) > _CELL_DELTA for b1, b2 in zip(sig1, sig2))
+        return 100.0 * changed / len(sig1)

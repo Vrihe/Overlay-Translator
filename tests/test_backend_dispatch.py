@@ -122,9 +122,13 @@ class TestNmtBackends(unittest.TestCase):
 
 class TestNllbAndApiFallback(unittest.TestCase):
     def setUp(self):
-        patcher = _config("TRANSLATION_BACKEND", "nllb")
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for patcher in (
+            _config("TRANSLATION_BACKEND", "nllb"),
+            # An API key exists unless a test says otherwise: the fallback needs one.
+            mock.patch.object(backend, "_has_llm_key", return_value=True),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
         backend.clear_notice()
 
     def _nllb(self, fake):
@@ -163,6 +167,21 @@ class TestNllbAndApiFallback(unittest.TestCase):
         with mock.patch("translate.llm_client.detect_and_translate", return_value=("en", "через API")):
             self.assertEqual(backend.detect_and_translate("hello"), ("en", "через API"))
         self.assertIn("NllbModelUnavailable", backend.take_notice())
+
+    def test_missing_model_without_an_api_key_reports_the_model(self):
+        # Offline user with a broken model: the error names the model, not "set an API key".
+        self._nllb(_FakeNllb(load_error=NllbModelUnavailable("model.bin missing")))
+        with (
+            mock.patch.object(backend, "_has_llm_key", return_value=False),
+            mock.patch("translate.llm_client.translate", side_effect=AssertionError("API called")),
+            mock.patch("translate.llm_client.detect_and_translate", side_effect=AssertionError("API called")),
+        ):
+            with self.assertRaises(NllbModelUnavailable) as ctx:
+                backend.translate("hello")
+            self.assertIn("model.bin missing", str(ctx.exception))
+            with self.assertRaises(NllbModelUnavailable):
+                backend.detect_and_translate("hello")
+        self.assertEqual(backend.take_notice(), "")
 
     def test_translation_error_of_a_loaded_model_is_not_hidden(self):
         self._nllb(_FakeNllb())

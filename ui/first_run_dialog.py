@@ -9,7 +9,6 @@ provider before saving it to keyring.
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPainter, QPen
 from PyQt5.QtWidgets import (
-    QApplication,
     QButtonGroup,
     QDialog,
     QHBoxLayout,
@@ -24,6 +23,7 @@ from PyQt5.QtWidgets import (
 import settings
 from i18n import tr
 from ui import theme
+from ui.background_call import run_in_background
 from ui.hud_widgets import FieldLabel
 
 
@@ -170,6 +170,8 @@ class FirstRunDialog(QDialog):
         self._link_label.setText(f'<a href="{url}" style="color:{theme.current().accent};">{caption}</a>')
 
     def _on_key_changed(self, text: str) -> None:
+        if getattr(self, "_checking", False):
+            return
         self._btn_save.setEnabled(bool(text.strip()))
         self._status.setText("")
         self._status.setStyleSheet(self._css(theme.current().muted))
@@ -191,24 +193,45 @@ class FirstRunDialog(QDialog):
             return
 
         provider = self._current_provider()
-        self._btn_save.setEnabled(False)
+        self._set_checking(True)
         self._set_status(tr("Проверяем ключ…"))
-        QApplication.processEvents()
 
-        from translate.llm_client import reset_client, validate_api_key
+        from translate.llm_client import validate_api_key
 
-        try:
-            validate_api_key(provider, key)
-        except Exception as e:
-            self._set_status(tr("Ошибка: {error}", error=e), error=True)
-            self._btn_save.setEnabled(True)
+        # Up to 15 s on a slow network: never on the UI thread.
+        run_in_background(
+            lambda: validate_api_key(provider, key),
+            lambda _result, error: self._on_key_validated(provider, key, error),
+            self,
+        )
+
+    def _set_checking(self, checking: bool) -> None:
+        """While a key is checked nothing can be edited or submitted a second time."""
+        self._checking = checking
+        for widget in (self._key_input, self._radio_or, self._radio_ant):
+            widget.setEnabled(not checking)
+        self._btn_save.setEnabled(not checking and bool(self._key_input.text().strip()))
+
+    def done(self, result: int) -> None:
+        self._closed = True
+        super().done(result)
+
+    def _on_key_validated(self, provider: str, key: str, error) -> None:
+        from translate.llm_client import reset_client
+
+        if getattr(self, "_closed", False):
+            # Cancelled while the check ran: the user gave up on this key, never store it.
+            return
+        self._set_checking(False)
+        if error is not None:
+            self._set_status(tr("Ошибка: {error}", error=error), error=True)
             return
 
+        self._btn_save.setEnabled(False)
         settings.set_api_key(provider, key)
         reset_client()
 
         self._set_status(tr("✓ Ключ работает! Сохранено."))
-        QApplication.processEvents()
 
         # Brief delay so the user sees the success message.
         QTimer.singleShot(800, self.accept)
