@@ -56,6 +56,7 @@
     <nav class="nav" aria-label="Main">
       <a href="#features">Features</a>
       <a href="download.html">Download</a>
+      <a href="#safety">Safety</a>
       <a href="docs/">Docs</a>
       <a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a>
       <span class="lang" aria-label="Language">
@@ -156,6 +157,24 @@
       <li>On start the app asks GitHub for the latest release; nothing about you or your texts is sent.</li>
     </ul>
     <p><a href="docs/privacy/">Everything that is sent or stored</a>.</p>
+  </div>
+</section>
+
+<section id="safety" aria-labelledby="safety-h">
+  <div class="wrap">
+    <h2 id="safety-h">Safety: VirusTotal scan</h2>
+    <p class="lead">Every release installer is scanned on VirusTotal. This is the scan of <code>TranslatorOverlay-Setup-1.4.2.exe</code>.</p>
+    <figure class="scan">
+      <img src="img/virustotal-1.4.2.png" width="1800" height="540" loading="lazy" decoding="async" alt="VirusTotal report for TranslatorOverlay-Setup-1.4.2.exe: 1 of 65 security vendors flagged the file, the others report it as undetected">
+      <figcaption>VirusTotal result for the 1.4.2 installer: 1 of 65 engines (DeepInstinct) flags it, the other engines report nothing.</figcaption>
+    </figure>
+    <ul class="checks">
+      <li><strong>One engine out of 65 is a typical false positive</strong> for an unsigned installer of a program that installs a global keyboard hook, which is how the hotkeys work anywhere.</li>
+      <li><strong>Check the file yourself.</strong> Compare the SHA-256 of the downloaded installer with the one in the release notes, and upload the file to VirusTotal if you want your own scan.</li>
+      <li><strong>The source code is open.</strong> You can read it, or run the app from source instead of the installer.</li>
+    </ul>
+    <p class="small muted">SHA-256 of the 1.4.2 installer: <code>00e3b677af3429998bb406321bffbdc3a373132d6b9a246036ce5003667e54d7</code>. <a href="https://www.virustotal.com/gui/file/00e3b677af3429998bb406321bffbdc3a373132d6b9a246036ce5003667e54d7" rel="noopener">Open the full report on VirusTotal</a>.</p>
+    <p><a href="download.html#smartscreen">SmartScreen and the SHA-256 check, step by step</a>.</p>
   </div>
 </section>
 
