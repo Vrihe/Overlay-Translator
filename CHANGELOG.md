@@ -9,6 +9,42 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-11-08
+
+### Fixed
+- A failed translation left the popup on "Translating…" forever; the error is shown now.
+- Live monitoring never noticed new chat messages; it now picks up a new line and ignores
+  a blinking cursor.
+- Starting monitoring again after its popup had closed showed nothing.
+- Repeated translations of the same region (hotkey, preset or live monitoring) piled up in
+  the popup and made it grow. Only lines that were not there before are translated; the
+  latest ones are listed on top under a time stamp, and the popup keeps its size.
+- Tall regions such as a chat: sentences came out in the wrong order and two messages
+  could merge into one line.
+- Live monitoring re-translated half-visible lines at the region edge and lines that
+  flickered in and out.
+- The monitoring popup no longer hides itself while monitoring runs (Settings → Regions →
+  "Keep the monitoring window open", on by default).
+- Esc now cancels the region selection.
+- The chat glossary for the local model was missing from the installed app.
+- Closing the first-run wizard while it loaded the model list could crash the app.
+- Without a local model and without an API key, the error now names the missing model
+  instead of asking for an API key.
+- Cancelling the API key dialog closed the app on every launch.
+- Settings no longer freeze while a key or an update is checked; a key check cancelled
+  halfway is not saved.
+- Clicking any tray notification opened the release page.
+- OCR could fail after the GPU fell back to the CPU in tall regions.
+- A hotkey that cannot be registered is now reported in the tray.
+
+### Changed
+- Settings → LLM: type any OpenRouter model id instead of picking from a list (two of the
+  three listed free models are gone from OpenRouter). Empty means
+  `google/gemma-4-31b-it:free`, the new default.
+- Removed the "Translation engine" setting: it had no effect. The translation method is
+  chosen under "Translation backend".
+- The Google Cloud API key is sent in a request header instead of the URL.
+
 ## [1.4.2] - 2026-10-28
 
 ### Added
@@ -159,7 +195,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.2...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.3...HEAD
+[1.4.3]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.3.0...v1.4.0
