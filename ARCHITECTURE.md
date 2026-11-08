@@ -199,8 +199,9 @@ Overlay-Translator/
   ends. `live=True` (LiveMonitor `region_changed`) keeps the open popup and updates it in
   place with `activate=False` (no focus taken from the watched game or stream).
   `_feeds` keeps a `translate.line_feed.RegionFeed` per region (`_anchor_key`, at most 20):
-  the last recognised text and up to 5 translated blocks. The worker gets that text as
-  `previous_source` and translates only `new_lines()` (exact repeats by count, OCR-noisy
+  the last 4 recognised texts (`RECENT_CAPTURES`: a line the OCR misses once is not
+  "new" again when it returns) and up to 5 translated blocks. The worker gets those texts
+  as `previous_source` and translates only `new_lines()` (exact repeats by count, OCR-noisy
   repeats by similarity ≥ 0.85); with no new lines it sets `nothing_new` and translates
   nothing — a live check then leaves the popup as is, the hotkey shows the previous blocks
   with a "Новых строк нет" notice. The popup lists the blocks newest first under time
@@ -489,6 +490,10 @@ interleaved lines of neighbouring strips and merged them into one row.
   A failing DirectML run rebuilds the engine on the CPU and re-runs the frame (`_safe_readtext`);
   strip mode fetches `get_reader()` per strip, so later strips use the CPU engine too. If the
   CPU engine fails as well, the error propagates ("Ошибка OCR"), not an empty result.
+- `recognise(img, drop_edge_lines=True)` (live monitoring checks only) drops lines whose
+  box touches the region's top or bottom edge (`_EDGE_PX`): a scrolling chat's half-visible
+  line read differently on every capture and kept coming back as a garbled "new" line.
+  Nothing is dropped when every line touches an edge (a region around one line).
 - `_infer_lock` serialises inference; `_reader_lock` guards the lazy init.
   Confidence threshold: `EASYOCR_CONFIDENCE_THRESHOLD` (the env names kept their old prefix).
 

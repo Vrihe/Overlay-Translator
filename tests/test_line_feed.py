@@ -13,7 +13,7 @@ from unittest import mock
 from PyQt5.QtCore import QRect
 from PyQt5.QtWidgets import QApplication, QLabel
 
-from translate.line_feed import MAX_BLOCKS, RegionFeed, new_lines
+from translate.line_feed import MAX_BLOCKS, RECENT_CAPTURES, RegionFeed, new_lines
 from ui.result_popup import ResultPopup
 
 _APP = QApplication.instance() or QApplication(sys.argv[:1])
@@ -40,6 +40,21 @@ class TestNewLines(unittest.TestCase):
 
 
 class TestRegionFeed(unittest.TestCase):
+    def test_a_line_missed_on_one_capture_is_not_new_when_it_returns(self):
+        # OCR read "line b" on capture 1, missed it on 2, read it again on 3: it used to
+        # be translated again every other check.
+        feed = RegionFeed()
+        feed.previous_source = "line a\nline b"
+        feed.previous_source = "line a"
+        self.assertEqual(new_lines(feed.previous_source, "line a\nline b"), "")
+
+    def test_only_the_last_captures_are_remembered(self):
+        feed = RegionFeed()
+        feed.previous_source = "very old line"
+        for i in range(RECENT_CAPTURES):
+            feed.previous_source = f"line {i}"
+        self.assertNotIn("very old line", feed.previous_source)
+
     def test_newest_first_and_capped(self):
         feed = RegionFeed()
         for i in range(MAX_BLOCKS + 2):

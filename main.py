@@ -237,6 +237,7 @@ class TranslationWorker(QThread):
         text_override: str | None = None,
         ocr_only: bool = False,
         previous_source: str | None = None,
+        drop_edge_lines: bool = False,
     ):
         super().__init__()
         self.x1 = x1
@@ -250,6 +251,8 @@ class TranslationWorker(QThread):
         self.backend_notice: str = ""
         # The region's text from its last translation: only lines not in it are translated.
         self.previous_source = previous_source
+        # Live monitoring: a line half cut by the region edge reads differently each time.
+        self.drop_edge_lines = drop_edge_lines
         # Read by TranslatorApp after translation_done: the full recognised text, and
         # whether the region showed nothing new (then nothing was translated).
         self.ocr_text: str = ""
@@ -281,7 +284,7 @@ class TranslationWorker(QThread):
 
             try:
                 logging.debug("Step 2: Running OCR recognition...")
-                text = recognise(image)
+                text = recognise(image, drop_edge_lines=self.drop_edge_lines)
             except Exception as e:
                 logging.exception("Step 2 Failed: OCR recognition error")
                 self.translation_done.emit("", "", tr("Ошибка OCR:\n{error}", error=e))
@@ -616,7 +619,13 @@ class TranslatorApp:
         seq, x1, y1, x2, y2, anchor, text_override, live = request
         feed = self._feeds.get(_anchor_key(anchor))
         worker = TranslationWorker(
-            x1, y1, x2, y2, text_override=text_override, previous_source=feed.previous_source if feed else None
+            x1,
+            y1,
+            x2,
+            y2,
+            text_override=text_override,
+            previous_source=feed.previous_source if feed else None,
+            drop_edge_lines=live,
         )
         # Shown unless the user asked for another translation after it: on a fast-changing
         # region every result is newer than the popup's text, so live ones are never dropped

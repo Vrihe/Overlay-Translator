@@ -441,7 +441,22 @@ def _filter_confident(results: list) -> list:
     return [r for r in results if r[2] >= threshold]
 
 
-def _extract_single(image: Image.Image) -> str:
+# A line whose box reaches this close to the region's top or bottom edge is cut by it.
+_EDGE_PX = 2
+
+
+def _drop_edge_lines(results: list, height: int) -> list:
+    """Drop lines cut by the top or bottom edge (boxes in image pixels).
+
+    A chat region scrolls: its top line is often half visible, and OCR reads it
+    differently on every capture, so live monitoring kept "finding" garbled new lines.
+    Nothing is dropped when every line touches an edge (a region around one line).
+    """
+    inner = [r for r in results if min(p[1] for p in r[0]) > _EDGE_PX and max(p[1] for p in r[0]) < height - _EDGE_PX]
+    return inner or results
+
+
+def _extract_single(image: Image.Image, drop_edge_lines: bool = False) -> str:
     """Run OCR on the image as a single piece (small/medium images)."""
     processed = preprocess(image)
     img_np = processed if isinstance(processed, np.ndarray) else np.array(processed.convert("RGB"))
@@ -452,10 +467,14 @@ def _extract_single(image: Image.Image) -> str:
 
     filtered = _filter_confident(results)
     logging.debug(f"{len(filtered)} detections met the confidence threshold.")
+    if drop_edge_lines:
+        geometry = _preprocess_geometry(*image.size)
+        mapped = [(_to_image_coords(bbox, geometry, 0), text, conf) for bbox, text, conf in filtered]
+        filtered = _drop_edge_lines(mapped, image.height)
     return _sort_results(filtered)
 
 
-def _extract_strips(image: Image.Image) -> str:
+def _extract_strips(image: Image.Image, drop_edge_lines: bool = False) -> str:
     """Run OCR on a large image split into horizontal strips.
 
     Pipeline:
@@ -513,13 +532,15 @@ def _extract_strips(image: Image.Image) -> str:
                 all_results.append((adj_bbox, text, conf))
 
     # ── Step 5: Merge and sort ────────────────────────────────────────────────
+    if drop_edge_lines:
+        all_results = _drop_edge_lines(all_results, h)
     return _sort_results(all_results)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
-def extract_text(image: Image.Image) -> str:
+def extract_text(image: Image.Image, *, drop_edge_lines: bool = False) -> str:
     """Run OCR on *image* (PIL Image) and return sorted recognised text.
 
     Automatically selects single-pass or strip mode based on image height:
@@ -529,14 +550,14 @@ def extract_text(image: Image.Image) -> str:
     logging.debug(f"extract_text called on image of mode {image.mode}, size {image.size}")
 
     if image.height < _STRIP_MODE_MIN_HEIGHT:
-        text = _extract_single(image)
+        text = _extract_single(image, drop_edge_lines)
     else:
-        text = _extract_strips(image)
+        text = _extract_strips(image, drop_edge_lines)
 
     logging.debug(f"Extracted OCR text result: {loggable(text)}")
     return text
 
 
-def recognise(img: Image.Image, lang: str | None = None) -> str:
-    """Run OCR on *img*. Kept as alias to extract_text for backward compatibility."""
-    return extract_text(img)
+def recognise(img: Image.Image, lang: str | None = None, *, drop_edge_lines: bool = False) -> str:
+    """Run OCR on *img*. ``drop_edge_lines``: skip lines cut by the top/bottom edge (live)."""
+    return extract_text(img, drop_edge_lines=drop_edge_lines)

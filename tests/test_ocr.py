@@ -290,6 +290,27 @@ class TestRecogniseMocked(unittest.TestCase):
         img.paste((0, 0, 0), (0, 300, 50, 350))
         self.assertEqual(recognise(img), "A\nB\nC\nD")
 
+    @patch("ocr.engine.get_reader")
+    def test_live_checks_drop_lines_cut_by_the_region_edge(self, mock_get_reader):
+        size = (300, 120)
+        boxes = [
+            (_strip_box(5, 0, 290, 10, size), "half-visible top", 0.9),
+            (_strip_box(5, 40, 290, 55, size), "whole line", 0.9),
+            (_strip_box(5, 110, 290, 120, size), "half-visible bottom", 0.9),
+        ]
+        mock_get_reader.return_value = MagicMock(return_value=_engine_output(boxes))
+        img = Image.new("RGB", size, "white")
+        self.assertEqual(recognise(img, drop_edge_lines=True), "whole line")
+        self.assertEqual(recognise(img).count("\n"), 2)  # a manual capture keeps them
+
+    @patch("ocr.engine.get_reader")
+    def test_a_region_around_one_line_keeps_it(self, mock_get_reader):
+        size = (300, 20)
+        mock_get_reader.return_value = MagicMock(
+            return_value=_engine_output([(_strip_box(5, 0, 290, 20, size), "only line", 0.9)])
+        )
+        self.assertEqual(recognise(Image.new("RGB", size, "white"), drop_edge_lines=True), "only line")
+
     def test_strips_overlap_and_own_zones_tile_the_image(self):
         slices = engine._strip_slices(726)
         for (_a1, a2, _at, a_own_bottom), (b1, _b2, b_own_top, _bb) in zip(slices, slices[1:]):
