@@ -70,7 +70,8 @@ class TestSelectorEsc(unittest.TestCase):
         with mock.patch.object(main.keyboard, "add_hotkey", return_value="esc-handle") as add:
             main.TranslatorApp._hook_selector_esc(app)
         self.assertEqual(add.call_args.args[0], "esc")
-        self.assertTrue(add.call_args.kwargs["suppress"])
+        # A suppressing hook makes the keyboard library block other apps' global hotkeys.
+        self.assertFalse(add.call_args.kwargs.get("suppress", False))
         self.assertEqual(app._selector_esc_handle, "esc-handle")
         main.TranslatorApp._on_selector_destroyed(app)
         app._unhook_selector_esc.assert_called_once()

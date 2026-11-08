@@ -440,7 +440,9 @@ class TranslatorApp:
         self._selector: RegionSelector | None = None
         # The selector opens from a global hotkey while another app has the focus, and
         # Windows refuses to hand it the foreground: Esc never reaches its keyPressEvent.
-        # A global Esc hook lives as long as the selector does.
+        # A global Esc hook lives as long as the selector does. Never suppress=True: the
+        # keyboard library then routes every key through a blocking hook, and other apps'
+        # global hotkeys stall or get lost.
         self._selector_esc_bridge = HotkeyBridge()
         self._selector_esc_bridge.triggered.connect(self._cancel_selector)
         self._selector_esc_handle = None
@@ -525,9 +527,7 @@ class TranslatorApp:
         if self._selector_esc_handle is not None or self._hotkeys_paused:
             return
         try:
-            self._selector_esc_handle = keyboard.add_hotkey(
-                "esc", self._selector_esc_bridge.triggered.emit, suppress=True
-            )
+            self._selector_esc_handle = keyboard.add_hotkey("esc", self._selector_esc_bridge.triggered.emit)
         except Exception:
             logging.exception("Failed to hook Esc for the region selector")
 
