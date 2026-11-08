@@ -23,4 +23,6 @@ translation in a popup next to it: game chat, a stream, a program without a tran
 | Train or re-score the model | [Training](training.md), [Reproducing experiments](experiments.md) |
 | Work on the code | [Development](development.md) |
 
+Download page: [Translator Overlay project site](https://vrihe.github.io/Overlay-Translator/).
+
 The source code is MIT-licensed; the NLLB model and its builds are CC-BY-NC-4.0 (non-commercial).
