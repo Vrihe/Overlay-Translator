@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Скачать Translator Overlay для Windows 10 и 11</title>
+<meta name="description" content="Скачайте установщик Translator Overlay для Windows 10/11 (64 бита), проверьте SHA-256 и узнайте, что делать с предупреждением SmartScreen. Бесплатный переводчик экрана с OCR.">
+<link rel="canonical" href="{{SITE_URL}}/ru/download.html">
+<link rel="alternate" hreflang="en" href="{{SITE_URL}}/download.html">
+<link rel="alternate" hreflang="ru" href="{{SITE_URL}}/ru/download.html">
+<link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/download.html">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" type="image/png" href="../img/favicon.png">
+<link rel="stylesheet" href="../css/style.css">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Translator Overlay">
+<meta property="og:title" content="Скачать Translator Overlay для Windows">
+<meta property="og:description" content="Установщик для Windows 10/11 (64 бита), проверка SHA-256 и системные требования.">
+<meta property="og:url" content="{{SITE_URL}}/ru/download.html">
+<meta property="og:image" content="{{SITE_URL}}/img/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Translator Overlay переводит строку игрового чата на русский язык во всплывающем окне">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Скачать Translator Overlay для Windows">
+<meta name="twitter:description" content="Установщик для Windows 10/11 (64 бита), проверка SHA-256 и системные требования.">
+<meta name="twitter:image" content="{{SITE_URL}}/img/og-image.png">
+<meta name="twitter:image:alt" content="Translator Overlay переводит строку игрового чата на русский язык во всплывающем окне">
+</head>
+<body>
+<a class="skip-link" href="#main">Перейти к содержимому</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../img/favicon.png" width="28" height="28" alt="">Translator Overlay</a>
+    <nav class="nav" aria-label="Основная навигация">
+      <a href="./#features">Возможности</a>
+      <a href="download.html" aria-current="page">Скачать</a>
+      <a href="../docs/">Документация</a>
+      <a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a>
+      <span class="lang" aria-label="Язык">
+        <a href="../download.html" hreflang="en" lang="en">EN</a><span aria-current="true">RU</span>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Скачать Translator Overlay</h1>
+    <p class="lead">Установщик для Windows 10 и 11, 64 бита. Бесплатно, без учётной записи и без прав администратора.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/Vrihe/Overlay-Translator/releases/latest" data-dl>Скачать для Windows<small data-dl-meta>Последний релиз на GitHub</small></a>
+    </div>
+    <p class="muted small">Файл называется <code>TranslatorOverlay-Setup-&lt;версия&gt;.exe</code>. Все версии: <a href="https://github.com/Vrihe/Overlay-Translator/releases">Релизы</a>.</p>
+  </div>
+</section>
+
+<section id="requirements" aria-labelledby="req-h">
+  <div class="wrap">
+    <h2 id="req-h">Системные требования</h2>
+    <ul class="checks">
+      <li><strong>Windows 10 или 11, 64 бита.</strong> Для всех функций нужна Windows 10 версии 2004 или новее.</li>
+      <li><strong>Видеокарта не нужна.</strong> OCR использует любую видеокарту с DirectX 12 (NVIDIA, AMD, Intel) и сам переходит на процессор. Видеокарта NVIDIA с CUDA 12 лишь ускоряет необязательную локальную модель.</li>
+      <li><strong>Интернет</strong> нужен для облачных режимов перевода, для загрузки модели OCR при первом запуске (около 8 МБ) и для необязательной локальной модели (около 620 МБ). С локальной моделью сам перевод сети не требует.</li>
+      <li>Установка для текущего пользователя без прав администратора или для всех пользователей, если выбрать это на первой странице.</li>
+    </ul>
+    <p class="muted">Для Linux и macOS не подходит. Запуск из исходников описан в <a href="../docs/installation/#from-source">руководстве по установке</a> (на английском).</p>
+  </div>
+</section>
+
+<section id="smartscreen" aria-labelledby="ss-h">
+  <div class="wrap">
+    <h2 id="ss-h">SmartScreen пишет «Windows защитила ваш компьютер»</h2>
+    <div class="note">
+      <p style="margin:0"><strong>Честно:</strong> установщик пока не подписан сертификатом. Поэтому Windows считает каждый новый релиз файлом от неизвестного издателя, а некоторые антивирусы дополнительно ругаются на приложение из-за глобального перехватчика клавиатуры (так горячие клавиши работают в любом окне). Пока подписи нет, довериться загрузке помогает проверка SHA-256 ниже.</p>
+    </div>
+    <ol class="checks">
+      <li>Проверьте SHA-256 файла, как показано ниже.</li>
+      <li>В окне SmartScreen нажмите <strong>Подробнее</strong>.</li>
+      <li>Нажмите <strong>Выполнить в любом случае</strong>.</li>
+    </ol>
+    <p>Если антивирус отправил приложение в карантин, восстановите его и добавьте папку установки в исключения или <a href="../docs/installation/#from-source">запустите из исходников</a>.</p>
+  </div>
+</section>
+
+<section id="sha256" aria-labelledby="sha-h">
+  <div class="wrap">
+    <h2 id="sha-h">Проверка загрузки (SHA-256)</h2>
+    <p>SHA-256 установщика указан в описании каждого релиза. Сравните его с контрольной суммой вашего файла в PowerShell:</p>
+<pre><code>Get-FileHash .\TranslatorOverlay-Setup-&lt;версия&gt;.exe -Algorithm SHA256</code></pre>
+    <p>Замените <code>&lt;версия&gt;</code> на версию из имени файла. Значение <code>Hash</code> должно совпадать с указанным в описании релиза. Если оно отличается, не запускайте файл и <a href="https://github.com/Vrihe/Overlay-Translator/issues">создайте issue</a>.</p>
+    <p class="muted">Встроенное обновление само проверяет SHA-256 нового установщика перед установкой.</p>
+  </div>
+</section>
+
+<section id="next" aria-labelledby="next-h">
+  <div class="wrap">
+    <h2 id="next-h">После установки</h2>
+    <ol class="checks">
+      <li>Мастер первого запуска спросит, как переводить: онлайн без ключа, LLM с вашим ключом или офлайн (скачает локальную модель).</li>
+      <li>Нажмите <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> и выделите любой текст. Настройки открываются по <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>.</li>
+      <li>При удалении остаётся папка <code>%APPDATA%\translator-overlay\</code> (настройки, история, скачанные модели); удалите её, чтобы убрать всё.</li>
+    </ol>
+    <p><a href="../docs/">Читать документацию</a> (на английском) или вернуться на <a href="./">главную</a>.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <ul>
+      <li><a href="download.html">Скачать</a></li>
+      <li><a href="../docs/">Документация</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/releases">Релизы</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/blob/main/CHANGELOG.md">Список изменений</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/issues">Сообщить о проблеме</a></li>
+      <!--discord:start-->
+      <!-- DISCORD PLACEHOLDER: this link appears once "discord_url" is set in landing/site.json -->
+      <li><a href="{{DISCORD_URL}}">Discord</a></li>
+      <!--discord:end-->
+    </ul>
+    <p><strong>Лицензии.</strong> Исходный код распространяется по <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/LICENSE">лицензии MIT</a>. Необязательная офлайн-модель NLLB-200 и все сборки на её основе лицензируются отдельно по <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/MODEL_LICENSE.md">CC-BY-NC-4.0</a>: только для некоммерческого использования.</p>
+    <p><strong>Отказ от ответственности.</strong> Translator Overlay — неофициальный независимый проект. Он не связан с какими-либо играми, с которыми его можно использовать, и их издателями, не одобрен и не поддерживается ими. Все названия игр и товарные знаки принадлежат их владельцам.</p>
+  </div>
+</footer>
+
+<script src="../js/download.js" defer></script>
+</body>
+</html>

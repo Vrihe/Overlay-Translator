@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Translator Overlay: переводчик экрана для Windows по горячей клавише</title>
+<meta name="description" content="Переводчик экрана для Windows: нажмите горячую клавишу, выделите текст на экране и прочитайте перевод во всплывающем окне. Переводчик игрового чата с OCR, работает без API-ключа и полностью офлайн.">
+<link rel="canonical" href="{{SITE_URL}}/ru/">
+<link rel="alternate" hreflang="en" href="{{SITE_URL}}/">
+<link rel="alternate" hreflang="ru" href="{{SITE_URL}}/ru/">
+<link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" type="image/png" href="../img/favicon.png">
+<link rel="stylesheet" href="../css/style.css">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Translator Overlay">
+<meta property="og:title" content="Translator Overlay: переводчик экрана для Windows">
+<meta property="og:description" content="Выделите текст на экране, нажмите горячую клавишу и прочитайте перевод. Переводчик игрового чата с OCR; ключ не нужен, можно работать офлайн.">
+<meta property="og:url" content="{{SITE_URL}}/ru/">
+<meta property="og:image" content="{{SITE_URL}}/img/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Translator Overlay переводит строку игрового чата на русский язык во всплывающем окне">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Translator Overlay: переводчик экрана для Windows">
+<meta name="twitter:description" content="Выделите текст на экране, нажмите горячую клавишу и прочитайте перевод. Ключ не нужен, можно работать офлайн.">
+<meta name="twitter:image" content="{{SITE_URL}}/img/og-image.png">
+<meta name="twitter:image:alt" content="Translator Overlay переводит строку игрового чата на русский язык во всплывающем окне">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Translator Overlay",
+  "description": "Переводчик области экрана для Windows: горячая клавиша выделяет текст, OCR его распознаёт, а во всплывающем окне появляется перевод. Работает через Google Translate без ключа, через DeepL, Azure или LLM с вашим ключом, а также полностью офлайн с локальной моделью NLLB.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Windows 10, Windows 11",
+  "url": "{{SITE_URL}}/ru/",
+  "downloadUrl": "https://github.com/Vrihe/Overlay-Translator/releases/latest",
+  "license": "https://github.com/Vrihe/Overlay-Translator/blob/main/LICENSE",
+  "inLanguage": ["ru", "en"],
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "image": "{{SITE_URL}}/img/og-image.png"
+}
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Перейти к содержимому</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../img/favicon.png" width="28" height="28" alt="">Translator Overlay</a>
+    <nav class="nav" aria-label="Основная навигация">
+      <a href="#features">Возможности</a>
+      <a href="download.html">Скачать</a>
+      <a href="../docs/">Документация</a>
+      <a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a>
+      <span class="lang" aria-label="Язык">
+        <a href="../" hreflang="en" lang="en">EN</a><span aria-current="true">RU</span>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Переводите любой текст на экране одной горячей клавишей</h1>
+    <p class="lead">Выделите игровой чат, трансляцию или программу без перевода и прочитайте результат во всплывающем окне рядом с текстом. Работает без API-ключа или полностью офлайн.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/Vrihe/Overlay-Translator/releases/latest" data-dl>Скачать для Windows<small data-dl-meta>Windows 10/11, 64 бита</small></a>
+      <a class="btn btn-secondary" href="#how-it-works">Как это работает</a>
+    </div>
+    <p class="muted small">Бесплатно, с открытым исходным кодом. Установка без прав администратора.</p>
+  </div>
+</section>
+
+<section id="features" aria-labelledby="features-h">
+  <div class="wrap">
+    <h2 id="features-h">Переводчик экрана для игрового чата</h2>
+    <p class="lead">Нажмите горячую клавишу, выделите любой текст и прочитайте перевод. Окно с переводом появляется рядом с выделенным текстом.</p>
+
+    <div class="demo-main">
+      <figure>
+        <img src="../docs/assets/demo-lf2m.gif" width="840" height="470" loading="lazy" decoding="async" alt="Выделение строки игрового чата «lf2m tank and heal for hc dungeon» горячей клавишей: во всплывающем окне появляется русский перевод с расшифрованной аббревиатурой, от офлайн-модели">
+        <figcaption>Офлайн-модель: игровая аббревиатура <code>lf2m</code> расшифровывается, а не остаётся как есть. Интерфейс в демо английский, перевод на русский.</figcaption>
+      </figure>
+    </div>
+    <div class="demo-small">
+      <figure>
+        <img src="../docs/assets/demo-wts.gif" width="840" height="470" loading="lazy" decoding="async" alt="Выделение строки «wts epic sword 500g pm me»: во всплывающем окне офлайн-перевод">
+        <figcaption>Торговый чат, офлайн.</figcaption>
+      </figure>
+      <figure>
+        <img src="../docs/assets/demo-live.gif" width="840" height="470" loading="lazy" decoding="async" alt="Живое наблюдение за чатом: окно с переводом обновляется с каждым новым сообщением">
+        <figcaption>Живой режим: новые сообщения переводятся по мере появления.</figcaption>
+      </figure>
+    </div>
+
+    <ul class="cards">
+      <li><strong>Одна горячая клавиша</strong>Нажмите <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> и выделите область. Области можно сохранять, у каждой своя клавиша.</li>
+      <li><strong>Живой режим</strong>Заново переводит область, когда текст в ней меняется. Подходит для чатов на стримах.</li>
+      <li><strong>OCR на вашем ПК</strong>Текст распознаётся локально, на любой видеокарте с DirectX 12 или на процессоре. Латиница и кириллица.</li>
+      <li><strong>Словарь игрового чата</strong>Локальная модель настроена на игровой чат и знает такие слова, как <code>wts</code>, <code>lf2m</code> и <code>gg</code>.</li>
+      <li><strong>История и озвучка</strong>История переводов, чтение вслух, интерфейс на русском и английском.</li>
+      <li><strong>Автообновление</strong>Приложение проверяет новый релиз на GitHub и ставит его после проверки SHA-256.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="install" aria-labelledby="install-h">
+  <div class="wrap">
+    <h2 id="install-h">Установка за 3 шага</h2>
+    <ol class="steps">
+      <li><strong>Скачайте</strong>Возьмите <code>TranslatorOverlay-Setup-&lt;версия&gt;.exe</code> на <a href="download.html">странице загрузки</a> и запустите. Права администратора не нужны.</li>
+      <li><strong>Выберите режим</strong>Мастер первого запуска предложит онлайн без ключа, LLM с вашим ключом или офлайн со скачиванием локальной модели.</li>
+      <li><strong>Нажмите <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd></strong>Выделите любой текст. Настройки открываются по <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>.</li>
+    </ol>
+    <p class="muted" style="margin-top:1rem">Windows 10 или 11, 64 бита. <a href="../docs/installation/">Руководство по установке</a> (на английском), в том числе запуск из исходников.</p>
+  </div>
+</section>
+
+<section id="how-it-works" aria-labelledby="modes-h">
+  <div class="wrap">
+    <h2 id="modes-h">Режимы перевода</h2>
+    <p class="lead">Выберите подходящий сервис. Горячая клавиша, OCR и окно с переводом работают одинаково во всех режимах.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Режим</th><th scope="col">Нужен ключ</th><th scope="col">Офлайн</th><th scope="col">Подходит для</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Google Translate (по умолчанию)</th><td>Нет</td><td>Нет</td><td>Повседневное использование, много языков</td></tr>
+          <tr><th scope="row">DeepL / Azure Translator</th><td>Ваш ключ</td><td>Нет</td><td>Если вы уже пользуетесь DeepL или Azure (у обоих есть бесплатные тарифы)</td></tr>
+          <tr><th scope="row">LLM: OpenRouter (бесплатные модели) или Anthropic</th><td>Ваш ключ</td><td>Нет</td><td>Перевод с учётом контекста, профили предметной области, потоковый вывод</td></tr>
+          <tr><th scope="row">Локальная модель NLLB-200</th><td>Нет</td><td><strong>Да</strong></td><td>Приватность, работа без интернета, игровой сленг; около 1 с на строку на процессоре, быстрее на видеокарте NVIDIA</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small" style="margin-top:1rem">Как устроен конвейер: <a href="../docs/how-it-works/">горячая клавиша, снимок экрана в памяти, OCR, кэш, перевод, окно</a> (на английском).</p>
+  </div>
+</section>
+
+<section id="privacy" aria-labelledby="privacy-h">
+  <div class="wrap">
+    <h2 id="privacy-h">Приватность: что остаётся на вашем компьютере</h2>
+    <ul class="checks">
+      <li><strong>С облачным сервисом</strong> распознанный текст уходит этому провайдеру (Google, DeepL, Azure, OpenRouter или Anthropic). Бесплатные модели OpenRouter могут записывать запросы, поэтому не переводите так пароли.</li>
+      <li><strong>Локальная модель не обращается к сети.</strong> Снимок экрана, OCR и перевод остаются на вашем компьютере.</li>
+      <li>Снимки экрана не сохраняются. Текст не попадает в журналы, пишется только его длина. История хранит последние 500 переводов, её можно очистить.</li>
+      <li>Нет телеметрии и учётных записей. API-ключи хранятся в Диспетчере учётных данных Windows.</li>
+      <li>При запуске приложение запрашивает у GitHub последний релиз; ничего о вас и ваших текстах не отправляется.</li>
+    </ul>
+    <p><a href="../docs/privacy/">Всё, что отправляется и хранится</a> (на английском).</p>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="faq-h">
+  <div class="wrap">
+    <h2 id="faq-h">Вопросы и ответы</h2>
+
+    <details>
+      <summary>SmartScreen или антивирус предупреждает об установщике</summary>
+      <div class="answer">
+        <p>Установщик пока не подписан сертификатом, поэтому для нового релиза SmartScreen показывает «Windows защитила ваш компьютер». Сверьте SHA-256 файла с указанным в описании релиза, затем нажмите <strong>Подробнее → Выполнить в любом случае</strong>. Некоторые антивирусы также ругаются на приложение, потому что оно ставит глобальный перехватчик клавиатуры: именно так горячие клавиши работают в любом окне.</p>
+        <p><a href="download.html#smartscreen">Пошаговая инструкция с проверкой SHA-256</a>.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Горячая клавиша не работает в игре, запущенной от администратора</summary>
+      <div class="answer">
+        <p>Windows не передаёт нажатия клавиш от программы с правами администратора программам с обычными правами. Запустите Translator Overlay от имени администратора тоже, только для таких игр: щёлкните ярлык правой кнопкой и выберите <strong>Запуск от имени администратора</strong>. Если клавиша не работает нигде, скорее всего, это сочетание заняла другая программа; выберите другое в Настройках → Горячие клавиши.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>У меня нет видеокарты. Будет ли работать?</summary>
+      <div class="answer">
+        <p>Да. Видеокарта только ускоряет работу. OCR сам переходит на процессор (около 0,5–1,5 с на снимок), облачные сервисы видеокарту не используют вообще, а локальная модель на процессоре тратит около 1 с на строку чата на современном 4-ядерном CPU. Видеокарта NVIDIA с CUDA 12 ускоряет локальную модель примерно в 3 раза.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Может ли это работать полностью офлайн?</summary>
+      <div class="answer">
+        <p>Да, с локальным движком NLLB. Нужны две разовые загрузки при наличии интернета: модель распознавания OCR (около 8 МБ, при первом запуске) и сборка модели (около 620 МБ, из Настроек). После этого для перевода сеть не нужна.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Работает ли на Linux или macOS?</summary>
+      <div class="answer">
+        <p>Нет. Глобальные горячие клавиши, хранилище ключей и установщик рассчитаны только на Windows. OCR читает только латиницу и кириллицу.</p>
+      </div>
+    </details>
+
+    <p><a href="../docs/faq/">Другие ответы в документации</a> (на английском).</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <ul>
+      <li><a href="download.html">Скачать</a></li>
+      <li><a href="../docs/">Документация</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/releases">Релизы</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/blob/main/CHANGELOG.md">Список изменений</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/issues">Сообщить о проблеме</a></li>
+      <!--discord:start-->
+      <!-- DISCORD PLACEHOLDER: this link appears once "discord_url" is set in landing/site.json -->
+      <li><a href="{{DISCORD_URL}}">Discord</a></li>
+      <!--discord:end-->
+    </ul>
+    <p><strong>Лицензии.</strong> Исходный код распространяется по <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/LICENSE">лицензии MIT</a>. Необязательная офлайн-модель NLLB-200 и все сборки на её основе лицензируются отдельно по <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/MODEL_LICENSE.md">CC-BY-NC-4.0</a>: только для некоммерческого использования.</p>
+    <p><strong>Отказ от ответственности.</strong> Translator Overlay — неофициальный независимый проект. Он не связан с какими-либо играми, с которыми его можно использовать, и их издателями, не одобрен и не поддерживается ими. Все названия игр и товарные знаки принадлежат их владельцам.</p>
+  </div>
+</footer>
+
+<script src="../js/download.js" defer></script>
+</body>
+</html>
