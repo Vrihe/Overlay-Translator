@@ -1,15 +1,33 @@
-# Builds the documentation site (docs/ + mkdocs.yml) and publishes it to GitHub Pages.
-# Pull requests only check that it builds without warnings; pushes to main deploy it.
+# Builds the GitHub Pages site and publishes it:
+#   /        the landing page (landing/, plain HTML)
+#   /docs/   the documentation (docs/ + mkdocs.yml, MkDocs Material)
+# Pull requests only check that it builds without warnings and that the links resolve;
+# pushes to main deploy it.
 # One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# The base URL (for a custom domain later) is "base_url" in landing/site.json.
 
 name: Docs
 
 on:
   pull_request:
-    paths: ["docs/**", "mkdocs.yml", "requirements-docs.txt", ".github/workflows/docs.yml"]
+    paths:
+      - "docs/**"
+      - "landing/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - "scripts/build_site.py"
+      - "scripts/check_site.py"
+      - ".github/workflows/docs.yml"
   push:
     branches: [main]
-    paths: ["docs/**", "mkdocs.yml", "requirements-docs.txt", ".github/workflows/docs.yml"]
+    paths:
+      - "docs/**"
+      - "landing/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - "scripts/build_site.py"
+      - "scripts/check_site.py"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 permissions:
@@ -35,14 +53,25 @@ jobs:
       - name: Install MkDocs
         run: python -m pip install -r requirements-docs.txt
 
-      - name: Build
-        run: mkdocs build --strict
+      - name: Read the base URL from landing/site.json
+        run: |
+          echo "SITE_URL=$(python scripts/build_site.py --print-site-url)/" >> "$GITHUB_ENV"
+          echo "DOCS_URL=$(python scripts/build_site.py --print-docs-url)" >> "$GITHUB_ENV"
+
+      - name: Build the docs into _site/docs
+        run: mkdocs build --strict --site-dir _site/docs
+
+      - name: Copy the landing page into _site
+        run: python scripts/build_site.py --out _site
+
+      - name: Check the landing page links
+        run: python scripts/check_site.py _site
 
       - name: Keep the site for deployment
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _site
 
   deploy:
     if: github.event_name != 'pull_request'
