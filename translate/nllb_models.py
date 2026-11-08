@@ -166,6 +166,9 @@ def download_version(
         for entry in files:
             rel = entry["path"]
             target = part / rel
+            # The file list comes from the network: never write outside the build folder.
+            if not target.resolve().is_relative_to(part.resolve()):
+                raise OSError(f"Unsafe file path in build {version.tag}: {rel!r}")
             target.parent.mkdir(parents=True, exist_ok=True)
             expected_sha256 = (entry.get("lfs") or {}).get("oid")
             digest = hashlib.sha256()

@@ -637,6 +637,9 @@ class MainWindow(QMainWindow):
 
         self._tray_icon = None
         self._update_worker = None
+        # (url, tray message serial) of the update balloon; see _on_tray_message_clicked.
+        self._update_balloon = ("", None)
+        self._balloon_click_hooked = False
 
         self._build_ui()
         if self._custom_frame:
@@ -698,9 +701,20 @@ class MainWindow(QMainWindow):
                         QSystemTrayIcon.Information,
                         8000,
                     )
-                    self._tray_icon.messageClicked.connect(lambda: webbrowser.open(url))
+                    self._update_balloon = (url, getattr(self._tray_icon, "message_serial", None))
+                    if not self._balloon_click_hooked:
+                        self._tray_icon.messageClicked.connect(self._on_tray_message_clicked)
+                        self._balloon_click_hooked = True
                 except Exception:
                     pass
+
+    # The tray has one messageClicked signal for every balloon (monitoring started,
+    # toast translations): only a click on the latest balloon, the update one, opens the page.
+    def _on_tray_message_clicked(self):
+        url, serial = self._update_balloon
+        self._update_balloon = ("", None)
+        if url and serial == getattr(self._tray_icon, "message_serial", None):
+            webbrowser.open(url)
 
     def refresh_regions(self):
         """Region presets changed: update Settings → Regions if that page was built."""

@@ -95,6 +95,7 @@ Overlay-Translator/
 │   ├── setup_wizard.py     #   First-run wizard: online (Google) / API key / offline NLLB + download
 │   ├── first_run_dialog.py #   LLM API key entry (when the LLM backend has no key)
 │   ├── nllb_workers.py     #   QThreads shared by settings and wizard: NLLB preload, version list, download
+│   ├── background_call.py  #   run_in_background(): key / NMT / update checks off the UI thread
 │   ├── theme.py            #   * HUD palettes (UI_THEME), fonts, all stylesheet builders
 │   ├── icons.py            #   Stroke icons drawn with QPainterPath (no emoji / QtSvg)
 │   ├── hud_widgets.py      #   NavButton, Panel, FieldLabel, Chip, Segmented, Switch(Row)
@@ -266,7 +267,9 @@ reset() -> None                      # resets both backends
 
 **Local backend error policy** (agreed with the user):
 - Model not found / failed to load → quietly switch to the API, and leave a note via
-  `take_notice()`, which the popup shows as a "⚠ …" line.
+  `take_notice()`, which the popup shows as a "⚠ …" line. If no LLM key is set there is
+  nothing to fall back to: `NllbModelUnavailable` is raised with a message that names the
+  model (not "set an API key"), so an offline user sees the real cause.
 - Model loaded but the translation failed → the exception propagates and the popup
   shows an explicit error. No hidden fallback.
 
@@ -327,7 +330,8 @@ is_available() -> bool                # whether a model exists (without loading 
 NLLB_LANG_CODES: dict[str, str]       # ISO 639-1 → FLORES-200
 ```
 
-Exceptions: `NllbModelUnavailable` (infrastructure → fallback to the API) and
+Exceptions: `NllbModelUnavailable` (infrastructure → fallback to the API, or an explicit
+error when no LLM key is set) and
 `NllbTranslationError` (a specific translation failed → explicit error for the user).
 
 How it differs from the API path:
@@ -466,7 +470,9 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   (`_MODEL_FILES`); a rec model missing there is downloaded once by rapidocr.
 - Device: `OCR_GPU_MODE` `auto` (legacy `gpu` behaves the same) → DirectML when
   `DmlExecutionProvider` is available, `cpu` → CPU; `EASYOCR_GPU` env still overrides.
-  A failing DirectML run rebuilds the engine on the CPU and re-runs the frame (`_safe_readtext`).
+  A failing DirectML run rebuilds the engine on the CPU and re-runs the frame (`_safe_readtext`);
+  strip mode fetches `get_reader()` per strip, so later strips use the CPU engine too. If the
+  CPU engine fails as well, the error propagates ("Ошибка OCR"), not an empty result.
 - `_infer_lock` serialises inference; `_reader_lock` guards the lazy init.
   Confidence threshold: `EASYOCR_CONFIDENCE_THRESHOLD` (the env names kept their old prefix).
 
@@ -624,6 +630,7 @@ TranslationWorker(QThread).run():
                │     ├─ device auto/cuda: GPU + cuBLAS found + warm-up OK → CUDA
                │     │     └─ any CUDA failure → CPU + one-shot notice via take_notice()
                │     └─ NllbModelUnavailable → fall back to llm_client + take_notice()
+               │           (no LLM key → re-raised with a "model unavailable" message)
                ├─ fast path / cache (domain_id + "|nllb")
                ├─ langid when source=auto → FLORES code
                └─ CTranslate2 translate_batch (beam=4; GPU int8_float16 or CPU int8)
@@ -663,6 +670,7 @@ translation_done → _on_translation_finished → _show_result(notice=…) / _sh
      Cloud API when a Google key is saved) | `"api"` (LLM) | `"deepl"` | `"azure"` | `"nllb"`;
      unknown values fall back to Google (`backend.DEFAULT_BACKEND`). The first-run key dialog
      only appears when the LLM backend is selected without a key (`backend.needs_llm_key()`);
+     cancelling it no longer exits the app: it starts without a key, so Settings stay reachable;
    - `first_run_done`: set once the setup wizard (`ui/setup_wizard.py`) is finished or closed.
      The wizard writes `translation_backend` (online → `google`, API key → `api`, offline →
      `nllb`) and, offline, `nllb_model_path` of the build it found or downloaded
@@ -870,14 +878,17 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_settings_autosave.py` | settings save themselves once after the debounce, opening/reload write nothing, restart-only settings (incl. OCR languages) light "Сохранить" and are saved + restart offered only from it |
 | `tests/test_popup_size.py` | saved popup size parsing/clamping, written once when a resize drag ends |
 | `tests/test_title_bar.py` | a click on the drawn caption activates the main window (drag works while the popup is active) |
-| `tests/test_setup_wizard.py` | when the first-run wizard shows (fresh / upgraded / unfinished), what each mode saves, offline build list and preselection, closing never drops a running worker |
+| `tests/test_setup_wizard.py` | when the first-run wizard shows (fresh / upgraded / unfinished), what each mode saves, offline build list and preselection, closing (Start or cancel) never drops a running worker |
 | `tests/test_popup_placement.py` | popup placed under/above the selection, steps off the main window to the nearest free spot, keeps the usual place when none |
 | `tests/test_popup_drag.py` | popup top edge drags instead of resizing; a drag goes to the OS move loop, manual move as fallback |
-| `tests/test_backend_dispatch.py` | `translate.backend` routing: NMT clients with a per-backend cache, NLLB used when it loads, missing model → API with a one-shot notice, a loaded model's error is not hidden, `preload()` never raises |
+| `tests/test_backend_dispatch.py` | `translate.backend` routing: NMT clients with a per-backend cache, NLLB used when it loads, missing model → API with a one-shot notice (no LLM key → explicit model error), a loaded model's error is not hidden, `preload()` never raises |
 | `tests/test_nllb_backend.py` | NLLB with a stubbed model (fake `ctranslate2` / `sentencepiece`): model discovery, load errors, FLORES codes and token layout, cache namespace, fast path, unsupported language, inference errors, singleton reset |
 | `tests/test_cache_store.py` | L1 LRU and L2 SQLite cache: round trip, key parts, eviction on both levels, `warm_cache()`, history order, `clear_history()`, rebuild of an old schema, `close_connection()` in a worker thread |
 | `tests/test_training_data.py` | `training/` splits without leakage (stratified abbreviation split, phrase split, disjoint FLORES pools) and the metrics in `training/evaluate.py` (keep-rate, chrF groups, paired bootstrap) |
 | `tests/test_training_pipeline.py` | `configs/train/*.yaml` validation and `{name}` expansion, the shipped v1/v2 hyperparameters, dataset hash and git provenance, `training/pipeline.py` stage commands and overwrite guards, config → `finetune_lora.py` defaults (no torch) |
+| `tests/test_background_call.py` | `run_in_background()` runs off the UI thread and reports back on it, errors delivered, result for a deleted widget dropped; first-run key dialog saves only after a successful check |
+| `tests/test_google_client.py` | official Cloud Translation API: key in the `X-goog-api-key` header (never the URL), response parsing, empty response |
+| `tests/test_main_live_and_hotkeys.py` | a LiveMonitor change queued before stop/restart starts nothing; a hotkey that fails to register is shown in the tray |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:

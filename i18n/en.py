@@ -28,6 +28,9 @@ MESSAGES: dict[str, str] = {
     "Проверяем ключ…": "Checking the key…",
     # ── main.py ──
     "Живой автомониторинг запущен": "Live auto-monitoring started",
+    "Некорректный ключ Google Cloud Translation API.": "Invalid Google Cloud Translation API key.",
+    "Горячая клавиша не работает": "Hotkey not working",
+    "Не удалось назначить «{hotkey}». Выберите другое сочетание в настройках.": "Could not register “{hotkey}”. Choose another combination in Settings.",
     "Живой мониторинг остановлен": "Live monitoring stopped",
     "Автоматическое отслеживание области отключено.": "Automatic region tracking is off.",
     "Ошибка захвата экрана:\n{error}": "Screen capture error:\n{error}",
@@ -48,7 +51,9 @@ MESSAGES: dict[str, str] = {
     "Комбинация '{hotkey}' уже занята для окна настроек ({app_hotkey}).": "The combination '{hotkey}' is already used for the settings window ({app_hotkey}).",
     "Комбинация '{hotkey}' уже назначена для пресета «{name}».": "The combination '{hotkey}' is already assigned to preset “{name}”.",
     # ── translate/backend.py ──
+    "CUDA недоступна, перевод на CPU ({reason})": "CUDA unavailable, using CPU inference ({reason})",
     "Локальная модель NLLB недоступна ({reason}) — переведено через API.": "The local NLLB model is unavailable ({reason}) — translated via the API.",
+    "Локальная модель NLLB недоступна ({reason}). Скачайте модель в настройках или выберите другой способ перевода.": "The local NLLB model is unavailable ({reason}). Download the model in Settings or choose another translation method.",
     "Модель загружена за {seconds} с": "Model loaded in {seconds} s",
     "Используется перевод через API.": "Translation goes through the API.",
     "Не удалось загрузить локальную модель: {error}": "Failed to load the local model: {error}",

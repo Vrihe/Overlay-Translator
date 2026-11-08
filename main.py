@@ -648,10 +648,9 @@ class TranslatorApp:
             interval_sec=interval,
             threshold=threshold_for(getattr(config, "LIVE_SENSITIVITY", "medium")),
         )
+        monitor = self._live_monitor
         self._live_monitor.region_changed.connect(
-            lambda lx1, ly1, lx2, ly2: self._start_translation_pipeline(
-                lx1, ly1, lx2, ly2, QRect(lx1, ly1, lx2 - lx1, ly2 - ly1), live=True
-            )
+            lambda lx1, ly1, lx2, ly2: self._on_live_region_changed(monitor, lx1, ly1, lx2, ly2)
         )
         self._live_monitor.start()
         self._main_window.set_monitoring_active(True)
@@ -667,6 +666,12 @@ class TranslatorApp:
                 TrayIcon.Information,
                 3000,
             )
+
+    def _on_live_region_changed(self, monitor, x1: int, y1: int, x2: int, y2: int) -> None:
+        # A change queued just before stop() (or a restart) must not start a translation.
+        if monitor is not getattr(self, "_live_monitor", None):
+            return
+        self._start_translation_pipeline(x1, y1, x2, y2, QRect(x1, y1, x2 - x1, y2 - y1), live=True)
 
     def _stop_live_monitoring(self) -> None:
         """D2: Stop live monitor if active."""
@@ -702,11 +707,23 @@ class TranslatorApp:
             # Saved while its field still has focus: hook it when the capture ends.
             self._tray.refresh_hotkey_labels()
             return
+        failed = []
         for hotkey, bridge in ((config.HOTKEY, self._bridge), (config.SETTINGS_HOTKEY, self._settings_bridge)):
             try:
                 self._app_hotkey_handles.append(keyboard.add_hotkey(hotkey, bridge.triggered.emit))
             except Exception:
                 logging.exception(f"Failed to register global hotkey '{hotkey}'")
+                failed.append(hotkey)
+        if failed:
+            self._tray.showMessage(
+                tr("Горячая клавиша не работает"),
+                tr(
+                    "Не удалось назначить «{hotkey}». Выберите другое сочетание в настройках.",
+                    hotkey="», «".join(failed),
+                ),
+                TrayIcon.Warning,
+                5000,
+            )
         logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
         self._tray.refresh_hotkey_labels()
 
@@ -1096,8 +1113,9 @@ def main() -> None:
 
             dlg = FirstRunDialog()
             if dlg.exec_() != FirstRunDialog.Accepted:
-                logging.info("First-run dialog cancelled. Exiting.")
-                sys.exit(0)
+                # Keep starting: exiting here locked the user out on every launch, with
+                # no way to reach Settings to add a key or switch to a keyless backend.
+                logging.info("First-run dialog cancelled: starting without an LLM key.")
 
         translator = TranslatorApp(app)
         splash.finish(translator._main_window)  # fade out once main window is ready

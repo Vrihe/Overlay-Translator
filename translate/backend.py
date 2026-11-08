@@ -104,11 +104,16 @@ def needs_llm_key() -> bool:
     """
     if get_active_backend() != BACKEND_API:
         return False
+    return not _has_llm_key()
+
+
+def _has_llm_key() -> bool:
+    """True when an OpenRouter / Anthropic key is set (keyring or environment)."""
     import os
 
     import settings
 
-    return not (
+    return bool(
         settings.get_api_key("openrouter")
         or settings.get_api_key("anthropic")
         or os.environ.get("OPENROUTER_API_KEY")
@@ -130,6 +135,15 @@ def _api_fallback_notice(exc: Exception) -> str:
     return tr("Локальная модель NLLB недоступна ({reason}) — переведено через API.", reason=first_line)
 
 
+def _model_missing_message(exc: Exception) -> str:
+    first_line = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
+    return tr(
+        "Локальная модель NLLB недоступна ({reason}). Скачайте модель в настройках "
+        "или выберите другой способ перевода.",
+        reason=first_line,
+    )
+
+
 def _nllb_ready() -> bool:
     """Try to load the local model; on failure record a notice and return False."""
     from translate.nllb_backend import NllbModelUnavailable, get_backend
@@ -143,6 +157,10 @@ def _nllb_ready() -> bool:
             _set_notice(notice)
         return True
     except NllbModelUnavailable as exc:
+        if not _has_llm_key():
+            # No API to fall back to: report the real cause, not "set an API key".
+            _logger.warning("NLLB unavailable and no API key: %s", exc)
+            raise NllbModelUnavailable(_model_missing_message(exc)) from exc
         _logger.warning("NLLB unavailable, falling back to API: %s", exc)
         _set_notice(_api_fallback_notice(exc))
         return False

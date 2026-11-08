@@ -41,6 +41,7 @@ from i18n import N_, UI_LANGUAGES, tr
 from settings import config_manager
 from translate.llm_client import reset_client
 from ui import icons, theme
+from ui.background_call import run_in_background
 from ui.hud_widgets import FieldLabel, Segmented, SwitchRow
 from ui.nllb_workers import CudaDownloadWorker, NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
 
@@ -653,7 +654,7 @@ class SettingsWidget(QWidget):
             btn_test = QPushButton(tr("Проверить"))
             btn_test.setStyleSheet(nmt_btn_css)
             btn_test.setCursor(Qt.PointingHandCursor)
-            btn_test.clicked.connect(lambda: self._test_nmt_key(provider))
+            btn_test.clicked.connect(lambda: self._test_nmt_key(provider, btn_test))
             row.addWidget(btn_test)
             nmt_layout.addLayout(row)
             return edit, btn_save, btn_test
@@ -1124,22 +1125,27 @@ class SettingsWidget(QWidget):
             self._key_status.setStyleSheet(self._status_css("error"))
             return
         provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
-        self._btn_check_key.setEnabled(False)
+        self._set_llm_key_busy(True)
         self._key_status.setText(tr("Проверяем ключ…"))
         self._key_status.setStyleSheet(self._status_css())
-        QApplication.processEvents()
         from translate.llm_client import validate_api_key
 
-        try:
-            validate_api_key(provider, key_text)
-        except Exception as e:
-            self._key_status.setText(tr("Ошибка: {error}", error=e))
-            self._key_status.setStyleSheet(self._status_css("error"))
-        else:
-            self._key_status.setText(tr("✓ Ключ {provider} работает.", provider=provider))
-            self._key_status.setStyleSheet(self._status_css("ok"))
-        finally:
-            self._btn_check_key.setEnabled(True)
+        def done(_result, error) -> None:
+            self._set_llm_key_busy(False)
+            if error is not None:
+                self._key_status.setText(tr("Ошибка: {error}", error=error))
+                self._key_status.setStyleSheet(self._status_css("error"))
+            else:
+                self._key_status.setText(tr("✓ Ключ {provider} работает.", provider=provider))
+                self._key_status.setStyleSheet(self._status_css("ok"))
+
+        # Up to 15 s on a slow network: never on the UI thread.
+        run_in_background(lambda: validate_api_key(provider, key_text), done, self)
+
+    def _set_llm_key_busy(self, busy: bool) -> None:
+        """Check and Save share one status line: only one may run, and the key stays as sent."""
+        for widget in (self._btn_check_key, self._btn_save_key, self._key_input):
+            widget.setEnabled(not busy)
 
     # ── Custom profiles list management ─────────────────
 
@@ -1335,28 +1341,37 @@ class SettingsWidget(QWidget):
         self._nmt_key_input(provider).clear()
         self._refresh_nmt_key_status()
 
-    def _test_nmt_key(self, provider: str) -> None:
+    def _test_nmt_key(self, provider: str, button=None) -> None:
         """Send a test phrase through the NMT backend and show the result."""
         status = self._nmt_status_label(provider)
+        if button is not None:
+            button.setEnabled(False)  # one test at a time: answers could arrive out of order
         status.setText(tr("Проверяем…"))
         status.setStyleSheet(self._status_css())
-        QApplication.processEvents()
 
         # Temporarily persist azure_region so the test picks it up.
         if provider == "azure":
             region = self._azure_region_input.text().strip() or "global"
             config_manager.set_value("azure_region", region)
 
-        try:
-            from translate.backend import _get_nmt_client
+        from translate.backend import _get_nmt_client
 
-            client = _get_nmt_client(provider)
-            detected, translated = client.translate("Hello world", target_lang="ru")
+        def done(result, error) -> None:
+            if button is not None:
+                button.setEnabled(True)
+            if error is not None:
+                status.setText(f"✗ {error}")
+                status.setStyleSheet(self._status_css("error"))
+                return
+            detected, translated = result
             status.setText(f"✓ {detected} → ru: «{translated}»")
             status.setStyleSheet(self._status_css("ok"))
-        except Exception as e:
-            status.setText(f"✗ {e}")
-            status.setStyleSheet(self._status_css("error"))
+
+        run_in_background(
+            lambda: _get_nmt_client(provider).translate("Hello world", target_lang="ru"),
+            done,
+            self,
+        )
 
     def _refresh_nmt_key_status(self) -> None:
         """Update NMT key status labels based on what's stored in keyring."""
@@ -1952,10 +1967,12 @@ class SettingsWidget(QWidget):
         self._btn_check_update.setEnabled(False)
         self._update_status_lbl.setText(tr("Проверка наличия обновлений…"))
         self._update_status_lbl.setStyleSheet(self._status_css())
-        QApplication.processEvents()
+        run_in_background(check_for_update, self._on_update_checked, self)
 
-        has_update, version, url = check_for_update()
+    def _on_update_checked(self, result, error) -> None:
         self._btn_check_update.setEnabled(True)
+        # check_for_update() reports its own failures as "no update".
+        has_update, version, url = result if error is None else (False, "", "")
 
         if has_update:
             self._update_status_lbl.setText(
@@ -2118,22 +2135,25 @@ class SettingsWidget(QWidget):
             return
         provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
 
-        self._btn_save_key.setEnabled(False)
+        self._set_llm_key_busy(True)
         self._key_status.setText(tr("Проверяем ключ…"))
         self._key_status.setStyleSheet(self._status_css())
-        QApplication.processEvents()
 
         # Check before storing, so a rejected key never replaces a working one.
         from translate.llm_client import validate_api_key
 
-        try:
-            validate_api_key(provider, key_text)
-        except Exception as e:
-            self._key_status.setText(tr("Ошибка: {error}", error=e))
+        run_in_background(
+            lambda: validate_api_key(provider, key_text),
+            lambda _result, error: self._on_llm_key_validated(provider, key_text, error),
+            self,
+        )
+
+    def _on_llm_key_validated(self, provider: str, key_text: str, error) -> None:
+        self._set_llm_key_busy(False)
+        if error is not None:
+            self._key_status.setText(tr("Ошибка: {error}", error=error))
             self._key_status.setStyleSheet(self._status_css("error"))
             return
-        finally:
-            self._btn_save_key.setEnabled(True)
 
         settings.set_api_key(provider, key_text)
         reset_client()

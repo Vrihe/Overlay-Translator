@@ -53,6 +53,8 @@ a = Analysis(
     binaries=[],    # no heavy binaries — provided by the deps cache
     datas=[
         (str(ROOT / 'translate' / 'domain_profiles'), 'translate/domain_profiles'),
+        # Game-chat glossary for the local NLLB backend (translate/chat_glossary.py).
+        (str(ROOT / 'translate' / 'glossary'), 'translate/glossary'),
         # Bundled UI fonts (JetBrains Mono, OFL); resolved via sys._MEIPASS in ui/theme.py.
         (str(ROOT / 'assets' / 'fonts'), 'assets/fonts'),
     ],

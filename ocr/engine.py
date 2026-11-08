@@ -391,8 +391,9 @@ def _safe_readtext(reader, img_np) -> list:
         with _infer_lock:
             return _to_results(get_reader()(img_np))
     except Exception:
+        # Surface it as an OCR error, not as "no text recognised".
         logging.exception("CPU fallback also failed")
-        return []
+        raise
 
 
 def _filter_confident(results: list) -> list:
@@ -456,12 +457,12 @@ def _extract_strips(image: Image.Image) -> str:
     if not active:
         return ""
 
-    reader = get_reader()
     all_results: list = []
 
     for img_np, y_offset in active:
         logging.debug(f"Running OCR on strip at y={y_offset}...")
-        strip_results = _filter_confident(_safe_readtext(reader, img_np))
+        # get_reader() per strip: a GPU→CPU fallback on one strip must reach the rest.
+        strip_results = _filter_confident(_safe_readtext(get_reader(), img_np))
         logging.debug(f"  → {len(strip_results)} detections in strip y={y_offset}")
 
         for bbox, text, conf in strip_results:

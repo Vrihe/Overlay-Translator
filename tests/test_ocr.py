@@ -298,6 +298,30 @@ class TestGpuFallback(unittest.TestCase):
         self.assertIs(engine._reader, cpu)
         self.assertFalse(engine._reader_on_gpu)
 
+    def test_strip_mode_uses_the_cpu_engine_after_a_fallback(self):
+        # The GPU fails on the first strip; every later strip must run on the CPU engine.
+        gpu = MagicMock(side_effect=RuntimeError("DirectML device removed"))
+        cpu = _mock_engine([([[10, 10], [90, 10], [90, 25], [10, 25]], "текст", 0.9)])
+        engine._reader, engine._reader_on_gpu = gpu, True
+        img = Image.new("RGB", (200, 600), "white")
+        img.paste((0, 0, 0), (0, 0, 50, 50))
+        img.paste((0, 0, 0), (0, 300, 50, 350))
+
+        with patch("ocr.engine._build_engine", return_value=cpu):
+            text = recognise(img)
+
+        self.assertEqual(gpu.call_count, 1)
+        self.assertEqual(cpu.call_count, 2)
+        self.assertEqual(text, "текст\nтекст")
+
+    def test_failed_cpu_fallback_is_an_error_not_empty_text(self):
+        engine._reader = MagicMock(side_effect=RuntimeError("DirectML device removed"))
+        engine._reader_on_gpu = True
+        broken_cpu = MagicMock(side_effect=RuntimeError("CPU engine broken"))
+        with patch("ocr.engine._build_engine", return_value=broken_cpu):
+            with self.assertRaises(RuntimeError):
+                recognise(Image.new("RGB", (100, 100)))
+
     def test_cpu_error_is_raised(self):
         engine._reader = MagicMock(side_effect=RuntimeError("bad input"))
         engine._reader_on_gpu = False

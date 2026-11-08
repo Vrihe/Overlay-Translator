@@ -201,6 +201,19 @@ class TestRepositoryReleaseState(unittest.TestCase):
             for flag in flags:
                 self.assertIn(f"'{flag}'", build_py, f"{name}: {flag}")
 
+    def test_app_spec_bundles_every_translate_data_dir(self):
+        # Data folders next to the code (profiles, glossary) are read via __file__:
+        # a folder missing from `datas` silently disappears from the frozen build.
+        spec = (ROOT / "build_app.spec").read_text(encoding="utf-8")
+        data_dirs = [
+            d
+            for d in (ROOT / "translate").iterdir()
+            if d.is_dir() and d.name != "__pycache__" and not any(d.glob("*.py"))
+        ]
+        self.assertTrue(data_dirs)
+        for d in data_dirs:
+            self.assertIn(f"'translate/{d.name}'", spec, d.name)
+
     def test_release_and_cache_install_the_lock_with_the_same_key(self):
         workflows = ROOT / ".github" / "workflows"
         release = (workflows / "release.yml").read_text(encoding="utf-8")

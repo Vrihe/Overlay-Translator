@@ -194,6 +194,18 @@ class TestWizardFlow(_TempSettings):
         self.wizard.reject()
         self.assertFalse(self.file.exists())
 
+    def test_start_parks_a_running_versions_worker(self):
+        # "Start" while the HF tag request is in flight must not destroy the live thread.
+        worker = mock.Mock()
+        worker.isRunning.return_value = True
+        self.wizard._versions_worker = worker
+        with mock.patch.object(setup_wizard, "_keep_until_finished") as keep:
+            self.wizard._on_next()  # mode → done
+            self.wizard._on_next()  # start → accept()
+        keep.assert_called_once_with(worker)
+        self.assertIsNone(self.wizard._versions_worker)
+        self.assertTrue(self.saved()["first_run_done"])
+
 
 class TestClosingKeepsRunningWorkers(unittest.TestCase):
     def test_running_download_is_cancelled_and_parked(self):
