@@ -536,7 +536,8 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
   translation; never logged). Columns stack below 760 px width.
 - `SettingsWidget` — all settings; methods `_build_ui()`, `_load_current()`,
   `_on_save()`, `reload()`, `_css(extra)`; constants `_SOURCE_LANGUAGES`,
-  `_TARGET_LANGUAGES`, `_ENGINES`, `_UI_THEMES`, `_OPENROUTER_MODELS`, `_MODEL_HINTS`.
+  `_TARGET_LANGUAGES`, `_ENGINES`, `_UI_THEMES`. The LLM model is a free-text OpenRouter id
+  (`_model_edit`, no preset list: free models come and go); empty saves `DEFAULTS["llm_model"]`.
   Section list (`_section_list`) + `_section_stack` with one scroll page per section
   (`_SECTIONS`): "Перевод" (API key and providers, backend, fast-translator keys,
   translation, custom profiles), "Хоткеи" (`QKeySequenceEdit` per app hotkey + "По умолчанию";

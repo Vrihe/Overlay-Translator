@@ -67,7 +67,7 @@ DEFAULTS: dict[str, Any] = {
     "nllb_device": "auto",  # "auto" (NVIDIA GPU when cuBLAS is there) | "cpu"
     "ocr_gpu_mode": "auto",  # "auto" | "cpu" — OCR on the GPU via DirectML ("gpu" = "auto")
     "azure_region": "global",  # Azure Translator region (default "global")
-    "llm_model": "poolside/laguna-s-2.1:free",
+    "llm_model": "google/gemma-4-31b-it:free",  # any OpenRouter model id; typed in Settings
     "primary_provider": "openrouter",  # "openrouter" | "anthropic"
     "enable_fallback": True,  # True | False
     "enable_streaming": True,  # True | False (A5: live token streaming in UI)

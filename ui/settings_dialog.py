@@ -107,23 +107,6 @@ _ENGINES = [
     ("api", "OCR → Google/DeepL API"),
 ]
 
-# B1: Preset list of OpenRouter models requested by user.
-# (model_id, display_name) — model_id is used as QComboBox itemData.
-_OPENROUTER_MODELS: list[tuple[str, str]] = [
-    ("openai/gpt-oss-20b:free", "GPT OSS 20B (free)"),
-    ("google/gemma-4-31b-it:free", "Google Gemma 4 31B (free)"),
-    ("poolside/laguna-s-2.1:free", "Poolside Laguna S 2.1 (free)"),
-    ("__custom__", N_("Другая модель...")),
-]
-
-# B3: Short hints shown below the model combo for preset models.
-_MODEL_HINTS: dict[str, str] = {
-    "openai/gpt-oss-20b:free": N_("✶ Бесплатно · Базовая открытая модель"),
-    "google/gemma-4-31b-it:free": N_("✶ Бесплатно · Новая мощная открытая модель Google"),
-    "poolside/laguna-s-2.1:free": N_("✶ Бесплатно · Быстрая компактная модель для перевода"),
-    "__custom__": N_("Впишите точный ID модели с сайта openrouter.ai"),
-}
-
 
 class _ExampleRowWidget(QWidget):
     """Row widget containing source text, translation text, and a remove button."""
@@ -764,28 +747,21 @@ class SettingsWidget(QWidget):
             self._engine_combo.addItem(tr(eng_label), eng_id)
         trans_layout.addLayout(self._field(tr("Движок перевода:"), self._engine_combo))
 
-        # LLM model — Standard clean dropdown matching other settings + custom model field
-        self._model_combo = QComboBox()
-        self._model_combo.setEditable(False)
-        self._model_combo.setMaxVisibleItems(10)
-        self._model_combo.setStyleSheet(self._INPUT_CSS)
-        self._populate_model_combo()
-        self._model_combo.currentIndexChanged.connect(self._on_model_changed)
-        trans_layout.addLayout(self._field(tr("LLM-модель:"), self._model_combo))
+        # LLM model: any OpenRouter model id, typed by the user (free models come and go,
+        # so the app ships no preset list). Empty → DEFAULTS["llm_model"].
+        default_model = config_manager.DEFAULTS["llm_model"]
+        self._model_edit = QLineEdit()
+        self._model_edit.setPlaceholderText(default_model)
+        self._model_edit.setStyleSheet(self._INPUT_CSS)
+        trans_layout.addLayout(self._field(tr("ID модели:"), self._model_edit))
 
-        # Custom model input (visible only when "Другая модель..." is selected)
-        self._custom_model_row_widget = QWidget()
-        custom_row_layout = QVBoxLayout(self._custom_model_row_widget)
-        custom_row_layout.setContentsMargins(0, 2, 0, 2)
-        self._custom_model_edit = QLineEdit()
-        self._custom_model_edit.setPlaceholderText(tr("например: meta-llama/llama-3.3-70b-instruct"))
-        self._custom_model_edit.setStyleSheet(self._INPUT_CSS)
-        custom_row_layout.addLayout(self._field(tr("ID модели:"), self._custom_model_edit))
-        self._custom_model_row_widget.setVisible(False)
-        trans_layout.addWidget(self._custom_model_row_widget)
-
-        # B3: hint label
-        self._model_hint = QLabel("")
+        self._model_hint = QLabel(
+            tr(
+                "Точный ID модели с openrouter.ai/models, например {example}. Пусто — {default}.",
+                example="meta-llama/llama-3.3-70b-instruct",
+                default=default_model,
+            )
+        )
         self._model_hint.setStyleSheet(theme.text_css(p.muted, 8.5, italic=True))
         self._model_hint.setWordWrap(True)
         trans_layout.addWidget(self._model_hint)
@@ -1260,24 +1236,6 @@ class SettingsWidget(QWidget):
             self._reload_custom_profiles_list()
             self._refresh_all_domain_combos()
 
-    # ── Model combo helpers (B1/B2/B3) ───────────────────
-
-    def _populate_model_combo(self, models: list[tuple[str, str]] | None = None) -> None:
-        """Fill the model QComboBox from *models* (or the default _OPENROUTER_MODELS)."""
-        source = models if models is not None else _OPENROUTER_MODELS
-        saved_data = self._model_combo.currentData() if self._model_combo.count() > 0 else None
-        self._model_combo.blockSignals(True)
-        self._model_combo.clear()
-        for model_id, display in source:
-            self._model_combo.addItem(tr(display), model_id)
-        self._model_combo.blockSignals(False)
-
-        # Restore previously selected value
-        if saved_data:
-            found = self._model_combo.findData(saved_data)
-            if found >= 0:
-                self._model_combo.setCurrentIndex(found)
-
     @staticmethod
     def _detect_gpu_info() -> str:
         """Return a human-readable string about GPU support for OCR."""
@@ -1286,15 +1244,6 @@ class SettingsWidget(QWidget):
         if _dml_available():
             return tr("✓ DirectML доступен — OCR может работать на видеокарте")
         return tr("DirectML недоступен — OCR будет работать на CPU")
-
-    def _on_model_changed(self, index: int) -> None:
-        """Show a short hint below the combo and toggle the custom model field."""
-        model_id = self._model_combo.itemData(index)
-        is_custom = model_id == "__custom__"
-        if hasattr(self, "_custom_model_row_widget"):
-            self._custom_model_row_widget.setVisible(is_custom)
-        hint = _MODEL_HINTS.get(str(model_id), "")
-        self._model_hint.setText(tr(hint) if hint else "")
 
     # ── NMT key management ────────────────────────────────
 
@@ -1861,22 +1810,8 @@ class SettingsWidget(QWidget):
         if idx_eng >= 0:
             self._engine_combo.setCurrentIndex(idx_eng)
 
-        # LLM model — select preset or enable custom model field
-        current_model = config.LLM_MODEL or "openai/gpt-oss-20b:free"
-        found_idx = self._model_combo.findData(current_model)
-        if found_idx >= 0 and current_model != "__custom__":
-            self._model_combo.setCurrentIndex(found_idx)
-            if hasattr(self, "_custom_model_row_widget"):
-                self._custom_model_row_widget.setVisible(False)
-        else:
-            custom_idx = self._model_combo.findData("__custom__")
-            if custom_idx >= 0:
-                self._model_combo.setCurrentIndex(custom_idx)
-            if hasattr(self, "_custom_model_edit"):
-                self._custom_model_edit.setText(current_model)
-            if hasattr(self, "_custom_model_row_widget"):
-                self._custom_model_row_widget.setVisible(True)
-        self._on_model_changed(self._model_combo.currentIndex())  # update hint
+        # LLM model: the saved id as typed.
+        self._model_edit.setText(config.LLM_MODEL or "")
 
         # Translation options
         self._chk_streaming.setChecked(bool(getattr(config, "ENABLE_STREAMING", True)))
@@ -1924,7 +1859,6 @@ class SettingsWidget(QWidget):
             self._src_lang_combo,
             self._lang_combo,
             self._engine_combo,
-            self._model_combo,
             self._nllb_version_combo,
             self._live_sensitivity_combo,
             self._nllb_device_combo,
@@ -1936,7 +1870,7 @@ class SettingsWidget(QWidget):
             switch.toggled.connect(self._schedule_autosave)
         for spin in (self._tokens_spin, self._timeout_spin, self._live_interval_spin):
             spin.valueChanged.connect(self._schedule_autosave)
-        for edit in (self._nllb_path_edit, self._custom_model_edit, self._azure_region_input):
+        for edit in (self._nllb_path_edit, self._model_edit, self._azure_region_input):
             edit.editingFinished.connect(self._schedule_autosave)
 
         # Restart-only settings light up the save button instead.
@@ -2028,11 +1962,7 @@ class SettingsWidget(QWidget):
         settings.save_primary_provider(primary_choice)
         settings.set_fallback_enabled(self._chk_fallback.isChecked())
 
-        combo_data = self._model_combo.currentData()
-        if combo_data == "__custom__":
-            new_model = self._custom_model_edit.text().strip() or "openai/gpt-oss-20b:free"
-        else:
-            new_model = combo_data or "openai/gpt-oss-20b:free"
+        new_model = self._model_edit.text().strip() or config_manager.DEFAULTS["llm_model"]
 
         from translate.backend import DEFAULT_BACKEND
 
