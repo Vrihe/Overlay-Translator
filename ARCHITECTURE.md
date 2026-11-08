@@ -470,7 +470,11 @@ DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
 ### `ocr/engine.py`
 `get_reader()` — lazy RapidOCR singleton, `preprocess(img, scale=1) -> np.ndarray`,
 `extract_text(image) -> str`, `recognise(img, lang=None) -> str` (public entry point),
-`_extract_strips` — splits tall regions into strips for accuracy.
+`_extract_strips` — splits tall regions (≥ 400 px) into 300 px strips that overlap by
+`_STRIP_OVERLAP_PX` (48); each strip keeps only lines centred in its own zone, so a line
+on a boundary is read whole and once. Boxes come back in the padded, upscaled strip
+(`_preprocess_geometry`) and are mapped to image pixels before sorting — skipping that
+interleaved lines of neighbouring strips and merged them into one row.
 - Models: PP-OCRv6 small detector + PP-OCRv5 mobile recognizer (`eslav` = ru/uk/be + Latin
   when `OCR_LANGUAGES` has a Cyrillic code, else `en`); the angle classifier is off.
   Settings → OCR "Языки распознавания" offers exactly these two sets (`["en", "ru"]` /

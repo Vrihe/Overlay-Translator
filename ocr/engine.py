@@ -52,6 +52,10 @@ _reader_on_gpu: bool = False
 _STRIP_MODE_MIN_HEIGHT: int = 400
 # Each strip is at most this many pixels tall.
 _STRIP_HEIGHT_PX: int = 300
+# Neighbouring strips overlap by this much, so a text line on a boundary is whole in
+# one of them; each strip keeps only the lines centred in its own half of the overlap.
+# Must exceed the tallest expected text line (screen px).
+_STRIP_OVERLAP_PX: int = 48
 # Grayscale std below this → strip has no text-like content → skip.
 _BLANK_STD_THRESHOLD: float = 8.0
 # Maximum worker threads for parallel strip preprocessing.
@@ -238,6 +242,20 @@ def _fallback_to_cpu() -> None:
 # ── Preprocessing ─────────────────────────────────────────────────────────────
 
 
+def _preprocess_geometry(w: int, h: int, scale: int = 1) -> tuple[int, int]:
+    """``(pad_px, scale)`` that preprocess() applies to a *w*×*h* crop.
+
+    The border goes on first, then small or thin-font crops (padded height < 250 px
+    or width < 500 px) are upscaled ×2 (×3 below 100 px). OCR boxes come back in that
+    padded, scaled space: strip mode maps them back with these numbers.
+    """
+    pad_px = max(8, min(24, int(min(w, h) * 0.1)))
+    pw, ph = w + 2 * pad_px, h + 2 * pad_px
+    if scale == 1 and (ph < 250 or pw < 500):
+        scale = 3 if ph < 100 else 2
+    return pad_px, scale
+
+
 def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
     """Enhanced preprocessing for screen OCR: handles thin, small, and low-contrast UI fonts."""
     from PIL import ImageEnhance, ImageFilter, ImageOps
@@ -253,7 +271,7 @@ def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
     w, h = img.size
 
     # 2. Add border padding so edge characters/punctuation are not clipped by detector
-    pad_px = max(8, min(24, int(min(w, h) * 0.1)))
+    pad_px, effective_scale = _preprocess_geometry(w, h, scale)
     fill_color = (255, 255, 255) if is_dark else (0, 0, 0)
     try:
         img = ImageOps.expand(img, border=pad_px, fill=fill_color)
@@ -261,11 +279,6 @@ def preprocess(img: Image.Image, scale: int = 1) -> np.ndarray:
         img = ImageOps.expand(img, border=pad_px, fill=0)
 
     w, h = img.size
-    effective_scale = scale
-    # Auto-upscale small or thin-font crops (height < 250px or width < 500px)
-    if effective_scale == 1 and (h < 250 or w < 500):
-        effective_scale = 3 if h < 100 else 2
-
     if effective_scale > 1:
         img = img.resize((w * effective_scale, h * effective_scale), Image.LANCZOS)
 
@@ -348,8 +361,8 @@ def _sort_results(results: list) -> str:
 def _prepare_strip(strip_img: Image.Image, y_offset: int):
     """Pre-process one horizontal strip and check whether it contains any content.
 
-    Returns (img_np, y_offset) when the strip has text-like content, or
-    (None, y_offset) when the strip is blank and should be skipped.
+    Returns (img_np, y_offset, (pad_px, scale)) when the strip has text-like content,
+    or (None, y_offset, None) when the strip is blank and should be skipped.
 
     Called from a ThreadPoolExecutor: PIL and numpy operations release the GIL
     so multiple strips are prepared in parallel.
@@ -359,10 +372,37 @@ def _prepare_strip(strip_img: Image.Image, y_offset: int):
     # Text on any background produces visible contrast (std > threshold).
     gray = np.array(strip_img.convert("L"), dtype=np.float32)
     if gray.std() < _BLANK_STD_THRESHOLD:
-        return None, y_offset  # blank strip — skip OCR entirely
+        return None, y_offset, None  # blank strip — skip OCR entirely
 
     img_np = preprocess(strip_img)
-    return img_np, y_offset
+    return img_np, y_offset, _preprocess_geometry(*strip_img.size)
+
+
+def _strip_slices(h: int) -> list[tuple[int, int, int, int]]:
+    """``(y1, y2, own_top, own_bottom)`` per strip of an *h*-px tall image.
+
+    Strips overlap by _STRIP_OVERLAP_PX; the boundary between two strips' "own" zones
+    is the middle of their overlap, so a line no taller than the overlap is whole in
+    the strip that owns its centre and is kept exactly once.
+    """
+    step = _STRIP_HEIGHT_PX - _STRIP_OVERLAP_PX
+    starts = [0]
+    while starts[-1] + _STRIP_HEIGHT_PX < h:
+        starts.append(starts[-1] + step)
+    half = _STRIP_OVERLAP_PX // 2
+    slices = []
+    for i, y1 in enumerate(starts):
+        y2 = min(y1 + _STRIP_HEIGHT_PX, h)
+        own_top = float("-inf") if i == 0 else y1 + half
+        own_bottom = float("inf") if i == len(starts) - 1 else y2 - half
+        slices.append((y1, y2, own_top, own_bottom))
+    return slices
+
+
+def _to_image_coords(bbox, geometry: tuple[int, int], y_offset: int) -> list:
+    """Map a box from a preprocessed strip (padded, scaled) back to image pixels."""
+    pad_px, scale = geometry
+    return [[x / scale - pad_px, y / scale - pad_px + y_offset] for x, y in bbox]
 
 
 def _to_results(output) -> list:
@@ -432,17 +472,13 @@ def _extract_strips(image: Image.Image) -> str:
       5. Merge all results and sort top-to-bottom, left-to-right.
     """
     w, h = image.size
-    slices = []
-    y = 0
-    while y < h:
-        slices.append((y, min(y + _STRIP_HEIGHT_PX, h)))
-        y += _STRIP_HEIGHT_PX
+    slices = _strip_slices(h)
 
     logging.debug(f"OCR strip mode: {len(slices)} strips of ≤{_STRIP_HEIGHT_PX}px from {w}×{h} image")
 
     # ── Step 1–2: Parallel preprocessing + blank detection ────────────────────
-    def prep(bounds: tuple[int, int]):
-        y1, y2 = bounds
+    def prep(bounds: tuple[int, int, int, int]):
+        y1, y2, _own_top, _own_bottom = bounds
         strip = image.crop((0, y1, w, y2))
         return _prepare_strip(strip, y_offset=y1)
 
@@ -450,7 +486,9 @@ def _extract_strips(image: Image.Image) -> str:
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         prepared = list(pool.map(prep, slices))
 
-    active = [(arr, off) for arr, off in prepared if arr is not None]
+    active = [
+        (arr, off, geometry, own) for (arr, off, geometry), (_y1, _y2, *own) in zip(prepared, slices) if arr is not None
+    ]
     skipped = len(prepared) - len(active)
     logging.debug(f"Strip preprocessing done: {len(active)} active, {skipped} blank/skipped.")
 
@@ -459,16 +497,20 @@ def _extract_strips(image: Image.Image) -> str:
 
     all_results: list = []
 
-    for img_np, y_offset in active:
+    for img_np, y_offset, geometry, (own_top, own_bottom) in active:
         logging.debug(f"Running OCR on strip at y={y_offset}...")
         # get_reader() per strip: a GPU→CPU fallback on one strip must reach the rest.
         strip_results = _filter_confident(_safe_readtext(get_reader(), img_np))
         logging.debug(f"  → {len(strip_results)} detections in strip y={y_offset}")
 
         for bbox, text, conf in strip_results:
-            # Shift each bounding-box point's Y by the strip's vertical offset
-            adj_bbox = [[x, y + y_offset] for x, y in bbox]
-            all_results.append((adj_bbox, text, conf))
+            # Boxes are in the padded, upscaled strip: back to image pixels first, or
+            # lines of neighbouring strips interleave (and merge) when sorted.
+            adj_bbox = _to_image_coords(bbox, geometry, y_offset)
+            ys = [pt[1] for pt in adj_bbox]
+            center_y = (min(ys) + max(ys)) / 2
+            if own_top <= center_y < own_bottom:  # the overlap's other half: the neighbour's line
+                all_results.append((adj_bbox, text, conf))
 
     # ── Step 5: Merge and sort ────────────────────────────────────────────────
     return _sort_results(all_results)
