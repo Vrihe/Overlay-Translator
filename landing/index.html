@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Translator Overlay: screen translator for Windows with one hotkey</title>
+<meta name="description" content="Screen translator for Windows: press a hotkey, select text on screen and read the translation in a popup. Game chat translator with OCR, works without an API key or fully offline.">
+<link rel="canonical" href="{{SITE_URL}}/">
+<link rel="alternate" hreflang="en" href="{{SITE_URL}}/">
+<link rel="alternate" hreflang="ru" href="{{SITE_URL}}/ru/">
+<link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="stylesheet" href="css/style.css">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Translator Overlay">
+<meta property="og:title" content="Translator Overlay: screen translator for Windows">
+<meta property="og:description" content="Select text on screen, press a hotkey, read the translation. Game chat translator with OCR; no API key needed, can run fully offline.">
+<meta property="og:url" content="{{SITE_URL}}/">
+<meta property="og:image" content="{{SITE_URL}}/img/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Translator Overlay translating a game chat line into Russian in a popup">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="ru_RU">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Translator Overlay: screen translator for Windows">
+<meta name="twitter:description" content="Select text on screen, press a hotkey, read the translation. No API key needed, can run fully offline.">
+<meta name="twitter:image" content="{{SITE_URL}}/img/og-image.png">
+<meta name="twitter:image:alt" content="Translator Overlay translating a game chat line into Russian in a popup">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Translator Overlay",
+  "description": "Screen region translator for Windows: a hotkey selects text on screen, OCR reads it and a popup shows the translation. Works with Google Translate without a key, DeepL, Azure or an LLM with your own key, or fully offline with a local NLLB model.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Windows 10, Windows 11",
+  "url": "{{SITE_URL}}/",
+  "downloadUrl": "https://github.com/Vrihe/Overlay-Translator/releases/latest",
+  "license": "https://github.com/Vrihe/Overlay-Translator/blob/main/LICENSE",
+  "inLanguage": ["en", "ru"],
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "image": "{{SITE_URL}}/img/og-image.png"
+}
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="img/favicon.png" width="28" height="28" alt="">Translator Overlay</a>
+    <nav class="nav" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="download.html">Download</a>
+      <a href="docs/">Docs</a>
+      <a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a>
+      <span class="lang" aria-label="Language">
+        <span aria-current="true">EN</span><a href="ru/" hreflang="ru" lang="ru">RU</a>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Translate any text on your screen with one hotkey</h1>
+    <p class="lead">Select a game chat, a stream or a program without a translation, and read the result in a popup right next to it. Works without an API key, or fully offline.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/Vrihe/Overlay-Translator/releases/latest" data-dl>Download for Windows<small data-dl-meta>Windows 10/11, 64-bit</small></a>
+      <a class="btn btn-secondary" href="#how-it-works">How it works</a>
+    </div>
+    <p class="muted small">Free and open source. Installs without administrator rights.</p>
+  </div>
+</section>
+
+<section id="features" aria-labelledby="features-h">
+  <div class="wrap">
+    <h2 id="features-h">A screen translator built for game chat</h2>
+    <p class="lead">Press the hotkey, drag over any text, read the translation. The popup appears next to the text you selected.</p>
+
+    <div class="demo-main">
+      <figure>
+        <img src="docs/assets/demo-lf2m.gif" width="840" height="470" loading="lazy" decoding="async" alt="Selecting the game chat line 'lf2m tank and heal for hc dungeon' with the hotkey: the popup shows the Russian translation with the abbreviation expanded, from the offline model">
+        <figcaption>Offline model: the chat abbreviation <code>lf2m</code> is expanded, not left as it is.</figcaption>
+      </figure>
+    </div>
+    <div class="demo-small">
+      <figure>
+        <img src="docs/assets/demo-wts.gif" width="840" height="470" loading="lazy" decoding="async" alt="Selecting 'wts epic sword 500g pm me': the popup shows the offline translation">
+        <figcaption>Trade chat, offline.</figcaption>
+      </figure>
+      <figure>
+        <img src="docs/assets/demo-live.gif" width="840" height="470" loading="lazy" decoding="async" alt="Live monitoring of the chat: the popup updates with each new message">
+        <figcaption>Live mode: new messages are translated as they arrive.</figcaption>
+      </figure>
+    </div>
+
+    <ul class="cards">
+      <li><strong>One hotkey</strong>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> and select a region. Save regions with their own hotkeys.</li>
+      <li><strong>Live mode</strong>Re-translates a region when its text changes, which suits stream chats.</li>
+      <li><strong>OCR on your PC</strong>Text is recognised locally, on any DirectX 12 GPU or the CPU. Latin and Cyrillic scripts.</li>
+      <li><strong>Game chat glossary</strong>The local model is tuned for game chat and knows terms like <code>wts</code>, <code>lf2m</code> and <code>gg</code>.</li>
+      <li><strong>History and read-aloud</strong>Translation history, text-to-speech, and an interface in English and Russian.</li>
+      <li><strong>Automatic updates</strong>The app checks GitHub for a new release and installs it after a SHA-256 check.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="install" aria-labelledby="install-h">
+  <div class="wrap">
+    <h2 id="install-h">Install in 3 steps</h2>
+    <ol class="steps">
+      <li><strong>Download</strong>Get <code>TranslatorOverlay-Setup-&lt;version&gt;.exe</code> from the <a href="download.html">download page</a> and run it. No administrator rights needed.</li>
+      <li><strong>Pick a mode</strong>The first-run wizard offers online without a key, an LLM with your key, or offline, which downloads the local model.</li>
+      <li><strong>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd></strong>Drag over any text. Settings open with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>.</li>
+    </ol>
+    <p class="muted" style="margin-top:1rem">Windows 10 or 11, 64-bit. <a href="docs/installation/">Installation guide</a>, including running from source.</p>
+  </div>
+</section>
+
+<section id="how-it-works" aria-labelledby="modes-h">
+  <div class="wrap">
+    <h2 id="modes-h">Translation modes</h2>
+    <p class="lead">Pick the backend that fits. The hotkey, OCR and popup work the same with every one of them.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Mode</th><th scope="col">Key needed</th><th scope="col">Offline</th><th scope="col">Good for</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Google Translate (default)</th><td>No</td><td>No</td><td>Everyday use, many languages</td></tr>
+          <tr><th scope="row">DeepL / Azure Translator</th><td>Your key</td><td>No</td><td>When you already use DeepL or Azure (both have free tiers)</td></tr>
+          <tr><th scope="row">LLM: OpenRouter (free models) or Anthropic</th><td>Your key</td><td>No</td><td>Context-aware translation with domain profiles, streaming output</td></tr>
+          <tr><th scope="row">Local NLLB-200 model</th><td>No</td><td><strong>Yes</strong></td><td>Privacy, no internet, game-chat slang; about 1 s per line on a CPU, faster on an NVIDIA GPU</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small" style="margin-top:1rem">How the pipeline works: <a href="docs/how-it-works/">hotkey, screenshot in memory, OCR, cache, translation, popup</a>.</p>
+  </div>
+</section>
+
+<section id="privacy" aria-labelledby="privacy-h">
+  <div class="wrap">
+    <h2 id="privacy-h">Privacy: what stays on your computer</h2>
+    <ul class="checks">
+      <li><strong>With a cloud backend</strong> the recognised text goes to that provider (Google, DeepL, Azure, OpenRouter or Anthropic). Free OpenRouter models may log prompts, so do not translate passwords that way.</li>
+      <li><strong>The local model never touches the network.</strong> Screen capture, OCR and translation all stay on your computer.</li>
+      <li>Screenshots are never saved. The text is never written to the logs, only its length. The history keeps your last 500 translations and can be cleared.</li>
+      <li>No telemetry and no account. API keys are stored in Windows Credential Manager.</li>
+      <li>On start the app asks GitHub for the latest release; nothing about you or your texts is sent.</li>
+    </ul>
+    <p><a href="docs/privacy/">Everything that is sent or stored</a>.</p>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="faq-h">
+  <div class="wrap">
+    <h2 id="faq-h">FAQ</h2>
+
+    <details>
+      <summary>Windows SmartScreen or my antivirus warns about the installer</summary>
+      <div class="answer">
+        <p>The installer is not code-signed yet, so SmartScreen shows "Windows protected your PC" for a new release. Check the file's SHA-256 against the one in the release notes, then choose <strong>More info → Run anyway</strong>. Some antivirus programs also flag the app because it installs a global keyboard hook, which is how the hotkeys work anywhere.</p>
+        <p><a href="download.html#smartscreen">Step by step, with the SHA-256 check</a>.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>The hotkey does nothing in a game running as administrator</summary>
+      <div class="answer">
+        <p>Windows does not pass keystrokes from a program running as Administrator to programs with normal rights. Start Translator Overlay as Administrator too, only for those games: right-click the shortcut, then <strong>Run as administrator</strong>. If the hotkey does nothing anywhere, another program probably took the same combination; pick another one in Settings → Hotkeys.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>I have no GPU. Will it work?</summary>
+      <div class="answer">
+        <p>Yes. A GPU is only a speed-up. OCR falls back to the CPU by itself (about 0.5–1.5 s per screenshot), cloud backends do not use a GPU at all, and the local model runs on the CPU at about 1 s per chat line on a modern 4-core CPU. An NVIDIA GPU with CUDA 12 makes the local model about 3 times faster.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Can it work fully offline?</summary>
+      <div class="answer">
+        <p>Yes, with the local NLLB backend. Two one-time downloads are needed while online: the OCR recognition model (about 8 MB, on first launch) and a model build (about 620 MB, from Settings). After that, translation needs no network.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Does it work on Linux or macOS?</summary>
+      <div class="answer">
+        <p>No. Global hotkeys, key storage and the installer are Windows-specific. OCR reads Latin and Cyrillic scripts only.</p>
+      </div>
+    </details>
+
+    <p><a href="docs/faq/">More answers in the documentation</a>.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <ul>
+      <li><a href="download.html">Download</a></li>
+      <li><a href="docs/">Documentation</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator">GitHub</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/releases">Releases</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/blob/main/CHANGELOG.md">Changelog</a></li>
+      <li><a href="https://github.com/Vrihe/Overlay-Translator/issues">Report an issue</a></li>
+      <!--discord:start-->
+      <!-- DISCORD PLACEHOLDER: this link appears once "discord_url" is set in landing/site.json -->
+      <li><a href="{{DISCORD_URL}}">Discord</a></li>
+      <!--discord:end-->
+    </ul>
+    <p><strong>Licenses.</strong> The source code is released under the <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/LICENSE">MIT License</a>. The optional offline NLLB-200 model and every build made from it are licensed separately under <a href="https://github.com/Vrihe/Overlay-Translator/blob/main/MODEL_LICENSE.md">CC-BY-NC-4.0</a>, which allows non-commercial use only.</p>
+    <p><strong>Disclaimer.</strong> Translator Overlay is an unofficial, independent project. It is not affiliated with, endorsed by or connected to any game it can be used with, or to the publishers of such games. All game names and trademarks belong to their owners.</p>
+  </div>
+</footer>
+
+<script src="js/download.js" defer></script>
+</body>
+</html>
