@@ -153,6 +153,13 @@ class TestDownload(_DownloadBase):
             self._download(_FakeHub(self.files, bad_sha="model.bin"))
         self.assertEqual(list(self.root.iterdir()), [])
 
+    def test_path_outside_the_build_folder_is_refused(self):
+        hub = _FakeHub({"../evil.txt": b"x", **self.files})
+        with self.assertRaises(OSError):
+            self._download(hub)
+        self.assertFalse((self.root / "evil.txt").exists())
+        self.assertEqual(list(self.root.iterdir()), [])
+
 
 class _Dropped(_FakeHub):
     """Fails the connection after sending *cut* bytes of model.bin."""

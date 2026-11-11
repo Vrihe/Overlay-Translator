@@ -392,7 +392,7 @@ class NllbBackend:
                 if exc.notify:
                     _logger.warning("CUDA unavailable, using CPU inference: %s", exc)
                     first_line = str(exc).splitlines()[0]
-                    self._pending_notice = f"CUDA unavailable, using CPU inference ({first_line})"
+                    self._pending_notice = tr("CUDA недоступна, перевод на CPU ({reason})", reason=first_line)
                 else:
                     _logger.info("CUDA not used, running NLLB on CPU: %s", exc)
 
@@ -536,8 +536,8 @@ class NllbBackend:
             return text
         _logger.debug(
             "Glossary | expanded=%s | protected=%s | text=%s",
-            prepared.expanded,
-            list(prepared.restore.values()),
+            loggable(str(prepared.expanded), 120),
+            loggable(str(list(prepared.restore.values())), 120),
             loggable(prepared.text, 120),
         )
         restored = chat_glossary.restore(self._raw_translate(prepared.text, src_code, tgt_code), prepared)

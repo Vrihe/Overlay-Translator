@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 import threading
+from datetime import datetime
 
 # ── Early Logging Configuration ──────────────────────────
 
@@ -158,6 +159,7 @@ from capture.screenshot import capture_region
 from i18n import tr
 from ocr.engine import recognise
 from overlay.selector import RegionSelector
+from translate.line_feed import RegionFeed
 from translate.privacy import loggable
 from tray.tray_icon import TrayIcon
 from ui.main_window import MainWindow
@@ -226,7 +228,17 @@ class TranslationWorker(QThread):
     partial_result = pyqtSignal(str)  # A5: incremental translation chunk for streaming UI
     ocr_done = pyqtSignal(str, QRect)  # D1: OCR finished, emits (recognized_text, anchor)
 
-    def __init__(self, x1: int, y1: int, x2: int, y2: int, text_override: str | None = None, ocr_only: bool = False):
+    def __init__(
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        text_override: str | None = None,
+        ocr_only: bool = False,
+        previous_source: str | None = None,
+        drop_edge_lines: bool = False,
+    ):
         super().__init__()
         self.x1 = x1
         self.y1 = y1
@@ -237,6 +249,14 @@ class TranslationWorker(QThread):
         # Set when the local NLLB backend was unavailable and the API was used
         # instead; read by TranslatorApp after translation_done.
         self.backend_notice: str = ""
+        # The region's text from its last translation: only lines not in it are translated.
+        self.previous_source = previous_source
+        # Live monitoring: a line half cut by the region edge reads differently each time.
+        self.drop_edge_lines = drop_edge_lines
+        # Read by TranslatorApp after translation_done: the full recognised text, and
+        # whether the region showed nothing new (then nothing was translated).
+        self.ocr_text: str = ""
+        self.nothing_new: bool = False
 
     def run(self):
         try:
@@ -264,7 +284,7 @@ class TranslationWorker(QThread):
 
             try:
                 logging.debug("Step 2: Running OCR recognition...")
-                text = recognise(image)
+                text = recognise(image, drop_edge_lines=self.drop_edge_lines)
             except Exception as e:
                 logging.exception("Step 2 Failed: OCR recognition error")
                 self.translation_done.emit("", "", tr("Ошибка OCR:\n{error}", error=e))
@@ -278,6 +298,17 @@ class TranslationWorker(QThread):
             # D1: If ocr_only, emit ocr_done and stop here
             if self.ocr_only:
                 self.ocr_done.emit(text, anchor)
+                return
+
+        self.ocr_text = text
+        if self.previous_source and self.text_override is None:
+            from translate.line_feed import new_lines
+
+            text = new_lines(self.previous_source, text)
+            if not text:
+                logging.info("Step 2 Result: no new lines since the last translation of this region.")
+                self.nothing_new = True
+                self.translation_done.emit("", "", "")
                 return
 
         # Step 3: Translation via the active backend (API or local NLLB).
@@ -410,6 +441,14 @@ class TranslatorApp:
             _instance_guard.listen(self._activate_bridge.triggered.emit)
 
         self._selector: RegionSelector | None = None
+        # The selector opens from a global hotkey while another app has the focus, and
+        # Windows refuses to hand it the foreground: Esc never reaches its keyPressEvent.
+        # A global Esc hook lives as long as the selector does. Never suppress=True: the
+        # keyboard library then routes every key through a blocking hook, and other apps'
+        # global hotkeys stall or get lost.
+        self._selector_esc_bridge = HotkeyBridge()
+        self._selector_esc_bridge.triggered.connect(self._cancel_selector)
+        self._selector_esc_handle = None
         self._popup: ResultPopup | None = None
         self._worker: TranslationWorker | None = None
         self._request_seq = 0  # id of the newest translation request
@@ -420,6 +459,8 @@ class TranslatorApp:
         # Where the user dragged a popup to, per region (anchor rect): the next popup for
         # that region (live monitoring, a preset bind) opens there, not at the default spot.
         self._user_popup_pos: dict[tuple[int, int, int, int], QPoint] = {}
+        # Per region: the last recognised text and the translated blocks the popup lists.
+        self._feeds: dict[tuple[int, int, int, int], RegionFeed] = {}
         self._presets_dialog = None  # RegionPresetsDialog instance (if open)
         self._preset_target_dialog = None  # the dialog that asked for a new region ("Новый")
         self._preset_hotkeys: list[str] = []
@@ -481,13 +522,35 @@ class TranslatorApp:
             self._selector.selection_cancelled.connect(self._on_cancelled)
             self._selector.destroyed.connect(self._on_selector_destroyed)
             self._selector.activate()
+            self._hook_selector_esc()
         except Exception:
             logging.exception("Error showing region selector")
+
+    def _hook_selector_esc(self) -> None:
+        if self._selector_esc_handle is not None or self._hotkeys_paused:
+            return
+        try:
+            self._selector_esc_handle = keyboard.add_hotkey("esc", self._selector_esc_bridge.triggered.emit)
+        except Exception:
+            logging.exception("Failed to hook Esc for the region selector")
+
+    def _unhook_selector_esc(self) -> None:
+        handle, self._selector_esc_handle = self._selector_esc_handle, None
+        if handle is not None:
+            try:
+                keyboard.remove_hotkey(handle)
+            except Exception:
+                pass  # already gone (hotkeys paused / unhooked)
+
+    def _cancel_selector(self) -> None:
+        if self._selector is not None:
+            self._selector.cancel()
 
     def _on_cancelled(self) -> None:
         logging.debug("Region selection cancelled by user.")
 
     def _on_selector_destroyed(self) -> None:
+        self._unhook_selector_esc()
         self._selector = None
 
     # ── Pipeline: capture → OCR → translate → popup ──────
@@ -554,13 +617,31 @@ class TranslatorApp:
 
     def _run_translation(self, request) -> None:
         seq, x1, y1, x2, y2, anchor, text_override, live = request
-        worker = TranslationWorker(x1, y1, x2, y2, text_override=text_override)
+        feed = self._feeds.get(_anchor_key(anchor))
+        worker = TranslationWorker(
+            x1,
+            y1,
+            x2,
+            y2,
+            text_override=text_override,
+            previous_source=feed.previous_source if feed else None,
+            drop_edge_lines=live,
+        )
         # Shown unless the user asked for another translation after it: on a fast-changing
         # region every result is newer than the popup's text, so live ones are never dropped
         # just because the next live check has already been queued.
         worker.translation_done.connect(
             lambda src, tr, err: (
-                self._on_translation_finished(src, tr, err, anchor, live=live, notice=worker.backend_notice)
+                self._on_translation_finished(
+                    src,
+                    tr,
+                    err,
+                    anchor,
+                    live=live,
+                    notice=worker.backend_notice,
+                    ocr_text=worker.ocr_text,
+                    nothing_new=worker.nothing_new,
+                )
                 if seq >= self._last_manual_seq
                 else logging.debug("Dropped stale translation %d.", seq)
             )
@@ -638,6 +719,9 @@ class TranslatorApp:
 
         if hasattr(self, "_live_monitor") and self._live_monitor is not None:
             self._live_monitor.stop()
+        # Start from scratch: the first check shows the region's whole text. With the old
+        # feed it found "no new lines" and showed nothing once the last popup had closed.
+        self._feeds.pop(_anchor_key(QRect(x1, y1, x2 - x1, y2 - y1)), None)
 
         interval = int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10)
         self._live_monitor = LiveMonitor(
@@ -648,10 +732,9 @@ class TranslatorApp:
             interval_sec=interval,
             threshold=threshold_for(getattr(config, "LIVE_SENSITIVITY", "medium")),
         )
+        monitor = self._live_monitor
         self._live_monitor.region_changed.connect(
-            lambda lx1, ly1, lx2, ly2: self._start_translation_pipeline(
-                lx1, ly1, lx2, ly2, QRect(lx1, ly1, lx2 - lx1, ly2 - ly1), live=True
-            )
+            lambda lx1, ly1, lx2, ly2: self._on_live_region_changed(monitor, lx1, ly1, lx2, ly2)
         )
         self._live_monitor.start()
         self._main_window.set_monitoring_active(True)
@@ -667,6 +750,12 @@ class TranslatorApp:
                 TrayIcon.Information,
                 3000,
             )
+
+    def _on_live_region_changed(self, monitor, x1: int, y1: int, x2: int, y2: int) -> None:
+        # A change queued just before stop() (or a restart) must not start a translation.
+        if monitor is not getattr(self, "_live_monitor", None):
+            return
+        self._start_translation_pipeline(x1, y1, x2, y2, QRect(x1, y1, x2 - x1, y2 - y1), live=True)
 
     def _stop_live_monitoring(self) -> None:
         """D2: Stop live monitor if active."""
@@ -702,11 +791,23 @@ class TranslatorApp:
             # Saved while its field still has focus: hook it when the capture ends.
             self._tray.refresh_hotkey_labels()
             return
+        failed = []
         for hotkey, bridge in ((config.HOTKEY, self._bridge), (config.SETTINGS_HOTKEY, self._settings_bridge)):
             try:
                 self._app_hotkey_handles.append(keyboard.add_hotkey(hotkey, bridge.triggered.emit))
             except Exception:
                 logging.exception(f"Failed to register global hotkey '{hotkey}'")
+                failed.append(hotkey)
+        if failed:
+            self._tray.showMessage(
+                tr("Горячая клавиша не работает"),
+                tr(
+                    "Не удалось назначить «{hotkey}». Выберите другое сочетание в настройках.",
+                    hotkey="», «".join(failed),
+                ),
+                TrayIcon.Warning,
+                5000,
+            )
         logging.info(f"Registered hotkeys: translate='{config.HOTKEY}', settings='{config.SETTINGS_HOTKEY}'")
         self._tray.refresh_hotkey_labels()
 
@@ -878,9 +979,29 @@ class TranslatorApp:
             logging.debug("Ignored error in _on_partial_translation", exc_info=True)
 
     def _on_translation_finished(
-        self, source: str, translated: str, error_msg: str, anchor: QRect, *, live: bool = False, notice: str = ""
+        self,
+        source: str,
+        translated: str,
+        error_msg: str,
+        anchor: QRect,
+        *,
+        live: bool = False,
+        notice: str = "",
+        ocr_text: str = "",
+        nothing_new: bool = False,
     ) -> None:
         try:
+            feed = self._feed_for(anchor) if (ocr_text or nothing_new) and not error_msg else None
+            if feed is not None and ocr_text:
+                feed.previous_source = ocr_text
+            if nothing_new:
+                # A live check that found no new lines keeps the popup as it is; the
+                # hotkey replaces its "Переводим…" popup with the blocks shown before.
+                if not live and feed is not None and feed.blocks:
+                    self._show_result(
+                        feed.blocks[0][1], feed.blocks[0][1], anchor, notice=tr("Новых строк нет"), blocks=feed.blocks
+                    )
+                return
             if error_msg:
                 # A translation error carries the recognised text: keep it out of the log.
                 logged = error_msg.replace(source, loggable(source)) if source else error_msg
@@ -892,7 +1013,11 @@ class TranslatorApp:
                 )
                 if notice:
                     logging.warning("Backend notice: %s", notice)
-                self._show_result(source, translated, anchor, notice=notice, activate=not live)
+                blocks = None
+                if feed is not None:
+                    feed.add(datetime.now().strftime("%H:%M:%S"), translated)
+                    blocks = feed.blocks
+                self._show_result(source, translated, anchor, notice=notice, activate=not live, blocks=blocks)
             if live and self._popup is not None and getattr(self, "_live_monitor", None) is not None:
                 self._popup.set_monitoring(True)  # its header offers "stop monitoring"
         except Exception:
@@ -900,8 +1025,25 @@ class TranslatorApp:
 
     # ── Popup helpers ────────────────────────────────────
 
+    _MAX_FEEDS = 20
+
+    def _feed_for(self, anchor: QRect) -> RegionFeed:
+        key = _anchor_key(anchor)
+        feed = self._feeds.get(key)
+        if feed is None:
+            if len(self._feeds) >= self._MAX_FEEDS:
+                self._feeds.pop(next(iter(self._feeds)))  # forget the oldest region
+            feed = self._feeds[key] = RegionFeed()
+        return feed
+
     def _show_result(
-        self, source: str, translated: str, anchor: QRect, notice: str = "", activate: bool = True
+        self,
+        source: str,
+        translated: str,
+        anchor: QRect,
+        notice: str = "",
+        activate: bool = True,
+        blocks: list[tuple[str, str]] | None = None,
     ) -> None:
         try:
             from ui.result_popup import show_result
@@ -916,6 +1058,7 @@ class TranslatorApp:
                 existing_popup=self._popup,
                 activate=activate,
                 position=self._user_popup_pos.get(_anchor_key(anchor)),
+                blocks=blocks,
             )
             self._set_popup(popup)
         except Exception:
@@ -1096,8 +1239,9 @@ def main() -> None:
 
             dlg = FirstRunDialog()
             if dlg.exec_() != FirstRunDialog.Accepted:
-                logging.info("First-run dialog cancelled. Exiting.")
-                sys.exit(0)
+                # Keep starting: exiting here locked the user out on every launch, with
+                # no way to reach Settings to add a key or switch to a keyless backend.
+                logging.info("First-run dialog cancelled: starting without an LLM key.")
 
         translator = TranslatorApp(app)
         splash.finish(translator._main_window)  # fade out once main window is ready

@@ -42,7 +42,10 @@ def _translate_official(
     api_key: str,
 ) -> tuple[str, str]:
     """Use the paid Cloud Translation API v2."""
-    url = f"https://translation.googleapis.com/language/translate/v2?key={urllib.parse.quote(api_key, safe='')}"
+    # The key goes in a header, not the query string, so it never lands in proxy/URL logs.
+    url = "https://translation.googleapis.com/language/translate/v2"
+    if not api_key.isascii() or any(c.isspace() for c in api_key):
+        raise RuntimeError(tr("Некорректный ключ Google Cloud Translation API."))
     body: dict = {"q": text, "target": target, "format": "text"}
     if source:
         body["source"] = source
@@ -51,7 +54,7 @@ def _translate_official(
     req = urllib.request.Request(
         url,
         data=data,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "X-goog-api-key": api_key},
         method="POST",
     )
 

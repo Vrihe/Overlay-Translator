@@ -50,7 +50,7 @@ def _get_user_data_dir() -> Path:
 
 # A module-level literal so pyproject.toml (setuptools) and build.py can read
 # the version without importing config.
-APP_VERSION = "1.4.2"
+APP_VERSION = "1.4.3"
 
 
 class _LiveConfig:
@@ -90,6 +90,17 @@ class _LiveConfig:
         from settings.config_manager import set_value
 
         set_value("live_sensitivity", value)
+
+    @property
+    def LIVE_POPUP_KEEP_OPEN(self):
+        """Live monitoring: the popup it updates stays open (no auto-hide) while it runs."""
+        return _cfg("live_popup_keep_open")
+
+    @LIVE_POPUP_KEEP_OPEN.setter
+    def LIVE_POPUP_KEEP_OPEN(self, value):
+        from settings.config_manager import set_value
+
+        set_value("live_popup_keep_open", value)
 
     @property
     def SETTINGS_HOTKEY(self):
@@ -300,7 +311,7 @@ class _LiveConfig:
 
     MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))
     RETRY_BACKOFF_BASE_SEC = float(os.environ.get("RETRY_BACKOFF_BASE_SEC", "1.0"))
-    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "poolside/laguna-s-2.1:free")
+    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemma-4-31b-it:free")  # = DEFAULTS["llm_model"]
     # LLM_MODEL is an OpenRouter id; Anthropic (primary or fallback) needs its own.
     ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-5-5")
     ANTHROPIC_DETECT_MODEL = os.environ.get("ANTHROPIC_DETECT_MODEL", "claude-haiku-5-5")

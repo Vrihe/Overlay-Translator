@@ -35,7 +35,7 @@ class TestLiveMonitorSettings(unittest.TestCase):
     def test_sensitivity_thresholds(self):
         self.assertLess(threshold_for("high"), threshold_for("medium"))
         self.assertLess(threshold_for("medium"), threshold_for("low"))
-        self.assertEqual(threshold_for("medium"), 2.5)  # the tested default stays
+        self.assertEqual(threshold_for("medium"), 0.25)  # percent of changed cells
         self.assertEqual(threshold_for("nonsense"), threshold_for("medium"))
         self.assertEqual(threshold_for(None), threshold_for("medium"))
 
@@ -46,7 +46,7 @@ class TestLiveMonitorSettings(unittest.TestCase):
 
     def test_monitor_keeps_its_threshold(self):
         monitor = LiveMonitor(0, 0, 10, 10, threshold=SENSITIVITY_THRESHOLDS["low"])
-        self.assertEqual(monitor.threshold, 5.0)
+        self.assertEqual(monitor.threshold, 0.6)
 
 
 class TestRegionsPage(SettingsWidgetCase):

@@ -413,13 +413,17 @@ class SetupWizard(QDialog):
 
     # ── Closing ──────────────────────────────────────────
 
-    def reject(self) -> None:
-        """Closing cancels a download; running workers outlive the dialog until they end."""
+    def done(self, result: int) -> None:
+        """Any close (Start or cancel) stops a download; running workers outlive the dialog.
+
+        Both accept() and reject() end here: the wizard is a temporary in main.py and is
+        destroyed right after exec_(), together with any child QThread still running.
+        """
         for worker in (self._download_worker, self._versions_worker):
             if worker is not None and worker.isRunning():
                 _keep_until_finished(worker)
         self._download_worker = self._versions_worker = None
-        super().reject()
+        super().done(result)
 
     # ── Square HUD background ────────────────────────────
 

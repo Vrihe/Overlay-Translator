@@ -41,6 +41,7 @@ from i18n import N_, UI_LANGUAGES, tr
 from settings import config_manager
 from translate.llm_client import reset_client
 from ui import icons, theme
+from ui.background_call import run_in_background
 from ui.hud_widgets import FieldLabel, Segmented, SwitchRow
 from ui.nllb_workers import CudaDownloadWorker, NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
 
@@ -98,30 +99,6 @@ def _ocr_language_set(langs) -> str:
     """The _OCR_LANGUAGE_SETS id that recognises *langs* (an OCR_LANGUAGES value)."""
     codes = {str(code).strip().lower() for code in (langs or [])}
     return "eslav" if codes & _CYRILLIC_OCR_LANGS or not codes else "en"
-
-
-_ENGINES = [
-    ("llm_text", N_("OCR → LLM (текстовый)")),
-    ("llm_vision", N_("LLM Vision (картинка)")),
-    ("api", "OCR → Google/DeepL API"),
-]
-
-# B1: Preset list of OpenRouter models requested by user.
-# (model_id, display_name) — model_id is used as QComboBox itemData.
-_OPENROUTER_MODELS: list[tuple[str, str]] = [
-    ("openai/gpt-oss-20b:free", "GPT OSS 20B (free)"),
-    ("google/gemma-4-31b-it:free", "Google Gemma 4 31B (free)"),
-    ("poolside/laguna-s-2.1:free", "Poolside Laguna S 2.1 (free)"),
-    ("__custom__", N_("Другая модель...")),
-]
-
-# B3: Short hints shown below the model combo for preset models.
-_MODEL_HINTS: dict[str, str] = {
-    "openai/gpt-oss-20b:free": N_("✶ Бесплатно · Базовая открытая модель"),
-    "google/gemma-4-31b-it:free": N_("✶ Бесплатно · Новая мощная открытая модель Google"),
-    "poolside/laguna-s-2.1:free": N_("✶ Бесплатно · Быстрая компактная модель для перевода"),
-    "__custom__": N_("Впишите точный ID модели с сайта openrouter.ai"),
-}
 
 
 class _ExampleRowWidget(QWidget):
@@ -653,7 +630,7 @@ class SettingsWidget(QWidget):
             btn_test = QPushButton(tr("Проверить"))
             btn_test.setStyleSheet(nmt_btn_css)
             btn_test.setCursor(Qt.PointingHandCursor)
-            btn_test.clicked.connect(lambda: self._test_nmt_key(provider))
+            btn_test.clicked.connect(lambda: self._test_nmt_key(provider, btn_test))
             row.addWidget(btn_test)
             nmt_layout.addLayout(row)
             return edit, btn_save, btn_test
@@ -756,35 +733,21 @@ class SettingsWidget(QWidget):
         self._src_lang_combo.currentIndexChanged.connect(self._sync_auto_lang_switch)
         trans_layout.addWidget(self._sw_auto_lang)
 
-        # Translation engine
-        self._engine_combo = QComboBox()
-        self._engine_combo.setStyleSheet(self._INPUT_CSS)
-        for eng_id, eng_label in _ENGINES:
-            self._engine_combo.addItem(tr(eng_label), eng_id)
-        trans_layout.addLayout(self._field(tr("Движок перевода:"), self._engine_combo))
+        # LLM model: any OpenRouter model id, typed by the user (free models come and go,
+        # so the app ships no preset list). Empty → DEFAULTS["llm_model"].
+        default_model = config_manager.DEFAULTS["llm_model"]
+        self._model_edit = QLineEdit()
+        self._model_edit.setPlaceholderText(default_model)
+        self._model_edit.setStyleSheet(self._INPUT_CSS)
+        trans_layout.addLayout(self._field(tr("ID модели:"), self._model_edit))
 
-        # LLM model — Standard clean dropdown matching other settings + custom model field
-        self._model_combo = QComboBox()
-        self._model_combo.setEditable(False)
-        self._model_combo.setMaxVisibleItems(10)
-        self._model_combo.setStyleSheet(self._INPUT_CSS)
-        self._populate_model_combo()
-        self._model_combo.currentIndexChanged.connect(self._on_model_changed)
-        trans_layout.addLayout(self._field(tr("LLM-модель:"), self._model_combo))
-
-        # Custom model input (visible only when "Другая модель..." is selected)
-        self._custom_model_row_widget = QWidget()
-        custom_row_layout = QVBoxLayout(self._custom_model_row_widget)
-        custom_row_layout.setContentsMargins(0, 2, 0, 2)
-        self._custom_model_edit = QLineEdit()
-        self._custom_model_edit.setPlaceholderText(tr("например: meta-llama/llama-3.3-70b-instruct"))
-        self._custom_model_edit.setStyleSheet(self._INPUT_CSS)
-        custom_row_layout.addLayout(self._field(tr("ID модели:"), self._custom_model_edit))
-        self._custom_model_row_widget.setVisible(False)
-        trans_layout.addWidget(self._custom_model_row_widget)
-
-        # B3: hint label
-        self._model_hint = QLabel("")
+        self._model_hint = QLabel(
+            tr(
+                "Точный ID модели с openrouter.ai/models, например {example}. Пусто — {default}.",
+                example="meta-llama/llama-3.3-70b-instruct",
+                default=default_model,
+            )
+        )
         self._model_hint.setStyleSheet(theme.text_css(p.muted, 8.5, italic=True))
         self._model_hint.setWordWrap(True)
         trans_layout.addWidget(self._model_hint)
@@ -942,6 +905,11 @@ class SettingsWidget(QWidget):
         self._live_sensitivity_combo.addItem(tr("Средняя (рекомендуется)"), "medium")
         self._live_sensitivity_combo.addItem(tr("Низкая — только заметные изменения"), "low")
         live_layout.addLayout(self._field(tr("Чувствительность к изменениям:"), self._live_sensitivity_combo))
+        self._chk_live_keep_open = SwitchRow(tr("Не закрывать окно мониторинга по таймеру"))
+        self._chk_live_keep_open.setToolTip(
+            tr("Окно остаётся открытым, пока идёт мониторинг, даже если в чате долго ничего не происходит.")
+        )
+        live_layout.addWidget(self._chk_live_keep_open)
         pages["regions"].addWidget(grp_live)
 
         # ── Interface section ──
@@ -1124,22 +1092,27 @@ class SettingsWidget(QWidget):
             self._key_status.setStyleSheet(self._status_css("error"))
             return
         provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
-        self._btn_check_key.setEnabled(False)
+        self._set_llm_key_busy(True)
         self._key_status.setText(tr("Проверяем ключ…"))
         self._key_status.setStyleSheet(self._status_css())
-        QApplication.processEvents()
         from translate.llm_client import validate_api_key
 
-        try:
-            validate_api_key(provider, key_text)
-        except Exception as e:
-            self._key_status.setText(tr("Ошибка: {error}", error=e))
-            self._key_status.setStyleSheet(self._status_css("error"))
-        else:
-            self._key_status.setText(tr("✓ Ключ {provider} работает.", provider=provider))
-            self._key_status.setStyleSheet(self._status_css("ok"))
-        finally:
-            self._btn_check_key.setEnabled(True)
+        def done(_result, error) -> None:
+            self._set_llm_key_busy(False)
+            if error is not None:
+                self._key_status.setText(tr("Ошибка: {error}", error=error))
+                self._key_status.setStyleSheet(self._status_css("error"))
+            else:
+                self._key_status.setText(tr("✓ Ключ {provider} работает.", provider=provider))
+                self._key_status.setStyleSheet(self._status_css("ok"))
+
+        # Up to 15 s on a slow network: never on the UI thread.
+        run_in_background(lambda: validate_api_key(provider, key_text), done, self)
+
+    def _set_llm_key_busy(self, busy: bool) -> None:
+        """Check and Save share one status line: only one may run, and the key stays as sent."""
+        for widget in (self._btn_check_key, self._btn_save_key, self._key_input):
+            widget.setEnabled(not busy)
 
     # ── Custom profiles list management ─────────────────
 
@@ -1254,24 +1227,6 @@ class SettingsWidget(QWidget):
             self._reload_custom_profiles_list()
             self._refresh_all_domain_combos()
 
-    # ── Model combo helpers (B1/B2/B3) ───────────────────
-
-    def _populate_model_combo(self, models: list[tuple[str, str]] | None = None) -> None:
-        """Fill the model QComboBox from *models* (or the default _OPENROUTER_MODELS)."""
-        source = models if models is not None else _OPENROUTER_MODELS
-        saved_data = self._model_combo.currentData() if self._model_combo.count() > 0 else None
-        self._model_combo.blockSignals(True)
-        self._model_combo.clear()
-        for model_id, display in source:
-            self._model_combo.addItem(tr(display), model_id)
-        self._model_combo.blockSignals(False)
-
-        # Restore previously selected value
-        if saved_data:
-            found = self._model_combo.findData(saved_data)
-            if found >= 0:
-                self._model_combo.setCurrentIndex(found)
-
     @staticmethod
     def _detect_gpu_info() -> str:
         """Return a human-readable string about GPU support for OCR."""
@@ -1280,15 +1235,6 @@ class SettingsWidget(QWidget):
         if _dml_available():
             return tr("✓ DirectML доступен — OCR может работать на видеокарте")
         return tr("DirectML недоступен — OCR будет работать на CPU")
-
-    def _on_model_changed(self, index: int) -> None:
-        """Show a short hint below the combo and toggle the custom model field."""
-        model_id = self._model_combo.itemData(index)
-        is_custom = model_id == "__custom__"
-        if hasattr(self, "_custom_model_row_widget"):
-            self._custom_model_row_widget.setVisible(is_custom)
-        hint = _MODEL_HINTS.get(str(model_id), "")
-        self._model_hint.setText(tr(hint) if hint else "")
 
     # ── NMT key management ────────────────────────────────
 
@@ -1335,28 +1281,37 @@ class SettingsWidget(QWidget):
         self._nmt_key_input(provider).clear()
         self._refresh_nmt_key_status()
 
-    def _test_nmt_key(self, provider: str) -> None:
+    def _test_nmt_key(self, provider: str, button=None) -> None:
         """Send a test phrase through the NMT backend and show the result."""
         status = self._nmt_status_label(provider)
+        if button is not None:
+            button.setEnabled(False)  # one test at a time: answers could arrive out of order
         status.setText(tr("Проверяем…"))
         status.setStyleSheet(self._status_css())
-        QApplication.processEvents()
 
         # Temporarily persist azure_region so the test picks it up.
         if provider == "azure":
             region = self._azure_region_input.text().strip() or "global"
             config_manager.set_value("azure_region", region)
 
-        try:
-            from translate.backend import _get_nmt_client
+        from translate.backend import _get_nmt_client
 
-            client = _get_nmt_client(provider)
-            detected, translated = client.translate("Hello world", target_lang="ru")
+        def done(result, error) -> None:
+            if button is not None:
+                button.setEnabled(True)
+            if error is not None:
+                status.setText(f"✗ {error}")
+                status.setStyleSheet(self._status_css("error"))
+                return
+            detected, translated = result
             status.setText(f"✓ {detected} → ru: «{translated}»")
             status.setStyleSheet(self._status_css("ok"))
-        except Exception as e:
-            status.setText(f"✗ {e}")
-            status.setStyleSheet(self._status_css("error"))
+
+        run_in_background(
+            lambda: _get_nmt_client(provider).translate("Hello world", target_lang="ru"),
+            done,
+            self,
+        )
 
     def _refresh_nmt_key_status(self) -> None:
         """Update NMT key status labels based on what's stored in keyring."""
@@ -1841,27 +1796,8 @@ class SettingsWidget(QWidget):
         if idx >= 0:
             self._lang_combo.setCurrentIndex(idx)
 
-        # Translation engine.
-        idx_eng = self._engine_combo.findData(config.TRANSLATION_ENGINE)
-        if idx_eng >= 0:
-            self._engine_combo.setCurrentIndex(idx_eng)
-
-        # LLM model — select preset or enable custom model field
-        current_model = config.LLM_MODEL or "openai/gpt-oss-20b:free"
-        found_idx = self._model_combo.findData(current_model)
-        if found_idx >= 0 and current_model != "__custom__":
-            self._model_combo.setCurrentIndex(found_idx)
-            if hasattr(self, "_custom_model_row_widget"):
-                self._custom_model_row_widget.setVisible(False)
-        else:
-            custom_idx = self._model_combo.findData("__custom__")
-            if custom_idx >= 0:
-                self._model_combo.setCurrentIndex(custom_idx)
-            if hasattr(self, "_custom_model_edit"):
-                self._custom_model_edit.setText(current_model)
-            if hasattr(self, "_custom_model_row_widget"):
-                self._custom_model_row_widget.setVisible(True)
-        self._on_model_changed(self._model_combo.currentIndex())  # update hint
+        # LLM model: the saved id as typed.
+        self._model_edit.setText(config.LLM_MODEL or "")
 
         # Translation options
         self._chk_streaming.setChecked(bool(getattr(config, "ENABLE_STREAMING", True)))
@@ -1887,6 +1823,7 @@ class SettingsWidget(QWidget):
         self._live_interval_spin.setValue(int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10))
         sensitivity = getattr(config, "LIVE_SENSITIVITY", "medium") or "medium"
         self._live_sensitivity_combo.setCurrentIndex(max(0, self._live_sensitivity_combo.findData(sensitivity)))
+        self._chk_live_keep_open.setChecked(bool(getattr(config, "LIVE_POPUP_KEEP_OPEN", True)))
 
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":
@@ -1908,8 +1845,6 @@ class SettingsWidget(QWidget):
             self._domain_combo,
             self._src_lang_combo,
             self._lang_combo,
-            self._engine_combo,
-            self._model_combo,
             self._nllb_version_combo,
             self._live_sensitivity_combo,
             self._nllb_device_combo,
@@ -1917,11 +1852,17 @@ class SettingsWidget(QWidget):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
             button.toggled.connect(self._schedule_autosave)
-        for switch in (self._chk_fallback, self._chk_streaming, self._chk_compact_prompt, self._chk_ocr_preview):
+        for switch in (
+            self._chk_fallback,
+            self._chk_streaming,
+            self._chk_compact_prompt,
+            self._chk_ocr_preview,
+            self._chk_live_keep_open,
+        ):
             switch.toggled.connect(self._schedule_autosave)
         for spin in (self._tokens_spin, self._timeout_spin, self._live_interval_spin):
             spin.valueChanged.connect(self._schedule_autosave)
-        for edit in (self._nllb_path_edit, self._custom_model_edit, self._azure_region_input):
+        for edit in (self._nllb_path_edit, self._model_edit, self._azure_region_input):
             edit.editingFinished.connect(self._schedule_autosave)
 
         # Restart-only settings light up the save button instead.
@@ -1952,10 +1893,12 @@ class SettingsWidget(QWidget):
         self._btn_check_update.setEnabled(False)
         self._update_status_lbl.setText(tr("Проверка наличия обновлений…"))
         self._update_status_lbl.setStyleSheet(self._status_css())
-        QApplication.processEvents()
+        run_in_background(check_for_update, self._on_update_checked, self)
 
-        has_update, version, url = check_for_update()
+    def _on_update_checked(self, result, error) -> None:
         self._btn_check_update.setEnabled(True)
+        # check_for_update() reports its own failures as "no update".
+        has_update, version, url = result if error is None else (False, "", "")
 
         if has_update:
             self._update_status_lbl.setText(
@@ -2011,11 +1954,7 @@ class SettingsWidget(QWidget):
         settings.save_primary_provider(primary_choice)
         settings.set_fallback_enabled(self._chk_fallback.isChecked())
 
-        combo_data = self._model_combo.currentData()
-        if combo_data == "__custom__":
-            new_model = self._custom_model_edit.text().strip() or "openai/gpt-oss-20b:free"
-        else:
-            new_model = combo_data or "openai/gpt-oss-20b:free"
+        new_model = self._model_edit.text().strip() or config_manager.DEFAULTS["llm_model"]
 
         from translate.backend import DEFAULT_BACKEND
 
@@ -2025,6 +1964,7 @@ class SettingsWidget(QWidget):
         cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
         cfg["live_interval_sec"] = self._live_interval_spin.value()
         cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
+        cfg["live_popup_keep_open"] = self._chk_live_keep_open.isChecked()
         cfg["nllb_device"] = self._nllb_device_combo.currentData() or "auto"
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
@@ -2037,7 +1977,6 @@ class SettingsWidget(QWidget):
         cfg["active_domain"] = self._domain_combo.currentData() or cfg.get("active_domain", "general")
         cfg["source_language"] = self._src_lang_combo.currentData() or cfg.get("source_language", "auto")
         cfg["target_language"] = self._lang_combo.currentData() or cfg["target_language"]
-        cfg["translation_engine"] = self._engine_combo.currentData() or cfg["translation_engine"]
         cfg["llm_model"] = new_model
         cfg["popup_timeout_sec"] = self._timeout_spin.value()
         cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
@@ -2118,22 +2057,25 @@ class SettingsWidget(QWidget):
             return
         provider = "openrouter" if self._radio_or.isChecked() else "anthropic"
 
-        self._btn_save_key.setEnabled(False)
+        self._set_llm_key_busy(True)
         self._key_status.setText(tr("Проверяем ключ…"))
         self._key_status.setStyleSheet(self._status_css())
-        QApplication.processEvents()
 
         # Check before storing, so a rejected key never replaces a working one.
         from translate.llm_client import validate_api_key
 
-        try:
-            validate_api_key(provider, key_text)
-        except Exception as e:
-            self._key_status.setText(tr("Ошибка: {error}", error=e))
+        run_in_background(
+            lambda: validate_api_key(provider, key_text),
+            lambda _result, error: self._on_llm_key_validated(provider, key_text, error),
+            self,
+        )
+
+    def _on_llm_key_validated(self, provider: str, key_text: str, error) -> None:
+        self._set_llm_key_busy(False)
+        if error is not None:
+            self._key_status.setText(tr("Ошибка: {error}", error=error))
             self._key_status.setStyleSheet(self._status_css("error"))
             return
-        finally:
-            self._btn_save_key.setEnabled(True)
 
         settings.set_api_key(provider, key_text)
         reset_client()

@@ -32,6 +32,20 @@ from ocr import engine
 from ocr.engine import _should_use_gpu, _sort_results, preprocess, recognise
 
 
+def _strip_box(x1, y1, x2, y2, strip_size, y_offset=0):
+    """A box at image pixels (x1, y1)-(x2, y2) as OCR reports it on a preprocessed strip.
+
+    preprocess() pads and upscales each strip, so the engine sees (and returns) boxes
+    in that space; strip mode has to map them back.
+    """
+    pad, scale = engine._preprocess_geometry(*strip_size)
+
+    def to_strip(x, y):
+        return [(x + pad) * scale, (y - y_offset + pad) * scale]
+
+    return [to_strip(x1, y1), to_strip(x2, y1), to_strip(x2, y2), to_strip(x1, y2)]
+
+
 def _engine_output(items):
     """Build a RapidOCROutput-like object from [(bbox, text, score), …]."""
     if not items:
@@ -240,11 +254,12 @@ class TestRecogniseMocked(unittest.TestCase):
 
     @patch("ocr.engine.get_reader")
     def test_strip_mode_offsets_boxes(self, mock_get_reader):
-        # Each strip reports one line at y=10; strips start at y=0 and y=300.
+        # 200×600 → strips 0–300 and 252–552 (504–600 is blank and skipped).
+        size = (200, 300)
         mock_get_reader.return_value = MagicMock(
             side_effect=[
-                _engine_output([([[10, 10], [90, 10], [90, 25], [10, 25]], "верх", 0.9)]),
-                _engine_output([([[10, 10], [90, 10], [90, 25], [10, 25]], "низ", 0.9)]),
+                _engine_output([(_strip_box(10, 20, 90, 35, size), "верх", 0.9)]),
+                _engine_output([(_strip_box(10, 400, 90, 415, size, y_offset=252), "низ", 0.9)]),
             ]
         )
         img = Image.new("RGB", (200, 600), "white")
@@ -252,6 +267,56 @@ class TestRecogniseMocked(unittest.TestCase):
         img.paste((0, 0, 0), (0, 0, 50, 50))
         img.paste((0, 0, 0), (0, 300, 50, 350))
         self.assertEqual(recognise(img), "верх\nниз")
+
+    @patch("ocr.engine.get_reader")
+    def test_strip_lines_keep_screen_order_and_overlap_lines_appear_once(self, mock_get_reader):
+        # A narrow chat (width < 500) is upscaled ×2 per strip: boxes used to stay in that
+        # space, so lower lines of one strip sorted after upper lines of the next (order
+        # jumped) and lines from two strips merged into one row (no new line).
+        size = (320, 300)
+        first = [
+            (_strip_box(5, 100, 300, 115, size), "A", 0.9),
+            (_strip_box(5, 258, 300, 273, size), "B", 0.9),  # in the overlap, owned here
+            (_strip_box(5, 290, 300, 300, size), "C-cut", 0.9),  # cut by the strip edge
+        ]
+        second = [
+            (_strip_box(5, 258, 300, 273, size, y_offset=252), "B", 0.9),  # duplicate: dropped
+            (_strip_box(5, 290, 300, 305, size, y_offset=252), "C", 0.9),  # whole here
+            (_strip_box(5, 400, 300, 415, size, y_offset=252), "D", 0.9),
+        ]
+        mock_get_reader.return_value = MagicMock(side_effect=[_engine_output(first), _engine_output(second)])
+        img = Image.new("RGB", (320, 600), "white")
+        img.paste((0, 0, 0), (0, 0, 50, 50))
+        img.paste((0, 0, 0), (0, 300, 50, 350))
+        self.assertEqual(recognise(img), "A\nB\nC\nD")
+
+    @patch("ocr.engine.get_reader")
+    def test_live_checks_drop_lines_cut_by_the_region_edge(self, mock_get_reader):
+        size = (300, 120)
+        boxes = [
+            (_strip_box(5, 0, 290, 10, size), "half-visible top", 0.9),
+            (_strip_box(5, 40, 290, 55, size), "whole line", 0.9),
+            (_strip_box(5, 110, 290, 120, size), "half-visible bottom", 0.9),
+        ]
+        mock_get_reader.return_value = MagicMock(return_value=_engine_output(boxes))
+        img = Image.new("RGB", size, "white")
+        self.assertEqual(recognise(img, drop_edge_lines=True), "whole line")
+        self.assertEqual(recognise(img).count("\n"), 2)  # a manual capture keeps them
+
+    @patch("ocr.engine.get_reader")
+    def test_a_region_around_one_line_keeps_it(self, mock_get_reader):
+        size = (300, 20)
+        mock_get_reader.return_value = MagicMock(
+            return_value=_engine_output([(_strip_box(5, 0, 290, 20, size), "only line", 0.9)])
+        )
+        self.assertEqual(recognise(Image.new("RGB", size, "white"), drop_edge_lines=True), "only line")
+
+    def test_strips_overlap_and_own_zones_tile_the_image(self):
+        slices = engine._strip_slices(726)
+        for (_a1, a2, _at, a_own_bottom), (b1, _b2, b_own_top, _bb) in zip(slices, slices[1:]):
+            self.assertEqual(a2 - b1, engine._STRIP_OVERLAP_PX)
+            self.assertEqual(a_own_bottom, b_own_top)
+        self.assertEqual(slices[-1][1], 726)
 
 
 class TestOnnxruntimeImport(unittest.TestCase):
@@ -297,6 +362,31 @@ class TestGpuFallback(unittest.TestCase):
         self.assertEqual(text, "текст")
         self.assertIs(engine._reader, cpu)
         self.assertFalse(engine._reader_on_gpu)
+
+    def test_strip_mode_uses_the_cpu_engine_after_a_fallback(self):
+        # The GPU fails on the first strip; every later strip must run on the CPU engine.
+        gpu = MagicMock(side_effect=RuntimeError("DirectML device removed"))
+        # Strip-local y 100–115 in both 200×300 strips (0–300 and 252–552).
+        cpu = _mock_engine([(_strip_box(10, 100, 90, 115, (200, 300)), "текст", 0.9)])
+        engine._reader, engine._reader_on_gpu = gpu, True
+        img = Image.new("RGB", (200, 600), "white")
+        img.paste((0, 0, 0), (0, 0, 50, 50))
+        img.paste((0, 0, 0), (0, 300, 50, 350))
+
+        with patch("ocr.engine._build_engine", return_value=cpu):
+            text = recognise(img)
+
+        self.assertEqual(gpu.call_count, 1)
+        self.assertEqual(cpu.call_count, 2)
+        self.assertEqual(text, "текст\nтекст")
+
+    def test_failed_cpu_fallback_is_an_error_not_empty_text(self):
+        engine._reader = MagicMock(side_effect=RuntimeError("DirectML device removed"))
+        engine._reader_on_gpu = True
+        broken_cpu = MagicMock(side_effect=RuntimeError("CPU engine broken"))
+        with patch("ocr.engine._build_engine", return_value=broken_cpu):
+            with self.assertRaises(RuntimeError):
+                recognise(Image.new("RGB", (100, 100)))
 
     def test_cpu_error_is_raised(self):
         engine._reader = MagicMock(side_effect=RuntimeError("bad input"))

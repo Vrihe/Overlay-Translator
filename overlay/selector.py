@@ -164,11 +164,17 @@ class RegionSelector(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            self._selecting = False
-            self.close()
-            self.selection_cancelled.emit()
+            self.cancel()
         else:
             super().keyPressEvent(event)
+
+    def cancel(self) -> None:
+        """Close without a selection (Esc, here or through the app's global Esc hook)."""
+        if not self.isVisible():
+            return  # already closed: a second Esc must not emit twice
+        self._selecting = False
+        self.close()
+        self.selection_cancelled.emit()
 
     # ── Painting ─────────────────────────────────────────
 
