@@ -124,3 +124,6 @@ checkpoints/
 
 # Assembled Pages site (landing/ + built docs), see scripts/build_site.py
 _site/
+
+# Local MLflow store (training/tracking.py)
+mlruns/

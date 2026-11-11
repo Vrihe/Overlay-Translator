@@ -31,6 +31,12 @@ def _make_build(path: Path, marker_tag: str | None = None) -> Path:
     return path
 
 
+class _Body(io.BytesIO):
+    """A urlopen response: readable, with ``status`` and usable as a context manager."""
+
+    status = 200
+
+
 class _FakeHub:
     """Stands in for urlopen: serves the refs, the file tree and file bodies."""
 
@@ -48,12 +54,23 @@ class _FakeHub:
             entries.append(entry)
         return entries
 
+    ranges = True  # False: the server ignores Range and always sends the whole file
+
     def __call__(self, req, timeout=None):
         url = req.full_url
         if "/tree/" in url:
             return io.BytesIO(json.dumps(self.tree()).encode())
+        if "/revision/" in url:
+            return io.BytesIO(json.dumps({"sha": "abc123"}).encode())
         name = url.rsplit("/", 1)[1]
-        return io.BytesIO(self.files[name])
+        self.requested = getattr(self, "requested", []) + [name]
+        start = 0
+        header = req.headers.get("Range")
+        if header and self.ranges:
+            start = int(header.split("=")[1].rstrip("-"))
+        body = _Body(self.files[name][start:])
+        body.status = 206 if start else 200
+        return body
 
 
 class TestRemote(unittest.TestCase):
@@ -92,7 +109,7 @@ class TestLocal(unittest.TestCase):
         self.assertIsNone(nllb_models.match_local("v1-abbr", local))
 
 
-class TestDownload(unittest.TestCase):
+class _DownloadBase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
@@ -106,6 +123,8 @@ class TestDownload(unittest.TestCase):
         with patch.object(nllb_models.urllib.request, "urlopen", hub):
             return nllb_models.download_version(self.version, repo_id="r/r", dest_root=self.root)
 
+
+class TestDownload(_DownloadBase):
     def test_downloads_into_tag_dir_with_marker(self):
         progress = []
         with patch.object(nllb_models.urllib.request, "urlopen", _FakeHub(self.files)):
@@ -133,6 +152,98 @@ class TestDownload(unittest.TestCase):
         with self.assertRaises(OSError):
             self._download(_FakeHub(self.files, bad_sha="model.bin"))
         self.assertEqual(list(self.root.iterdir()), [])
+
+
+class _Dropped(_FakeHub):
+    """Fails the connection after sending *cut* bytes of model.bin."""
+
+    def __init__(self, files, cut):
+        super().__init__(files)
+        self.cut = cut
+
+    def __call__(self, req, timeout=None):
+        body = super().__call__(req, timeout)
+        if req.full_url.endswith("model.bin") and not req.headers.get("Range"):
+
+            class Broken(_Body):
+                def read(inner, n=-1):
+                    data = super(Broken, inner).read(self.cut)
+                    if not data:
+                        raise ConnectionError("dropped")
+                    self.cut = 0
+                    return data
+
+            broken = Broken(body.getvalue())
+            return broken
+        return body
+
+
+class TestResume(_DownloadBase):
+    def _interrupted(self):
+        with self.assertRaises(ConnectionError):
+            self._download(_Dropped(self.files, cut=7))
+        return self.root / "nllb-v1-abbr.part"
+
+    def test_interrupted_download_keeps_part_and_resumes(self):
+        part = self._interrupted()
+        self.assertEqual((part / "model.bin").stat().st_size, 7)
+        hub = _FakeHub(self.files)
+        path = self._download(hub)
+        self.assertEqual((path / "model.bin").read_bytes(), self.files["model.bin"])
+        self.assertFalse(part.exists())
+        self.assertFalse((path / nllb_models.PART_MARKER).exists())
+
+    def test_resume_sends_a_range_request_for_the_missing_bytes(self):
+        self._interrupted()
+        hub = _FakeHub(self.files)
+        ranges = []
+        orig = hub.__call__
+
+        def spy(req, timeout=None):
+            if req.full_url.endswith("model.bin"):
+                ranges.append(req.headers.get("Range"))
+            return orig(req, timeout)
+
+        with patch.object(nllb_models.urllib.request, "urlopen", spy):
+            nllb_models.download_version(self.version, repo_id="r/r", dest_root=self.root)
+        self.assertEqual(ranges, ["bytes=7-"])
+
+    def test_server_without_range_support_still_finishes(self):
+        self._interrupted()
+        hub = _FakeHub(self.files)
+        hub.ranges = False
+        path = self._download(hub)
+        self.assertEqual((path / "model.bin").read_bytes(), self.files["model.bin"])
+
+    def test_part_of_another_commit_is_discarded(self):
+        part = self._interrupted()
+        self.version = RemoteVersion("v1-abbr", "other-sha")
+        self._download(_FakeHub(self.files))
+        self.assertFalse(part.exists())
+
+    def test_corrupt_partial_file_fails_checksum_and_is_not_kept(self):
+        part = self._interrupted()
+        (part / "model.bin").write_bytes(b"garbage")  # same length class, wrong content
+        with self.assertRaises(OSError):
+            self._download(_FakeHub(self.files))
+        self.assertFalse(part.exists())
+
+
+class TestVerify(_DownloadBase):
+    def _verify(self, path):
+        with patch.object(nllb_models.urllib.request, "urlopen", _FakeHub(self.files)):
+            return nllb_models.verify_build(path, "v1-abbr", repo_id="r/r")
+
+    def test_intact_build_has_no_bad_files(self):
+        path = self._download(_FakeHub(self.files))
+        self.assertEqual(self._verify(path), [])
+
+    def test_damaged_missing_and_short_files_are_reported(self):
+        path = self._download(_FakeHub(self.files))
+        (path / "model.bin").write_bytes(b"x" * len(self.files["model.bin"]))  # same size, wrong hash
+        (path / "config.json").write_bytes(b"short")
+        (path / "shared_vocabulary.json").unlink()
+        self.assertEqual(sorted(self._verify(path)), ["config.json", "model.bin", "shared_vocabulary.json"])
 
 
 if __name__ == "__main__":

@@ -38,6 +38,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+import tracking  # training/tracking.py: the script directory is on sys.path
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEST_JSONL = _PROJECT_ROOT / "data" / "processed" / "test.jsonl"
 PHRASES_JSONL = _PROJECT_ROOT / "data" / "interim" / "abbr_phrases.jsonl"
@@ -232,6 +234,14 @@ def main() -> int:
         }
     (eval_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
+    for name, result in summary["systems"].items():
+        tracking.log_run(
+            "eval",
+            name,
+            params={"spec": result["spec"], "seed": args.seed, "beams": BEAMS, "pairs": len(rows)},
+            metrics={k: v for k, v in result.items() if k != "spec"},
+            artifacts=[eval_dir / "summary.json"],
+        )
     return 0
 
 

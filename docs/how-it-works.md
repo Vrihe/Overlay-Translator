@@ -56,7 +56,6 @@ flowchart LR
     eval -- criteria fixed in advance met --> pack[Merge + convert<br/>CTranslate2 int8]
     pack --> registry[(Registry<br/>Hugging Face tags<br/>v0-base, v1-abbr, v2-game)]
     registry --> app[App<br/>model picker,<br/>SHA-256 check]
-    app -. history and feedback<br/>planned .-> data
 ```
 
 | Step | Where |
@@ -69,5 +68,5 @@ flowchart LR
 | App | Settings → Local model lists the tags, downloads a build and checks every file's SHA-256 |
 
 What is automated and what is still manual is tracked in the
-[roadmap](https://github.com/Vrihe/Overlay-Translator/blob/main/ROADMAP.md) (part A). How each
+[roadmap](https://github.com/Vrihe/Overlay-Translator/blob/main/ROADMAP-MODEL.md) (part A). How each
 version was trained and scored: [Training](training.md) and [Reproducing experiments](experiments.md).

@@ -68,7 +68,8 @@ Overlay-Translator/
 │   ├── backend.py          #   * Dispatcher: picks the API or the local model
 │   ├── llm_client.py       #   * Translation backend via the cloud API
 │   ├── nllb_backend.py     #   * Offline backend: NLLB-200 (CTranslate2 int8)
-│   ├── nllb_models.py      #   Published NLLB builds (HF tags): list, match local copies, download
+│   ├── nllb_models.py      #   Published NLLB builds (HF tags): list, match local copies, resumable download, verify
+│   ├── model_manifest.py   #   manifest.json of a build: validation, min app version, stable/beta channel
 │   ├── chat_glossary.py    #   Expands English game-chat terms before NLLB (wts, gg wp, lf2m)
 │   ├── glossary/game_en.json  # Term list, exported by training/game_abbreviations.py
 │   ├── cuda_support.py     #   Locates cuBLAS for optional GPU inference
@@ -114,6 +115,7 @@ Overlay-Translator/
 ├── tts/engine.py           # Text-to-speech for translations (SAPI, one worker thread owns the engine)
 ├── updater/check_update.py # Checks GitHub releases
 ├── updater/install_update.py # One-click silent update: verified Setup.exe, waiter, /VERYSILENT
+├── service/                # Optional local inference service (FastAPI, requirements-service.txt; not in the app build)
 ├── scripts/                # Offline utilities (not part of the app build)
 │   ├── download_model.py           # Fetches the pinned model build from the HF Hub
 │   ├── test_nllb_translation.py    # Local model smoke test + CPU latency
@@ -878,6 +880,14 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_cache_store.py` | L1 LRU and L2 SQLite cache: round trip, key parts, eviction on both levels, `warm_cache()`, history order, `clear_history()`, rebuild of an old schema, `close_connection()` in a worker thread |
 | `tests/test_training_data.py` | `training/` splits without leakage (stratified abbreviation split, phrase split, disjoint FLORES pools) and the metrics in `training/evaluate.py` (keep-rate, chrF groups, paired bootstrap) |
 | `tests/test_training_pipeline.py` | `configs/train/*.yaml` validation and `{name}` expansion, the shipped v1/v2 hyperparameters, dataset hash and git provenance, `training/pipeline.py` stage commands and overwrite guards, config → `finetune_lora.py` defaults (no torch) |
+| `tests/test_gold_eval.py` | `training/gold_eval.py`: gold row validation, training-leakage guard, per-category chrF / keep rate / wrong-expansion rate / OCR-noise drop, mean and 95 % CI over seeds, synthetic OCR-noise generator |
+| `tests/test_tracking.py` | `training/tracking.py`: metric flattening and key cleaning, path-free parameters, backend choice (`MLFLOW_TRACKING_URI`, local default, `OVERLAY_TRACKING=off`), logging calls against a mocked `mlflow`, failures swallowed |
+| `tests/test_model_manifest.py` | `translate/model_manifest.py`: schema validation, min app version (numeric order), stable/beta default pick, manifest built from a directory, fetch via a mocked Hub |
+| `tests/test_model_card.py` | `scripts/make_model_card.py`: card front matter / metrics / files / licence from a manifest, config summary, CLI needs a manifest |
+| `tests/test_monitor_report.py` | `scripts/monitor_report.py`: unknown-token heuristic, lost keep terms, drift verdict (min rows, threshold), tokens hidden by default, CLI exit codes |
+| `tests/test_service.py` | `service/`: Prometheus metrics registry (always); HTTP endpoints with a stub translator — batch, in-memory cache, validation, 502 without leaking text, health / version, no text in metrics (skipped without fastapi + httpx) |
+| `tests/test_quality_gate.py` | `training/quality_gate.py`: every check failing alone, values exactly at the thresholds, a missing metric failing, report and CLI exit codes |
+| `tests/test_gold_example.py` | `training/gold_example.jsonl` stays a valid, below-minimum format example covering every category |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
 
 Running:
@@ -912,7 +922,8 @@ The app never downloads the model; it only looks for it on disk (search order in
 section 3, `nllb_backend.py`). There are two ways to get it:
 
 1. **Download the published build** (normal path for anyone but the model maintainer):
-   `python scripts/download_model.py` → `huggingface_hub.snapshot_download(repo_id, revision,
+   `python scripts/download_model.py` → after the download `nllb_models.verify_build` checks every file's size and
+   SHA-256 against the Hub listing (`--no-verify` skips it) → `huggingface_hub.snapshot_download(repo_id, revision,
    local_dir=models/nllb-200-ct2-int8)`. `models/nllb-200-ct2-int8` is the first auto-discovery
    location, so no settings change is needed. The script verifies the required files
    (`nllb_backend.missing_files`) and re-runs only fetch changed files.
@@ -926,6 +937,14 @@ section 3, `nllb_backend.py`). There are two ways to get it:
   name, because a tag can be moved: whoever controls the HF account could otherwise ship other files.
   Still never move or reuse a tag.
 - `NLLB_HF_REVISION` can also be overridden via env or `--revision` to try another build.
+
+**Manifest.** Each build carries `manifest.json` (schema in `translate/model_manifest.py`: file checksums, metrics, `min_app_version`, `channel`). Write it with `python scripts/make_manifest.py <build dir> --version <tag> [--min-app-version X] [--channel stable|beta] [--metrics summary.json:system]` and upload it with the build, before the tag is created. `NllbVersionsWorker` runs the tag list through `model_manifest.filter_compatible`, so builds whose `min_app_version` is above the running app are hidden from the version pickers; a tag without a readable manifest stays listed.
+
+**Model card.** `python scripts/make_model_card.py <build dir> --config configs/train/<v>.yaml --data "..."` writes the Hub `README.md` (front matter, data, method, metrics from `manifest.json`, limitations, CC-BY-NC 4.0, reproduce command, file checksums). Run it after `make_manifest.py` and upload both with the build.
+
+**Monitoring.** `python scripts/monitor_report.py` reads the history DB read-only and reports, for the offline model's rows (`domain_id` ending in `|nllb`): the share of lines with an unknown (slang-looking, non-glossary) token, the top lost keep terms and a drift verdict (recent window vs earlier rows; exit code 2 on drift). Screen-text tokens are printed only with `--show-tokens`. The history has no latency column, so latency is not part of the report.
+
+**Local inference service.** `service/` wraps `translate.nllb_backend` in a FastAPI app (`python -m service`, 127.0.0.1:8765): `POST /translate` (`texts` up to 32, `target_lang`, optional `source_lang`), `GET /health` (503 until a model is available), `GET /version`, `GET /metrics` (Prometheus text: requests, errors, latency and batch-size histograms, cache hits). The metrics registry is plain Python (`service/metrics.py`), FastAPI is imported inside `create_app`, and `translate` / `ready` are injectable, so tests need no model. The service keeps an in-memory LRU on top of the backend's own SQLite history; request text never reaches the logs or the metrics. Install `requirements-service.txt` (not part of the app or its build); `Dockerfile.service` and `docker-compose.yml` run it in a container with a mounted model (not yet built or tested here). The desktop app does not call the service yet.
 
 The HF repo is self-contained (`model.bin`, `config.json`, `shared_vocabulary.json`,
 `sentencepiece.bpe.model` + tokenizer JSONs + model card). Its model card lists speed numbers,
@@ -981,7 +1000,8 @@ HTTP only, so it works in the frozen app): a tag already on disk (matched by the
 `.hf-version.json` marker or by directory name, e.g. `nllb-v1-abbr-ct2-int8`) selects that
 path; a missing one turns the button into "Скачать" (Download), which fetches the tag's commit
 into `models/nllb-<tag>` (per-user `models` in the frozen app) with SHA-256 checks on LFS
-files. "Автовыбор" (Auto) keeps the path empty → auto-discovery.
+files. An interrupted download keeps `models/nllb-<tag>.part` (with a `.part-sha` marker) and the
+next attempt for the same commit resumes it with `Range` requests; a checksum mismatch deletes it. "Автовыбор" (Auto) keeps the path empty → auto-discovery.
 The choice is stored in `settings.json` (`translation_backend`, `nllb_model_path`)
 and survives a restart.
 The choice is saved as soon as it is made (settings autosave).

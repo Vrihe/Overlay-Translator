@@ -1,0 +1,5 @@
+{"id":"example-001","src":"wts 2 potions pm me","lang":"ru","ref":"Продам 2 зелья, пишите в личку","category":"abbr","keep_terms":["pm"],"wrong_expansions":["вечера"]}
+{"id":"example-002","src":"gg wp, see you in Discord","lang":"ru","ref":"gg wp, увидимся в Discord","category":"keep","keep_terms":["gg wp","Discord"]}
+{"id":"example-003","src":"kick him, he keeps leaving","lang":"ru","ref":"Кикните его, он постоянно выходит","category":"ordinary"}
+{"id":"example-004","src":"lf2m tank for hc, cover me","lang":"ru","ref":"Нужны ещё двое, танк на героик, прикрывайте меня","category":"mixed","noisy_src":"lf2m tonk for hc, cover rne"}
+{"id":"example-005","src":"need heaIer now","lang":"ru","ref":"Срочно нужен хилер","category":"ocr_noise","noisy_src":"nee d heaIer n0w"}

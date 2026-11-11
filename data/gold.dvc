@@ -1,0 +1,6 @@
+outs:
+- md5: a4a13fce52c22b7c32fdc9d624ed340f.dir
+  size: 109265
+  nfiles: 2
+  hash: md5
+  path: gold
