@@ -52,6 +52,15 @@ Overlay-Translator/
 ├── _deps_stub.py           # Stub for the layered dependency build
 ├── pyi_rth_onnxruntime.py  # Runtime hook: import onnxruntime before PyInstaller's PyQt5 hook
 │
+├── audio/                  # Live subtitles: computer audio → speech → translated phrases
+│   ├── capture.py          #   LoopbackCapture — an output device as 16 kHz mono (WASAPI loopback)
+│   ├── segmenter.py        #   Segmenter — cuts a 16 kHz stream into phrases (streaming Silero VAD)
+│   ├── stt.py              #   SpeechRecognizer — Whisper via faster-whisper, CPU or optional CUDA
+│   ├── stt_download.py     #   Whisper model download (HF Hub, by explicit action only)
+│   ├── worker.py           #   SttWorker(QThread) — audio in, recognised phrases out via signals
+│   ├── phrase_translator.py #  PhraseTranslator(QThread) — phrases → translate.backend, by sentence for NLLB
+│   └── session.py          #   SubtitleSession — owns capture + both workers; start / stop / status
+│
 ├── capture/                # Screen capture
 │   ├── screenshot.py       #   capture_region() via mss
 │   └── live_monitor.py     #   LiveMonitor(QThread) — periodic re-scan of a region (interval,
@@ -199,7 +208,7 @@ Overlay-Translator/
   each request has a sequence number and a result that is no longer the newest is dropped.
   `_replace_worker()` parks a still-running replaced worker in `_retired_workers` until it
   ends. `live=True` (LiveMonitor `region_changed`) keeps the open popup and updates it in
-  place with `activate=False` (no focus taken from the watched game or stream).
+  place. No popup ever takes the keyboard focus (see `ResultPopup`).
   `_feeds` keeps a `translate.line_feed.RegionFeed` per region (`_anchor_key`, at most 20):
   the last 4 recognised texts (`RECENT_CAPTURES`: a line the OCR misses once is not
   "new" again when it returns) and up to 5 translated blocks. The worker gets those texts
@@ -232,6 +241,12 @@ Overlay-Translator/
   `_on_ocr_preview_requested`, `_toggle_live_monitoring`, `_register_preset_hotkeys`,
   `_on_partial_translation`, `_on_translation_finished`, `_show_result`, `_show_error`,
   `_quit`, `run`.
+- Live subtitles: `_toggle_subtitles(checked)` (tray `act_subtitles`, Settings → Субтитры)
+  lazily creates `audio.session.SubtitleSession` + `ui.subtitle_window.SubtitleWindow`
+  and starts / stops the session. `_on_subtitles_status` forwards the status to the
+  settings page and the strip (an error that stopped the session also to a tray balloon);
+  `_on_subtitles_running` keeps the tray check mark and the settings button in step.
+  `_quit` stops a running session.
 - Restart: `TranslatorApp._restart()` (settings → "Сохранить" for restart-only options)
   starts a detached copy with `--wait-pid <pid>` and quits; `_wait_for_previous_instance()`
   in the new copy waits for that process before the single-instance check.
@@ -259,6 +274,8 @@ so `import config; config.TARGET_LANG` reads a **property** that calls
   `POPUP_TIMEOUT_SEC`, `NOTIFICATION_TYPE`,
   `OCR_LANGUAGES`, `ACTIVE_DOMAIN`,
   `ENABLE_STREAMING`, `ENABLE_OCR_PREVIEW`, `COMPACT_PROMPT`, `LLM_MAX_TOKENS`,
+  `SUBTITLES_DEVICE`, `SUBTITLES_MODEL`, `SUBTITLES_STT_DEVICE`, `SUBTITLES_POS`,
+  `POPUP_SIZE`, `POPUP_OPACITY`, `POPUP_COMPACT`, `POPUP_CLICK_THROUGH`,
   `HOTKEY`, `SETTINGS_HOTKEY` (the `SETTINGS_HOTKEY` env var overrides the latter).
 - Static (env/constants): `MAX_RETRIES_PER_PROVIDER`, `RETRY_BACKOFF_BASE_SEC`,
   `OPENROUTER_MODEL`, `ANTHROPIC_MODEL`, `ANTHROPIC_DETECT_MODEL`, `APP_VERSION`, `GITHUB_REPO`,
@@ -404,7 +421,15 @@ Only cuBLAS is needed for NLLB; cuDNN/cudart are not. Called only from
 `NllbBackend._create_translator`: a missing GPU in `auto` mode is logged at INFO
 with no user notice; every other CUDA failure logs a WARNING and leaves a notice.
 
-### `translate/cuda_download.py` — cuBLAS for the installed app
+### Live-subtitle packages — `requirements-voice.txt`
+`faster-whisper`, `av`, `tokenizers` and `PyAudioWPatch`, pinned exactly and always installed
+with `pip install --no-deps -r requirements-voice.txt` (`install.bat`, `release.yml`,
+`deps-cache.yml`): faster-whisper depends on the plain `onnxruntime` wheel, which would
+overwrite `onnxruntime-directml`. The packages live in the dependency layer of the build
+(`_deps_stub.py`, `build_deps.spec`; excluded in `build_app.spec`) and are part of
+`build.deps_fingerprint`. Without them the app runs and subtitles report the missing package.
+
+### `translate/cuda_download.py` — cuBLAS and cuDNN for the installed app
 ```python
 driver_cuda_version() -> int | None   # nvcuda.dll cuDriverGetVersion (12080 = 12.8); no GPU work
 gpu_offer(driver_version, cublas_found) -> "none" | "old_driver" | "download" | "ready"
@@ -417,6 +442,11 @@ from PyPI (~530 MB), checked against PyPI's SHA-256, its `nvidia/cublas/bin/*.dl
 flat into `<dest>.part`, which replaces `cuda_dir()` only when complete (a failed or
 cancelled download leaves the old copy). Afterwards the NLLB backend is reset and warmed
 up again, now on the GPU. Standard library only (no pip in the frozen app).
+
+`download_cudnn(...)` does the same for cuDNN 9 (`nvidia-cudnn-cu12`, `CUDNN_VERSION`,
+~1 GB on disk) into `cudnn_dir()` (`%APPDATA%\translator-overlay\cudnn`); only live
+subtitles need it. Settings → Subtitles (`_refresh_subs_gpu_row`) offers it to NVIDIA
+owners; `SpeechCudaDownloadWorker` fetches cuBLAS first when that is missing too.
 
 ### `translate/domain_manager.py`
 `load_domain_profile(domain_id) -> dict`, `list_available_domains() -> list[dict]`,
@@ -457,7 +487,9 @@ CREATE TABLE translations (
 API: `get_cached(text, src, tgt, *, domain_id='general') -> str|None`,
 `save_to_cache(text, src, tgt, translation, *, domain_id='general')`,
 `warm_cache(limit=50) -> int`, `get_all_history(limit=200) -> list[dict]`,
-`clear_history()` (also empties L1).
+`clear_history()` (also empties L1), `memory_only()` — a context manager: on the calling
+thread translations use L1 only and never reach the database, i.e. the history (live
+subtitles: a phrase every few seconds would evict the user's own history).
 Size is capped by `config.CACHE_MAX_ITEMS` (the oldest entries by `timestamp` are evicted).
 DB file: `%APPDATA%\translator-overlay\cache\translations.db`.
 
@@ -498,6 +530,119 @@ interleaved lines of neighbouring strips and merged them into one row.
   Nothing is dropped when every line touches an edge (a region around one line).
 - `_infer_lock` serialises inference; `_reader_lock` guards the lazy init.
   Confidence threshold: `EASYOCR_CONFIDENCE_THRESHOLD` (the env names kept their old prefix).
+
+### `audio/` — live speech pipeline
+Live subtitles: what the computer plays → English speech → translated strip
+(`ui/subtitle_window.py`). Started and stopped from the tray ("Живые субтитры") or
+Settings → Субтитры; `main.py` creates the session and the window on first use.
+`faster-whisper` and `PyAudioWPatch` are **not in `requirements.txt` yet** and no Whisper
+model ships or downloads: all three are imported / looked up lazily, the app starts
+without them and starting subtitles then reports what is missing. Background and
+measurements: `docs/VOICE_TRANSLATION_PROTOTYPE.md`.
+
+```python
+# audio/capture.py
+LoopbackCapture(on_audio, device_name="")       # "" = the default output device
+    .start()                                    # raises CaptureUnavailable
+    .stop() / .device_name / .fell_back
+list_loopback_devices() -> list[str]            # [] when capture is unavailable
+display_name(name) / to_16k_mono(block, rate, channels) / Timeline(start).align(audio, now)
+
+# audio/segmenter.py
+Segmenter(vad=None, *, min_silence_ms=400, max_phrase_s=10.0, threshold=0.5,
+          min_speech_ms=200, pad_ms=200)
+    .feed(chunk) -> list[Phrase]    # 16 kHz mono float32, any chunk size
+    .flush() -> list[Phrase]        # close the phrase in progress
+Phrase(audio, start, end, closed_at, forced)   # times in seconds of the stream
+
+# audio/stt.py
+SpeechRecognizer(model_name="small.en", *, model_dir=None, device="auto",
+                 language="en", beam_size=1, cpu_threads=None, skip_foreign=False)
+    # language (config.SUBTITLES_LANGUAGE): a code or "auto" (detected per phrase, see
+    # .last_language); *.en models always recognise English. The worker sends the language
+    # with every phrase and PhraseTranslator passes it to translate_phrase(text, source_lang)
+    # skip_foreign (config.SUBTITLES_SKIP_FOREIGN): a multilingual model (small) runs
+    # detect_language() per phrase and returns "" for one that is confidently
+    # (FOREIGN_MIN_PROBABILITY) in another language; ignored for *.en models
+    .ensure_loaded()                # raises SttModelUnavailable
+    .transcribe(audio) -> str
+    .active_device / .model_dir / .load_seconds / .take_notice() / .unload()
+    .filters_language / .skipped_foreign
+is_multilingual(name)                          # "small" yes, "small.en" no
+resolve_model_dir(name) / model_dirs(name)     # models/whisper-<name>, project then user data
+find_cudnn_dir() / prepare_cudnn()             # cudnn_ops64_9.dll → PATH
+
+# audio/stt_download.py — the only code that fetches a speech model (button in Settings → Subtitles)
+download_model(name, *, dest=None, progress=None, cancel=None) -> Path
+    # Systran/faster-whisper-<name> on the HF Hub → %APPDATA%\…\models\whisper-<name>,
+    # through a resumable .part directory; LFS files are checked against their SHA-256
+is_downloadable(name) / download_dir(name) / REPOS / APPROX_MB
+
+# audio/worker.py
+SttWorker(recognizer=None, segmenter=None, *, max_lag_s=6.0, partial_interval_s=0.0)   # QThread
+    # partial_interval_s > 0 (config.SUBTITLES_STREAMING, session.PARTIAL_INTERVAL_S): the phrase
+    # in progress (Segmenter.partial()) is recognised again per that many seconds of new speech,
+    # only while no audio is waiting → partial_recognized(text) → PhraseTranslator.submit_partial()
+    # (newest only, after waiting phrases) → SubtitleSession.subtitle_partial →
+    # SubtitleWindow.set_partial(); the finished phrase replaces the interim line
+    .feed(chunk) / .stop()                      # thread-safe
+    signals: ready(device, notice), phrase_recognized(text, start, end), failed(message)
+
+# audio/phrase_translator.py
+split_sentences(text) -> list[str]
+translate_phrase(text) -> (translation, notice)
+PhraseTranslator(translate=translate_phrase, *, max_pending=3)   # QThread
+    .submit(text) / .stop()                     # thread-safe
+    signals: translated(source, translation, notice), failed(source, message)
+
+# audio/session.py
+SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None)   # QObject, GUI thread
+    .start() / .stop() / .is_running
+    signals: subtitle(source, translation), status(message, kind), running_changed(bool)
+```
+
+- **LoopbackCapture**: PortAudio callback → queue → its own pump thread → `on_audio`
+  (16 kHz mono float32). WASAPI loopback delivers nothing while the output is idle, so
+  `Timeline` puts the blocks on a wall-clock timeline and fills a hole (> 100 ms) with
+  silence; otherwise a phrase stays open until another sound plays. A saved device that
+  is gone falls back to the default one (`fell_back`). Only whole output devices are
+  captured (no per-application capture); a device unplugged mid-run is not detected.
+
+- **Segmenter**: Silero VAD (the ONNX model bundled with `faster-whisper`) run frame by
+  frame (512 samples) with its LSTM state carried over; it runs on onnxruntime's CPU
+  provider. A phrase closes after `min_silence_ms` of silence; speech without pauses is cut
+  at `max_phrase_s`, at the least speech-like frame of the last 2 s (the latest one on a
+  tie). `vad_filter=True` of faster-whisper is not used: it cannot signal the end of a
+  phrase in a live stream.
+- **SpeechRecognizer** follows the NLLB rules: the model is never downloaded implicitly
+  (`local_files_only=True`, an absent model raises `SttModelUnavailable`), heavy imports are
+  lazy, `device="auto"` tries CUDA (`float16`) and falls back to the CPU (`int8`) with a
+  one-shot notice. Whisper's encoder needs **cuDNN 9** on the GPU in addition to cuBLAS.
+  Both are checked **before** a CUDA model is created: with cuDNN missing CTranslate2
+  aborts the process instead of raising. Decoding parameters are fixed (beam 1, fixed
+  language, no conditioning on previous text, no timestamps). Recognised text is logged
+  through `translate.privacy.loggable`.
+- **SttWorker** owns the segmenter and the recognizer on its thread. A phrase that is more
+  than `max_lag_s` of audio behind the stream when its turn comes is dropped
+  (`dropped_phrases`), so a slow CPU catches up instead of showing subtitles 10+ s late.
+- Like every native extension, CTranslate2 must load after `onnxruntime` (see
+  `main.py` / `pyi_rth_onnxruntime.py`): with PyQt5's old `msvcp140.dll` loaded first,
+  creating the Whisper model crashes with an access violation.
+- **translate_phrase** goes through `translate.backend.translate` (source `en`, the active
+  domain). For the NLLB backend the phrase is translated sentence by sentence
+  (`split_sentences`): given several sentences at once the model drops some. It runs
+  inside `cache.store.memory_only()`, so subtitles never enter the history. With an
+  English target the recognised text is shown as is.
+- **PhraseTranslator** translates in order; a phrase waiting behind more than
+  `max_pending` others is dropped (`dropped_phrases`). A failed phrase is reported and
+  the next one still runs.
+- **SubtitleSession** reads `config.SUBTITLES_MODEL` / `SUBTITLES_STT_DEVICE` /
+  `SUBTITLES_DEVICE` at `start()` (a change applies to the next start). The capture
+  starts only on the worker's `ready`, so no audio queues up while the model loads.
+  A missing model / package or a capture failure stops the session and then emits the
+  reason as an `error` status (`main.py` also shows it as a tray balloon); a failed
+  translation only emits a status. Each run has an id: signals of a stopped run are
+  ignored. Stopped workers stay in `_retired` until their threads finish.
 
 ### `ui/`
 - **Look ("HUD" theme)** — near-black surfaces, square corners, 1 px borders, monospace
@@ -570,8 +715,16 @@ interleaved lines of neighbouring strips and merged them into one row.
   read by `_start_live_monitoring` at the next start; `live_popup_keep_open` switch (default
   on): the popup a monitor updates skips the auto-hide timer while monitoring runs and gets
   it back when monitoring stops. Starting a monitor drops the region's `RegionFeed`, so the
-  first check shows the region's whole text again), "Распознавание" (OCR
-  acceleration, OCR preview), "Попап" (notifications, popup timeout), "Интерфейс"
+  first check shows the region's whole text again), "Субтитры" (live subtitles: a start /
+  stop button emitting `subtitles_toggle_requested(bool)` → `MainWindow` →
+  `TranslatorApp._toggle_subtitles`, a status line fed by `set_subtitles_status`, and the
+  autosaved `subtitles_device` (default output + `audio.capture.list_loopback_devices()`;
+  a saved device that is unplugged stays in the list), `subtitles_model`
+  (`small.en` / `base.en` / `tiny.en`) and `subtitles_stt_device` (`auto` / `cpu`) combos,
+  read at the next start), "Распознавание" (OCR
+  acceleration, OCR preview), "Попап" (notifications, popup timeout, saved size; group
+  "Ненавязчивость": `popup_opacity` slider 40–100 % styled by `theme.slider_css()`,
+  `popup_compact` and `popup_click_through` switches, all autosaved), "Интерфейс"
   (language, colour scheme, about/updates).
   **Saving**: every no-restart setting saves itself — a change starts a 400 ms debounce
   (`_schedule_autosave` → `_autosave` → `_save_instant_settings`, which writes only when a
@@ -592,15 +745,15 @@ interleaved lines of neighbouring strips and merged them into one row.
   dialog then renders with no visible text or buttons. `main.py` installs `ui/theme.py` and
   `i18n.install_qt_translator()` (Russian Yes/No/Cancel on stock buttons).
 - `ui/wheel_guard.py` (app-wide event filter, installed in `main.py`): a wheel event over a
-  `QComboBox` / `QAbstractSpinBox` never changes its value; it goes to the nearest scroll
+  `QComboBox` / `QAbstractSpinBox` / `QSlider` never changes its value; it goes to the nearest scroll
   area's viewport, so long pages scroll past controls. An open combo list still scrolls.
 - `ResultPopup(...)` — frameless window, streaming updates via `update_content()`,
   auto-close after `config.POPUP_TIMEOUT_SEC` (3–600 s, read by `auto_close_ms()` at every
   timer start, so a settings change applies at once), resize by the left / right / bottom edges
   (the top edge is a drag handle), TTS, copy. A drag past 5 px is handed to the OS move
   loop (`QWindow.startSystemMove()`, manual `move()` only if that fails). The card fills the
-  window (no transparent border that would swallow clicks next to it). The window is opaque
-  (no `WA_TranslucentBackground`) because `show()` calls `_exclude_from_capture()` —
+  window (no transparent border that would swallow clicks next to it). The window has no
+  `WA_TranslucentBackground` because `show()` calls `_exclude_from_capture()` —
   `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`, which fails on UpdateLayeredWindow
   windows: mss/OCR and live monitoring never see the popup (it covered tall regions such
   as a stream chat and re-triggered monitoring in a loop); screenshots and recordings do
@@ -618,6 +771,37 @@ interleaved lines of neighbouring strips and merged them into one row.
   to it; `ResultPopup.saved_size()` clamps it); otherwise the popup fits the wrapped text.
   "Настройки → Попап" shows it and can reset it. Square
   card with a 1 px accent frame (`dim` while loading, `error` on error), icon buttons.
+- **Unobtrusive overlays** (`ui/overlay_behavior.py`, shared by `ResultPopup` and
+  `SubtitleWindow`). `EngageWatcher(widget, on_change)` polls every 100 ms while the
+  overlay is shown (a click-through window gets no mouse events, and enter / leave events
+  are unreliable for a window shown under a resting cursor). **Engaged** = the cursor is
+  over the overlay; with `config.POPUP_CLICK_THROUGH` only while Alt is held too; a pressed
+  mouse button keeps it engaged (a resize leaves the window edge). Engaged → opacity 1.0
+  and normal input; at rest → `rest_opacity()` (`config.POPUP_OPACITY`, 40–100 %) and, with
+  click-through, `WS_EX_LAYERED | WS_EX_TRANSPARENT` set through Win32 (clicks reach the
+  window below; the opacity is capped at 0.99 because Qt drops the layered style at 1.0).
+  Settings are read on every poll, so they apply to an open overlay. Measured: whole-window
+  opacity and the click-through style do **not** break `WDA_EXCLUDEFROMCAPTURE`.
+  `ResultPopup` on top of that: `WA_ShowWithoutActivating` and no `activateWindow()`
+  anywhere — it never takes the focus; a click activates it, and only then Esc closes it.
+  The frame is `accent` while engaged or for 1.5 s after a new result (`_fresh`), `dim` at
+  rest, `error` for errors. The header (title, buttons) is its own widget (`_header`):
+  with `config.POPUP_COMPACT` it is hidden unless the popup is engaged or loading
+  (`_sync_header` grows the window upwards by `_header_delta()` so the text stays put);
+  `config.POPUP_SIZE` is the size at rest, so a resize in compact mode saves the height
+  without the header. Without a saved size `_fit_and_adjust_size` makes the popup exactly
+  as tall as its wrapped text (margins + header + `heightForWidth`, 44–550 px), growing
+  and shrinking; it used to keep `QScrollArea`'s default hint, which left a short
+  translation in a half-empty window.
+- `SubtitleWindow` (`ui/subtitle_window.py`) — the live-subtitle strip: frameless, always
+  on top, `WindowDoesNotAcceptFocus` + `WA_ShowWithoutActivating` (a game keeps the
+  keyboard), excluded from screen captures like the popup, with the same opacity and
+  click-through behaviour (`EngageWatcher`, restarted on every show). `add_line(text)`
+  keeps the last 2 translations (the older one dimmed, plain text only); lines expire
+  after 8 s, `set_status(message, kind)` after 5 s (errors 12 s); with nothing to show
+  the window hides. It is sized to its text around a fixed bottom-centre point: the
+  default is the lower part of the primary screen, a drag saves the point to
+  `config.SUBTITLES_POS` (ignored when that monitor is gone).
 - `overlay/selector.py` — selection fill / border use the palette accent (alpha 30 / 220,
   read at construction, not at import) plus 8 px corner brackets.
 - `tray/icon_gen.py` — flat accent tile with an `on_accent` "T" (also the window icon).
@@ -898,7 +1082,9 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_domain_profiles.py` | loading/merging domain profiles |
 | `tests/test_region_presets.py` | preset CRUD, validation of names/coordinates/hotkeys |
 | `tests/test_update_banner.py` | update check at launch and every 30 min, no check while one runs or an update downloads, each version announced once |
-| `tests/test_popup_live.py` | popup excluded from screen capture and kept opaque, live update without taking focus, regions dialog rows and monitoring button |
+| `tests/test_popup_live.py` | popup excluded from screen capture and without a translucent background, show and update never taking the focus, regions dialog rows and monitoring button |
+| `tests/test_overlay_behavior.py` | `ui/overlay_behavior.py`: opacity clamping, engaged under the cursor / with Alt in click-through mode / while a button is held, settings applied to an open overlay; the popup: translucent at rest, frame colour, height fitted to the text (short, long, shrinking, capped, loading), compact header growing upwards, saved size at rest; the subtitle strip following the same settings |
+| `tests/test_settings_popup_behavior.py` | Settings → Попап → "Ненавязчивость": slider and switches shown and autosaved, broken saved value, wheel over the slider swallowed |
 | `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
 | `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
 | `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook; app-only update: zip + manifest assets, manifest parsing (unsafe paths refused), `choose_update_path`, swap plan, fallback to the installer (bad zip, deps changed, read-only dir, earlier rollback), swap script with rollback, `-File` launch with a BOM |
@@ -931,6 +1117,15 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_line_feed.py` | new-line diff (order, case/spacing, OCR noise, repeats), feed capped newest-first, popup blocks with separators and a height set by the newest block, per-region feeds in `TranslatorApp` (nothing new: live keeps the popup, hotkey shows the blocks; errors leave the feed) |
 | `tests/test_live_monitoring.py` | change detector on synthetic chat frames (a new line fires at every sensitivity, a blinking cursor does not), monitoring popup kept open / auto-hide back after stop / option off, monitor start drops the region feed, keep-open switch autosaves |
 | `tests/test_i18n.py` | `tr()` lookup and placeholders, `"auto"` language resolution, and that `i18n/en.py` covers every `tr()`/`N_()` literal in the app (no missing, unused or duplicate keys) |
+| `tests/test_audio_segmenter.py` | `audio/segmenter.py` with a fake VAD: phrase closed after the pause, short pause not splitting, clicks ignored, forced cuts without lost audio, flush, chunk-size independence, lazy VAD import |
+| `tests/test_audio_stt.py` | `audio/stt.py` with fake `faster_whisper` / `ctranslate2`: model discovery without downloads, fixed decoding parameters, CPU fallback for every CUDA failure mode (missing cuDNN / cuBLAS never creates a CUDA model), cuDNN search and PATH |
+| `tests/test_audio_capture.py` | `audio/capture.py` with a fake `pyaudiowpatch`: 16 kHz mono conversion, the timeline filling idle holes with silence (jitter and a fast device clock handled), default / named / missing device, stop releasing everything, failure modes (no device, open error, missing package) |
+| `tests/test_audio_phrase_translator.py` | `audio/phrase_translator.py`: sentence splitting, NLLB translated sentence by sentence and cloud backends in one request, nothing written to the history, English target shown as is; the thread: order, a failed phrase not stopping it, backlog dropping the oldest, stop |
+| `tests/test_audio_session.py` | `audio/session.py` with fake recognizer / capture / translate: speech → subtitle, stop and restart, results of a stopped run ignored, missing model and capture failure stopping with the reason, fallback warnings, translation error keeping it running |
+| `tests/test_subtitle_window.py` | `ui/subtitle_window.py`: hidden when empty, last two lines, expiry, status time-outs, plain text, no focus, bottom-centre anchoring while it grows, drag saving the place, saved place used / ignored off-screen |
+| `tests/test_settings_subtitles.py` | Settings → Субтитры: defaults, device list with the saved-but-unplugged device kept, autosave of the three choices without resetting the translation backends, start / stop button and status line |
+| `tests/test_audio_worker.py` | `audio/worker.py`: phrases in order with times on the worker thread, stop flushing the phrase in progress, missing model reported, one failed phrase not stopping the worker, phrases too far behind dropped |
+| `tests/test_stt_download.py` | Whisper model download (only model files, checksum, resume after cancel, incomplete folder replaced) and the cuDNN wheel download, all with a faked network |
 
 Running:
 

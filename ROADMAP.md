@@ -116,6 +116,7 @@
 - [ ] Офлайн-бенчмарк `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; модели `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, латентность от конца фразы до перевода
 - [ ] Живой захват через WASAPI loopback и микрофон (`live.py`); проверка эха озвучки и нагрузки на CPU / GPU / RAM
 - [ ] Решение go / no-go по результатам: модель и устройство по умолчанию, начинать ли только с субтитров
+- [ ] Зависимости без конфликтов: `faster-whisper` ставится с `--no-deps` (иначе он тянет обычный `onnxruntime` поверх `onnxruntime-directml` и OCR теряет DirectML), `av` и `tokenizers` — явно в `requirements.txt`; для GPU `translate/cuda_download.py` докачивает cuDNN 9 вместе с cuBLAS
 - [ ] Живые субтитры: пакет `audio/` (захват, VAD, STT-воркер на `QThread`, результаты через сигналы) и окно-полоса субтитров
 - [ ] Настройки: источник, модель, устройство, язык (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); по умолчанию выключено; модель Whisper скачивается только по явному действию пользователя, как NLLB
 - [ ] Опциональная озвучка перевода (TTS) с выбором устройства вывода и защитой от эха
@@ -172,7 +173,7 @@
 **Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 и 12 уже сделаны).
 Части A и B можно вести параллельно; этап 13 (голосовой перевод) не зависит от работ над моделью. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 14. Этапы 5, 9, 10 и 13 усиливают проект, но их можно отложить.
 
-**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8; этап 2 нужен до 3 и 5; этап 8 (cuBLAS) желателен до 13 — Whisper на GPU использует те же библиотеки CUDA.
+**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8; этап 2 нужен до 3 и 5; этап 8 (cuBLAS) желателен до 13 — Whisper на GPU использует cuBLAS, но дополнительно требует cuDNN 9.
 
 ---
 ---
@@ -295,6 +296,7 @@ The app, product and documentation, publication. It depends on the model work on
 - [ ] Offline benchmark `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; models `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, end-of-phrase → translation latency
 - [ ] Live capture via WASAPI loopback and the microphone (`live.py`); check the voice-over echo and the CPU / GPU / RAM load
 - [ ] Go / no-go decision from the results: default model and device, whether to start with subtitles only
+- [ ] Conflict-free dependencies: `faster-whisper` is installed with `--no-deps` (otherwise it pulls the plain `onnxruntime` over `onnxruntime-directml` and the OCR loses DirectML), `av` and `tokenizers` go into `requirements.txt` explicitly; for the GPU `translate/cuda_download.py` fetches cuDNN 9 next to cuBLAS
 - [ ] Live subtitles: an `audio/` package (capture, VAD, an STT worker on a `QThread`, results via signals) and a subtitle strip window
 - [ ] Settings: source, model, device, language (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); off by default; the Whisper model is downloaded only by an explicit user action, like NLLB
 - [ ] Optional translation voice-over (TTS) with an output-device choice and echo protection
@@ -351,4 +353,4 @@ The app, product and documentation, publication. It depends on the model work on
 **Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 and 12 are done).
 Parts A and B can run in parallel; stage 13 (voice translation) does not depend on the model work. The minimum for a strong CV: stages 0–4, 6–8 and 14. Stages 5, 9, 10 and 13 strengthen the project but can wait.
 
-**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8; stage 2 before 3 and 5; stage 8 (cuBLAS) is useful before 13 — Whisper on the GPU uses the same CUDA libraries.
+**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8; stage 2 before 3 and 5; stage 8 (cuBLAS) is useful before 13 — Whisper on the GPU uses cuBLAS but also needs cuDNN 9.
