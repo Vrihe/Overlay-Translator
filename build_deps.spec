@@ -79,6 +79,8 @@ a = Analysis(
         'langid',
         # Native packages the app imports lazily (offline backend, API SDKs, cache).
         'ctranslate2', 'sentencepiece', 'pydantic_core', 'sqlite3',
+        # Live subtitles (audio/stt.py, audio/capture.py import them lazily).
+        'faster_whisper', 'av', 'tokenizers', 'pyaudiowpatch', '_portaudiowpatch',
     ] + rapidocr_hiddenimports,
     excludes=[
         # The OCR stack is torch-free; keep a leftover install out of the build.

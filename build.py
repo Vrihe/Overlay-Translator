@@ -187,6 +187,11 @@ _TRACKED_PACKAGES = [
     'pydantic-core',
     # Not in the deps layer, but checks the exact pydantic-core version on import.
     'pydantic',
+    # Live subtitles (requirements-voice.txt, installed with --no-deps).
+    'faster-whisper',
+    'av',
+    'tokenizers',
+    'PyAudioWPatch',
 ]
 
 
@@ -240,14 +245,14 @@ def deps_fingerprint(root: Path) -> str:
     """Return a short hex hash identifying the current dependency state.
 
     The hash covers:
-      - The full content of requirements.txt (if it exists)
+      - The full content of requirements.txt, the lock file and requirements-voice.txt
       - The installed version of every tracked package
       - The Python ABI and PyInstaller version (runtime_tag)
     Any change in deps (pip install/upgrade) produces a different fingerprint.
     """
     parts: list[str] = [runtime_tag()]
 
-    for name in ('requirements.txt', LOCK_FILE):
+    for name in ('requirements.txt', LOCK_FILE, 'requirements-voice.txt'):
         req_file = root / name
         if req_file.exists():
             parts.append(req_file.read_text(encoding='utf-8', errors='replace'))

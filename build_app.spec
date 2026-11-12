@@ -73,6 +73,9 @@ a = Analysis(
         'ui', 'ui.main_window', 'ui.result_popup',
         'ui.first_run_dialog', 'ui.settings_dialog',
         'ui.theme', 'ui.icons', 'ui.hud_widgets',
+        'ui.overlay_behavior', 'ui.subtitle_window',
+        'audio', 'audio.capture', 'audio.phrase_translator', 'audio.segmenter',
+        'audio.session', 'audio.stt', 'audio.stt_download', 'audio.worker',
         'history', 'history.history_window',
         'tray', 'tray.tray_icon', 'tray.icon_gen',
         'updater', 'updater.check_update',
@@ -90,6 +93,7 @@ a = Analysis(
         'mss', 'mss.windows',
         'unittest', 'unittest.mock',
         'ctranslate2', 'sentencepiece', 'pydantic_core', 'sqlite3',
+        'faster_whisper', 'av', 'tokenizers', 'pyaudiowpatch', '_portaudiowpatch',
         # ── Unused Qt modules ─────────────────────────────────────────────────
         'PyQt5.QtSql', 'PyQt5.QtNetwork', 'PyQt5.QtXml', 'PyQt5.QtBluetooth',
         'PyQt5.QtMultimedia', 'PyQt5.QtMultimediaWidgets',

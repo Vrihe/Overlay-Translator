@@ -10,6 +10,10 @@ application logic.  This file is NEVER executed at runtime.
 # All of these will be collected as individual .pyc files when the
 # build_deps.spec is run with --noarchive.
 import cv2  # noqa: F401
+
+# Live subtitles (requirements-voice.txt): Whisper on CTranslate2 and WASAPI loopback.
+# faster_whisper pulls in av, tokenizers, tqdm and huggingface_hub.
+import faster_whisper  # noqa: F401
 import langid  # noqa: F401
 import mss  # noqa: F401
 import mss.windows  # noqa: F401
@@ -21,6 +25,7 @@ import PIL.Image  # noqa: F401
 import PIL.ImageDraw  # noqa: F401
 import PIL.ImageEnhance  # noqa: F401
 import PIL.ImageFilter  # noqa: F401
+import pyaudiowpatch  # noqa: F401
 import pyclipper  # noqa: F401
 import rapidocr  # noqa: F401
 import shapely  # noqa: F401

@@ -1,0 +1,14 @@
+# Live subtitles: speech recognition (Whisper on CTranslate2) and WASAPI loopback capture.
+# Install on top of requirements.txt, WITHOUT dependency resolution:
+#
+#     pip install --no-deps -r requirements-voice.txt
+#
+# faster-whisper declares a dependency on the plain `onnxruntime` wheel, which would
+# overwrite onnxruntime-directml (the OCR engine) — both ship the same `onnxruntime`
+# package. Everything faster-whisper really needs is listed here or is already in
+# requirements.txt (ctranslate2, huggingface_hub with tqdm, numpy, onnxruntime-directml).
+# Exact pins: this file is its own lock (see build.py, deps_fingerprint).
+faster-whisper==1.2.1
+av==19.0.2
+tokenizers==0.23.3
+PyAudioWPatch==0.2.12.9
