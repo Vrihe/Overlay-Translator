@@ -29,10 +29,11 @@ class NllbVersionsWorker(QThread):
     finished_with_versions = pyqtSignal(object, str)  # (list[RemoteVersion] | None, error)
 
     def run(self) -> None:
+        from translate.model_manifest import filter_compatible
         from translate.nllb_models import list_remote_versions
 
         try:
-            self.finished_with_versions.emit(list_remote_versions(), "")
+            self.finished_with_versions.emit(filter_compatible(list_remote_versions()), "")
         except Exception as e:
             self.finished_with_versions.emit(None, str(e))
 

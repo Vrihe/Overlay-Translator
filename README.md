@@ -137,7 +137,8 @@ run.bat --console                                # the app with a visible log
 | The local model: versions, download, GPU | [Local offline model](docs/local-model.md) |
 | Tests, CI, the docs site | [Development](docs/development.md) |
 | Module map, data flow, known problems | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Plan: local model (part A) and the rest (part B) | [ROADMAP.md](ROADMAP.md) |
+| Plan: the app and the overall summary | [ROADMAP.md](ROADMAP.md) |
+| Plan: the local model (part A) | [ROADMAP-MODEL.md](ROADMAP-MODEL.md) |
 | How to contribute | [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 
 ### Project structure

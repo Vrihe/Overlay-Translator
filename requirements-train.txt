@@ -31,3 +31,6 @@ wordfreq==3.1.1
 PyYAML==6.0.3
 # data versioning: dvc.yaml, remote on Google Drive
 dvc[gdrive]==3.67.1
+
+# Experiment tracking: MLflow (DagsHub or local SQLite store), see training/tracking.py
+mlflow==3.17.2

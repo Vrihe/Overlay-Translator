@@ -6,7 +6,7 @@
 
 Условные обозначения: `[ ]` — не сделано, `[x]` — сделано. Оценка в рабочих днях при ~3–4 часах в день.
 
-Предстоящие работы разделены на две части: **A — локальная модель (NLLB)** и **B — приложение и остальное**. Номера этапов сохранены, поэтому порядок и зависимости в сводке ссылаются на них; смешанные этапы 8 и 10 разделены на 8a/8b и 10a/10b.
+Предстоящие работы разделены на две части: **A — локальная модель (NLLB)** и **B — приложение и остальное**. Нумерация этапов сквозная: 0–1 — сделано, 2–10 — часть A, 11–14 — часть B; порядок и зависимости — в сводке.
 
 ---
 
@@ -20,7 +20,7 @@
 
 **Зачем:** без этого проект выглядит заброшенным, а вклад участников размазан по разным именам.
 
-- [x] Добавить `.mailmap`: объединить `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` в одну личность; `Alhite`, `Gdx177303`,`Oleksandr` — в другую
+- [x] Добавить `.mailmap`: объединить `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` в одну личность; `Alhite`, `Gdx177303`, `Oleksandr` — в другую
 - [x] Добавить `LICENSE` (MIT или Apache-2.0; для модели — отдельно указать лицензию NLLB, CC-BY-NC 4.0)
 - [x] Добавить `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, шаблоны issue и PR
 - [x] Убрать устаревшее из README: структура `translator-overlay/`, `settings.py`, описание popup «original + translation», `your-username` в clone-команде
@@ -58,179 +58,15 @@
 
 ## Часть A. Локальная модель (NLLB)
 
-Всё, что касается офлайн-модели: данные, обучение, оценка, реестр, доставка модели в приложение и её инференс.
-
-### Этап 2. Воспроизводимое обучение
-
-**Срок:** 4–6 дней
-
-**Зачем:** сейчас эксперименты воспроизводятся по командам в markdown. Нужно превратить их в конфиги и один пайплайн.
-
-- [x] Конфиги обучения в YAML (`configs/train/v1.yaml`, `v2.yaml`): модель, LoRA r/alpha, lr, эпохи, сид, пути данных
-- [x] `finetune_lora.py` читает конфиг, пишет в `run_config.json` git sha, версию библиотек и хэш датасета
-- [ ] Dockerfile для обучения (CUDA-образ, зафиксированные версии transformers/peft/ctranslate2)
-- [x] Makefile или `justfile`: `make data`, `make train`, `make merge`, `make convert`, `make eval`
-- [ ] Версионирование данных: DVC (remote — Google Drive, S3-совместимое хранилище или HF Datasets) для `data/processed_*`, `interim/`, глоссария
-- [x] DVC pipeline (`dvc.yaml`): `glossary → phrases → translate → repair_keep → build_dataset → train → merge → convert → eval`
-- [x] Воспроизвести v1 и v2 одной командой и сравнить метрики с документацией; расхождения описать в `docs/`
-
-**Критерий готовности:** на чистой машине `make all CONFIG=configs/train/v2.yaml` выдаёт модель и таблицу метрик в пределах шума относительно опубликованных чисел.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 3. Трекинг экспериментов
-
-**Срок:** 2–3 дня
-
-- [ ] Подключить MLflow (локальный `mlruns/` + опционально DagsHub) или W&B в `finetune_lora.py` и `evaluate.py`
-- [ ] Логировать: параметры, loss/eval_loss/lr/VRAM, chrF по группам и языкам, keep-rate, размеры сплитов, git sha, хэш данных
-- [ ] Залить задним числом прогоны v0-base, v1-lora, v1-abbr, v2-game, v2b-game
-- [ ] Скриншот или публичная ссылка на дашборд сравнения прогонов в README/docs
-- [ ] Таблица «run → модель → метрики → решение» в `docs/experiments.md`
-
-**Критерий готовности:** любую цифру из `docs/finetune_v*_eval.md` можно найти в трекере по run id.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 4. Честная оценка качества
-
-**Срок:** 4–7 дней
-
-**Зачем:** сейчас эталоны для аббревиатур — вывод самой NLLB, поэтому chrF завышен и ошибки базовой модели считаются правильными.
-
-- [ ] Собрать ручной тестовый набор: 300–500 реальных строк игрового чата (en → ru/uk/pl как минимум), анонимизированных, с проверенными вручную переводами
-- [ ] Разметить в наборе категории: аббревиатуры, keep-термины, обычные слова, смешанные строки, шум OCR
-- [ ] Добавить метрики: COMET (или BLEURT) вместе с chrF; keep-rate; доля «неверных раскрытий» на размеченном наборе
-- [ ] Прогнать OCR-шум: тот же набор, но с искажениями (ошибки EasyOCR) — оценить устойчивость сквозного пайплайна
-- [ ] Доверительные интервалы по нескольким сидам обучения (минимум 3), а не только bootstrap
-- [ ] Зафиксировать «золотой» набор в DVC и больше его не использовать для обучения
-- [ ] Пересчитать v0-base, v1-abbr, v2-game на новом наборе и пересмотреть выводы (особенно критерий 6)
-
-**Критерий готовности:** решения «какая модель шипится» принимаются по ручному набору, а не по self-distilled эталонам.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 5. Модель v3 (улучшение качества)
-
-**Срок:** 5–8 дней
-
-- [ ] Добавить в обучение обычные слова в контексте (`kick him`, `cover me`), а не только изолированные слова
-- [ ] Добавить числовые и вариативные формы (`lf2m`, `lf3m`, `2kk`, `+10`)
-- [ ] Заменить самодистиллированные таргеты на проверенные вручную или полученные из сильного LLM с последующей фильтрацией
-- [ ] Сравнить варианты: LoRA r=16/32, разные доли FLORES, с глоссарием в препроцессоре и без него (ablation-таблица)
-- [ ] Эксперимент: препроцессор-глоссарий + модель против одной модели — вклад каждого компонента
-- [ ] Экспорт в CTranslate2 int8, сравнение с fp16 и CPU/GPU по качеству и латентности
-- [ ] Решение «промоутить / не промоутить» по заранее зафиксированным критериям (quality gate из этапа 7)
-
-**Критерий готовности:** v3 лучше v0-base и v2-game на ручном наборе при допустимой регрессии обычных слов.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 6. Реестр моделей и манифест
-
-**Срок:** 2–3 дня
-
-- [ ] Model card на HF для каждой версии: данные, метод, метрики, ограничения, лицензия, как воспроизвести
-- [ ] `manifest.json` в репозитории модели: версия, sha256 `model.bin`, метрики, минимальная версия приложения, рекомендуемый канал (stable / beta)
-- [ ] Приложение читает manifest, проверяет sha256 после загрузки и предлагает обновление модели
-- [x] Теги в HF: `v0-base`, `v1-abbr`, `v2-game`, `v3-…`; в `config.py` — выбор версии через настройки, а не правка кода
-- [ ] В `scripts/download_model.py` — проверка целостности и возобновление загрузки
-
-**Критерий готовности:** пользователь выбирает версию модели в настройках, приложение проверяет и скачивает её без `.bat`-скриптов.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 7. CI/CD для модели и quality gate
-
-**Срок:** 3–4 дня
-
-- [ ] Workflow `model-eval.yml` (ручной запуск и nightly): скачать кандидата с HF, прогнать на фиксированном мини-наборе (CPU, int8)
-- [ ] Quality gate: порог chrF/COMET на общем и ручном наборе, keep-rate ≥ 90%, регрессия обычных слов не больше N пунктов, латентность p95 не выше порога
-- [ ] Отчёт сравнения кандидата с текущим stable как комментарий к PR или artifact
-- [ ] Автоматическое обновление `manifest.json` и тега только при прохождении gate
-- [ ] Защита от случайной публикации: промоция только через PR + ручное подтверждение
-
-**Критерий готовности:** модель, не прошедшая gate, технически не может попасть в канал `stable`.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 8a. Сборка с GPU для локальной модели
-
-**Срок:** 1–2 дня
-
-- [x] Две сборки: CPU (лёгкая) и GPU (с cuBLAS), либо скачивание GPU-компонентов при первом запуске
-
-**Критерий готовности:** установщик или первый запуск даёт NLLB на GPU (cuBLAS), а лёгкая CPU-сборка не растёт в размере.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 10a. Мониторинг модели и дообучение по отзывам
-
-**Срок:** 2–3 дня
-
-- [ ] Скрипт отчёта по накопленным данным: доля строк с неизвестными токенами вне глоссария, топ-N потерянных keep-терминов, распределение латентности
-- [ ] Детектор дрейфа: сигнал «пора обновить глоссарий / переобучить», когда доля неизвестных токенов растёт
-- [ ] Процесс: отзывы → ручная проверка → датасет v4 → новый цикл этапов 2–7
-
-**Критерий готовности:** замкнутый цикл «пользователь отметил плохой перевод → пример попал в датасет следующей версии» работает и описан в docs.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
-
----
-
-### Этап 11. Локальный сервис инференса
-
-**Срок:** 3–5 дней
-
-- [ ] Вынести NLLB-бэкенд в отдельный процесс: FastAPI, `/translate`, `/health`, `/version`
-- [ ] Метрики Prometheus (`/metrics`): латентность, размер батча, ошибки, cache-hit
-- [ ] Приложение обращается к сервису через локальный HTTP; при его отсутствии — прежнее встроенное поведение
-- [ ] Бенчмарк латентности и пропускной способности (p50/p95, CPU vs GPU, int8 vs fp16, длина строки), результаты в `docs/benchmarks.md`
-- [ ] Dockerfile и `docker-compose` для запуска сервиса отдельно от приложения (для демонстрации и серверного сценария)
-
-**Критерий готовности:** сервис запускается одной командой, отдаёт метрики и проходит нагрузочный тест с зафиксированными числами.
-
-**Исполнитель:** ______________________________
-
-**Срок (дата):** ______________________________
+Подробный план вынесен в [ROADMAP-MODEL.md](ROADMAP-MODEL.md): этапы 2–10 (данные, обучение, оценка, реестр, GPU-сборка, мониторинг, сервис). Порядок и зависимости — в сводке ниже.
 
 ---
 
 ## Часть B. Приложение и остальное
 
-Приложение, продукт и документация, обратная связь от пользователей, публикация. От работ над моделью зависит только там, где это указано в «Зависимостях».
+Приложение, продукт и документация, публикация. От работ над моделью зависит только там, где это указано в «Зависимостях».
 
-### Этап 8b. Релиз приложения
+### Этап 11. Релиз приложения
 
 **Срок:** 4–6 дней
 
@@ -250,7 +86,7 @@
 
 ---
 
-### Этап 9. Продукт и документация
+### Этап 12. Продукт и документация
 
 **Срок:** 3–5 дней
 
@@ -270,15 +106,22 @@
 
 ---
 
-### Этап 10b. Обратная связь и телеметрия в приложении
+### Этап 13. Голосовой перевод
 
-**Срок:** 2–3 дня
+**Срок:** 8–12 дней
 
-- [ ] Кнопка 👎/👍 в popup результата; негативные примеры сохраняются локально в SQLite
-- [ ] Экспорт отзывов в `jsonl` (кнопка «Поделиться данными для улучшения модели», с предпросмотром и согласием)
-- [ ] Опциональная анонимная телеметрия (по умолчанию выключена): версия приложения и модели, backend, латентность, cache-hit, тип ошибки; без текста с экрана
+**Зачем:** переводить не только текст на экране, но и речь (Discord, игры, видео) — живыми субтитрами, а при желании и озвучкой. Подробный план прототипа — [docs/VOICE_TRANSLATION_PROTOTYPE.md](docs/VOICE_TRANSLATION_PROTOTYPE.md).
 
-**Критерий готовности:** пользователь может отметить плохой перевод и поделиться отзывами с предпросмотром и согласием; телеметрия по умолчанию выключена и не содержит текста с экрана.
+- [ ] Прототип в `scratch/voice/` (вне приложения): тестовый набор из 20–30 фраз, синтезированных через SAPI, плюс тишина, музыка и шум для проверки галлюцинаций
+- [ ] Офлайн-бенчмарк `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; модели `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, латентность от конца фразы до перевода
+- [ ] Живой захват через WASAPI loopback и микрофон (`live.py`); проверка эха озвучки и нагрузки на CPU / GPU / RAM
+- [ ] Решение go / no-go по результатам: модель и устройство по умолчанию, начинать ли только с субтитров
+- [ ] Живые субтитры: пакет `audio/` (захват, VAD, STT-воркер на `QThread`, результаты через сигналы) и окно-полоса субтитров
+- [ ] Настройки: источник, модель, устройство, язык (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); по умолчанию выключено; модель Whisper скачивается только по явному действию пользователя, как NLLB
+- [ ] Опциональная озвучка перевода (TTS) с выбором устройства вывода и защитой от эха
+- [ ] Приватность: аудио и транскрипты не логируются целиком, облачный STT — только по явному выбору; обновить `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt`
+
+**Критерий готовности:** перевод фразы появляется в субтитрах не позже ~3 с после её окончания; функция выключена по умолчанию и не ходит в сеть без явного действия пользователя.
 
 **Исполнитель:** ______________________________
 
@@ -286,13 +129,13 @@
 
 ---
 
-### Этап 12. Резюме, диплом и публикация
+### Этап 14. Резюме, диплом и публикация
 
 **Срок:** 3–4 дня
 
 - [ ] Раздел «MLOps» в README: диаграмма жизненного цикла, ссылки на трекер, DVC, HF-модели, CI
 - [ ] Технический отчёт или статья (Medium/dev.to/Habr): задача, данные, обучение, оценка, провалы, выводы
-- [ ] Структура диплома: проблема → данные и глоссарий → метод (LoRA + препроцессор) → оценка → инженерная часть (CI/CD, реестр, мониторинг) → результаты и ограничения
+- [ ] (опционально) Структура диплома: проблема → данные и глоссарий → метод (LoRA + препроцессор) → оценка → инженерная часть (CI/CD, реестр, мониторинг) → результаты и ограничения
 - [ ] Формулировки для резюме (3–4 пункта с цифрами: прирост chrF, keep-rate, латентность, покрытие тестами)
 - [ ] Закреплённый репозиторий на GitHub-профиле, актуальный профильный README
 - [ ] Короткое видео-демо (1–2 минуты)
@@ -318,18 +161,18 @@
 | 5 | A | Модель v3 | 5–8 | |
 | 6 | A | Реестр моделей и манифест | 2–3 | |
 | 7 | A | CI/CD для модели | 3–4 | |
-| 8a | A | Сборка с GPU для локальной модели | 1–2 | |
-| 8b | B | Релиз приложения (сделано) | 4–6 | |
-| 9 | B | Продукт и документация (сделано) | 3–5 | |
-| 10a | A | Мониторинг модели и дообучение по отзывам | 2–3 | |
-| 10b | B | Обратная связь и телеметрия в приложении | 2–3 | |
-| 11 | A | Сервис инференса | 3–5 | |
-| 12 | B | Резюме, диплом, публикация | 3–4 | |
+| 8 | A | Сборка с GPU для локальной модели | 1–2 | |
+| 9 | A | Мониторинг модели | 2–3 | |
+| 10 | A | Сервис инференса | 3–5 | |
+| 11 | B | Релиз приложения (сделано) | 4–6 | |
+| 12 | B | Продукт и документация (сделано) | 3–5 | |
+| 13 | B | Голосовой перевод | 8–12 | |
+| 14 | B | Резюме, диплом, публикация | 3–4 | |
 
-**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 5 → 10b → 10a → 11 → 12 (8b и 9 уже сделаны).
-Части A и B можно вести параллельно. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 12. Этапы 5, 10a/10b, 11 усиливают проект, но их можно отложить.
+**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 и 12 уже сделаны).
+Части A и B можно вести параллельно; этап 13 (голосовой перевод) не зависит от работ над моделью. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 14. Этапы 5, 9, 10 и 13 усиливают проект, но их можно отложить.
 
-**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8a; этап 2 нужен до 3 и 5; этап 10b (отзывы в приложении) нужен до 10a.
+**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8; этап 2 нужен до 3 и 5; этап 8 (cuBLAS) желателен до 13 — Whisper на GPU использует те же библиотеки CUDA.
 
 ---
 ---
@@ -342,7 +185,7 @@ Goal: turn the project into (1) an app people want to use and (2) a strong MLOps
 
 Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3–4 hours a day.
 
-Upcoming work is split into two parts: **A — the local model (NLLB)** and **B — the app and the rest**. Stage numbers are kept, so the order and dependencies in the summary refer to them; the mixed stages 8 and 10 are split into 8a/8b and 10a/10b.
+Upcoming work is split into two parts: **A — the local model (NLLB)** and **B — the app and the rest**. Stages are numbered straight through: 0–1 — done, 2–10 — part A, 11–14 — part B; order and dependencies are in the summary.
 
 ---
 
@@ -394,179 +237,15 @@ Fully closed stages.
 
 ## Part A. Local model (NLLB)
 
-Everything about the offline model: data, training, evaluation, registry, delivering the model to the app and running it.
-
-### Stage 2. Reproducible training
-
-**Time:** 4–6 days
-
-**Why:** experiments are currently reproduced from commands in markdown. They should become configs and a single pipeline.
-
-- [x] Training configs in YAML (`configs/train/v1.yaml`, `v2.yaml`): model, LoRA r/alpha, lr, epochs, seed, data paths
-- [x] `finetune_lora.py` reads the config and writes the git sha, library versions and dataset hash to `run_config.json`
-- [ ] Training Dockerfile (CUDA image, pinned transformers/peft/ctranslate2 versions)
-- [x] Makefile or `justfile`: `make data`, `make train`, `make merge`, `make convert`, `make eval`
-- [ ] Data versioning: DVC (remote — Google Drive, S3-compatible storage or HF Datasets) for `data/processed_*`, `interim/`, the glossary
-- [x] DVC pipeline (`dvc.yaml`): `glossary → phrases → translate → repair_keep → build_dataset → train → merge → convert → eval`
-- [x] Reproduce v1 and v2 with one command and compare metrics with the docs; describe differences in `docs/`
-
-**Done when:** on a clean machine `make all CONFIG=configs/train/v2.yaml` produces a model and a metrics table within noise of the published numbers.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 3. Experiment tracking
-
-**Time:** 2–3 days
-
-- [ ] Add MLflow (local `mlruns/` + optionally DagsHub) or W&B to `finetune_lora.py` and `evaluate.py`
-- [ ] Log: parameters, loss/eval_loss/lr/VRAM, chrF by group and language, keep-rate, split sizes, git sha, data hash
-- [ ] Backfill the v0-base, v1-lora, v1-abbr, v2-game, v2b-game runs
-- [ ] A screenshot or public link to the run comparison dashboard in the README/docs
-- [ ] A "run → model → metrics → decision" table in `docs/experiments.md`
-
-**Done when:** any number from `docs/finetune_v*_eval.md` can be found in the tracker by run id.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 4. Honest quality evaluation
-
-**Time:** 4–7 days
-
-**Why:** the references for abbreviations are currently NLLB's own output, so chrF is inflated and the base model's mistakes count as correct.
-
-- [ ] Build a manual test set: 300–500 real game chat lines (en → ru/uk/pl at least), anonymised, with hand-checked translations
-- [ ] Label categories in the set: abbreviations, keep terms, ordinary words, mixed lines, OCR noise
-- [ ] Add metrics: COMET (or BLEURT) alongside chrF; keep-rate; the share of "wrong expansions" on the labelled set
-- [ ] Run with OCR noise: the same set with distortions (EasyOCR errors) to measure end-to-end robustness
-- [ ] Confidence intervals over several training seeds (at least 3), not only bootstrap
-- [ ] Freeze the "gold" set in DVC and never use it for training again
-- [ ] Re-score v0-base, v1-abbr, v2-game on the new set and revisit the conclusions (especially criterion 6)
-
-**Done when:** "which model ships" is decided on the manual set, not on self-distilled references.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 5. Model v3 (quality improvements)
-
-**Time:** 5–8 days
-
-- [ ] Train on ordinary words in context (`kick him`, `cover me`), not only on isolated words
-- [ ] Add numeric and variant forms (`lf2m`, `lf3m`, `2kk`, `+10`)
-- [ ] Replace self-distilled targets with hand-checked ones or ones from a strong LLM with filtering
-- [ ] Compare variants: LoRA r=16/32, different FLORES shares, with and without the glossary preprocessor (ablation table)
-- [ ] Experiment: glossary preprocessor + model vs the model alone — the contribution of each part
-- [ ] Export to CTranslate2 int8, compare with fp16 and CPU/GPU on quality and latency
-- [ ] "Promote / do not promote" decision against criteria fixed in advance (the quality gate from stage 7)
-
-**Done when:** v3 beats v0-base and v2-game on the manual set with an acceptable regression on ordinary words.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 6. Model registry and manifest
-
-**Time:** 2–3 days
-
-- [ ] A model card on HF for each version: data, method, metrics, limitations, licence, how to reproduce
-- [ ] `manifest.json` in the model repository: version, sha256 of `model.bin`, metrics, minimum app version, recommended channel (stable / beta)
-- [ ] The app reads the manifest, checks sha256 after download and offers model updates
-- [x] Tags on HF: `v0-base`, `v1-abbr`, `v2-game`, `v3-…`; in `config.py` — version choice through settings instead of code edits
-- [ ] Integrity check and resumable download in `scripts/download_model.py`
-
-**Done when:** the user picks a model version in settings and the app checks and downloads it without `.bat` scripts.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 7. Model CI/CD and quality gate
-
-**Time:** 3–4 days
-
-- [ ] `model-eval.yml` workflow (manual and nightly): download the candidate from HF, run it on a fixed mini set (CPU, int8)
-- [ ] Quality gate: chrF/COMET threshold on the general and manual sets, keep-rate ≥ 90%, ordinary-word regression of at most N points, p95 latency under a threshold
-- [ ] A candidate vs current stable comparison report as a PR comment or an artifact
-- [ ] Update `manifest.json` and the tag automatically only when the gate passes
-- [ ] Guard against accidental publishing: promotion only through a PR + manual approval
-
-**Done when:** a model that fails the gate technically cannot reach the `stable` channel.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 8a. GPU build for the local model
-
-**Time:** 1–2 days
-
-- [ ] Two builds: CPU (light) and GPU (with cuBLAS), or download GPU components on first launch
-
-**Done when:** the installer or the first launch gives NLLB on the GPU (cuBLAS), and the light CPU build does not grow.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 10a. Model monitoring and retraining from feedback
-
-**Time:** 2–3 days
-
-- [ ] A report script over the collected data: the share of lines with unknown tokens outside the glossary, top-N lost keep terms, latency distribution
-- [ ] A drift detector: a "time to update the glossary / retrain" signal when the share of unknown tokens grows
-- [ ] Process: feedback → manual review → dataset v4 → a new cycle of stages 2–7
-
-**Done when:** the closed loop "a user flagged a bad translation → the example reached the next version's dataset" works and is described in the docs.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
-
----
-
-### Stage 11. Local inference service
-
-**Time:** 3–5 days
-
-- [ ] Move the NLLB backend into a separate process: FastAPI, `/translate`, `/health`, `/version`
-- [ ] Prometheus metrics (`/metrics`): latency, batch size, errors, cache hit
-- [ ] The app talks to the service over local HTTP; without it, the current built-in behaviour
-- [ ] Latency and throughput benchmark (p50/p95, CPU vs GPU, int8 vs fp16, line length), results in `docs/benchmarks.md`
-- [ ] Dockerfile and `docker-compose` to run the service apart from the app (for demos and a server scenario)
-
-**Done when:** the service starts with one command, exposes metrics and passes a load test with recorded numbers.
-
-**Owner:** ______________________________
-
-**Due:** ______________________________
+The detailed plan is in [ROADMAP-MODEL.md](ROADMAP-MODEL.md): stages 2–10 (data, training, evaluation, registry, GPU build, monitoring, service). Order and dependencies are in the summary below.
 
 ---
 
 ## Part B. App and the rest
 
-The app, product and documentation, user feedback, publication. It depends on the model work only where the dependencies below say so.
+The app, product and documentation, publication. It depends on the model work only where the dependencies below say so.
 
-### Stage 8b. App release
+### Stage 11. App release
 
 **Time:** 4–6 days
 
@@ -586,7 +265,7 @@ The app, product and documentation, user feedback, publication. It depends on th
 
 ---
 
-### Stage 9. Product and documentation
+### Stage 12. Product and documentation
 
 **Time:** 3–5 days
 
@@ -606,15 +285,22 @@ The app, product and documentation, user feedback, publication. It depends on th
 
 ---
 
-### Stage 10b. Feedback and telemetry in the app
+### Stage 13. Voice translation
 
-**Time:** 2–3 days
+**Time:** 8–12 days
 
-- [ ] A 👎/👍 button in the result popup; negative examples are stored locally in SQLite
-- [ ] Export feedback to `jsonl` (a "Share data to improve the model" button, with a preview and consent)
-- [ ] Optional anonymous telemetry (off by default): app and model version, backend, latency, cache hit, error type; no screen text
+**Why:** translate speech too (Discord, games, videos), not only on-screen text — as live subtitles and optionally as voice-over. The detailed prototype plan is [docs/VOICE_TRANSLATION_PROTOTYPE.md](docs/VOICE_TRANSLATION_PROTOTYPE.md).
 
-**Done when:** a user can flag a bad translation and share feedback with a preview and consent; telemetry is off by default and has no screen text.
+- [ ] Prototype in `scratch/voice/` (outside the app): a test set of 20–30 phrases synthesised with SAPI, plus silence, music and noise for the hallucination check
+- [ ] Offline benchmark `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; models `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, end-of-phrase → translation latency
+- [ ] Live capture via WASAPI loopback and the microphone (`live.py`); check the voice-over echo and the CPU / GPU / RAM load
+- [ ] Go / no-go decision from the results: default model and device, whether to start with subtitles only
+- [ ] Live subtitles: an `audio/` package (capture, VAD, an STT worker on a `QThread`, results via signals) and a subtitle strip window
+- [ ] Settings: source, model, device, language (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); off by default; the Whisper model is downloaded only by an explicit user action, like NLLB
+- [ ] Optional translation voice-over (TTS) with an output-device choice and echo protection
+- [ ] Privacy: audio and transcripts are never logged in full, cloud STT only by explicit choice; update `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt`
+
+**Done when:** a phrase's translation shows up in the subtitles within ~3 s of its end; the feature is off by default and never goes to the network without an explicit user action.
 
 **Owner:** ______________________________
 
@@ -622,13 +308,13 @@ The app, product and documentation, user feedback, publication. It depends on th
 
 ---
 
-### Stage 12. CV, thesis and publication
+### Stage 14. CV, thesis and publication
 
 **Time:** 3–4 days
 
 - [ ] An "MLOps" section in the README: lifecycle diagram, links to the tracker, DVC, HF models, CI
 - [ ] A technical report or article (Medium/dev.to/Habr): task, data, training, evaluation, failures, conclusions
-- [ ] Thesis outline: problem → data and glossary → method (LoRA + preprocessor) → evaluation → engineering (CI/CD, registry, monitoring) → results and limitations
+- [ ] (optional) Thesis outline: problem → data and glossary → method (LoRA + preprocessor) → evaluation → engineering (CI/CD, registry, monitoring) → results and limitations
 - [ ] CV bullet points (3–4 with numbers: chrF gain, keep-rate, latency, test coverage)
 - [ ] The repository pinned on the GitHub profile, an up-to-date profile README
 - [ ] A short video demo (1–2 minutes)
@@ -654,15 +340,15 @@ The app, product and documentation, user feedback, publication. It depends on th
 | 5 | A | Model v3 | 5–8 | |
 | 6 | A | Model registry and manifest | 2–3 | |
 | 7 | A | Model CI/CD | 3–4 | |
-| 8a | A | GPU build for the local model | 1–2 | |
-| 8b | B | App release (done) | 4–6 | |
-| 9 | B | Product and documentation (done) | 3–5 | |
-| 10a | A | Model monitoring and retraining from feedback | 2–3 | |
-| 10b | B | Feedback and telemetry in the app | 2–3 | |
-| 11 | A | Inference service | 3–5 | |
-| 12 | B | CV, thesis, publication | 3–4 | |
+| 8 | A | GPU build for the local model | 1–2 | |
+| 9 | A | Model monitoring | 2–3 | |
+| 10 | A | Inference service | 3–5 | |
+| 11 | B | App release (done) | 4–6 | |
+| 12 | B | Product and documentation (done) | 3–5 | |
+| 13 | B | Voice translation | 8–12 | |
+| 14 | B | CV, thesis, publication | 3–4 | |
 
-**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 5 → 10b → 10a → 11 → 12 (8b and 9 are done).
-Parts A and B can run in parallel. The minimum for a strong CV: stages 0–4, 6–8 and 12. Stages 5, 10a/10b, 11 strengthen the project but can wait.
+**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 and 12 are done).
+Parts A and B can run in parallel; stage 13 (voice translation) does not depend on the model work. The minimum for a strong CV: stages 0–4, 6–8 and 14. Stages 5, 9, 10 and 13 strengthen the project but can wait.
 
-**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8a; stage 2 before 3 and 5; stage 10b (feedback in the app) before 10a.
+**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8; stage 2 before 3 and 5; stage 8 (cuBLAS) is useful before 13 — Whisper on the GPU uses the same CUDA libraries.

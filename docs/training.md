@@ -53,6 +53,9 @@ flowchart TD
 | `training/build_dataset_v2.py` | v2 splits, reusing the v1 FLORES pools so general scores stay comparable |
 | `training/finetune_lora.py` | LoRA on the attention projections, bf16, best checkpoint by validation loss; writes `run_config.json` |
 | `training/evaluate.py` | chrF for abbreviation and general pairs, keep rate, per-language scores, paired bootstrap 95 % CI against the first system |
+| `training/gold_eval.py` | Scores systems on the hand-checked gold set (see below): chrF per category and language, keep rate, wrong-expansion rate, OCR-noise drop, mean / 95 % CI over training seeds |
+| `training/quality_gate.py` | Quality gate: compares a candidate with the stable build on the gold set, thresholds in `configs/quality_gate.json` (see below) |
+| `training/tracking.py` | Optional MLflow logging used by `finetune_lora.py`, `evaluate.py` and `gold_eval.py` (see below) |
 | `training/merge_lora.py` | Merges the adapter into the base weights for conversion |
 
 ## One command per stage
@@ -125,6 +128,85 @@ copies; the workspace files stay.
 - **GPU budget.** Long runs cap GPU memory and duty cycle (`--gpu-mem-fraction`, `--gpu-duty`) so
   the machine stays usable.
 
+## Experiment tracking (MLflow / DagsHub)
+
+`finetune_lora.py`, `evaluate.py` and `gold_eval.py score` log each finished run through
+`training/tracking.py`: parameters, metrics, training curves, git sha, dataset / gold SHA-256 and the
+summary JSON. Experiments are named `finetune`, `eval` and `gold-eval`; one run per model or system.
+Text from screens, gold rows and hypotheses are never logged, and path parameters keep only their
+last component.
+
+```powershell
+$env:MLFLOW_TRACKING_URI      = "https://dagshub.com/<user>/<repo>.mlflow"
+$env:MLFLOW_TRACKING_USERNAME = "<user>"
+$env:MLFLOW_TRACKING_PASSWORD = "<DagsHub token>"   # keep it in the environment, never in git
+```
+
+Without `MLFLOW_TRACKING_URI` runs go to a local store, `mlruns/mlflow.db` (git-ignored; browse it
+with `mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db`). `OVERLAY_TRACKING=off` disables
+tracking. A missing `mlflow` package or an unreachable server only prints a warning; training and
+evaluation continue.
+
+## Quality gate
+
+A candidate build may become `stable` only if `training/quality_gate.py` passes on the gold set. The
+gate reads one `gold_eval.py score` summary that holds both the candidate and the current stable build
+and checks, with the thresholds in `configs/quality_gate.json`:
+
+| Check | Rule (default) |
+|---|---|
+| rows | gold set has at least 300 lines |
+| keep rate | candidate >= 90 % |
+| overall chrF | drop against stable <= 1.0 |
+| ordinary-word chrF | drop against stable <= 2.0 |
+| wrong expansions | candidate <= 10 % |
+| OCR noise | chrF lost on noisy input grows by <= 3.0 |
+
+A metric missing from the summary fails its check. Set the thresholds before looking at results.
+
+```bash
+python training/gold_eval.py score data/gold/gold.jsonl candidate=ct2:models/v3 baseline=ct2:models/v2-game --out checkpoints/gold
+python training/quality_gate.py checkpoints/gold/summary.json --candidate candidate --baseline baseline --report checkpoints/gold/gate.md
+```
+
+Exit code 0 means pass, 1 means a check failed, 2 means a system name is not in the summary. The
+manual workflow `.github/workflows/model-eval.yml` runs the same steps on a CPU runner (both builds
+as CTranslate2 int8), writes the report to the job summary and uploads `gate.md` and `summary.json`.
+It needs the repository secret `GDRIVE_CREDENTIALS_DATA` (the gold set is DVC-tracked, never in git).
+The workflow publishes nothing: moving the pinned revision or the manifest is a reviewed pull request.
+
+## Gold set (hand-checked evaluation)
+
+`evaluate.py` scores against references produced by NLLB itself, so it measures agreement with
+the base model, not correctness. `training/gold_eval.py` scores against translations a person
+wrote and checked. The set lives in `data/gold/gold.jsonl` (DVC-tracked, never in git, never
+used for training); one JSON object per line:
+
+| Field | Meaning |
+|---|---|
+| `id`, `src`, `lang`, `ref` | unique id, English source, target language (`ru`, `uk`, `pl`, …), hand-checked translation |
+| `category` | `abbr`, `keep`, `ordinary`, `mixed` or `ocr_noise` |
+| `keep_terms` | optional: terms that must survive verbatim (feeds the keep rate) |
+| `wrong_expansions` | optional: substrings that count as a wrong expansion of an abbreviation |
+| `noisy_src` | optional: the same line as OCR would misread it (feeds the OCR-noise drop) |
+
+Lines must be anonymised: no nicknames, no screen text of other people.
+`training/gold_example.jsonl` shows the format with five synthetic rows (one per category); it is not
+evaluation data. Check your file as you go with `python training/gold_eval.py validate data/gold/gold.jsonl`.
+
+```bash
+python training/gold_eval.py validate data/gold/gold.jsonl --train data/processed_v2/train.jsonl
+python training/gold_eval.py noise data/gold/gold.jsonl --out data/gold/gold_noisy.jsonl   # synthetic OCR-style noisy_src
+python training/gold_eval.py score data/gold/gold.jsonl v0-base=ct2:models/nllb-v0-base v2-game=ct2:models/nllb-v2-game
+python training/gold_eval.py aggregate checkpoints/gold_s1/summary.json checkpoints/gold_s2/summary.json checkpoints/gold_s3/summary.json
+```
+
+`validate` checks the schema, prints counts per category and the file's SHA-256 (stored in every
+summary, so a score names its exact test set), warns below 300 rows, and fails when a gold source
+also appears in a training file. `aggregate` refuses summaries scored on different gold sets and
+reports mean, standard deviation and a 95 % CI (Student t) over at least three training seeds.
+The shipping decision is taken on these numbers, not on the self-distilled ones.
+
 ## Training a new version
 
 1. Prepare data with the scripts above into a new `data/processed_<name>/`.
@@ -137,3 +219,19 @@ copies; the workspace files stay.
    the new tag automatically.
 
 The exact commands of the published runs are on [Reproducing experiments](experiments.md).
+
+## Monitoring the offline model
+
+`scripts/monitor_report.py` reads the app's translation history (read-only) and prints, for the local
+model's rows: the share of lines with an unknown token (a slang-looking word outside the glossary),
+the top lost keep terms and a drift verdict. Exit code 2 means the unknown-token share of the last
+`--window-days` (default 30) grew by more than `--threshold` points (default 5) against the earlier rows,
+with at least 50 rows in each period; that is the signal to update the glossary or retrain.
+
+```bash
+python scripts/monitor_report.py --window-days 14 --json report.json
+python scripts/monitor_report.py --show-tokens   # also lists the tokens: they are fragments of screen text
+```
+
+The history keeps no latency, so the report has no latency distribution. Unknown tokens are a heuristic
+(a letter/digit mix or a short vowelless word); `--vocab words.txt` marks ordinary words as known.

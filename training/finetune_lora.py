@@ -50,6 +50,7 @@ DEFAULT_MODEL = Path(os.environ.get("NLLB_BASE_MODEL_DIR") or _PROJECT_ROOT / "m
 LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "out_proj"]
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import tracking  # noqa: E402
 from train_config import load_config, provenance, resolve  # noqa: E402
 
 
@@ -139,6 +140,45 @@ def parse_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, dict 
     if cfg:
         parser.set_defaults(**config_defaults(cfg))
     return parser.parse_args(argv), cfg
+
+
+def log_tracking(args, summary: dict, out_dir: Path) -> None:
+    """Send the finished run to MLflow / DagsHub (numbers and hashes only; see training/tracking.py)."""
+    log_path = out_dir / "log.jsonl"
+    history = []
+    if log_path.is_file():
+        for record in load_jsonl(log_path):
+            step = record.pop("step", None)
+            if step is not None:
+                history.append((step, {k: v for k, v in record.items() if k not in {"epoch", "elapsed_s"}}))
+    prov = summary["provenance"]
+    tracking.log_run(
+        "finetune",
+        args.run_name,
+        params={k: v for k, v in summary["args"].items() if k not in {"resume"}},
+        metrics={
+            k: summary[k]
+            for k in (
+                "train_pairs",
+                "val_pairs",
+                "trainable_params",
+                "steps",
+                "train_loss",
+                "eval_loss",
+                "train_time_s",
+                "steps_per_s",
+                "vram_peak_gb",
+            )
+        },
+        tags={
+            "git_sha": (prov.get("git") or {}).get("sha") if isinstance(prov.get("git"), dict) else None,
+            "dataset_sha256": prov.get("dataset_sha256"),
+            "config_sha256": prov.get("config_sha256"),
+            "gpu": summary.get("gpu"),
+        },
+        history=history,
+        artifacts=[out_dir / "run_config.json"],
+    )
 
 
 def main() -> int:
@@ -297,6 +337,7 @@ def main() -> int:
     }
     (out_dir / "run_config.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2), flush=True)
+    log_tracking(args, summary, out_dir)
     return 0
 
 

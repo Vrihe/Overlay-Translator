@@ -18,7 +18,7 @@ build scored on the CPU, as the app runs it.
 Known weak spot: v2 leaves more ordinary words untranslated than v0 (the "plain chrF" criterion
 of v2 failed; see the v2 report). The current test sets are built from generated phrases and
 FLORES, not from real chat; a hand-checked test set is planned in the
-[roadmap](https://github.com/Vrihe/Overlay-Translator/blob/main/ROADMAP.md) (stage 4).
+[roadmap](https://github.com/Vrihe/Overlay-Translator/blob/main/ROADMAP-MODEL.md) (stage 4).
 
 ## One command
 

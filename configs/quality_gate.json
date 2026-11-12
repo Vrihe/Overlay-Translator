@@ -1,0 +1,8 @@
+{
+  "min_rows": 300,
+  "min_keep_rate": 90.0,
+  "max_chrf_drop": 1.0,
+  "max_ordinary_chrf_drop": 2.0,
+  "max_wrong_expansion_rate": 10.0,
+  "max_ocr_drop_increase": 3.0
+}

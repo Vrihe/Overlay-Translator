@@ -1,0 +1,104 @@
+# Scores a candidate NLLB build against the current stable one on the hand-checked gold set
+# and applies the quality gate (training/quality_gate.py, thresholds in configs/quality_gate.json).
+#
+# Manual only. It never publishes anything: a build becomes "stable" through a reviewed pull
+# request that moves the pinned revision / manifest after this check has passed.
+#
+# Needs the repository secret GDRIVE_CREDENTIALS_DATA (service-account JSON of the DVC remote)
+# because the gold set is DVC-tracked and never stored in git (docs/training.md, "Gold set").
+
+name: Model eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: "Hugging Face tag or commit of the candidate build (e.g. v3-game)"
+        required: true
+      baseline:
+        description: "Tag or commit of the current stable build (e.g. v2-game)"
+        required: true
+      gold:
+        description: "DVC-tracked gold file"
+        required: true
+        default: "data/gold/gold.jsonl"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-eval
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: "1"
+      OVERLAY_TRACKING: "off" # no MLflow in CI: the gate report is the record
+      # Inputs go through the environment, never straight into the shell script.
+      CANDIDATE: ${{ inputs.candidate }}
+      BASELINE: ${{ inputs.baseline }}
+      GOLD: ${{ inputs.gold }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Same pins as requirements-train.txt, without torch: both systems run as CTranslate2 int8 on the CPU.
+      - name: Install evaluation dependencies
+        run: >
+          python -m pip install
+          ctranslate2==4.8.2 sentencepiece==0.2.2 sacrebleu==2.6.0 pandas==3.0.6
+          huggingface_hub==1.33.0 python-dotenv "dvc[gdrive]==3.67.1"
+
+      - name: Pull the gold set
+        env:
+          GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
+        run: |
+          if [ -z "$GDRIVE_CREDENTIALS_DATA" ]; then
+            echo "::error::Secret GDRIVE_CREDENTIALS_DATA is not set; the gold set cannot be pulled."
+            exit 1
+          fi
+          dvc pull "$GOLD"
+
+      - name: Validate the gold set
+        run: python training/gold_eval.py validate "$GOLD"
+
+      - name: Download the candidate and the baseline
+        run: |
+          python scripts/download_model.py --revision "$CANDIDATE" --dest models/candidate
+          python scripts/download_model.py --revision "$BASELINE" --dest models/baseline
+
+      - name: Score both builds
+        run: >
+          python training/gold_eval.py score "$GOLD"
+          candidate=ct2:models/candidate baseline=ct2:models/baseline
+          --out checkpoints/gold
+
+      - name: Quality gate
+        run: >
+          python training/quality_gate.py checkpoints/gold/summary.json
+          --candidate candidate --baseline baseline --report checkpoints/gold/gate.md
+
+      # Runs even when the gate fails, so the report is always there to read.
+      - name: Publish the report
+        if: always()
+        run: |
+          if [ -f checkpoints/gold/gate.md ]; then
+            cat checkpoints/gold/gate.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Only the numbers: summary.json holds scores and the gold file hash, never gold text.
+      # The per-row *.jsonl files hold hypotheses of gold lines and are not uploaded.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-report
+          path: |
+            checkpoints/gold/gate.md
+            checkpoints/gold/summary.json
+          if-no-files-found: ignore

@@ -7,7 +7,9 @@ and revision are pinned in one place, ``config.NLLB_HF_REPO_ID`` /
 ``config.NLLB_HF_REVISION``, so everyone gets the same build.
 
 The repository is public; no Hugging Face login is needed. Re-running the script
-only fetches files that changed.
+only fetches files that changed, so an interrupted download is resumed. After the
+download every file is checked against the SHA-256 / size listed by the Hub; a
+damaged build is reported and the script exits with an error (--no-verify skips this).
 
 Usage
 -----
@@ -45,6 +47,7 @@ def main() -> int:
         default=_PROJECT_ROOT / "models" / MODEL_DIRNAME,
         help=f"Target directory (default: models/{MODEL_DIRNAME})",
     )
+    parser.add_argument("--no-verify", action="store_true", help="skip the checksum check after the download")
     args = parser.parse_args()
 
     try:
@@ -67,6 +70,21 @@ def main() -> int:
     if missing:
         print(f"Download finished, but required files are missing: {', '.join(missing)}", file=sys.stderr)
         return 1
+
+    if not args.no_verify:
+        from translate.nllb_models import verify_build
+
+        try:
+            bad = verify_build(path, args.revision, args.repo_id)
+        except OSError as e:
+            print(f"Could not verify the download: {e}", file=sys.stderr)
+            return 1
+        if bad:
+            print(
+                f"Checksum check failed for: {', '.join(bad)}. Delete them and run the script again.", file=sys.stderr
+            )
+            return 1
+        print("Checksums verified.")
 
     size_mb = sum(f.stat().st_size for f in path.rglob("*") if f.is_file() and ".cache" not in f.parts) / 2**20
     print(f"Done: {size_mb:.0f} MiB in {path}")
