@@ -11,6 +11,7 @@ import sqlite3
 import threading
 import time
 from collections import OrderedDict
+from contextlib import contextmanager
 from pathlib import Path
 
 import config
@@ -29,6 +30,22 @@ _mem_cache_lock = threading.Lock()
 # Each thread keeps its own connection open permanently.
 # SQLite connections are NOT thread-safe; threading.local() ensures isolation.
 _thread_local = threading.local()
+
+
+@contextmanager
+def memory_only():
+    """On this thread, keep translations out of the database (and so out of the history).
+
+    Live subtitles translate a phrase every few seconds: on disk they would push the
+    user's own translations out of the history (``CACHE_MAX_ITEMS``) and store other
+    people's speech. The in-memory L1 cache still works.
+    """
+    previous = getattr(_thread_local, "memory_only", False)
+    _thread_local.memory_only = True
+    try:
+        yield
+    finally:
+        _thread_local.memory_only = previous
 
 
 def _get_connection() -> sqlite3.Connection:
@@ -124,6 +141,8 @@ def get_cached(
         if key in _mem_cache:
             _mem_cache.move_to_end(key)  # mark as recently used
             return _mem_cache[key]
+    if getattr(_thread_local, "memory_only", False):
+        return None
 
     # L2 hit
     conn = _get_connection()
@@ -163,6 +182,8 @@ def save_to_cache(
         _mem_cache.move_to_end(key)
         if len(_mem_cache) > _MEM_CACHE_SIZE:
             _mem_cache.popitem(last=False)  # evict LRU
+    if getattr(_thread_local, "memory_only", False):
+        return
 
     # Persist to L2
     now = time.time()

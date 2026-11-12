@@ -33,7 +33,7 @@ Changelog = "https://github.com/Vrihe/Overlay-Translator/blob/main/CHANGELOG.md"
 py-modules = ["main", "config", "single_instance"]
 
 [tool.setuptools.packages.find]
-include = ["cache*", "capture*", "history*", "i18n*", "ocr*", "overlay*", "settings*",
+include = ["audio*", "cache*", "capture*", "history*", "i18n*", "ocr*", "overlay*", "settings*",
            "translate*", "tray*", "tts*", "ui*", "updater*"]
 
 [tool.setuptools.dynamic]
@@ -69,7 +69,7 @@ ignore = [
 "main.py" = ["E402"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["cache", "capture", "config", "history", "i18n", "ocr", "overlay", "settings",
+known-first-party = ["audio", "cache", "capture", "config", "history", "i18n", "ocr", "overlay", "settings",
                      "single_instance", "translate", "tray", "tts", "ui", "updater"]
 
 # ── pytest / coverage ───────────────────────────────────

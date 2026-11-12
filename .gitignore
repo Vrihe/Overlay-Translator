@@ -117,6 +117,7 @@ data/*
 
 # Training environment (CUDA torch) and its pip/HF/temp caches — kept on this drive
 .venv-train/
+.venv-voice/
 .train-cache/
 
 # LoRA checkpoints and training runs
