@@ -97,6 +97,11 @@
 - [x] `docs/` как сайт (GitHub Pages / MkDocs): установка, настройка, обучение, воспроизведение экспериментов
 - [x] Страница «Приватность»: что уходит в API, что остаётся локально, как работает логирование
 - [x] Обработка типовых проблем в FAQ: нет GPU, антивирус, нет прав на хоткеи
+- [ ] Интерфейс: вынести функции из настроек в отдельные вкладки главного окна — сейчас, чтобы что-то включить, нужно идти в настройки
+  - [ ] Вкладка «Субтитры»: запуск / остановка, статус, источник звука, язык речи, потоковый режим и фильтр языка на одном экране
+  - [ ] Вкладка «Мониторинг»: регионы и запуск live-режима
+  - [ ] В настройках остаётся только то, что задают один раз: модели и их загрузка, библиотеки CUDA, ключи API, хоткеи, внешний вид
+  - [ ] Включение и выключение функций — с главного экрана и из трея, без захода в настройки
 
 **Критерий готовности:** новый пользователь и новый разработчик находят всё нужное в README и docs без вопросов вам.
 
@@ -277,6 +282,11 @@ The app, product and documentation, publication. It depends on the model work on
 - [x] `docs/` as a site (GitHub Pages / MkDocs): installation, configuration, training, reproducing experiments
 - [x] A "Privacy" page: what goes to the API, what stays local, how logging works
 - [x] Common problems in the FAQ: no GPU, antivirus, no rights for hotkeys
+- [ ] Interface: move features out of the settings into their own tabs of the main window — today turning anything on means going to the settings
+  - [ ] A "Subtitles" tab: start / stop, status, audio source, speech language, streaming mode and the language filter on one screen
+  - [ ] A "Monitoring" tab: regions and starting live mode
+  - [ ] The settings keep only what is set once: models and their downloads, CUDA libraries, API keys, hotkeys, appearance
+  - [ ] Features are switched on and off from the home screen and the tray, without opening the settings
 
 **Done when:** a new user and a new developer find everything they need in the README and docs without asking you.
 
