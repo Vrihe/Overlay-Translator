@@ -103,6 +103,83 @@ class _LiveConfig:
         set_value("live_popup_keep_open", value)
 
     @property
+    def SUBTITLES_DEVICE(self):
+        """Live subtitles: name of the output device to capture; "" follows the default one."""
+        return _cfg("subtitles_device")
+
+    @SUBTITLES_DEVICE.setter
+    def SUBTITLES_DEVICE(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_device", value)
+
+    @property
+    def SUBTITLES_MODEL(self):
+        """Live subtitles: Whisper model name (models/whisper-<name>)."""
+        return _cfg("subtitles_model")
+
+    @SUBTITLES_MODEL.setter
+    def SUBTITLES_MODEL(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_model", value)
+
+    @property
+    def SUBTITLES_STT_DEVICE(self):
+        """Live subtitles: 'auto' (NVIDIA GPU when cuBLAS and cuDNN are found, else CPU) or 'cpu'."""
+        return _cfg("subtitles_stt_device")
+
+    @SUBTITLES_STT_DEVICE.setter
+    def SUBTITLES_STT_DEVICE(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_stt_device", value)
+
+    @property
+    def SUBTITLES_LANGUAGE(self):
+        """Live subtitles: language of the speech ("en", "ru", …) or "auto" (multilingual model only)."""
+        return _cfg("subtitles_language")
+
+    @SUBTITLES_LANGUAGE.setter
+    def SUBTITLES_LANGUAGE(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_language", value)
+
+    @property
+    def SUBTITLES_STREAMING(self):
+        """Live subtitles: show interim text while a phrase is still being spoken."""
+        return bool(_cfg("subtitles_streaming"))
+
+    @SUBTITLES_STREAMING.setter
+    def SUBTITLES_STREAMING(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_streaming", bool(value))
+
+    @property
+    def SUBTITLES_SKIP_FOREIGN(self):
+        """Live subtitles: skip phrases that are not English (multilingual model only)."""
+        return bool(_cfg("subtitles_skip_foreign"))
+
+    @SUBTITLES_SKIP_FOREIGN.setter
+    def SUBTITLES_SKIP_FOREIGN(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_skip_foreign", bool(value))
+
+    @property
+    def SUBTITLES_POS(self):
+        """Live subtitles: [x, y] of the strip's bottom-centre point after a drag, or None."""
+        return _cfg("subtitles_pos")
+
+    @SUBTITLES_POS.setter
+    def SUBTITLES_POS(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_pos", value)
+
+    @property
     def SETTINGS_HOTKEY(self):
         """Opens the settings; the SETTINGS_HOTKEY env var overrides settings.json."""
         return os.environ.get("SETTINGS_HOTKEY") or _cfg("settings_hotkey")
@@ -296,6 +373,39 @@ class _LiveConfig:
         from settings.config_manager import set_value
 
         set_value("popup_size", value)
+
+    @property
+    def POPUP_OPACITY(self):
+        """Percent (40 - 100): opacity of the popup and the subtitle strip at rest."""
+        return _cfg("popup_opacity")
+
+    @POPUP_OPACITY.setter
+    def POPUP_OPACITY(self, value):
+        from settings.config_manager import set_value
+
+        set_value("popup_opacity", value)
+
+    @property
+    def POPUP_COMPACT(self):
+        """The popup's header (title and buttons) is hidden until the cursor is over it."""
+        return _cfg("popup_compact")
+
+    @POPUP_COMPACT.setter
+    def POPUP_COMPACT(self, value):
+        from settings.config_manager import set_value
+
+        set_value("popup_compact", value)
+
+    @property
+    def POPUP_CLICK_THROUGH(self):
+        """Clicks pass through the popup and the subtitle strip unless Alt is held."""
+        return _cfg("popup_click_through")
+
+    @POPUP_CLICK_THROUGH.setter
+    def POPUP_CLICK_THROUGH(self, value):
+        from settings.config_manager import set_value
+
+        set_value("popup_click_through", value)
 
     @property
     def UI_THEME(self):

@@ -5,6 +5,7 @@ Menu items:
   • Показать окно              — toggle main window visibility
   • Перевести (Ctrl+Shift+R)   — triggers the selector overlay
   • Живой мониторинг области   — toggle live region monitoring
+  • Живые субтитры             — toggle live speech subtitles
   • Пресеты регионов           — quick-launch saved region presets
   • Настройки                  — open main window on Settings tab
   • История переводов          — open main window on History tab
@@ -86,6 +87,11 @@ class TrayIcon(QSystemTrayIcon):
         self.act_live_monitor = QAction(tr("Живой мониторинг области"))
         self.act_live_monitor.setCheckable(True)
         menu.addAction(self.act_live_monitor)
+
+        # ── Live subtitles (speech → translated strip) ──
+        self.act_subtitles = QAction(tr("Живые субтитры"))
+        self.act_subtitles.setCheckable(True)
+        menu.addAction(self.act_subtitles)
 
         # ── Region Presets submenu ──
         self._presets_menu = QMenu(tr("Пресеты регионов"))

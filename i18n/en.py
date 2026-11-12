@@ -184,7 +184,6 @@ MESSAGES: dict[str, str] = {
     "Версия {tag} ещё не скачана. Нажмите «Скачать» (~600 МБ).": "Version {tag} is not downloaded yet. Click “Download” (~600 MB).",
     "⏳ Скачивание {tag}…": "⏳ Downloading {tag}…",
     "⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)": "⏳ Downloading {tag}: {done} / {total} MB ({pct}%)",
-    "⚠ Не удалось скачать модель: {error}": "⚠ Could not download the model: {error}",
     "Скачивание отменено.": "Download cancelled.",
     "Исходный язык:": "Source language:",
     "ID модели:": "Model ID:",
@@ -439,4 +438,85 @@ MESSAGES: dict[str, str] = {
     "1. Нажмите {hotkey} и выделите область экрана с текстом.": "1. Press {hotkey} and select an area of the screen with text.",
     "2. Перевод появится рядом с выделенной областью.": "2. The translation appears next to the selected area.",
     "3. Настройки — {hotkey} или значок приложения в трее рядом с часами.": "3. Settings: {hotkey} or the app icon in the tray next to the clock.",
+    # ── Speech recognition (audio/) ──
+    "Модель распознавания речи {name} не найдена. Искали в:\n": "The speech recognition model {name} was not found. Searched in:\n",
+    "Не установлен пакет faster-whisper для распознавания речи.": "The faster-whisper package for speech recognition is not installed.",
+    "CUDA недоступна, распознавание речи на CPU ({reason})": "CUDA unavailable, speech recognition runs on the CPU ({reason})",
+    "Не удалось загрузить модель распознавания речи из {path}: {error}": "Failed to load the speech recognition model from {path}: {error}",
+    # ── Live subtitles (audio/, ui/subtitle_window.py, settings) ──
+    "Не установлен пакет PyAudioWPatch для захвата звука.": "The PyAudioWPatch package for audio capture is not installed.",
+    "Не удалось начать захват звука: {error}": "Failed to start audio capture: {error}",
+    "Не найдено устройство вывода звука для захвата.": "No audio output device to capture was found.",
+    "Загрузка модели распознавания речи…": "Loading the speech recognition model…",
+    "Слушаю: {device}": "Listening to: {device}",
+    "Выбранное устройство не найдено, используется устройство по умолчанию.": "The chosen device was not found; the default device is used.",
+    "Ошибка перевода: {error}": "Translation error: {error}",
+    "Субтитры": "Subtitles",
+    "Живые субтитры": "Live subtitles",
+    "Распознаёт речь из звука компьютера (стрим, видео, голосовой чат) "
+    "и показывает перевод полосой поверх окон. Распознавание идёт на этом компьютере; "
+    "перевод — выбранным способом из раздела «Перевод». Новые значения действуют "
+    "со следующего запуска субтитров.": "Recognises speech in the computer's audio (a stream, a video, voice chat) "
+    "and shows the translation in a strip over other windows. Recognition runs on this computer; "
+    "translation uses the method chosen in the Translation section. New values apply "
+    "the next time subtitles are started.",
+    "Запустить субтитры": "Start subtitles",
+    "Скачать модель": "Download the model",
+    "small — многоязычная, для фильтра языка; нужна видеокарта NVIDIA": "small — multilingual, for the language "
+    "filter; needs an NVIDIA GPU",
+    "Пропускать речь на других языках": "Skip speech in other languages",
+    "Язык речи:": "Speech language:",
+    "Модель {name} понимает только английский: для других языков и фильтра языка "
+    "выберите многоязычную модель small.": "Model {name} understands English only: for other languages and the "
+    "language filter choose the multilingual model small.",
+    "Потоковые субтитры: показывать фразу по ходу речи": "Streaming subtitles: show the phrase as it is spoken",
+    "Перевод появляется примерно раз в секунду, пока человек ещё говорит, и уточняется "
+    "в конце фразы. Нагружает видеокарту сильнее, а платный перевод через API "
+    "вызывается в несколько раз чаще.": "The translation appears about once a second while the person is still "
+    "speaking and is refined when the phrase ends. It loads the GPU more, and a paid translation API is called "
+    "several times more often.",
+    "Для голосовых чатов, где говорят на разных языках: фразы не на выбранном языке "
+    "речи не показываются. Работает только с многоязычной моделью small.": "For voice chats where several languages "
+    "are spoken: phrases that are not in the chosen speech language are not shown. Works only with the multilingual "
+    "model small.",
+    "✓ Модель {name} установлена.": "✓ Model {name} is installed.",
+    "Модель {name} не скачана: ~{size} МБ. Без неё субтитры не запустятся.": "Model {name} is not downloaded: ~{size} MB. "
+    "Subtitles will not start without it.",
+    "⏳ Скачивание модели {name}…": "⏳ Downloading model {name}…",
+    "⏳ Скачивание модели: {done} / {total} МБ ({pct}%)": "⏳ Downloading the model: {done} / {total} MB ({pct}%)",
+    "⚠ Не удалось скачать модель: {error}": "⚠ Could not download the model: {error}",
+    "Библиотеки CUDA есть, но выбрано «Только процессор»: видеокарта не используется.": "The CUDA libraries are there, "
+    "but “CPU only” is selected: the GPU is not used.",
+    "✓ Библиотеки CUDA найдены: распознавание работает на видеокарте NVIDIA.": "✓ CUDA libraries found: "
+    "speech recognition runs on the NVIDIA GPU.",
+    "Драйвер NVIDIA слишком старый для CUDA 12. Обновите драйвер, чтобы распознавать на видеокарте.": "The NVIDIA driver "
+    "is too old for CUDA 12. Update the driver to recognise speech on the GPU.",
+    "На видеокарте NVIDIA распознавание намного быстрее. Нужны библиотеки CUDA "
+    "(cuDNN и cuBLAS): до ~1,2 ГБ загрузки, ~1,8 ГБ на диске. Без них — на процессоре.": "Speech recognition is much "
+    "faster on an NVIDIA GPU. It needs the CUDA libraries (cuDNN and cuBLAS): up to ~1.2 GB to download, ~1.8 GB on "
+    "disk. Without them it runs on the CPU.",
+    "⏳ Скачивание библиотек CUDA…": "⏳ Downloading the CUDA libraries…",
+    "⏳ Скачивание {name}: {done} / {total} МБ ({pct}%)": "⏳ Downloading {name}: {done} / {total} MB ({pct}%)",
+    "⚠ Не удалось скачать библиотеки CUDA: {error}": "⚠ Could not download the CUDA libraries: {error}",
+    "Остановить субтитры": "Stop subtitles",
+    "Источник звука:": "Audio source:",
+    "Устройство вывода по умолчанию": "Default output device",
+    "Модель распознавания:": "Recognition model:",
+    "Устройство распознавания:": "Recognition device:",
+    "small.en — точнее, нужна видеокарта NVIDIA": "small.en — more accurate, needs an NVIDIA GPU",
+    "base.en — быстрее, подходит для процессора": "base.en — faster, fine for a CPU",
+    "tiny.en — самая быстрая, больше ошибок": "tiny.en — the fastest, more mistakes",
+    # ── Unobtrusive popup (ui/overlay_behavior.py, settings) ──
+    "Ненавязчивость": "Unobtrusiveness",
+    "Попап не забирает фокус у игры и в покое показывает приглушённую рамку. "
+    "Под курсором он становится непрозрачным. Прозрачность и клики сквозь окно "
+    "действуют и на полосу живых субтитров.": "The popup never takes the focus from a game and shows a dim frame at rest. "
+    "Under the cursor it becomes opaque. Opacity and click-through "
+    "also apply to the live subtitle strip.",
+    "Непрозрачность в покое": "Opacity at rest",
+    "Компактный попап: заголовок и кнопки только под курсором": "Compact popup: title and buttons only under the cursor",
+    "Клики сквозь попап (зажмите Alt, чтобы двигать и нажимать)": "Click through the popup (hold Alt to move and click it)",
+    "Попап и полоса субтитров не перехватывают мышь: клики попадают в игру под ними. "
+    "Пока зажат Alt и курсор над окном, оно ведёт себя как обычно.": "The popup and the subtitle strip do not catch the mouse: clicks reach the game below them. "
+    "While Alt is held with the cursor over the window, it behaves as usual.",
 }

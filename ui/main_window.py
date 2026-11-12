@@ -608,6 +608,7 @@ class MainWindow(QMainWindow):
     manage_regions_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
     monitor_region_requested = pyqtSignal(int, int, int, int)  # forwarded (Regions)
     stop_monitoring_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
+    subtitles_toggle_requested = pyqtSignal(bool)  # forwarded from SettingsWidget (Subtitles)
     hotkeys_changed = pyqtSignal()  # forwarded from SettingsWidget
     hotkey_capture = pyqtSignal(bool)  # forwarded from SettingsWidget
 
@@ -726,6 +727,18 @@ class MainWindow(QMainWindow):
         self._monitoring_active = active
         if self._settings_widget is not None:
             self._settings_widget.set_monitoring_active(active)
+
+    def set_subtitles_active(self, active: bool):
+        """Live subtitles started / stopped: the Subtitles page shows Start or Stop."""
+        self._subtitles_active = active
+        if self._settings_widget is not None:
+            self._settings_widget.set_subtitles_active(active)
+
+    def set_subtitles_status(self, message: str, kind: str = "info"):
+        """The subtitle session's last status line, shown on the Subtitles page."""
+        self._subtitles_status = (message, kind)
+        if self._settings_widget is not None:
+            self._settings_widget.set_subtitles_status(message, kind)
 
     def _on_update_install_clicked(self):
         """Download the new installer (or cancel that download) from the update banner."""
@@ -887,6 +900,8 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._settings_placeholder)
         self._settings_widget = None
         self._monitoring_active = False  # applied to the settings page when it is built
+        self._subtitles_active = False  # likewise
+        self._subtitles_status = ("", "info")
 
         # Page 2: History (lazy-loaded)
         self._history_placeholder = QWidget()
@@ -989,6 +1004,9 @@ class MainWindow(QMainWindow):
         self._settings_widget.monitor_region_requested.connect(self.monitor_region_requested)
         self._settings_widget.stop_monitoring_requested.connect(self.stop_monitoring_requested)
         self._settings_widget.set_monitoring_active(self._monitoring_active)
+        self._settings_widget.subtitles_toggle_requested.connect(self.subtitles_toggle_requested)
+        self._settings_widget.set_subtitles_active(self._subtitles_active)
+        self._settings_widget.set_subtitles_status(*self._subtitles_status)
         vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)

@@ -79,8 +79,18 @@ DEFAULTS: dict[str, Any] = {
     "live_interval_sec": 10,  # live monitoring: seconds between checks (1 - 120)
     "live_sensitivity": "medium",  # live monitoring: "high" | "medium" | "low" change threshold
     "live_popup_keep_open": True,  # live monitoring: its popup ignores the auto-hide timer
+    "subtitles_device": "",  # live subtitles: output device to capture ("" = the default one)
+    "subtitles_model": "small.en",  # live subtitles: Whisper model, "small.en" | "small" | "base.en" | "tiny.en"
+    "subtitles_language": "en",  # speech language: a code or "auto" (other than "en" needs the model "small")
+    "subtitles_streaming": False,  # show the phrase while it is still being spoken (interim subtitles)
+    "subtitles_skip_foreign": False,  # skip speech that is not English (needs the multilingual "small")
+    "subtitles_stt_device": "auto",  # live subtitles: "auto" (NVIDIA GPU when cuDNN is there) | "cpu"
+    "subtitles_pos": None,  # [x, y] bottom-centre of the subtitle strip after a drag; None = default place
     "popup_timeout_sec": 10,
     "popup_size": None,  # [w, h] set by dragging the popup edges; None = fit text
+    "popup_opacity": 100,  # percent (40 - 100): the popup / subtitle strip while the cursor is not over it
+    "popup_compact": False,  # the popup's header (title, buttons) shows only under the cursor
+    "popup_click_through": False,  # clicks pass through the popup / subtitle strip unless Alt is held
     "notification_type": "popup",  # "popup" | "windows_toast"
     "ocr_languages": ["en", "ru"],
     "active_domain": "general",
