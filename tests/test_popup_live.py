@@ -1,7 +1,7 @@
 """
 tests/test_popup_live.py — the result popup during live monitoring: it is kept out of
-screen captures (so monitoring and OCR never see it), stays opaque (the exclusion
-fails on translucent windows), and a live update does not take the keyboard focus.
+screen captures (so monitoring and OCR never see it), never uses a translucent
+background (the exclusion fails on such windows), and never takes the keyboard focus.
 Also the region presets dialog: the monitoring button and the list rows.
 
 Widgets are built offscreen; the Windows API call is mocked.
@@ -60,29 +60,36 @@ class TestLiveUpdate(unittest.TestCase):
         self.popup = ResultPopup(is_loading=True)
         self.addCleanup(self.popup.deleteLater)
 
-    def test_live_update_keeps_the_focus_elsewhere(self):
+    def test_update_keeps_the_focus_elsewhere(self):
         with (
             mock.patch.object(self.popup, "activateWindow") as activate,
+            mock.patch.object(self.popup, "setFocus") as focus,
             mock.patch.object(self.popup, "raise_") as raise_,
         ):
-            self.popup.update_content("src", "new", activate=False)
+            self.popup.update_content("src", "new")
         activate.assert_not_called()
+        focus.assert_not_called()
         raise_.assert_called_once()
         self.assertEqual(self.popup._translated, "new")
 
-    def test_normal_update_activates(self):
-        with mock.patch.object(self.popup, "activateWindow") as activate:
-            self.popup.update_content("src", "new")
-        activate.assert_called_once()
+    def test_show_never_activates(self):
+        self.assertTrue(self.popup.testAttribute(Qt.WA_ShowWithoutActivating))
+        with (
+            mock.patch.object(self.popup, "activateWindow") as activate,
+            mock.patch.object(self.popup, "_exclude_from_capture"),
+        ):
+            self.popup.show()
+            self.addCleanup(self.popup.hide)
+        activate.assert_not_called()
 
-    def test_show_result_passes_activate_to_the_open_popup(self):
+    def test_show_result_updates_the_open_popup(self):
         with (
             mock.patch.object(self.popup, "update_content") as update,
             mock.patch.object(type(result_popup.config), "NOTIFICATION_TYPE", "popup", create=True),
         ):
-            same = show_result("src", "t", existing_popup=self.popup, activate=False)
+            same = show_result("src", "t", existing_popup=self.popup)
         self.assertIs(same, self.popup)
-        self.assertFalse(update.call_args.kwargs["activate"])
+        update.assert_called_once()
 
 
 class TestStopMonitoringButton(unittest.TestCase):
@@ -105,7 +112,7 @@ class TestStopMonitoringButton(unittest.TestCase):
 
     def test_kept_across_live_updates(self):
         self.popup.set_monitoring(True)
-        self.popup.update_content("src", "новый текст", activate=False)
+        self.popup.update_content("src", "новый текст")
         self.assertFalse(self.popup._btn_stop_monitoring.isHidden())
 
 
@@ -158,7 +165,7 @@ class TestScrollKeptOnLiveUpdates(unittest.TestCase):
     LONG = "\n".join(f"line {i} of a long chat translation" for i in range(80))
 
     def _update(self, popup, text):
-        popup.update_content("src", text, activate=False)
+        popup.update_content("src", text)
         _APP.processEvents()  # the restore runs after the rebuilt layout settles
         return popup._scroll_area.verticalScrollBar()
 

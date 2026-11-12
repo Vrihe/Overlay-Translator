@@ -440,6 +440,20 @@ def check_css(pt: float = 9.5) -> str:
     )
 
 
+def slider_css() -> str:
+    """Horizontal slider: a thin track, the passed part in the accent, a square handle."""
+    p = current()
+    return (
+        "QSlider { background: transparent; min-height: 20px; }"
+        f"QSlider::groove:horizontal {{ height: 2px; background: {p.line}; }}"
+        f"QSlider::sub-page:horizontal {{ height: 2px; background: {p.accent}; }}"
+        "QSlider::handle:horizontal {"
+        f"  width: 10px; margin: -7px 0; background: {p.bg}; border: 1px solid {p.accent}; border-radius: 0;"
+        "}"
+        f"QSlider::handle:horizontal:hover, QSlider::handle:horizontal:pressed {{ background: {p.accent}; }}"
+    )
+
+
 def panel_css(object_name: str, *, background: str | None = None, border: str | None = None) -> str:
     """Flat panel scoped to ``#object_name`` so the rule never cascades into children."""
     p = current()
