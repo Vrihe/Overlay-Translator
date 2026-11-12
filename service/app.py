@@ -1,5 +1,5 @@
 """
-service/app.py — the local NLLB inference service (roadmap stage 11).
+service/app.py — the local NLLB inference service (roadmap stage 10).
 
     POST /translate   {"texts": ["..."], "target_lang": "ru", "source_lang": "en"|null}
                       -> {"translations": ["..."], "latency_ms": 12.3}

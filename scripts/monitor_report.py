@@ -1,5 +1,5 @@
 """
-scripts/monitor_report.py — roadmap stage 10a: monitor the local model from the app's history.
+scripts/monitor_report.py — roadmap stage 9: monitor the local model from the app's history.
 
 Reads the translation history (the SQLite ``translations`` table, opened read-only) and reports,
 for the offline model's rows (``domain_id`` ending in ``|nllb``):

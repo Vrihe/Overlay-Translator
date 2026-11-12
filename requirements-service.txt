@@ -1,4 +1,4 @@
-# Optional: the local inference service (service/, roadmap stage 11). Not needed by the desktop app
+# Optional: the local inference service (service/, roadmap stage 10). Not needed by the desktop app
 # and not part of the PyInstaller build. The NLLB runtime itself comes from requirements.txt.
 fastapi==0.162.4
 uvicorn==0.54.0

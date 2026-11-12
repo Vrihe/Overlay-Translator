@@ -54,12 +54,12 @@
 
 **Зачем:** сейчас эталоны для аббревиатур — вывод самой NLLB, поэтому chrF завышен и ошибки базовой модели считаются правильными.
 
-- [ ] Собрать тестовый набор (gold): 300–500 строк игрового чата (en → ru/uk/pl как минимум), анонимизированных. Ручная проверка переводов вынесена в отдельный этап
-- [ ] Разметить в наборе категории: аббревиатуры, keep-термины, обычные слова, смешанные строки, шум OCR
-- [ ] Добавить метрики: COMET (или BLEURT) вместе с chrF; keep-rate; доля «неверных раскрытий» на размеченном наборе
-- [ ] Прогнать OCR-шум: тот же набор, но с искажениями (ошибки EasyOCR) — оценить устойчивость сквозного пайплайна
-- [ ] Доверительные интервалы по нескольким сидам обучения (минимум 3), а не только bootstrap
-- [ ] Зафиксировать «золотой» набор в DVC и больше его не использовать для обучения
+- [x] Собрать тестовый набор (gold): 300–500 строк игрового чата (en → ru/uk/pl как минимум), анонимизированных. Ручная проверка переводов вынесена в отдельный этап
+- [x] Разметить в наборе категории: аббревиатуры, keep-термины, обычные слова, смешанные строки, шум OCR
+- [ ] Добавить метрики: COMET (или BLEURT) вместе с chrF; keep-rate; доля «неверных раскрытий» на размеченном наборе — *частично: chrF, keep-rate и доля неверных раскрытий есть (`training/gold_eval.py`), COMET / BLEURT нет*
+- [x] Прогнать OCR-шум: тот же набор, но с искажениями (ошибки EasyOCR) — оценить устойчивость сквозного пайплайна
+- [ ] Доверительные интервалы по нескольким сидам обучения (минимум 3), а не только bootstrap — *частично: расчёт mean / std / 95 % CI есть, прогонов по трём сидам нет*
+- [x] Зафиксировать «золотой» набор в DVC и больше его не использовать для обучения
 - [ ] Пересчитать v0-base, v1-abbr, v2-game на новом наборе и пересмотреть выводы (особенно критерий 6)
 
 **Критерий готовности:** решения «какая модель шипится» принимаются по gold-набору, а не по self-distilled эталонам.
@@ -94,11 +94,13 @@
 
 **Срок:** 2–3 дня
 
-- [ ] Model card на HF для каждой версии: данные, метод, метрики, ограничения, лицензия, как воспроизвести
-- [ ] `manifest.json` в репозитории модели: версия, sha256 `model.bin`, метрики, минимальная версия приложения, рекомендуемый канал (stable / beta)
-- [ ] Приложение читает manifest, проверяет sha256 после загрузки и предлагает обновление модели
+- [ ] Model card на HF для каждой версии: данные, метод, метрики, ограничения, лицензия, как воспроизвести — *частично: генератор `scripts/make_model_card.py` есть, публикация на HF — отдельный шаг*
+- [ ] `manifest.json` в репозитории модели: версия, sha256 `model.bin`, метрики, минимальная версия приложения, рекомендуемый канал (stable / beta) — *частично: формат и генератор есть (`translate/model_manifest.py`, `scripts/make_manifest.py`), публикация в репозиторий модели — отдельный шаг*
+- [ ] Приложение читает manifest, проверяет sha256 после загрузки и предлагает обновление модели — *частично: несовместимые сборки скрываются по `min_app_version`, sha256 сверяется с листингом Hub; предложения обновить модель нет*
 - [x] Теги в HF: `v0-base`, `v1-abbr`, `v2-game`, `v3-…`; в `config.py` — выбор версии через настройки, а не правка кода
 - [x] В `scripts/download_model.py` — проверка целостности и возобновление загрузки
+- [ ] Список версий в настройках: запрашивать `manifest.json` всех тегов параллельно и с коротким таймаутом (сейчас `filter_compatible` ходит по тегам по очереди с таймаутом 15 с, и при плохой сети список грузится минутами)
+- [ ] Возобновление загрузки: сохранять каталог `.part` и при обрыве посреди файла (`http.client.IncompleteRead` и другие `http.client.HTTPException`), а не только при `URLError` / таймауте
 
 **Критерий готовности:** пользователь выбирает версию модели в настройках, приложение проверяет и скачивает её без `.bat`-скриптов.
 
@@ -112,11 +114,11 @@
 
 **Срок:** 3–4 дня
 
-- [ ] Workflow `model-eval.yml` (ручной запуск и nightly): скачать кандидата с HF, прогнать на фиксированном мини-наборе (CPU, int8)
-- [ ] Quality gate: порог chrF/COMET на общем и ручном наборе, keep-rate ≥ 90%, регрессия обычных слов не больше N пунктов, латентность p95 не выше порога
-- [ ] Отчёт сравнения кандидата с текущим stable как комментарий к PR или artifact
+- [ ] Workflow `model-eval.yml` (ручной запуск и nightly): скачать кандидата с HF, прогнать на фиксированном мини-наборе (CPU, int8) — *частично: ручной запуск на gold-наборе есть, nightly нет*
+- [ ] Quality gate: порог chrF/COMET на общем и ручном наборе, keep-rate ≥ 90%, регрессия обычных слов не больше N пунктов, латентность p95 не выше порога — *частично: chrF, keep-rate, регрессия обычных слов, неверные раскрытия и OCR-шум проверяются (`configs/quality_gate.json`), COMET и латентности p95 нет*
+- [x] Отчёт сравнения кандидата с текущим stable как комментарий к PR или artifact
 - [ ] Автоматическое обновление `manifest.json` и тега только при прохождении gate
-- [ ] Защита от случайной публикации: промоция только через PR + ручное подтверждение
+- [x] Защита от случайной публикации: промоция только через PR + ручное подтверждение
 
 **Критерий готовности:** модель, не прошедшая gate, технически не может попасть в канал `stable`.
 
@@ -126,7 +128,7 @@
 
 ---
 
-### Этап 8a. Сборка с GPU для локальной модели
+### Этап 8. Сборка с GPU для локальной модели
 
 **Срок:** 1–2 дня
 
@@ -140,12 +142,12 @@
 
 ---
 
-### Этап 10a. Мониторинг модели
+### Этап 9. Мониторинг модели
 
 **Срок:** 2–3 дня
 
-- [ ] Скрипт отчёта по накопленным данным: доля строк с неизвестными токенами вне глоссария, топ-N потерянных keep-терминов, распределение латентности
-- [ ] Детектор дрейфа: сигнал «пора обновить глоссарий / переобучить», когда доля неизвестных токенов растёт
+- [ ] Скрипт отчёта по накопленным данным: доля строк с неизвестными токенами вне глоссария, топ-N потерянных keep-терминов, распределение латентности — *частично: `scripts/monitor_report.py` считает неизвестные токены и потерянные keep-термины, распределения латентности нет*
+- [x] Детектор дрейфа: сигнал «пора обновить глоссарий / переобучить», когда доля неизвестных токенов растёт
 
 **Критерий готовности:** отчёт запускается одной командой и сигнализирует о дрейфе; порог и ограничения описаны в docs.
 
@@ -155,15 +157,15 @@
 
 ---
 
-### Этап 11. Локальный сервис инференса
+### Этап 10. Локальный сервис инференса
 
 **Срок:** 3–5 дней
 
-- [ ] Вынести NLLB-бэкенд в отдельный процесс: FastAPI, `/translate`, `/health`, `/version`
-- [ ] Метрики Prometheus (`/metrics`): латентность, размер батча, ошибки, cache-hit
+- [x] Вынести NLLB-бэкенд в отдельный процесс: FastAPI, `/translate`, `/health`, `/version`
+- [x] Метрики Prometheus (`/metrics`): латентность, размер батча, ошибки, cache-hit
 - [ ] Приложение обращается к сервису через локальный HTTP; при его отсутствии — прежнее встроенное поведение
 - [ ] Бенчмарк латентности и пропускной способности (p50/p95, CPU vs GPU, int8 vs fp16, длина строки), результаты в `docs/benchmarks.md`
-- [ ] Dockerfile и `docker-compose` для запуска сервиса отдельно от приложения (для демонстрации и серверного сценария)
+- [x] Dockerfile и `docker-compose` для запуска сервиса отдельно от приложения (для демонстрации и серверного сценария)
 
 **Критерий готовности:** сервис запускается одной командой, отдаёт метрики и проходит нагрузочный тест с зафиксированными числами.
 
@@ -230,12 +232,12 @@ Everything about the offline model: data, training, evaluation, registry, delive
 
 **Why:** the references for abbreviations are currently NLLB's own output, so chrF is inflated and the base model's mistakes count as correct.
 
-- [ ] Build a test set (gold): 300–500 game chat lines (en → ru/uk/pl at least), anonymised. Hand-checking the translations is moved to a separate stage
-- [ ] Label categories in the set: abbreviations, keep terms, ordinary words, mixed lines, OCR noise
-- [ ] Add metrics: COMET (or BLEURT) alongside chrF; keep-rate; the share of "wrong expansions" on the labelled set
-- [ ] Run with OCR noise: the same set with distortions (EasyOCR errors) to measure end-to-end robustness
-- [ ] Confidence intervals over several training seeds (at least 3), not only bootstrap
-- [ ] Freeze the "gold" set in DVC and never use it for training again
+- [x] Build a test set (gold): 300–500 game chat lines (en → ru/uk/pl at least), anonymised. Hand-checking the translations is moved to a separate stage
+- [x] Label categories in the set: abbreviations, keep terms, ordinary words, mixed lines, OCR noise
+- [ ] Add metrics: COMET (or BLEURT) alongside chrF; keep-rate; the share of "wrong expansions" on the labelled set — *partly: chrF, keep-rate and the wrong-expansion share are there (`training/gold_eval.py`), COMET / BLEURT is not*
+- [x] Run with OCR noise: the same set with distortions (EasyOCR errors) to measure end-to-end robustness
+- [ ] Confidence intervals over several training seeds (at least 3), not only bootstrap — *partly: mean / std / 95 % CI is computed, runs over three seeds are not done*
+- [x] Freeze the "gold" set in DVC and never use it for training again
 - [ ] Re-score v0-base, v1-abbr, v2-game on the new set and revisit the conclusions (especially criterion 6)
 
 **Done when:** "which model ships" is decided on the gold set, not on self-distilled references.
@@ -270,11 +272,13 @@ Everything about the offline model: data, training, evaluation, registry, delive
 
 **Time:** 2–3 days
 
-- [ ] A model card on HF for each version: data, method, metrics, limitations, licence, how to reproduce
-- [ ] `manifest.json` in the model repository: version, sha256 of `model.bin`, metrics, minimum app version, recommended channel (stable / beta)
-- [ ] The app reads the manifest, checks sha256 after download and offers model updates
+- [ ] A model card on HF for each version: data, method, metrics, limitations, licence, how to reproduce — *partly: the `scripts/make_model_card.py` generator is there, publishing to HF is a separate step*
+- [ ] `manifest.json` in the model repository: version, sha256 of `model.bin`, metrics, minimum app version, recommended channel (stable / beta) — *partly: the format and the generator are there (`translate/model_manifest.py`, `scripts/make_manifest.py`), publishing to the model repository is a separate step*
+- [ ] The app reads the manifest, checks sha256 after download and offers model updates — *partly: incompatible builds are hidden by `min_app_version`, sha256 is checked against the Hub listing; no model update offer*
 - [x] Tags on HF: `v0-base`, `v1-abbr`, `v2-game`, `v3-…`; in `config.py` — version choice through settings instead of code edits
 - [x] Integrity check and resumable download in `scripts/download_model.py`
+- [ ] Version list in settings: fetch the `manifest.json` of all tags in parallel and with a short timeout (`filter_compatible` currently walks the tags one by one with a 15 s timeout, so on a bad network the list takes minutes)
+- [ ] Resumable download: keep the `.part` directory also when the connection drops mid-file (`http.client.IncompleteRead` and other `http.client.HTTPException`), not only on `URLError` / timeouts
 
 **Done when:** the user picks a model version in settings and the app checks and downloads it without `.bat` scripts.
 
@@ -288,11 +292,11 @@ Everything about the offline model: data, training, evaluation, registry, delive
 
 **Time:** 3–4 days
 
-- [ ] `model-eval.yml` workflow (manual and nightly): download the candidate from HF, run it on a fixed mini set (CPU, int8)
-- [ ] Quality gate: chrF/COMET threshold on the general and manual sets, keep-rate ≥ 90%, ordinary-word regression of at most N points, p95 latency under a threshold
-- [ ] A candidate vs current stable comparison report as a PR comment or an artifact
+- [ ] `model-eval.yml` workflow (manual and nightly): download the candidate from HF, run it on a fixed mini set (CPU, int8) — *partly: a manual run on the gold set is there, nightly is not*
+- [ ] Quality gate: chrF/COMET threshold on the general and manual sets, keep-rate ≥ 90%, ordinary-word regression of at most N points, p95 latency under a threshold — *partly: chrF, keep-rate, ordinary-word regression, wrong expansions and OCR noise are checked (`configs/quality_gate.json`), COMET and p95 latency are not*
+- [x] A candidate vs current stable comparison report as a PR comment or an artifact
 - [ ] Update `manifest.json` and the tag automatically only when the gate passes
-- [ ] Guard against accidental publishing: promotion only through a PR + manual approval
+- [x] Guard against accidental publishing: promotion only through a PR + manual approval
 
 **Done when:** a model that fails the gate technically cannot reach the `stable` channel.
 
@@ -302,11 +306,11 @@ Everything about the offline model: data, training, evaluation, registry, delive
 
 ---
 
-### Stage 8a. GPU build for the local model
+### Stage 8. GPU build for the local model
 
 **Time:** 1–2 days
 
-- [ ] Two builds: CPU (light) and GPU (with cuBLAS), or download GPU components on first launch
+- [x] Two builds: CPU (light) and GPU (with cuBLAS), or download GPU components on first launch
 
 **Done when:** the installer or the first launch gives NLLB on the GPU (cuBLAS), and the light CPU build does not grow.
 
@@ -316,12 +320,12 @@ Everything about the offline model: data, training, evaluation, registry, delive
 
 ---
 
-### Stage 10a. Model monitoring
+### Stage 9. Model monitoring
 
 **Time:** 2–3 days
 
-- [ ] A report script over the collected data: the share of lines with unknown tokens outside the glossary, top-N lost keep terms, latency distribution
-- [ ] A drift detector: a "time to update the glossary / retrain" signal when the share of unknown tokens grows
+- [ ] A report script over the collected data: the share of lines with unknown tokens outside the glossary, top-N lost keep terms, latency distribution — *partly: `scripts/monitor_report.py` counts unknown tokens and lost keep terms, no latency distribution*
+- [x] A drift detector: a "time to update the glossary / retrain" signal when the share of unknown tokens grows
 
 **Done when:** the report runs with one command and signals drift; the threshold and the limits are described in the docs.
 
@@ -331,15 +335,15 @@ Everything about the offline model: data, training, evaluation, registry, delive
 
 ---
 
-### Stage 11. Local inference service
+### Stage 10. Local inference service
 
 **Time:** 3–5 days
 
-- [ ] Move the NLLB backend into a separate process: FastAPI, `/translate`, `/health`, `/version`
-- [ ] Prometheus metrics (`/metrics`): latency, batch size, errors, cache hit
+- [x] Move the NLLB backend into a separate process: FastAPI, `/translate`, `/health`, `/version`
+- [x] Prometheus metrics (`/metrics`): latency, batch size, errors, cache hit
 - [ ] The app talks to the service over local HTTP; without it, the current built-in behaviour
 - [ ] Latency and throughput benchmark (p50/p95, CPU vs GPU, int8 vs fp16, line length), results in `docs/benchmarks.md`
-- [ ] Dockerfile and `docker-compose` to run the service apart from the app (for demos and a server scenario)
+- [x] Dockerfile and `docker-compose` to run the service apart from the app (for demos and a server scenario)
 
 **Done when:** the service starts with one command, exposes metrics and passes a load test with recorded numbers.
 

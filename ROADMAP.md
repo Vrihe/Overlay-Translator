@@ -6,7 +6,7 @@
 
 Условные обозначения: `[ ]` — не сделано, `[x]` — сделано. Оценка в рабочих днях при ~3–4 часах в день.
 
-Предстоящие работы разделены на две части: **A — локальная модель (NLLB)** и **B — приложение и остальное**. Номера этапов сохранены, поэтому порядок и зависимости в сводке ссылаются на них; смешанный этап 8 разделён на 8a/8b.
+Предстоящие работы разделены на две части: **A — локальная модель (NLLB)** и **B — приложение и остальное**. Нумерация этапов сквозная: 0–1 — сделано, 2–10 — часть A, 11–14 — часть B; порядок и зависимости — в сводке.
 
 ---
 
@@ -20,7 +20,7 @@
 
 **Зачем:** без этого проект выглядит заброшенным, а вклад участников размазан по разным именам.
 
-- [x] Добавить `.mailmap`: объединить `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` в одну личность; `Alhite`, `Gdx177303`,`Oleksandr` — в другую
+- [x] Добавить `.mailmap`: объединить `Kyrylo Bankovskyi`, `Kyrylo Bankvoskyi`, `Kyrylo` в одну личность; `Alhite`, `Gdx177303`, `Oleksandr` — в другую
 - [x] Добавить `LICENSE` (MIT или Apache-2.0; для модели — отдельно указать лицензию NLLB, CC-BY-NC 4.0)
 - [x] Добавить `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, шаблоны issue и PR
 - [x] Убрать устаревшее из README: структура `translator-overlay/`, `settings.py`, описание popup «original + translation», `your-username` в clone-команде
@@ -58,7 +58,7 @@
 
 ## Часть A. Локальная модель (NLLB)
 
-Подробный план вынесен в [ROADMAP-MODEL.md](ROADMAP-MODEL.md): этапы 2–8a, 10a и 11 (данные, обучение, оценка, реестр, GPU-сборка, мониторинг, сервис). Порядок и зависимости — в сводке ниже.
+Подробный план вынесен в [ROADMAP-MODEL.md](ROADMAP-MODEL.md): этапы 2–10 (данные, обучение, оценка, реестр, GPU-сборка, мониторинг, сервис). Порядок и зависимости — в сводке ниже.
 
 ---
 
@@ -66,7 +66,7 @@
 
 Приложение, продукт и документация, публикация. От работ над моделью зависит только там, где это указано в «Зависимостях».
 
-### Этап 8b. Релиз приложения
+### Этап 11. Релиз приложения
 
 **Срок:** 4–6 дней
 
@@ -86,7 +86,7 @@
 
 ---
 
-### Этап 9. Продукт и документация
+### Этап 12. Продукт и документация
 
 **Срок:** 3–5 дней
 
@@ -106,7 +106,30 @@
 
 ---
 
-### Этап 12. Резюме, диплом и публикация
+### Этап 13. Голосовой перевод
+
+**Срок:** 8–12 дней
+
+**Зачем:** переводить не только текст на экране, но и речь (Discord, игры, видео) — живыми субтитрами, а при желании и озвучкой. Подробный план прототипа — [docs/VOICE_TRANSLATION_PROTOTYPE.md](docs/VOICE_TRANSLATION_PROTOTYPE.md).
+
+- [ ] Прототип в `scratch/voice/` (вне приложения): тестовый набор из 20–30 фраз, синтезированных через SAPI, плюс тишина, музыка и шум для проверки галлюцинаций
+- [ ] Офлайн-бенчмарк `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; модели `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, латентность от конца фразы до перевода
+- [ ] Живой захват через WASAPI loopback и микрофон (`live.py`); проверка эха озвучки и нагрузки на CPU / GPU / RAM
+- [ ] Решение go / no-go по результатам: модель и устройство по умолчанию, начинать ли только с субтитров
+- [ ] Живые субтитры: пакет `audio/` (захват, VAD, STT-воркер на `QThread`, результаты через сигналы) и окно-полоса субтитров
+- [ ] Настройки: источник, модель, устройство, язык (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); по умолчанию выключено; модель Whisper скачивается только по явному действию пользователя, как NLLB
+- [ ] Опциональная озвучка перевода (TTS) с выбором устройства вывода и защитой от эха
+- [ ] Приватность: аудио и транскрипты не логируются целиком, облачный STT — только по явному выбору; обновить `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt`
+
+**Критерий готовности:** перевод фразы появляется в субтитрах не позже ~3 с после её окончания; функция выключена по умолчанию и не ходит в сеть без явного действия пользователя.
+
+**Исполнитель:** ______________________________
+
+**Срок (дата):** ______________________________
+
+---
+
+### Этап 14. Резюме, диплом и публикация
 
 **Срок:** 3–4 дня
 
@@ -138,17 +161,18 @@
 | 5 | A | Модель v3 | 5–8 | |
 | 6 | A | Реестр моделей и манифест | 2–3 | |
 | 7 | A | CI/CD для модели | 3–4 | |
-| 8a | A | Сборка с GPU для локальной модели | 1–2 | |
-| 8b | B | Релиз приложения (сделано) | 4–6 | |
-| 9 | B | Продукт и документация (сделано) | 3–5 | |
-| 10a | A | Мониторинг модели | 2–3 | |
-| 11 | A | Сервис инференса | 3–5 | |
-| 12 | B | Резюме, диплом, публикация | 3–4 | |
+| 8 | A | Сборка с GPU для локальной модели | 1–2 | |
+| 9 | A | Мониторинг модели | 2–3 | |
+| 10 | A | Сервис инференса | 3–5 | |
+| 11 | B | Релиз приложения (сделано) | 4–6 | |
+| 12 | B | Продукт и документация (сделано) | 3–5 | |
+| 13 | B | Голосовой перевод | 8–12 | |
+| 14 | B | Резюме, диплом, публикация | 3–4 | |
 
-**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 5 → 10a → 11 → 12 (8b и 9 уже сделаны).
-Части A и B можно вести параллельно. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 12. Этапы 5, 10a, 11 усиливают проект, но их можно отложить.
+**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 и 12 уже сделаны).
+Части A и B можно вести параллельно; этап 13 (голосовой перевод) не зависит от работ над моделью. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 14. Этапы 5, 9, 10 и 13 усиливают проект, но их можно отложить.
 
-**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8a; этап 2 нужен до 3 и 5.
+**Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8; этап 2 нужен до 3 и 5; этап 8 (cuBLAS) желателен до 13 — Whisper на GPU использует те же библиотеки CUDA.
 
 ---
 ---
@@ -161,7 +185,7 @@ Goal: turn the project into (1) an app people want to use and (2) a strong MLOps
 
 Legend: `[ ]` — not done, `[x]` — done. Estimates are in working days at ~3–4 hours a day.
 
-Upcoming work is split into two parts: **A — the local model (NLLB)** and **B — the app and the rest**. Stage numbers are kept, so the order and dependencies in the summary refer to them; the mixed stage 8 is split into 8a/8b.
+Upcoming work is split into two parts: **A — the local model (NLLB)** and **B — the app and the rest**. Stages are numbered straight through: 0–1 — done, 2–10 — part A, 11–14 — part B; order and dependencies are in the summary.
 
 ---
 
@@ -213,7 +237,7 @@ Fully closed stages.
 
 ## Part A. Local model (NLLB)
 
-The detailed plan is in [ROADMAP-MODEL.md](ROADMAP-MODEL.md): stages 2–8a, 10a and 11 (data, training, evaluation, registry, GPU build, monitoring, service). Order and dependencies are in the summary below.
+The detailed plan is in [ROADMAP-MODEL.md](ROADMAP-MODEL.md): stages 2–10 (data, training, evaluation, registry, GPU build, monitoring, service). Order and dependencies are in the summary below.
 
 ---
 
@@ -221,7 +245,7 @@ The detailed plan is in [ROADMAP-MODEL.md](ROADMAP-MODEL.md): stages 2–8a, 10a
 
 The app, product and documentation, publication. It depends on the model work only where the dependencies below say so.
 
-### Stage 8b. App release
+### Stage 11. App release
 
 **Time:** 4–6 days
 
@@ -241,7 +265,7 @@ The app, product and documentation, publication. It depends on the model work on
 
 ---
 
-### Stage 9. Product and documentation
+### Stage 12. Product and documentation
 
 **Time:** 3–5 days
 
@@ -261,7 +285,30 @@ The app, product and documentation, publication. It depends on the model work on
 
 ---
 
-### Stage 12. CV, thesis and publication
+### Stage 13. Voice translation
+
+**Time:** 8–12 days
+
+**Why:** translate speech too (Discord, games, videos), not only on-screen text — as live subtitles and optionally as voice-over. The detailed prototype plan is [docs/VOICE_TRANSLATION_PROTOTYPE.md](docs/VOICE_TRANSLATION_PROTOTYPE.md).
+
+- [ ] Prototype in `scratch/voice/` (outside the app): a test set of 20–30 phrases synthesised with SAPI, plus silence, music and noise for the hallucination check
+- [ ] Offline benchmark `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; models `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, end-of-phrase → translation latency
+- [ ] Live capture via WASAPI loopback and the microphone (`live.py`); check the voice-over echo and the CPU / GPU / RAM load
+- [ ] Go / no-go decision from the results: default model and device, whether to start with subtitles only
+- [ ] Live subtitles: an `audio/` package (capture, VAD, an STT worker on a `QThread`, results via signals) and a subtitle strip window
+- [ ] Settings: source, model, device, language (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); off by default; the Whisper model is downloaded only by an explicit user action, like NLLB
+- [ ] Optional translation voice-over (TTS) with an output-device choice and echo protection
+- [ ] Privacy: audio and transcripts are never logged in full, cloud STT only by explicit choice; update `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt`
+
+**Done when:** a phrase's translation shows up in the subtitles within ~3 s of its end; the feature is off by default and never goes to the network without an explicit user action.
+
+**Owner:** ______________________________
+
+**Due:** ______________________________
+
+---
+
+### Stage 14. CV, thesis and publication
 
 **Time:** 3–4 days
 
@@ -293,14 +340,15 @@ The app, product and documentation, publication. It depends on the model work on
 | 5 | A | Model v3 | 5–8 | |
 | 6 | A | Model registry and manifest | 2–3 | |
 | 7 | A | Model CI/CD | 3–4 | |
-| 8a | A | GPU build for the local model | 1–2 | |
-| 8b | B | App release (done) | 4–6 | |
-| 9 | B | Product and documentation (done) | 3–5 | |
-| 10a | A | Model monitoring | 2–3 | |
-| 11 | A | Inference service | 3–5 | |
-| 12 | B | CV, thesis, publication | 3–4 | |
+| 8 | A | GPU build for the local model | 1–2 | |
+| 9 | A | Model monitoring | 2–3 | |
+| 10 | A | Inference service | 3–5 | |
+| 11 | B | App release (done) | 4–6 | |
+| 12 | B | Product and documentation (done) | 3–5 | |
+| 13 | B | Voice translation | 8–12 | |
+| 14 | B | CV, thesis, publication | 3–4 | |
 
-**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8a → 5 → 10a → 11 → 12 (8b and 9 are done).
-Parts A and B can run in parallel. The minimum for a strong CV: stages 0–4, 6–8 and 12. Stages 5, 10a, 11 strengthen the project but can wait.
+**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 and 12 are done).
+Parts A and B can run in parallel; stage 13 (voice translation) does not depend on the model work. The minimum for a strong CV: stages 0–4, 6–8 and 14. Stages 5, 9, 10 and 13 strengthen the project but can wait.
 
-**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8a; stage 2 before 3 and 5.
+**Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8; stage 2 before 3 and 5; stage 8 (cuBLAS) is useful before 13 — Whisper on the GPU uses the same CUDA libraries.

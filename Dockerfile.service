@@ -1,4 +1,4 @@
-# Local NLLB inference service (service/, roadmap stage 11) for demos and a server scenario.
+# Local NLLB inference service (service/, roadmap stage 10) for demos and a server scenario.
 # CPU image: the model runs as CTranslate2 int8. The model is NOT baked in: mount a build directory
 # and point NLLB_MODEL_DIR at it (docker-compose.yml does both). Download one with
 # scripts/download_model.py on the host first; the container never goes to the network.

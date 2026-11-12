@@ -1,1 +1,1 @@
-"""Local NLLB inference service (roadmap stage 11)."""
+"""Local NLLB inference service (roadmap stage 10)."""
