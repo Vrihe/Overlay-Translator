@@ -164,8 +164,7 @@ def format_report(report: dict) -> str:
     lines = [
         f"Offline-model rows: {report['rows']}",
         f"Rows with an unknown token: {report['unknown_token_share']} %",
-        "Top lost keep terms: "
-        + (", ".join(f"{t} ({c})" for t, c in report["lost_keep_terms"]) or "none"),
+        "Top lost keep terms: " + (", ".join(f"{t} ({c})" for t, c in report["lost_keep_terms"]) or "none"),
     ]
     if "top_unknown_tokens" in report:
         lines.append("Top unknown tokens: " + ", ".join(f"{t} ({c})" for t, c in report["top_unknown_tokens"]))

@@ -244,7 +244,17 @@ def aggregate(scores: list[dict]) -> dict[str, dict]:
 # ── OCR-noise generation ──────────────────────────────────────────────────
 
 # typical EasyOCR confusions on game-chat fonts: (clean, misread)
-_OCR_CONFUSIONS = [("l", "I"), ("I", "l"), ("o", "0"), ("O", "0"), ("m", "rn"), ("rn", "m"), ("e", "c"), ("i", "1"), ("a", "o")]
+_OCR_CONFUSIONS = [
+    ("l", "I"),
+    ("I", "l"),
+    ("o", "0"),
+    ("O", "0"),
+    ("m", "rn"),
+    ("rn", "m"),
+    ("e", "c"),
+    ("i", "1"),
+    ("a", "o"),
+]
 
 
 def add_ocr_noise(text: str, rng: random.Random, rate: float = 0.08) -> str:
