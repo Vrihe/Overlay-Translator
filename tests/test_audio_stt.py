@@ -32,13 +32,15 @@ def _make_model(root: Path, name: str = stt.DEFAULT_MODEL, skip: str = "") -> Pa
 
 
 class _Segment:
-    def __init__(self, text):
+    def __init__(self, text, **scores):
         self.text = text
+        self.__dict__.update(scores)  # avg_logprob / no_speech_prob / compression_ratio
 
 
 class _FakeWhisperModel:
     created = []
     fail_on_cuda = None  # exception raised by a CUDA model on its first transcribe
+    segments = None  # what transcribe() returns; None = the default two segments
 
     def __init__(self, path, **kwargs):
         self.path = path
@@ -59,7 +61,8 @@ class _FakeWhisperModel:
         self.calls.append(kwargs)
         if self.kwargs["device"] == "cuda" and _FakeWhisperModel.fail_on_cuda:
             raise _FakeWhisperModel.fail_on_cuda
-        return iter([_Segment(" Hello "), _Segment("world. ")]), types.SimpleNamespace(language="de")
+        segments = _FakeWhisperModel.segments or [_Segment(" Hello "), _Segment("world. ")]
+        return iter(segments), types.SimpleNamespace(language="de")
 
 
 class _SttCase(unittest.TestCase):
@@ -71,6 +74,7 @@ class _SttCase(unittest.TestCase):
         _FakeWhisperModel.created = []
         _FakeWhisperModel.fail_on_cuda = None
         _FakeWhisperModel.detected = ("en", 0.99)
+        _FakeWhisperModel.segments = None
         fake_fw = types.ModuleType("faster_whisper")
         fake_fw.WhisperModel = _FakeWhisperModel
         fake_ct2 = types.ModuleType("ctranslate2")
@@ -150,6 +154,7 @@ class TestTranscribe(_SttCase):
         self.assertFalse(call["condition_on_previous_text"])
         self.assertFalse(call["vad_filter"])
         self.assertTrue(call["without_timestamps"])
+        self.assertEqual(call["temperature"], 0.0)  # no fallback retries
 
     def test_unload_forgets_the_model(self):
         _make_model(self.root)
@@ -158,6 +163,45 @@ class TestTranscribe(_SttCase):
         recognizer.unload()
         self.assertFalse(recognizer.is_loaded)
         self.assertEqual(recognizer.active_device, "")
+
+
+class TestInventedText(_SttCase):
+    """Segments the model was unsure about and known training-data artefacts are dropped."""
+
+    def _text(self, *segments):
+        _make_model(self.root)
+        _FakeWhisperModel.segments = list(segments)
+        self.recognizer = stt.SpeechRecognizer(device="cpu")
+        return self.recognizer.transcribe(np.zeros(16000, dtype="float32"))
+
+    def test_confident_speech_is_kept(self):
+        good = _Segment(" We go left.", avg_logprob=-0.3, no_speech_prob=0.02, compression_ratio=1.1)
+        self.assertEqual(self._text(good), "We go left.")
+        self.assertEqual(self.recognizer.dropped_unreliable, 0)
+
+    def test_unsure_silent_and_looping_segments_are_dropped(self):
+        good = _Segment(" Real words.", avg_logprob=-0.4)
+        guess = _Segment(" Invented words.", avg_logprob=-1.4)
+        silence = _Segment(" Music playing.", avg_logprob=-0.5, no_speech_prob=0.9)
+        loop = _Segment(" да да да да да да", compression_ratio=3.1)
+        self.assertEqual(self._text(guess, good, silence, loop), "Real words.")
+        self.assertEqual(self.recognizer.dropped_unreliable, 3)
+
+    def test_nothing_left_is_no_speech(self):
+        self.assertEqual(self._text(_Segment(" Hm.", avg_logprob=-2.0)), "")
+
+    def test_subtitle_credits_are_never_speech(self):
+        self.assertEqual(self._text(_Segment(" Субтитры сделал DimaTorzok")), "")
+        self.assertEqual(self.recognizer.dropped_unreliable, 1)
+        self.assertTrue(stt.is_known_artifact("Редактор субтитров А.Семкин Корректор А.Егорова"))
+        self.assertTrue(stt.is_known_artifact("Subtitles by the Amara.org community"))
+
+    def test_stock_phrases_are_dropped_only_when_they_are_the_whole_text(self):
+        self.assertTrue(stt.is_known_artifact("Спасибо за просмотр!"))
+        self.assertTrue(stt.is_known_artifact("Продолжение следует..."))
+        self.assertTrue(stt.is_known_artifact(" Thanks for watching. "))
+        self.assertFalse(stt.is_known_artifact("Спасибо за просмотр, увидимся в следующем ролике"))
+        self.assertFalse(stt.is_known_artifact("Thank you for the help with this boss"))
 
 
 class TestLanguageFilter(_SttCase):
@@ -284,6 +328,30 @@ class TestCudaFallback(_SttCase):
 
     def test_unknown_device_means_auto(self):
         self.assertEqual(stt.SpeechRecognizer(device="tpu")._device, "auto")
+
+
+class TestLowVram(_SttCase):
+    gpu_count = 1
+
+    def _compute_type(self, **kwargs):
+        _make_model(self.root)
+        recognizer = stt.SpeechRecognizer(device="cuda", **kwargs)
+        recognizer.ensure_loaded()
+        self.assertEqual(recognizer.active_device, "cuda")
+        return _FakeWhisperModel.created[0].kwargs["compute_type"]
+
+    def test_gpu_model_is_float16_by_default(self):
+        self.assertEqual(self._compute_type(), "float16")
+
+    def test_low_vram_loads_int8_weights(self):
+        self.assertEqual(self._compute_type(low_vram=True), "int8_float16")
+
+    def test_every_offered_model_has_a_memory_estimate(self):
+        from audio import stt_download
+
+        self.assertEqual(set(stt.VRAM_MB), set(stt_download.REPOS))
+        for normal, low in stt.VRAM_MB.values():
+            self.assertLess(low, normal)
 
 
 class TestCudnnDiscovery(unittest.TestCase):

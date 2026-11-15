@@ -34,10 +34,13 @@ REPOS = {
     "base.en": "Systran/faster-whisper-base.en",
     "small.en": "Systran/faster-whisper-small.en",
     "small": "Systran/faster-whisper-small",  # multilingual: needed by the language filter
+    # Multilingual and far more accurate; the repository faster-whisper itself uses for "turbo".
+    "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+    "large-v3": "Systran/faster-whisper-large-v3",
 }
 REVISION = "main"
 #: Download sizes shown before the download starts.
-APPROX_MB = {"tiny.en": 75, "base.en": 140, "small.en": 465, "small": 465}
+APPROX_MB = {"tiny.en": 75, "base.en": 140, "small.en": 465, "small": 465, "large-v3-turbo": 1545, "large-v3": 2950}
 #: Files faster-whisper reads; the rest of a repository (README, …) is skipped.
 _WANTED_FILES = (
     "model.bin",

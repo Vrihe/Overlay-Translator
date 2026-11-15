@@ -106,9 +106,9 @@ class TestModelDownload(unittest.TestCase):
         self.assertEqual((self.dest / "config.json").read_bytes(), b"{}")
 
     def test_unknown_model_is_not_downloadable(self):
-        self.assertFalse(stt_download.is_downloadable("large-v3"))
+        self.assertFalse(stt_download.is_downloadable("no-such-model"))
         with self.assertRaises(KeyError):
-            stt_download.download_model("large-v3", dest=self.dest)
+            stt_download.download_model("no-such-model", dest=self.dest)
 
     def test_download_folder_is_where_the_recognizer_looks(self):
         self.assertIn(stt_download.download_dir("base.en"), stt.model_dirs("base.en"))

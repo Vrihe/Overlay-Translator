@@ -22,6 +22,14 @@ confidently detected as another language is skipped — ``transcribe()`` returns
 instead of being decoded as if it were English. English-only models cannot detect the
 language, so the filter is off for them.
 
+Invented text: on music, noise or a breath Whisper tends to produce fluent text that was
+never said. Three guards, all in ``_run``: no temperature fallback (``temperature=0`` — the
+retries at higher temperatures are where most of it comes from, and they cost seconds); a
+segment is dropped when the model itself was unsure (``MIN_AVG_LOGPROB``), heard no speech
+(``MAX_NO_SPEECH_PROB``) or repeats itself (``MAX_COMPRESSION_RATIO``); and the well-known
+artefacts of Whisper's training data (subtitle credits, "thanks for watching") are removed
+(``is_known_artifact``).
+
 Decoding parameters are fixed to the values measured in the prototype
 (docs/VOICE_TRANSLATION_PROTOTYPE.md): beam 1, a fixed language (no detection pass),
 no conditioning on previous text, no timestamps.
@@ -51,6 +59,52 @@ DEVICES = ("auto", "cuda", "cpu")
 #: with at least this probability; short or unclear phrases are let through.
 FOREIGN_MIN_PROBABILITY = 0.5
 
+#: A segment below this average log-probability is a guess, not speech.
+MIN_AVG_LOGPROB = -1.0
+#: A segment the model marked as "no speech" with at least this probability is dropped.
+MAX_NO_SPEECH_PROB = 0.6
+#: Text that compresses better than this is a loop ("да да да да …").
+MAX_COMPRESSION_RATIO = 2.4
+
+#: Subtitle credits Whisper learned from its training data: never real speech.
+_CREDIT_MARKERS = (
+    "dimatorzok",
+    "amara.org",
+    "редактор субтитров",
+    "корректор а.",
+    "субтитры сделал",
+    "субтитры создавал",
+    "субтитры делал",
+    "субтитры подогнал",
+    "subtitles by",
+    "subtitles made by",
+)
+#: Phrases that are an artefact only when they are the whole recognised text.
+_WHOLE_PHRASE_ARTIFACTS = frozenset(
+    {
+        "продолжение следует",
+        "спасибо за просмотр",
+        "спасибо за внимание",
+        "thanks for watching",
+        "thank you for watching",
+        "thank you",
+        "you",
+        "bye",
+    }
+)
+
+#: Video memory a model takes on the GPU, MB: (float16, int8 — ``low_vram``). Measured on an
+#: RTX 3060 with scratch/measure_vram.py for small.en, small and large-v3-turbo; the other
+#: three are estimates from the size of their weights.
+VRAM_MB = {
+    "tiny.en": (300, 250),
+    "base.en": (400, 300),
+    "small.en": (700, 450),
+    "small": (750, 450),
+    "large-v3-turbo": (2250, 1200),
+    "large-v3": (3700, 2000),
+}
+
 _REQUIRED_FILES = ("model.bin", "config.json", "tokenizer.json")
 #: Whisper's convolutional encoder needs cuDNN on the GPU (NLLB does not).
 CUDNN_DLL = "cudnn_ops64_9.dll"
@@ -69,6 +123,23 @@ class _CudaUnavailable(Exception):
 
 
 # ── Model discovery ──────────────────────────────────────
+
+
+def is_known_artifact(text: str) -> bool:
+    """True for text Whisper produces from its training data rather than from the audio."""
+    lowered = text.lower()
+    if any(marker in lowered for marker in _CREDIT_MARKERS):
+        return True
+    return lowered.strip(" .!?…,-—\"'") in _WHOLE_PHRASE_ARTIFACTS
+
+
+def _is_reliable(segment) -> bool:
+    """Whether the model was sure enough about *segment* for it to be shown."""
+    return (
+        getattr(segment, "avg_logprob", 0.0) >= MIN_AVG_LOGPROB
+        and getattr(segment, "no_speech_prob", 0.0) <= MAX_NO_SPEECH_PROB
+        and getattr(segment, "compression_ratio", 1.0) <= MAX_COMPRESSION_RATIO
+    )
 
 
 def is_multilingual(name: str) -> bool:
@@ -160,6 +231,7 @@ class SpeechRecognizer:
         beam_size: int = 1,
         cpu_threads: int | None = None,
         skip_foreign: bool = False,
+        low_vram: bool = False,
     ) -> None:
         self._model_name = model_name
         wanted = (language or "auto").strip().lower()
@@ -175,7 +247,11 @@ class SpeechRecognizer:
         self._skip_foreign = bool(skip_foreign) and multilingual and self._language is not None
         if skip_foreign and not self._skip_foreign:
             _logger.info("Language filter is off (model %s, language %s)", model_name, wanted)
+        #: GPU weights in int8 instead of float16: about half the video memory, a little
+        #: less accurate. CTranslate2 converts while loading; the files on disk stay as they are.
+        self._cuda_compute_type = "int8_float16" if low_vram else "float16"
         self.skipped_foreign = 0
+        self.dropped_unreliable = 0  # segments removed as invented text
         self._explicit_dir = Path(model_dir) if model_dir else None
         requested = (device or "auto").strip().lower()
         if requested not in DEVICES:
@@ -307,7 +383,7 @@ class SpeechRecognizer:
 
         try:
             model = faster_whisper.WhisperModel(
-                str(model_dir), device="cuda", compute_type="float16", local_files_only=True
+                str(model_dir), device="cuda", compute_type=self._cuda_compute_type, local_files_only=True
             )
             self._run(model, _silence(0.5))  # CUDA libraries load on first use
         except Exception as exc:
@@ -357,9 +433,21 @@ class SpeechRecognizer:
             condition_on_previous_text=False,
             vad_filter=False,
             without_timestamps=True,
+            temperature=0.0,  # no fallback retries: see "Invented text" above
         )
-        text = " ".join(segment.text.strip() for segment in segments).strip()
+        kept, dropped = [], 0
+        for segment in segments:
+            if _is_reliable(segment):
+                kept.append(segment.text.strip())
+            else:
+                dropped += 1
+        text = " ".join(part for part in kept if part).strip()
         self.last_language = self._language or getattr(info, "language", "") or ""
+        if text and is_known_artifact(text):
+            dropped, text = dropped + 1, ""
+        if dropped:
+            self.dropped_unreliable += dropped
+            _logger.info("STT | %d unreliable segment(s) dropped", dropped)
         return text
 
 
