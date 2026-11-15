@@ -33,6 +33,7 @@ def tearDownModule():
 class _PageCase(unittest.TestCase):
     saved: dict = {}
     model_dir = "C:/models/whisper"  # None = the chosen model is not on disk
+    missing_models: tuple = ("small",)  # models that are not on disk whatever model_dir says
 
     def setUp(self):
         self.disk = {**config_manager.DEFAULTS, **self.saved}
@@ -47,7 +48,10 @@ class _PageCase(unittest.TestCase):
             mock.patch.object(config_manager, "set_value", side_effect=fake_set),
             mock.patch.object(config_manager, "save_config", side_effect=lambda cfg: None),
             mock.patch("audio.capture.list_loopback_devices", return_value=list(_DEVICES)),
-            mock.patch("audio.stt.resolve_model_dir", side_effect=lambda name: self.model_dir),
+            mock.patch(
+                "audio.stt.resolve_model_dir",
+                side_effect=lambda name: None if name in self.missing_models else self.model_dir,
+            ),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -119,6 +123,24 @@ class TestParameters(_PageCase):
         self.page._chk_skip_foreign.setChecked(True)
         self.assertTrue(session._default_recognizer().filters_language)
 
+    def test_running_subtitles_restart_once_after_a_change(self):
+        asked = []
+        self.page.toggle_requested.connect(asked.append)
+        self.page.set_active(True)
+        self.page._chk_streaming.setChecked(True)
+        self.page._lang_combo.setCurrentIndex(self.page._lang_combo.findData("de"))
+        self.assertTrue(self.page._restart_timer.isActive())
+        self.assertEqual(asked, [])  # debounced: several quick changes, one restart
+        self.page._restart_timer.timeout.emit()
+        self.assertEqual(asked, [False, True])
+
+    def test_stopped_subtitles_are_not_started_by_a_change(self):
+        asked = []
+        self.page.toggle_requested.connect(asked.append)
+        self.page._chk_streaming.setChecked(True)
+        self.assertFalse(self.page._restart_timer.isActive())
+        self.assertEqual(asked, [])
+
     def test_page_works_without_the_sound_packages(self):
         with mock.patch("audio.capture.list_loopback_devices", side_effect=RuntimeError("no PyAudio")):
             self.page.reload()
@@ -152,6 +174,18 @@ class TestModelHints(_PageCase):
         config_manager._cache = dict(self.disk)
         self.page._lang_combo.setCurrentIndex(self.page._lang_combo.findData("de"))
         self.assertTrue(self.page._hint.isHidden())
+
+
+class TestMultilingualOnDisk(_PageCase):
+    missing_models = ()
+
+    def test_no_hint_when_the_session_can_swap_the_model_in(self):
+        self.page._lang_combo.setCurrentIndex(self.page._lang_combo.findData("de"))
+        self.assertTrue(self.page._hint.isHidden())
+        # The filter alone with English speech still cannot work on an English-only model.
+        self.page._lang_combo.setCurrentIndex(self.page._lang_combo.findData("en"))
+        self.page._chk_skip_foreign.setChecked(True)
+        self.assertFalse(self.page._hint.isHidden())
 
 
 class TestMissingModel(_PageCase):

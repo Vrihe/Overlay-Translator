@@ -7,15 +7,16 @@ the language filter. What is set up once (the Whisper model and its download, th
 libraries, the recognition device) stays in Settings → Subtitles; the page shows the
 chosen model and warns when it is not on disk.
 
-Controls save themselves straight into ``config`` and apply the next time subtitles are
-started. The page never starts anything itself: the button emits ``toggle_requested``
+Controls save themselves straight into ``config``. Subtitles that are running are
+restarted shortly after a change (stop, then start, through ``toggle_requested``), so the
+new value is what is on screen. The page never starts anything itself: the button emits ``toggle_requested``
 (handled in main.py) and ``set_active`` / ``set_status`` bring the session state back.
 The list of sound devices (PyAudio) is read in ``reload()``, when the tab is opened.
 """
 
 import logging
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 import config
@@ -45,6 +46,10 @@ SPEECH_LANGUAGES = [
 ]
 
 
+#: Running subtitles restart this long after the last change of a parameter.
+RESTART_DELAY_MS = 700
+
+
 class SubtitlesPage(QWidget):
     #: Start (True) / stop (False) live subtitles.
     toggle_requested = pyqtSignal(bool)
@@ -55,6 +60,10 @@ class SubtitlesPage(QWidget):
         super().__init__(parent)
         self._active = False
         self._loading = False  # True while reload() fills the controls: nothing is saved
+        self._restart_timer = QTimer(self)
+        self._restart_timer.setSingleShot(True)
+        self._restart_timer.setInterval(RESTART_DELAY_MS)
+        self._restart_timer.timeout.connect(self._restart)
         self._build_ui()
         self.reload()
 
@@ -124,7 +133,7 @@ class SubtitlesPage(QWidget):
         self._hint.setWordWrap(True)
         self._hint.setStyleSheet(theme.text_css(theme.current().warn, 9))
         params.body.addWidget(self._hint)
-        applies = QLabel(tr("Новые значения действуют со следующего запуска субтитров."))
+        applies = QLabel(tr("Изменения применяются сразу: работающие субтитры перезапускаются."))
         applies.setWordWrap(True)
         applies.setStyleSheet(theme.label_css("caption"))
         params.body.addWidget(applies)
@@ -226,6 +235,14 @@ class SubtitlesPage(QWidget):
             return
         setattr(config, name, value)
         self._refresh_model()
+        if self._active:
+            self._restart_timer.start()
+
+    def _restart(self) -> None:
+        """Apply changed parameters to subtitles that are running."""
+        if self._active:
+            self.toggle_requested.emit(False)
+            self.toggle_requested.emit(True)
 
     def _refresh_model(self) -> None:
         """The chosen model, whether it is on disk, and whether it can do what is asked."""
@@ -249,7 +266,14 @@ class SubtitlesPage(QWidget):
                 "выберите многоязычную модель small.",
                 name=name,
             )
-            if useless
+            if useless and not self._multilingual_ready(name)
             else ""
         )
-        self._hint.setVisible(useless)
+        self._hint.setVisible(bool(self._hint.text()))
+
+    def _multilingual_ready(self, name: str) -> bool:
+        """Another speech language with an English-only model: the session swaps in the
+        multilingual one when it is on disk (audio/session.py), so there is nothing to warn about."""
+        from audio import session, stt
+
+        return self._language() != "en" and stt.resolve_model_dir(session.MULTILINGUAL_MODEL) is not None

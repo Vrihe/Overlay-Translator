@@ -20,6 +20,7 @@ from audio.capture import CaptureUnavailable
 from audio.segmenter import SAMPLE_RATE
 from audio.session import SubtitleSession
 from audio.stt import SttModelUnavailable
+from settings import config_manager
 
 _APP = QApplication.instance() or QApplication(sys.argv[:1])
 
@@ -154,6 +155,19 @@ class TestSubtitleSession(_SessionCase):
         self.captures[0].on_audio(np.zeros(16000, dtype="float32"))
         self.assertTrue(_pump(lambda: len(self.subtitles) == 1))
 
+    def test_a_refused_start_reports_why_and_leaves_nothing_running(self):
+        def factory():
+            raise SttModelUnavailable("only English")
+
+        session = SubtitleSession(recognizer_factory=factory, capture_factory=lambda on_audio: None)
+        statuses, running = [], []
+        session.status.connect(lambda message, kind: statuses.append((message, kind)))
+        session.running_changed.connect(running.append)
+        session.start()
+        self.assertFalse(session.is_running)
+        self.assertEqual(running, [False])  # the switches go back off
+        self.assertEqual(statuses, [("only English", "error")])
+
     def test_stop_ends_capture_and_both_threads(self):
         session = self.make()
         session.start()
@@ -239,6 +253,39 @@ class TestSubtitleSession(_SessionCase):
         self.captures[0].say()
         self.assertTrue(_pump(lambda: len(self.subtitles) == 1))
         self.assertEqual(self.statuses[-1], ("translated through the API", "warn"))
+
+
+class TestRecognizerForTheSettings(unittest.TestCase):
+    """English-only model + another speech language: swap in the multilingual model or refuse."""
+
+    def _recognizer(self, *, model, language, installed=()):
+        from audio import session, stt
+
+        cache = {**config_manager.DEFAULTS, "subtitles_model": model, "subtitles_language": language}
+        with (
+            mock.patch.object(config_manager, "_cache", cache),
+            mock.patch.object(stt, "resolve_model_dir", side_effect=lambda name: "dir" if name in installed else None),
+        ):
+            return session._default_recognizer()
+
+    def test_english_with_an_english_only_model_is_left_alone(self):
+        recognizer = self._recognizer(model="small.en", language="en")
+        self.assertEqual((recognizer._model_name, recognizer.start_notice), ("small.en", ""))
+
+    def test_another_language_uses_the_multilingual_model_when_it_is_on_disk(self):
+        recognizer = self._recognizer(model="small.en", language="ru", installed=("small",))
+        self.assertEqual((recognizer._model_name, recognizer._language), ("small", "ru"))
+        self.assertIn("small.en", recognizer.start_notice)
+
+    def test_another_language_without_the_multilingual_model_is_refused(self):
+        for language in ("ru", "auto"):
+            with self.assertRaises(SttModelUnavailable) as ctx:
+                self._recognizer(model="base.en", language=language)
+            self.assertIn("base.en", str(ctx.exception))
+
+    def test_multilingual_model_is_used_as_chosen(self):
+        recognizer = self._recognizer(model="small", language="de")
+        self.assertEqual((recognizer._model_name, recognizer.start_notice), ("small", ""))
 
 
 if __name__ == "__main__":

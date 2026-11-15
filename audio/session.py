@@ -27,15 +27,48 @@ from i18n import tr
 _logger = logging.getLogger("translator.subtitles")
 
 
-def _default_recognizer():
-    from audio.stt import DEFAULT_MODEL, SpeechRecognizer
+#: The model used instead of an English-only one when another speech language is chosen.
+MULTILINGUAL_MODEL = "small"
 
-    return SpeechRecognizer(
-        getattr(config, "SUBTITLES_MODEL", "") or DEFAULT_MODEL,
+
+def _default_recognizer():
+    """The recognizer for the saved settings. Raises ``SttModelUnavailable``.
+
+    An English-only model (``*.en``) fed speech in another language does not fail: it
+    invents English text that has nothing to do with what is said. So with another speech
+    language chosen, the multilingual model is used when it is on disk (the recognizer's
+    ``start_notice`` says so) and the start is refused when it is not.
+    """
+    from audio import stt
+
+    name = getattr(config, "SUBTITLES_MODEL", "") or stt.DEFAULT_MODEL
+    language = (getattr(config, "SUBTITLES_LANGUAGE", "en") or "en").lower()
+    notice = ""
+    if language != "en" and not stt.is_multilingual(name):
+        if stt.resolve_model_dir(MULTILINGUAL_MODEL) is None:
+            raise stt.SttModelUnavailable(
+                tr(
+                    "Модель {name} понимает только английский. Для другого языка речи скачайте "
+                    "в настройках многоязычную модель {model} или выберите английский.",
+                    name=name,
+                    model=MULTILINGUAL_MODEL,
+                )
+            )
+        notice = tr(
+            "Модель {name} понимает только английский: используется многоязычная {model}.",
+            name=name,
+            model=MULTILINGUAL_MODEL,
+        )
+        name = MULTILINGUAL_MODEL
+    recognizer = stt.SpeechRecognizer(
+        name,
         device=getattr(config, "SUBTITLES_STT_DEVICE", "auto") or "auto",
-        language=getattr(config, "SUBTITLES_LANGUAGE", "en") or "en",
+        language=language,
         skip_foreign=bool(getattr(config, "SUBTITLES_SKIP_FOREIGN", False)),
+        low_vram=bool(getattr(config, "SUBTITLES_LOW_VRAM", False)),
     )
+    recognizer.start_notice = notice
+    return recognizer
 
 
 #: Seconds of new speech between two interim subtitles (the "streaming" setting).
@@ -67,6 +100,7 @@ class SubtitleSession(QObject):
         self._translator = None
         self._capture = None
         self._run_id = 0  # results of an earlier run are ignored
+        self._start_notice = ""  # what the recognizer factory had to say about this run
         # A running QThread must stay referenced until it has finished.
         self._retired: set = set()
 
@@ -78,12 +112,21 @@ class SubtitleSession(QObject):
         if self.is_running:
             return
         from audio.phrase_translator import PhraseTranslator
+        from audio.stt import SttModelUnavailable
         from audio.worker import SttWorker
 
+        try:
+            recognizer = self._recognizer_factory()
+        except SttModelUnavailable as exc:
+            # Not started: tell every switch first, then say why (like a failed load).
+            self.running_changed.emit(False)
+            self.status.emit(str(exc), "error")
+            return
+        self._start_notice = getattr(recognizer, "start_notice", "") or ""
         self._run_id += 1
         run = self._run_id
         streaming = bool(getattr(config, "SUBTITLES_STREAMING", False))
-        self._stt = SttWorker(self._recognizer_factory(), partial_interval_s=PARTIAL_INTERVAL_S if streaming else 0.0)
+        self._stt = SttWorker(recognizer, partial_interval_s=PARTIAL_INTERVAL_S if streaming else 0.0)
         self._translator = PhraseTranslator(self._translate) if self._translate else PhraseTranslator()
         translator = self._translator
         self._stt.ready.connect(lambda device, notice: self._on_ready(run, device, notice))
@@ -146,6 +189,8 @@ class SubtitleSession(QObject):
         lines = [tr("Слушаю: {device}", device=display_name(capture.device_name))]
         if getattr(capture, "fell_back", False):
             lines.append(tr("Выбранное устройство не найдено, используется устройство по умолчанию."))
+        if self._start_notice:
+            lines.append(self._start_notice)
         if notice:
             lines.append(notice)
         self.status.emit("\n".join(lines), "ok" if len(lines) == 1 else "warn")
