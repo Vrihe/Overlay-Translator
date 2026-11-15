@@ -27,6 +27,8 @@ def _mouse(window, kind, local, button=Qt.LeftButton):
 
 class _WindowCase(unittest.TestCase):
     saved_pos = None
+    #: Reading-time hold of a line, ms; 0 = every line shows at once (most tests).
+    hold_ms = 0
 
     def setUp(self):
         self.disk = {**config_manager.DEFAULTS, "subtitles_pos": self.saved_pos}
@@ -40,6 +42,8 @@ class _WindowCase(unittest.TestCase):
         for patcher in (
             mock.patch.object(config_manager, "set_value", side_effect=fake_set),
             mock.patch.object(SubtitleWindow, "_exclude_from_capture"),
+            mock.patch.object(subtitle_window, "MIN_HOLD_MS", self.hold_ms),
+            mock.patch.object(subtitle_window, "MAX_HOLD_MS", self.hold_ms),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -69,6 +73,105 @@ class TestInterimLine(_WindowCase):
         self.assertFalse(self.window.isVisible())
 
 
+class TestReadingPace(_WindowCase):
+    """A new line waits until the one on screen has had its reading time."""
+
+    hold_ms = 2000
+
+    def setUp(self):
+        super().setUp()
+        self.clock = 100.0
+        patcher = mock.patch.object(subtitle_window, "_now", side_effect=lambda: self.clock)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def tick(self, seconds):
+        self.clock += seconds
+        self.window._hold_timer.timeout.emit()
+
+    def test_first_line_shows_at_once_and_the_next_waits_its_turn(self):
+        self.window.add_line("первая")
+        self.assertEqual(self.window.lines(), ["первая"])
+        self.window.add_line("вторая")
+        self.assertEqual(self.window.lines(), ["первая"])
+        self.assertEqual(self.window.waiting(), ["вторая"])
+        self.assertTrue(self.window._hold_timer.isActive())
+        self.tick(1.0)  # too early: the first line is still being read
+        self.assertEqual(self.window.lines(), ["первая"])
+        self.tick(1.0)
+        self.assertEqual(self.window.lines(), ["первая", "вторая"])
+        self.assertEqual(self.window.waiting(), [])
+
+    def test_a_line_after_a_pause_shows_at_once(self):
+        self.window.add_line("первая")
+        self.clock += 3.0
+        self.window.add_line("вторая")
+        self.assertEqual(self.window.lines(), ["первая", "вторая"])
+
+    def test_a_backlog_is_shown_without_holds(self):
+        for text in ("1", "2", "3", "4", "5"):
+            self.window.add_line(text)
+        # More than MAX_WAITING lines were waiting: the oldest went on screen at once.
+        self.assertEqual(len(self.window.waiting()), subtitle_window.MAX_WAITING)
+        self.assertEqual(self.window.lines()[-1], "3")
+        self.tick(2.0)
+        self.tick(2.0)
+        self.assertEqual(self.window.lines(), ["3", "4", "5"])
+
+    def test_interim_text_does_not_push_a_line_that_is_still_being_read(self):
+        self.window.add_line("первая")
+        self.window.set_partial("вторая фр")
+        self.assertEqual(self.window.partial_text(), "")
+        self.assertEqual(self.window._new_label.text(), "первая")
+        self.clock += 2.0
+        self.window.set_partial("вторая фраза")
+        self.assertEqual(self.window.partial_text(), "вторая фраза")
+
+    def test_clearing_drops_the_waiting_lines(self):
+        self.window.add_line("первая")
+        self.window.add_line("вторая")
+        self.window.clear_lines()
+        self.assertEqual((self.window.lines(), self.window.waiting()), ([], []))
+        self.assertFalse(self.window._hold_timer.isActive())
+
+
+class TestGrowingStrip(_WindowCase):
+    def test_height_holds_every_line_of_a_long_wrapped_text(self):
+        self.window.add_line("короткая")
+        short = self.window.height()
+        self.window.add_line("очень длинная фраза " * 30)
+        self.window.add_line("ещё одна длинная фраза " * 30)
+        card = self.window._card
+        bottom = max(
+            label.mapTo(self.window, label.rect().bottomLeft()).y()
+            for label in (self.window._old_label, self.window._new_label)
+        )
+        self.assertGreater(self.window.height(), short)
+        self.assertLessEqual(bottom, self.window.height() - 1)
+        self.assertEqual(card.height(), self.window.height())
+        for label in (self.window._old_label, self.window._new_label):
+            self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
+
+    def test_a_line_arriving_during_a_drag_does_not_snap_the_strip_back(self):
+        self.window.add_line("первая")
+        start = self.window.pos()
+        grab = QPoint(30, 10)
+        _mouse(self.window, QEvent.MouseButtonPress, grab)
+        _mouse(self.window, QEvent.MouseMove, grab + QPoint(-200, -150))
+        moved = self.window._bottom_centre()
+        self.assertNotEqual(self.window.pos(), start)
+        self.window.add_line("вторая строка, которая делает полосу выше " * 6)
+        self.assertEqual(self.window._bottom_centre(), moved)  # grew upwards, in the new place
+        # The next mouse move with the cursor where it was keeps the strip in place.
+        cursor = self.window.pos() + self.window._drag_offset
+        self.window.mouseMoveEvent(
+            QMouseEvent(QEvent.MouseMove, QPointF(0, 0), QPointF(cursor), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
+        )
+        self.assertEqual(self.window._bottom_centre(), moved)
+        _mouse(self.window, QEvent.MouseButtonRelease, grab)
+        self.assertEqual(self.disk["subtitles_pos"], [moved.x(), moved.y()])
+
+
 class TestSubtitleWindow(_WindowCase):
     def test_hidden_until_there_is_something_to_show(self):
         self.assertFalse(self.window.isVisible())
@@ -76,12 +179,13 @@ class TestSubtitleWindow(_WindowCase):
         self.assertTrue(self.window.isVisible())
         SubtitleWindow._exclude_from_capture.assert_called()
 
-    def test_keeps_the_last_two_lines(self):
-        for text in ("один", "два", "три"):
+    def test_keeps_the_last_lines(self):
+        for text in ("ноль", "один", "два", "три"):
             self.window.add_line(text)
-        self.assertEqual(self.window.lines(), ["два", "три"])
+        self.assertEqual(subtitle_window.MAX_LINES, 3)
+        self.assertEqual(self.window.lines(), ["один", "два", "три"])
         self.assertEqual(self.window._new_label.text(), "три")
-        self.assertEqual(self.window._old_label.text(), "два")
+        self.assertEqual(self.window._old_label.text(), "один\nдва")
 
     def test_blank_text_is_ignored(self):
         self.window.add_line("   ")

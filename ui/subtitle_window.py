@@ -9,12 +9,21 @@ Always on top, never takes the focus (a game keeps the keyboard) and kept out of
 captures like the result popup (OCR and live monitoring must not read the subtitles
 back). Like the popup it follows Settings → Popup (ui/overlay_behavior.py): translucent
 until the cursor is over it, and with "click-through" on, clicks pass to the window
-below unless Alt is held. It shows the last ``MAX_LINES`` translations, the older one dimmed,
+below unless Alt is held. It shows the last ``MAX_LINES`` translations, the older ones dimmed,
 and hides itself when nothing was said for ``LINE_TTL_MS``. Dragging moves it; the
 place (bottom-centre point) is saved to ``config.SUBTITLES_POS``.
+
+Reading pace: in lively speech phrases arrive faster than they can be read. A new line
+therefore waits until the one on screen has had its reading time (its length at
+``READ_CHARS_PER_S``, between ``MIN_HOLD_MS`` and ``MAX_HOLD_MS``); interim text is not
+shown during that time either. When more than ``MAX_WAITING`` lines are waiting, the
+oldest are shown at once, so the strip never falls far behind the speech.
 """
 
 from __future__ import annotations
+
+import time
+from collections import deque
 
 from PyQt5.QtCore import QPoint, Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QFrame, QLabel, QVBoxLayout, QWidget
@@ -22,12 +31,23 @@ from PyQt5.QtWidgets import QApplication, QFrame, QLabel, QVBoxLayout, QWidget
 import config
 from ui import overlay_behavior, theme
 
-MAX_LINES = 2
+MAX_LINES = 3
 LINE_TTL_MS = 8000
+#: Reading pace: how long a line stays the newest one before the next may replace it.
+READ_CHARS_PER_S = 18
+MIN_HOLD_MS = 1500
+MAX_HOLD_MS = 5000
+#: Lines allowed to wait for their turn; beyond that the oldest are shown without a hold.
+MAX_WAITING = 2
 STATUS_TTL_MS = 5000
 ERROR_TTL_MS = 12000
 _MAX_WIDTH = 900
 _BOTTOM_MARGIN = 0.12  # of the screen height, for the default place
+_CARD_BORDER = 1  # px, the frame drawn by theme.panel_css
+
+
+def _now() -> float:
+    return time.monotonic()
 
 
 class SubtitleWindow(QWidget):
@@ -41,8 +61,11 @@ class SubtitleWindow(QWidget):
 
         self._lines: list[str] = []
         self._partial = ""  # interim text of the phrase still being spoken
+        self._waiting: deque[str] = deque()  # lines that arrived before the newest one was read
+        self._shown_at = 0.0  # when the newest line appeared (_now())
         self._status = ""
         self._drag_offset: QPoint | None = None
+        self._drag_from = QPoint()  # the anchor when the drag began
         self._anchor = self._initial_anchor()  # bottom-centre point of the strip
         self._watcher = overlay_behavior.EngageWatcher(self)
         self.setWindowOpacity(overlay_behavior.rest_opacity())
@@ -59,6 +82,7 @@ class SubtitleWindow(QWidget):
         box = QVBoxLayout(self._card)
         box.setContentsMargins(18, 10, 18, 12)
         box.setSpacing(4)
+        self._box = box
 
         self._status_label = self._label(theme.text_css(p.muted, 9))
         self._old_label = self._label(theme.text_css(p.muted, 13, display=True))
@@ -70,6 +94,9 @@ class SubtitleWindow(QWidget):
         self._line_timer.setSingleShot(True)
         self._line_timer.setInterval(LINE_TTL_MS)
         self._line_timer.timeout.connect(self.clear_lines)
+        self._hold_timer = QTimer(self)
+        self._hold_timer.setSingleShot(True)
+        self._hold_timer.timeout.connect(self._show_waiting)
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
         self._status_timer.setInterval(STATUS_TTL_MS)
@@ -89,19 +116,47 @@ class SubtitleWindow(QWidget):
     # ── Content ──────────────────────────────────────────
 
     def add_line(self, text: str) -> None:
-        """Show a new subtitle; the previous one moves up and is dimmed."""
+        """Show a new subtitle once the one on screen has had its reading time.
+
+        The previous lines move up and are dimmed.
+        """
         text = (text or "").strip()
         if not text:
             return
-        self._lines = (self._lines + [text])[-MAX_LINES:]
-        self._partial = ""
-        self._line_timer.start()
-        self._refresh()
+        self._waiting.append(text)
+        self._show_waiting()
+
+    def _show_waiting(self) -> None:
+        while self._waiting:
+            wait = self._hold_left_ms()
+            if wait > 0 and len(self._waiting) <= MAX_WAITING:
+                self._hold_timer.start(wait)
+                return
+            self._lines = (self._lines + [self._waiting.popleft()])[-MAX_LINES:]
+            self._partial = ""
+            self._shown_at = _now()
+            self._line_timer.start()
+            self._refresh()
+        self._hold_timer.stop()
+
+    def _hold_left_ms(self) -> int:
+        """Milliseconds the newest line still needs to be read; 0 when it may be replaced."""
+        if not self._lines:
+            return 0
+        hold = min(MAX_HOLD_MS, max(MIN_HOLD_MS, len(self._lines[-1]) * 1000 // READ_CHARS_PER_S))
+        return max(0, hold - int((_now() - self._shown_at) * 1000))
+
+    def waiting(self) -> list[str]:
+        return list(self._waiting)
 
     def set_partial(self, text: str) -> None:
-        """Show the phrase still being spoken; the next call or ``add_line`` replaces it."""
+        """Show the phrase still being spoken; the next call or ``add_line`` replaces it.
+
+        Skipped while lines are waiting or the newest line is still being read: the next
+        interim text arrives in about a second anyway.
+        """
         text = (text or "").strip()
-        if not text:
+        if not text or self._waiting or (not self._partial and self._hold_left_ms() > 0):
             return
         self._partial = text
         self._line_timer.start()
@@ -112,6 +167,8 @@ class SubtitleWindow(QWidget):
 
     def clear_lines(self) -> None:
         self._lines = []
+        self._waiting.clear()
+        self._hold_timer.stop()
         self._partial = ""
         self._line_timer.stop()
         self._refresh()
@@ -171,12 +228,30 @@ class SubtitleWindow(QWidget):
     def _fit(self) -> None:
         """Size the strip to its text and keep its bottom-centre point where it is."""
         width = min(_MAX_WIDTH, int(self._screen_rect().width() * 0.7))
-        self.setFixedWidth(width)
-        height = self.layout().heightForWidth(width)
-        if height <= 0:
-            height = self.sizeHint().height()
-        self.setFixedHeight(height)
+        height = self._height_for(width)
+        before = self.pos()
+        self.setFixedSize(width, height)
         self.move(self._anchor.x() - width // 2, self._anchor.y() - height)
+        if self._drag_offset is not None:
+            # Resized under the cursor: keep the drag from snapping the strip back.
+            self._drag_offset -= self.pos() - before
+
+    def _height_for(self, width: int) -> int:
+        """Height that holds every visible line wrapped at *width*.
+
+        Counted from the labels themselves: right after a label was shown, hidden or given
+        a longer text, the layout still answers with its cached height and the text would
+        run past the bottom edge.
+        """
+        margins = self._box.contentsMargins()
+        inner = width - margins.left() - margins.right() - 2 * _CARD_BORDER
+        labels = [label for label in (self._status_label, self._old_label, self._new_label) if not label.isHidden()]
+        text = sum(max(label.heightForWidth(inner), label.sizeHint().height()) for label in labels)
+        spacing = self._box.spacing() * max(0, len(labels) - 1)
+        return margins.top() + margins.bottom() + 2 * _CARD_BORDER + text + spacing
+
+    def _bottom_centre(self) -> QPoint:
+        return QPoint(self.x() + self.width() // 2, self.y() + self.height())
 
     def show(self) -> None:
         super().show()
@@ -195,16 +270,18 @@ class SubtitleWindow(QWidget):
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
             self._drag_offset = event.globalPos() - self.pos()
+            self._drag_from = QPoint(self._anchor)
 
     def mouseMoveEvent(self, event) -> None:
         if self._drag_offset is not None:
             self.move(event.globalPos() - self._drag_offset)
+            # A line that arrives during the drag is fitted around the place it is at now.
+            self._anchor = self._bottom_centre()
 
     def mouseReleaseEvent(self, event) -> None:
         if self._drag_offset is None:
             return
         self._drag_offset = None
-        anchor = QPoint(self.x() + self.width() // 2, self.y() + self.height())
-        if anchor != self._anchor:
-            self._anchor = anchor
-            config.SUBTITLES_POS = [anchor.x(), anchor.y()]
+        self._anchor = self._bottom_centre()
+        if self._anchor != self._drag_from:
+            config.SUBTITLES_POS = [self._anchor.x(), self._anchor.y()]
