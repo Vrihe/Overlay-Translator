@@ -245,14 +245,17 @@ def deps_fingerprint(root: Path) -> str:
     """Return a short hex hash identifying the current dependency state.
 
     The hash covers:
-      - The full content of requirements.txt, the lock file and requirements-voice.txt
+      - The full content of requirements.txt, the lock file, requirements-voice.txt,
+        build_deps.spec and _deps_stub.py
       - The installed version of every tracked package
       - The Python ABI and PyInstaller version (runtime_tag)
     Any change in deps (pip install/upgrade) produces a different fingerprint.
     """
     parts: list[str] = [runtime_tag()]
 
-    for name in ('requirements.txt', LOCK_FILE, 'requirements-voice.txt'):
+    # The spec and its stub decide what goes into the layer (hidden imports, data files):
+    # a change there must not be served from an old cached layer.
+    for name in ('requirements.txt', LOCK_FILE, 'requirements-voice.txt', 'build_deps.spec', '_deps_stub.py'):
         req_file = root / name
         if req_file.exists():
             parts.append(req_file.read_text(encoding='utf-8', errors='replace'))
