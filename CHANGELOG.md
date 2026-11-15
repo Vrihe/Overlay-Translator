@@ -9,6 +9,35 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-15
+
+### Added
+- Live subtitles: speech from the computer's audio (a stream, a video, voice chat) is
+  recognised on this computer and shown translated in a strip over other windows. Start
+  them on the new Subtitles tab, with the switch on the Home page or from the tray.
+- Subtitles: the speech language (a fixed one or auto-detect), a filter that skips speech in
+  other languages, and a streaming mode that shows a phrase while it is still being spoken.
+- Subtitles: recognition models from `tiny.en` to `large-v3` and `large-v3-turbo`. The model
+  and the NVIDIA libraries are downloaded by a button in Settings → Subtitles; nothing is
+  downloaded on its own, and the audio never leaves the computer.
+- Settings → Subtitles → "Save video memory": the model takes about half the video memory
+  and is slightly less accurate. The page shows how much memory the chosen model needs.
+- Subtitles and Monitoring tabs in the main window, and switches for both on the Home page:
+  features are turned on without opening the settings.
+- Settings → Popup → "Unobtrusiveness": opacity at rest, a compact popup (title and buttons
+  only under the cursor) and click-through (hold Alt to move and click the popup).
+
+### Changed
+- The translation popup never takes the keyboard focus from a game, shows a dim frame at
+  rest and is as tall as its text. Esc closes it after a click on it.
+- The list of saved regions and the start of live monitoring moved from the settings to the
+  Monitoring tab; Settings → Monitoring keeps the interval, the sensitivity and the popup
+  behaviour.
+
+### Fixed
+- The main window grew a little every time it was moved to another monitor and showed
+  overlapping content on its right and bottom edges.
+
 ## [1.4.3] - 2026-11-08
 
 ### Fixed
@@ -195,7 +224,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.3...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.0...v1.4.1
