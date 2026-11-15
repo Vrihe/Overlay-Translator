@@ -147,6 +147,17 @@ class _LiveConfig:
         set_value("subtitles_language", value)
 
     @property
+    def SUBTITLES_LOW_VRAM(self):
+        """Live subtitles: load the model on the GPU as int8 (less video memory, a bit less accurate)."""
+        return bool(_cfg("subtitles_low_vram"))
+
+    @SUBTITLES_LOW_VRAM.setter
+    def SUBTITLES_LOW_VRAM(self, value):
+        from settings.config_manager import set_value
+
+        set_value("subtitles_low_vram", bool(value))
+
+    @property
     def SUBTITLES_STREAMING(self):
         """Live subtitles: show interim text while a phrase is still being spoken."""
         return bool(_cfg("subtitles_streaming"))

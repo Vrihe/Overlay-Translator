@@ -474,8 +474,13 @@ MESSAGES: dict[str, str] = {
     "перевод полосой поверх окон. Перевод идёт способом, выбранным в настройках.": "Recognises speech in the "
     "computer's audio (a stream, a video, voice chat) and shows the translation in a strip over other windows. "
     "The translation uses the method chosen in the settings.",
-    "Новые значения действуют со следующего запуска субтитров.": "New values apply the next time subtitles are "
-    "started.",
+    "Изменения применяются сразу: работающие субтитры перезапускаются.": "Changes apply at once: running "
+    "subtitles are restarted.",
+    "Модель {name} понимает только английский. Для другого языка речи скачайте "
+    "в настройках многоязычную модель {model} или выберите английский.": "Model {name} understands English only. "
+    "For another speech language download the multilingual model {model} in the settings, or choose English.",
+    "Модель {name} понимает только английский: используется многоязычная {model}.": "Model {name} understands "
+    "English only: the multilingual {model} is used.",
     "Модель и видеокарта": "Model and GPU",
     "Модель {name} не скачана — без неё субтитры не запустятся. Скачайте её в настройках.": "Model {name} is not "
     "downloaded — subtitles will not start without it. Download it in the settings.",
@@ -487,6 +492,20 @@ MESSAGES: dict[str, str] = {
     "source, the speech language and the modes are on the Subtitles tab. New values apply the next time subtitles "
     "are started.",
     "Скачать модель": "Download the model",
+    "Экономить видеопамять (сжатие int8)": "Save video memory (int8 compression)",
+    "Модель загружается на видеокарту в сжатом виде: видеопамяти нужно примерно вдвое "
+    "меньше, а точность распознавания слегка падает. Файл модели на диске не меняется.": "The model is loaded onto "
+    "the GPU compressed: it needs about half the video memory, and recognition is slightly less accurate. The model "
+    "file on disk does not change.",
+    "Модель {name} займёт около {low} МБ видеопамяти вместо {normal} МБ. "
+    "Качество распознавания слегка упадёт.": "Model {name} will take about {low} MB of video memory instead of "
+    "{normal} MB. Recognition quality will drop slightly.",
+    "Модель {name} займёт около {normal} МБ видеопамяти; с экономией — около {low} МБ.": "Model {name} will take "
+    "about {normal} MB of video memory; with saving on — about {low} MB.",
+    "large-v3-turbo — многоязычная, заметно точнее и почти так же быстра; 1,5 ГБ": "large-v3-turbo — multilingual, "
+    "clearly more accurate and almost as fast; 1.5 GB",
+    "large-v3 — самая точная, медленнее; 3 ГБ, видеокарта от 6 ГБ памяти": "large-v3 — the most accurate, slower; "
+    "3 GB, a GPU with 6 GB of memory or more",
     "small — многоязычная, для фильтра языка; нужна видеокарта NVIDIA": "small — multilingual, for the language "
     "filter; needs an NVIDIA GPU",
     "Пропускать речь на других языках": "Skip speech in other languages",

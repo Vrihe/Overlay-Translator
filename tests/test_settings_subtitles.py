@@ -60,6 +60,29 @@ class TestSubtitleSettings(_SubtitlesCase):
         self.assertEqual(self.disk["subtitles_model"], "base.en")
         self.assertEqual(self.disk["subtitles_stt_device"], "cpu")
 
+    def test_low_vram_switch_is_off_by_default_autosaved_and_reaches_the_recognizer(self):
+        from audio import session
+
+        self.assertFalse(config_manager.DEFAULTS["subtitles_low_vram"])
+        self.assertFalse(self.widget._chk_subs_low_vram.isChecked())
+        self.assertEqual(session._default_recognizer()._cuda_compute_type, "float16")
+        self.widget._chk_subs_low_vram.setChecked(True)
+        self.flush()
+        self.assertTrue(self.disk["subtitles_low_vram"])
+        self.assertEqual(session._default_recognizer()._cuda_compute_type, "int8_float16")
+
+    def test_memory_hint_follows_the_model_and_the_switch(self):
+        combo = self.widget._subs_model_combo
+        combo.setCurrentIndex(combo.findData("large-v3-turbo"))
+        hint = self.widget._subs_vram_hint
+        self.assertIn("2250", hint.text())
+        self.assertIn("1200", hint.text())
+        self.widget._chk_subs_low_vram.setChecked(True)
+        self.assertIn("слегка упадёт", hint.text())
+        combo.setCurrentIndex(combo.findData("small.en"))
+        self.assertIn("450", hint.text())
+        self.assertNotIn("2250", hint.text())
+
     def test_saving_does_not_reset_the_translation_backends(self):
         import translate.backend
 

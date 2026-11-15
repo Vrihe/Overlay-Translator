@@ -106,6 +106,8 @@ _CYRILLIC_OCR_LANGS = {"ru", "uk", "be"}
 _SUBTITLE_MODELS = [
     ("small.en", N_("small.en — точнее, нужна видеокарта NVIDIA")),
     ("small", N_("small — многоязычная, для фильтра языка; нужна видеокарта NVIDIA")),
+    ("large-v3-turbo", N_("large-v3-turbo — многоязычная, заметно точнее и почти так же быстра; 1,5 ГБ")),
+    ("large-v3", N_("large-v3 — самая точная, медленнее; 3 ГБ, видеокарта от 6 ГБ памяти")),
     ("base.en", N_("base.en — быстрее, подходит для процессора")),
     ("tiny.en", N_("tiny.en — самая быстрая, больше ошибок")),
 ]
@@ -925,6 +927,21 @@ class SettingsWidget(QWidget):
             self._on_subs_gpu_clicked
         )
         subs_layout.addWidget(self._subs_gpu_widget)
+        # Video memory: what the chosen model takes, and the int8 switch that halves it.
+        self._chk_subs_low_vram = SwitchRow(tr("Экономить видеопамять (сжатие int8)"))
+        self._chk_subs_low_vram.setToolTip(
+            tr(
+                "Модель загружается на видеокарту в сжатом виде: видеопамяти нужно примерно вдвое "
+                "меньше, а точность распознавания слегка падает. Файл модели на диске не меняется."
+            )
+        )
+        subs_layout.addWidget(self._chk_subs_low_vram)
+        self._subs_vram_hint = QLabel("")
+        self._subs_vram_hint.setWordWrap(True)
+        self._subs_vram_hint.setStyleSheet(theme.label_css("caption"))
+        subs_layout.addWidget(self._subs_vram_hint)
+        self._chk_subs_low_vram.toggled.connect(lambda _on: self._refresh_subs_vram_hint())
+        self._subs_model_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_vram_hint())
         self._subs_stt_device_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_gpu_row())
         pages["subtitles"].addWidget(grp_subs)
 
@@ -1421,6 +1438,35 @@ class SettingsWidget(QWidget):
     def _set_subs_row(self, label, message: str, kind: str = "muted") -> None:
         label.setText(message)
         label.setStyleSheet(self._status_css(kind))
+
+    def _refresh_subs_vram_hint(self) -> None:
+        """How much video memory the chosen model takes, with and without the int8 switch."""
+        from audio import stt
+
+        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
+        normal, low = stt.VRAM_MB.get(name, (0, 0))
+        if not normal:
+            self._subs_vram_hint.setText("")
+        elif self._chk_subs_low_vram.isChecked():
+            self._subs_vram_hint.setText(
+                tr(
+                    "Модель {name} займёт около {low} МБ видеопамяти вместо {normal} МБ. "
+                    "Качество распознавания слегка упадёт.",
+                    name=name,
+                    low=low,
+                    normal=normal,
+                )
+            )
+        else:
+            self._subs_vram_hint.setText(
+                tr(
+                    "Модель {name} займёт около {normal} МБ видеопамяти; с экономией — около {low} МБ.",
+                    name=name,
+                    low=low,
+                    normal=normal,
+                )
+            )
+        self._subs_vram_hint.setVisible(bool(self._subs_vram_hint.text()))
 
     # Speech model download.
 
@@ -1986,6 +2032,8 @@ class SettingsWidget(QWidget):
         self._subs_model_combo.setCurrentIndex(max(0, self._subs_model_combo.findData(subs_model)))
         subs_device = getattr(config, "SUBTITLES_STT_DEVICE", "auto") or "auto"
         self._subs_stt_device_combo.setCurrentIndex(max(0, self._subs_stt_device_combo.findData(subs_device)))
+        self._chk_subs_low_vram.setChecked(bool(getattr(config, "SUBTITLES_LOW_VRAM", False)))
+        self._refresh_subs_vram_hint()
         self._refresh_subs_model_row()
         self._refresh_subs_gpu_row()
 
@@ -2026,6 +2074,7 @@ class SettingsWidget(QWidget):
             self._chk_live_keep_open,
             self._chk_popup_compact,
             self._chk_click_through,
+            self._chk_subs_low_vram,
         ):
             switch.toggled.connect(self._schedule_autosave)
         self._opacity_slider.valueChanged.connect(self._schedule_autosave)
@@ -2137,6 +2186,7 @@ class SettingsWidget(QWidget):
         cfg["nllb_device"] = self._nllb_device_combo.currentData() or "auto"
         cfg["subtitles_model"] = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
         cfg["subtitles_stt_device"] = self._subs_stt_device_combo.currentData() or "auto"
+        cfg["subtitles_low_vram"] = self._chk_subs_low_vram.isChecked()
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
         cfg["primary_provider"] = primary_choice
