@@ -321,7 +321,6 @@ MESSAGES: dict[str, str] = {
     "Перевести область": "Translate region",
     "Мониторинг": "Monitor",
     "Остановить мониторинг": "Stop monitoring",
-    "Переводить выбранную область снова, когда в ней меняется текст (проверка каждые {seconds} сек).": "Translate the selected area again when its text changes (checked every {seconds} s).",
     "Новый профиль контекста": "New context profile",
     "+ Добавить пример": "+ Add example",
     "+ Новый профиль": "+ New profile",
@@ -358,17 +357,11 @@ MESSAGES: dict[str, str] = {
     # ── Settings → Regions (ui/settings_dialog.py, capture/live_monitor.py) ──
     "Регионы": "Regions",
     "Бинды регионов — в разделе «Регионы».": "Region binds are in the Regions section.",
-    "Сохранённые области экрана. Бинд переводит область сразу, без выделения. «Мониторинг» "
-    "следит за выбранной областью; в «Управлении» — переименовать, удалить или назначить бинд.": "Saved screen areas. A bind translates the area at once, without selecting it. Monitor "
-    "watches the selected area; Manage renames, deletes or sets a bind.",
     "Добавить регион": "Add region",
     "Управление…": "Manage…",
     "без бинда": "no bind",
     "Регионов пока нет: нажмите «Добавить регион».": "No regions yet: click Add region.",
     "Живой мониторинг": "Live monitoring",
-    "Мониторинг переводит область снова, когда в ней меняется текст. Запускается кнопкой выше "
-    "или из меню трея; новые значения действуют со следующего запуска.": "Monitoring translates an area again when its text changes. Start it with the button "
-    "above or from the tray menu; new values apply from the next start.",
     "Проверять каждые:": "Check every:",
     "Чувствительность к изменениям:": "Sensitivity to changes:",
     "Высокая — ловит даже мелкие изменения": "High — catches even small changes",
@@ -453,19 +446,50 @@ MESSAGES: dict[str, str] = {
     "Ошибка перевода: {error}": "Translation error: {error}",
     "Субтитры": "Subtitles",
     "Живые субтитры": "Live subtitles",
-    "Распознаёт речь из звука компьютера (стрим, видео, голосовой чат) "
-    "и показывает перевод полосой поверх окон. Распознавание идёт на этом компьютере; "
-    "перевод — выбранным способом из раздела «Перевод». Новые значения действуют "
-    "со следующего запуска субтитров.": "Recognises speech in the computer's audio (a stream, a video, voice chat) "
-    "and shows the translation in a strip over other windows. Recognition runs on this computer; "
-    "translation uses the method chosen in the Translation section. New values apply "
-    "the next time subtitles are started.",
     "Запустить субтитры": "Start subtitles",
+    "Запустить мониторинг": "Start monitoring",
+    "Функции": "Features",
+    "Мониторинг региона": "Region monitoring",
+    "Перевод речи из звука компьютера полосой поверх окон.": "Translates speech in the computer's audio in a "
+    "strip over other windows.",
+    "Следить за регионом, выбранным на вкладке «Мониторинг», и переводить его при изменениях.": "Watch the region "
+    "selected on the Monitoring tab and translate it when it changes.",
+    "Мониторинг идёт.": "Monitoring is running.",
+    "Область проверяется каждые {seconds} сек.": "The region is checked every {seconds} s.",
+    "Интервал и чувствительность": "Interval and sensitivity",
+    "Переименовать, удалить регион или назначить ему бинд.": "Rename or delete a region, or give it a bind.",
+    "Сохранённые области экрана. Бинд переводит область сразу, без выделения. "
+    "Мониторинг следит за выбранной областью и переводит её снова, когда в ней "
+    "меняется текст.": "Saved screen regions. A bind translates the region at once, without selecting it. "
+    "Monitoring watches the selected region and translates it again when its text changes.",
+    "Мониторинг переводит область снова, когда в ней меняется текст. "
+    "Запускается на вкладке «Мониторинг» или из меню трея, там же — список регионов; "
+    "новые значения действуют со следующего запуска.": "Monitoring translates the region again when its text "
+    "changes. It is started on the Monitoring tab or from the tray menu, where the list of regions is too; "
+    "new values apply from the next start.",
+    "Параметры": "Parameters",
+    "Источник звука": "Audio source",
+    "Язык речи": "Speech language",
+    "Распознаёт речь из звука компьютера (стрим, видео, голосовой чат) и показывает "
+    "перевод полосой поверх окон. Перевод идёт способом, выбранным в настройках.": "Recognises speech in the "
+    "computer's audio (a stream, a video, voice chat) and shows the translation in a strip over other windows. "
+    "The translation uses the method chosen in the settings.",
+    "Новые значения действуют со следующего запуска субтитров.": "New values apply the next time subtitles are "
+    "started.",
+    "Модель и видеокарта": "Model and GPU",
+    "Модель {name} не скачана — без неё субтитры не запустятся. Скачайте её в настройках.": "Model {name} is not "
+    "downloaded — subtitles will not start without it. Download it in the settings.",
+    "Модель распознавания: {name}": "Recognition model: {name}",
+    "Модель распознавания речи и библиотеки для видеокарты: то, что настраивают один раз. "
+    "Распознавание идёт на этом компьютере. Запуск, источник звука, язык речи и режимы — "
+    "на вкладке «Субтитры». Новые значения действуют со следующего запуска субтитров.": "The speech recognition "
+    "model and the GPU libraries: what is set up once. Recognition runs on this computer. Starting, the audio "
+    "source, the speech language and the modes are on the Subtitles tab. New values apply the next time subtitles "
+    "are started.",
     "Скачать модель": "Download the model",
     "small — многоязычная, для фильтра языка; нужна видеокарта NVIDIA": "small — multilingual, for the language "
     "filter; needs an NVIDIA GPU",
     "Пропускать речь на других языках": "Skip speech in other languages",
-    "Язык речи:": "Speech language:",
     "Модель {name} понимает только английский: для других языков и фильтра языка "
     "выберите многоязычную модель small.": "Model {name} understands English only: for other languages and the "
     "language filter choose the multilingual model small.",
@@ -499,7 +523,6 @@ MESSAGES: dict[str, str] = {
     "⏳ Скачивание {name}: {done} / {total} МБ ({pct}%)": "⏳ Downloading {name}: {done} / {total} MB ({pct}%)",
     "⚠ Не удалось скачать библиотеки CUDA: {error}": "⚠ Could not download the CUDA libraries: {error}",
     "Остановить субтитры": "Stop subtitles",
-    "Источник звука:": "Audio source:",
     "Устройство вывода по умолчанию": "Default output device",
     "Модель распознавания:": "Recognition model:",
     "Устройство распознавания:": "Recognition device:",

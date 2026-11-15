@@ -49,20 +49,14 @@ class TestSubtitleSettings(_SubtitlesCase):
         self.assertEqual(config_manager.DEFAULTS["subtitles_stt_device"], "auto")
         self.assertIsNone(config_manager.DEFAULTS["subtitles_pos"])
 
-    def test_form_shows_the_defaults_and_the_devices(self):
-        combo = self.widget._subs_device_combo
-        self.assertEqual([combo.itemData(i) for i in range(combo.count())], ["", *_DEVICES])
-        self.assertEqual(combo.itemText(1), "Speakers (Fake)")  # shown without the loopback suffix
-        self.assertEqual(combo.currentData(), "")
+    def test_form_shows_the_defaults(self):
         self.assertEqual(self.widget._subs_model_combo.currentData(), "small.en")
         self.assertEqual(self.widget._subs_stt_device_combo.currentData(), "auto")
 
     def test_choices_are_autosaved(self):
-        self.widget._subs_device_combo.setCurrentIndex(2)
         self.widget._subs_model_combo.setCurrentIndex(self.widget._subs_model_combo.findData("base.en"))
         self.widget._subs_stt_device_combo.setCurrentIndex(self.widget._subs_stt_device_combo.findData("cpu"))
         self.flush()
-        self.assertEqual(self.disk["subtitles_device"], _DEVICES[1])
         self.assertEqual(self.disk["subtitles_model"], "base.en")
         self.assertEqual(self.disk["subtitles_stt_device"], "cpu")
 
@@ -73,84 +67,24 @@ class TestSubtitleSettings(_SubtitlesCase):
         self.flush()
         translate.backend.reset.assert_not_called()
 
-    def test_button_asks_to_start_then_to_stop(self):
-        asked = []
-        self.widget.subtitles_toggle_requested.connect(asked.append)
-        self.assertEqual(self.widget._btn_subtitles.text(), "Запустить субтитры")
-        self.widget._btn_subtitles.click()
-        self.widget.set_subtitles_active(True)
-        self.assertEqual(self.widget._btn_subtitles.text(), "Остановить субтитры")
-        self.widget._btn_subtitles.click()
-        self.assertEqual(asked, [True, False])
-
-    def test_status_line(self):
-        self.widget.set_subtitles_status("Слушаю: Speakers", "ok")
-        self.assertEqual(self.widget._subtitles_status.text(), "Слушаю: Speakers")
-        self.widget.set_subtitles_status("Модель не найдена", "error")
-        self.assertEqual(self.widget._subtitles_status.text(), "Модель не найдена")
-
 
 class TestUnpluggedDevice(_SubtitlesCase):
     saved = {"subtitles_device": "Headset (Gone) [Loopback]", "subtitles_model": "tiny.en"}
 
-    def test_saved_choice_is_kept_while_the_device_is_away(self):
-        combo = self.widget._subs_device_combo
-        self.assertEqual(combo.currentData(), "Headset (Gone) [Loopback]")
+    def test_saving_the_page_keeps_what_the_subtitles_tab_owns(self):
         self.assertEqual(self.widget._subs_model_combo.currentData(), "tiny.en")
         self.flush()
         self.assertEqual(self.writes, [])  # opening the page changes nothing
-
-
-class TestLanguageFilterSetting(_SubtitlesCase):
-    def test_off_by_default_and_autosaved(self):
-        self.assertFalse(config_manager.DEFAULTS["subtitles_skip_foreign"])
-        self.assertFalse(self.widget._chk_subs_skip_foreign.isChecked())
-        self.widget._chk_subs_skip_foreign.setChecked(True)
+        self.widget._subs_stt_device_combo.setCurrentIndex(self.widget._subs_stt_device_combo.findData("cpu"))
         self.flush()
-        self.assertTrue(self.disk["subtitles_skip_foreign"])
+        self.assertEqual(self.disk["subtitles_device"], "Headset (Gone) [Loopback]")
 
-    def test_speech_language_is_english_by_default_and_autosaved(self):
-        combo = self.widget._subs_lang_combo
-        self.assertEqual(config_manager.DEFAULTS["subtitles_language"], "en")
-        self.assertEqual(combo.currentData(), "en")
-        combo.setCurrentIndex(combo.findData("auto"))
-        self.flush()
-        self.assertEqual(self.disk["subtitles_language"], "auto")
-
-    def test_another_language_with_an_english_only_model_shows_the_hint(self):
-        models = self.widget._subs_model_combo
-        models.setCurrentIndex(models.findData("small.en"))
-        langs = self.widget._subs_lang_combo
-        langs.setCurrentIndex(langs.findData("de"))
-        self.assertFalse(self.widget._subs_filter_hint.isHidden())
-        models.setCurrentIndex(models.findData("small"))
-        self.assertTrue(self.widget._subs_filter_hint.isHidden())
-
-    def test_streaming_is_off_by_default_and_autosaved(self):
-        self.assertFalse(config_manager.DEFAULTS["subtitles_streaming"])
-        self.assertFalse(self.widget._chk_subs_streaming.isChecked())
-        self.widget._chk_subs_streaming.setChecked(True)
-        self.flush()
-        self.assertTrue(self.disk["subtitles_streaming"])
-
-    def test_hint_appears_only_for_an_english_only_model(self):
-        combo = self.widget._subs_model_combo
-        combo.setCurrentIndex(combo.findData("small.en"))
-        self.assertTrue(self.widget._subs_filter_hint.isHidden())
-        self.widget._chk_subs_skip_foreign.setChecked(True)
-        self.assertFalse(self.widget._subs_filter_hint.isHidden())
-        self.assertIn("small.en", self.widget._subs_filter_hint.text())
-        combo.setCurrentIndex(combo.findData("small"))
-        self.assertTrue(self.widget._subs_filter_hint.isHidden())
-
-    def test_session_passes_the_setting_to_the_recognizer(self):
-        from audio import session
-
-        self.widget._chk_subs_skip_foreign.setChecked(True)
-        combo = self.widget._subs_model_combo
-        combo.setCurrentIndex(combo.findData("small"))
-        self.flush()
-        self.assertTrue(session._default_recognizer().filters_language)
+    def test_a_section_can_be_opened_by_its_key(self):
+        self.widget.show_section("subtitles")
+        keys = [key for _title, key in self.widget._SECTIONS]
+        self.assertEqual(self.widget._section_list.currentRow(), keys.index("subtitles"))
+        self.widget.show_section("no such section")
+        self.assertEqual(self.widget._section_list.currentRow(), keys.index("subtitles"))
 
 
 class TestSubtitleDownloads(_SubtitlesCase):

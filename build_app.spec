@@ -73,7 +73,7 @@ a = Analysis(
         'ui', 'ui.main_window', 'ui.result_popup',
         'ui.first_run_dialog', 'ui.settings_dialog',
         'ui.theme', 'ui.icons', 'ui.hud_widgets',
-        'ui.overlay_behavior', 'ui.subtitle_window',
+        'ui.overlay_behavior', 'ui.subtitle_window', 'ui.subtitles_page', 'ui.monitoring_page',
         'audio', 'audio.capture', 'audio.phrase_translator', 'audio.segmenter',
         'audio.session', 'audio.stt', 'audio.stt_download', 'audio.worker',
         'history', 'history.history_window',

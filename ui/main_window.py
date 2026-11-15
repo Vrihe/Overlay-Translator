@@ -36,7 +36,7 @@ import config
 from i18n import tr
 from tray.icon_gen import create_tray_icon
 from ui import icons, theme, title_bar
-from ui.hud_widgets import Chip, FieldLabel, NavButton, Panel, page_title
+from ui.hud_widgets import Chip, FieldLabel, NavButton, Panel, SwitchRow, page_title
 
 # A QThread whose last Python reference goes away while run() is still returning
 # aborts the process (qFatal, 0xc0000409). Workers are parked here until they finish,
@@ -284,7 +284,11 @@ class _DropZone(QFrame):
 
 
 class _HomePage(QWidget):
-    """Home tab: status chips + text translation + screenshot translation + recent."""
+    """Home tab: status chips + feature switches + text / screenshot translation + recent."""
+
+    #: The feature switches: start (True) / stop (False) live subtitles / live monitoring.
+    subtitles_toggle_requested = pyqtSignal(bool)
+    monitoring_toggle_requested = pyqtSignal(bool)
 
     # Below this width the two columns stack vertically.
     _STACK_BELOW = 760
@@ -294,6 +298,7 @@ class _HomePage(QWidget):
         super().__init__(parent)
         self._text_worker: _TextTranslateWorker | None = None
         self._image_worker: _ImageTranslateWorker | None = None
+        self._syncing = False  # True while a switch is set from the app state, not by the user
         self._build_ui()
 
     def _build_ui(self):
@@ -314,6 +319,23 @@ class _HomePage(QWidget):
         self._hotkey_lbl = Chip(kind="accent")
         header.addWidget(self._hotkey_lbl)
         layout.addLayout(header)
+
+        # ── Feature switches: turn things on without opening their tabs ──
+        features = Panel(tr("Функции"))
+        switches = QHBoxLayout()
+        switches.setSpacing(24)
+        self._sw_subtitles = SwitchRow(tr("Живые субтитры"))
+        self._sw_subtitles.setToolTip(tr("Перевод речи из звука компьютера полосой поверх окон."))
+        self._sw_subtitles.toggled.connect(lambda on: self._on_switch(self.subtitles_toggle_requested, on))
+        switches.addWidget(self._sw_subtitles, 1)
+        self._sw_monitoring = SwitchRow(tr("Мониторинг региона"))
+        self._sw_monitoring.setToolTip(
+            tr("Следить за регионом, выбранным на вкладке «Мониторинг», и переводить его при изменениях.")
+        )
+        self._sw_monitoring.toggled.connect(lambda on: self._on_switch(self.monitoring_toggle_requested, on))
+        switches.addWidget(self._sw_monitoring, 1)
+        features.body.addLayout(switches)
+        layout.addWidget(features)
 
         # ── Body: two columns (stack on narrow windows) ──
         self._columns = QBoxLayout(QBoxLayout.LeftToRight)
@@ -422,6 +444,27 @@ class _HomePage(QWidget):
         if self._columns.direction() != direction:
             self._columns.setDirection(direction)
         super().resizeEvent(event)
+
+    # ── Feature switches ─────────────────────────────────
+
+    def _on_switch(self, signal, on: bool) -> None:
+        if not self._syncing:
+            signal.emit(bool(on))
+
+    def _sync_switch(self, switch, active: bool) -> None:
+        self._syncing = True
+        try:
+            switch.setChecked(active)
+        finally:
+            self._syncing = False
+
+    def set_subtitles_active(self, active: bool) -> None:
+        """Live subtitles started / stopped (from any place): show it on the switch."""
+        self._sync_switch(self._sw_subtitles, active)
+
+    def set_monitoring_active(self, active: bool) -> None:
+        """Live monitoring started / stopped (from any place): show it on the switch."""
+        self._sync_switch(self._sw_monitoring, active)
 
     # ── Domain change ────────────────────────────────────
 
@@ -604,11 +647,11 @@ class MainWindow(QMainWindow):
     # Settings asked for a restart (restart-only options were saved).
     restart_requested = pyqtSignal()
     update_install_started = pyqtSignal()  # the update setup waits for the app to quit
-    add_region_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
-    manage_regions_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
-    monitor_region_requested = pyqtSignal(int, int, int, int)  # forwarded (Regions)
-    stop_monitoring_requested = pyqtSignal()  # forwarded from SettingsWidget (Regions)
-    subtitles_toggle_requested = pyqtSignal(bool)  # forwarded from SettingsWidget (Subtitles)
+    add_region_requested = pyqtSignal()  # forwarded from the Monitoring tab
+    manage_regions_requested = pyqtSignal()  # forwarded from the Monitoring tab
+    monitor_region_requested = pyqtSignal(int, int, int, int)  # forwarded from the Monitoring tab
+    stop_monitoring_requested = pyqtSignal()  # forwarded from the Monitoring tab
+    subtitles_toggle_requested = pyqtSignal(bool)  # forwarded from the Subtitles tab
     hotkeys_changed = pyqtSignal()  # forwarded from SettingsWidget
     hotkey_capture = pyqtSignal(bool)  # forwarded from SettingsWidget
 
@@ -616,6 +659,8 @@ class MainWindow(QMainWindow):
     PAGE_HOME = 0
     PAGE_SETTINGS = 1
     PAGE_HISTORY = 2
+    PAGE_SUBTITLES = 3
+    PAGE_MONITORING = 4
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -645,6 +690,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         if self._custom_frame:
             title_bar.install_native_frame(self)
+            self.windowHandle().screenChanged.connect(self._on_screen_changed)
         self._connect_signals()
         self.switch_to_page(self.PAGE_HOME)
 
@@ -718,27 +764,22 @@ class MainWindow(QMainWindow):
             webbrowser.open(url)
 
     def refresh_regions(self):
-        """Region presets changed: update Settings → Regions if that page was built."""
-        if self._settings_widget is not None:
-            self._settings_widget.refresh_regions()
+        """Region presets changed: update the list on the Monitoring tab."""
+        self._monitoring_page.refresh_regions()
 
     def set_monitoring_active(self, active: bool):
-        """Live monitoring started / stopped: the Regions page shows Monitor or Stop."""
-        self._monitoring_active = active
-        if self._settings_widget is not None:
-            self._settings_widget.set_monitoring_active(active)
+        """Live monitoring started / stopped: the Monitoring tab shows Start or Stop."""
+        self._monitoring_page.set_monitoring_active(active)
+        self._home_page.set_monitoring_active(active)
 
     def set_subtitles_active(self, active: bool):
-        """Live subtitles started / stopped: the Subtitles page shows Start or Stop."""
-        self._subtitles_active = active
-        if self._settings_widget is not None:
-            self._settings_widget.set_subtitles_active(active)
+        """Live subtitles started / stopped: shown on the Subtitles tab."""
+        self._subtitles_page.set_active(active)
+        self._home_page.set_subtitles_active(active)
 
     def set_subtitles_status(self, message: str, kind: str = "info"):
-        """The subtitle session's last status line, shown on the Subtitles page."""
-        self._subtitles_status = (message, kind)
-        if self._settings_widget is not None:
-            self._settings_widget.set_subtitles_status(message, kind)
+        """The subtitle session's last status line, shown on the Subtitles tab."""
+        self._subtitles_page.set_status(message, kind)
 
     def _on_update_install_clicked(self):
         """Download the new installer (or cancel that download) from the update banner."""
@@ -837,9 +878,25 @@ class MainWindow(QMainWindow):
         self._btn_settings = NavButton("sliders", tr("Опции"))
         self._btn_history = NavButton("clock", tr("История"))
 
-        self._nav_buttons = [self._btn_home, self._btn_settings, self._btn_history]
+        self._btn_subtitles = NavButton("speaker", tr("Субтитры"))
 
-        for btn in self._nav_buttons:
+        # Indexed by page; on the rail the feature tabs come before options and history.
+        self._btn_monitoring = NavButton("search", tr("Мониторинг"))
+        self._nav_buttons = [
+            self._btn_home,
+            self._btn_settings,
+            self._btn_history,
+            self._btn_subtitles,
+            self._btn_monitoring,
+        ]
+
+        for btn in (
+            self._btn_home,
+            self._btn_subtitles,
+            self._btn_monitoring,
+            self._btn_settings,
+            self._btn_history,
+        ):
             sb_layout.addWidget(btn, 0, Qt.AlignHCenter)
 
         sb_layout.addStretch()
@@ -899,15 +956,38 @@ class MainWindow(QMainWindow):
         self._settings_placeholder.setStyleSheet("background: transparent;")
         self._stack.addWidget(self._settings_placeholder)
         self._settings_widget = None
-        self._monitoring_active = False  # applied to the settings page when it is built
-        self._subtitles_active = False  # likewise
-        self._subtitles_status = ("", "info")
 
         # Page 2: History (lazy-loaded)
         self._history_placeholder = QWidget()
         self._history_placeholder.setStyleSheet("background: transparent;")
         self._stack.addWidget(self._history_placeholder)
         self._history_widget = None
+
+        # Page 3: Subtitles (light: sound devices and the model are looked up when it opens)
+        from ui.subtitles_page import SubtitlesPage
+
+        subtitles_scroll = QScrollArea()
+        subtitles_scroll.setWidgetResizable(True)
+        subtitles_scroll.setFrameShape(QFrame.NoFrame)
+        subtitles_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self._subtitles_page = SubtitlesPage()
+        self._subtitles_page.setObjectName("subtitlesPage")
+        self._subtitles_page.setStyleSheet("#subtitlesPage { background: transparent; }")
+        subtitles_scroll.setWidget(self._subtitles_page)
+        self._stack.addWidget(subtitles_scroll)
+
+        # Page 4: Monitoring (saved regions and live monitoring)
+        from ui.monitoring_page import MonitoringPage
+
+        monitoring_scroll = QScrollArea()
+        monitoring_scroll.setWidgetResizable(True)
+        monitoring_scroll.setFrameShape(QFrame.NoFrame)
+        monitoring_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self._monitoring_page = MonitoringPage()
+        self._monitoring_page.setObjectName("monitoringPage")
+        self._monitoring_page.setStyleSheet("#monitoringPage { background: transparent; }")
+        monitoring_scroll.setWidget(self._monitoring_page)
+        self._stack.addWidget(monitoring_scroll)
 
         right_layout.addWidget(self._stack, 1)
         root.addWidget(right_container, 1)
@@ -926,6 +1006,17 @@ class MainWindow(QMainWindow):
             self._sync_frame()
         super().changeEvent(event)
 
+    def _on_screen_changed(self, _screen=None):
+        """The window crossed to another monitor: make the frame be recalculated.
+
+        On a screen change Qt works the frame margins out again from the window styles and,
+        because of the caption style added behind its back (title_bar.install_native_frame),
+        takes the window for one with a native caption: every crossing made the window
+        16×39 px bigger, and during a drag the new strip on the right and at the bottom
+        showed stale, overlapping content.
+        """
+        title_bar.refresh_frame(self)
+
     def _sync_frame(self):
         """1 px outline while windowed (no native border left); none when maximised."""
         p = theme.current()
@@ -941,6 +1032,28 @@ class MainWindow(QMainWindow):
         self._btn_home.clicked.connect(lambda: self.switch_to_page(self.PAGE_HOME))
         self._btn_settings.clicked.connect(lambda: self.switch_to_page(self.PAGE_SETTINGS))
         self._btn_history.clicked.connect(lambda: self.switch_to_page(self.PAGE_HISTORY))
+        self._btn_subtitles.clicked.connect(lambda: self.switch_to_page(self.PAGE_SUBTITLES))
+        self._subtitles_page.toggle_requested.connect(self.subtitles_toggle_requested)
+        self._subtitles_page.open_settings_requested.connect(lambda: self.show_settings_section("subtitles"))
+        self._btn_monitoring.clicked.connect(lambda: self.switch_to_page(self.PAGE_MONITORING))
+        self._home_page.subtitles_toggle_requested.connect(self.subtitles_toggle_requested)
+        self._home_page.monitoring_toggle_requested.connect(self._on_home_monitoring_toggled)
+        self._monitoring_page.add_region_requested.connect(self.add_region_requested)
+        self._monitoring_page.manage_regions_requested.connect(self.manage_regions_requested)
+        self._monitoring_page.monitor_region_requested.connect(self.monitor_region_requested)
+        self._monitoring_page.stop_monitoring_requested.connect(self.stop_monitoring_requested)
+        self._monitoring_page.open_settings_requested.connect(lambda: self.show_settings_section("regions"))
+
+    def _on_home_monitoring_toggled(self, on: bool) -> None:
+        """Home switch: monitor the region selected on the Monitoring tab, or stop."""
+        if not on:
+            self.stop_monitoring_requested.emit()
+            return
+        self._monitoring_page.refresh_regions()
+        if not self._monitoring_page.start_selected():
+            # No saved region yet: the tab is where one is added.
+            self._home_page.set_monitoring_active(False)
+            self.switch_to_page(self.PAGE_MONITORING)
 
     # ── Page switching ───────────────────────────────────
 
@@ -961,12 +1074,22 @@ class MainWindow(QMainWindow):
             self._settings_widget.reload()
         elif index == self.PAGE_HISTORY and self._history_widget is not None:
             self._history_widget.reload()
+        elif index == self.PAGE_SUBTITLES:
+            self._subtitles_page.reload()
+        elif index == self.PAGE_MONITORING:
+            self._monitoring_page.reload()
 
         self._stack.setCurrentIndex(index)
 
         # Update sidebar button states
         for i, btn in enumerate(self._nav_buttons):
             btn.set_active(i == index)
+
+    def show_settings_section(self, key: str) -> None:
+        """Open the settings on the section *key* (a page key of SettingsWidget._SECTIONS)."""
+        self.switch_to_page(self.PAGE_SETTINGS)
+        if self._settings_widget is not None:
+            self._settings_widget.show_section(key)
 
     def _init_settings_page(self):
         """Lazy-init the settings page with SettingsWidget (it scrolls its own sections)."""
@@ -999,14 +1122,6 @@ class MainWindow(QMainWindow):
         self._settings_widget.restart_requested.connect(self.restart_requested)
         self._settings_widget.hotkeys_changed.connect(self.hotkeys_changed)
         self._settings_widget.hotkey_capture.connect(self.hotkey_capture)
-        self._settings_widget.add_region_requested.connect(self.add_region_requested)
-        self._settings_widget.manage_regions_requested.connect(self.manage_regions_requested)
-        self._settings_widget.monitor_region_requested.connect(self.monitor_region_requested)
-        self._settings_widget.stop_monitoring_requested.connect(self.stop_monitoring_requested)
-        self._settings_widget.set_monitoring_active(self._monitoring_active)
-        self._settings_widget.subtitles_toggle_requested.connect(self.subtitles_toggle_requested)
-        self._settings_widget.set_subtitles_active(self._subtitles_active)
-        self._settings_widget.set_subtitles_status(*self._subtitles_status)
         vbox.addWidget(self._settings_widget, 1)
 
         self._stack.removeWidget(self._settings_placeholder)

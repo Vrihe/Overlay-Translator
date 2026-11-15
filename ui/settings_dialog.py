@@ -317,14 +317,6 @@ class SettingsWidget(QWidget):
     hotkeys_changed = pyqtSignal()
     #: A hotkey field gained (True) / lost (False) focus: pause / resume the global hooks.
     hotkey_capture = pyqtSignal(bool)
-    #: Regions page: select a new region / open the presets dialog (handled in main.py).
-    add_region_requested = pyqtSignal()
-    manage_regions_requested = pyqtSignal()
-    #: Regions page: live monitoring of the selected region (x1, y1, x2, y2) / stop it.
-    monitor_region_requested = pyqtSignal(int, int, int, int)
-    stop_monitoring_requested = pyqtSignal()
-    #: Subtitles page: start (True) / stop (False) live subtitles (handled in main.py).
-    subtitles_toggle_requested = pyqtSignal(bool)
     # Restart-only settings were saved and the user chose to restart now.
     restart_requested = pyqtSignal()
 
@@ -376,7 +368,7 @@ class SettingsWidget(QWidget):
     _SECTIONS = (
         (N_("Перевод"), "translate"),
         (N_("Хоткеи"), "hotkeys"),
-        (N_("Регионы"), "regions"),
+        (N_("Мониторинг"), "regions"),
         (N_("Распознавание"), "ocr"),
         (N_("Субтитры"), "subtitles"),
         (N_("Попап"), "popup"),
@@ -471,6 +463,12 @@ class SettingsWidget(QWidget):
         self._section_list.currentRowChanged.connect(self._section_stack.setCurrentIndex)
         self._section_list.setCurrentRow(0)
         return pages
+
+    def show_section(self, key: str) -> None:
+        """Select the section with page key *key* (see ``_SECTIONS``)."""
+        keys = [section_key for _title, section_key in self._SECTIONS]
+        if key in keys:
+            self._section_list.setCurrentRow(keys.index(key))
 
     # ── Build UI ─────────────────────────────────────────
 
@@ -859,46 +857,6 @@ class SettingsWidget(QWidget):
         hotkeys_layout.addWidget(lbl_hk_hint)
         pages["hotkeys"].addWidget(grp_hotkeys)
 
-        # ── Regions: saved screen regions with their binds ──
-        grp_regions, regions_layout = self._group(tr("Регионы"))
-        lbl_regions = QLabel(
-            tr(
-                "Сохранённые области экрана. Бинд переводит область сразу, без "
-                "выделения. «Мониторинг» следит за выбранной областью; в "
-                "«Управлении» — переименовать, удалить или назначить бинд."
-            )
-        )
-        lbl_regions.setWordWrap(True)
-        lbl_regions.setStyleSheet(theme.label_css("caption"))
-        regions_layout.addWidget(lbl_regions)
-        self._regions_list = QListWidget()
-        self._regions_list.setSelectionMode(QListWidget.SingleSelection)
-        self._regions_list.setStyleSheet(theme.list_css())
-        self._regions_list.setMinimumHeight(110)
-        self._regions_list.currentRowChanged.connect(lambda _row: self._update_monitor_button())
-        regions_layout.addWidget(self._regions_list)
-        regions_buttons = QHBoxLayout()
-        self._btn_add_region = QPushButton(tr("Добавить регион"))
-        self._btn_add_region.setCursor(Qt.PointingHandCursor)
-        self._btn_add_region.setStyleSheet(theme.btn_accent("7px 14px", 9))
-        self._btn_add_region.clicked.connect(self.add_region_requested)
-        # Live monitoring: start for the selected region; while it runs, stop it.
-        self._monitoring_active = False
-        self._btn_monitor_region = QPushButton()
-        self._btn_monitor_region.setCursor(Qt.PointingHandCursor)
-        self._btn_monitor_region.setStyleSheet(theme.btn_secondary("7px 14px", 9))
-        self._btn_monitor_region.clicked.connect(self._on_monitor_region_clicked)
-        self._btn_manage_regions = QPushButton(tr("Управление…"))
-        self._btn_manage_regions.setCursor(Qt.PointingHandCursor)
-        self._btn_manage_regions.setStyleSheet(theme.btn_secondary("7px 14px", 9))
-        self._btn_manage_regions.clicked.connect(self.manage_regions_requested)
-        regions_buttons.addWidget(self._btn_add_region)
-        regions_buttons.addWidget(self._btn_monitor_region)
-        regions_buttons.addWidget(self._btn_manage_regions)
-        regions_buttons.addStretch()
-        regions_layout.addLayout(regions_buttons)
-        pages["regions"].addWidget(grp_regions)
-
         # ── Live monitoring of a region ──
         from capture.live_monitor import MAX_INTERVAL_SEC, MIN_INTERVAL_SEC
 
@@ -906,8 +864,8 @@ class SettingsWidget(QWidget):
         lbl_live = QLabel(
             tr(
                 "Мониторинг переводит область снова, когда в ней меняется текст. "
-                "Запускается кнопкой выше или из меню трея; новые значения "
-                "действуют со следующего запуска."
+                "Запускается на вкладке «Мониторинг» или из меню трея, там же — список регионов; "
+                "новые значения действуют со следующего запуска."
             )
         )
         lbl_live.setWordWrap(True)
@@ -935,39 +893,15 @@ class SettingsWidget(QWidget):
         grp_subs, subs_layout = self._group(tr("Живые субтитры"))
         lbl_subs = QLabel(
             tr(
-                "Распознаёт речь из звука компьютера (стрим, видео, голосовой чат) "
-                "и показывает перевод полосой поверх окон. Распознавание идёт на этом компьютере; "
-                "перевод — выбранным способом из раздела «Перевод». Новые значения действуют "
-                "со следующего запуска субтитров."
+                "Модель распознавания речи и библиотеки для видеокарты: то, что настраивают один раз. "
+                "Распознавание идёт на этом компьютере. Запуск, источник звука, язык речи и режимы — "
+                "на вкладке «Субтитры». Новые значения действуют со следующего запуска субтитров."
             )
         )
         lbl_subs.setWordWrap(True)
         lbl_subs.setStyleSheet(theme.label_css("caption"))
         subs_layout.addWidget(lbl_subs)
 
-        self._subtitles_active = False
-        self._btn_subtitles = QPushButton()
-        self._btn_subtitles.setCursor(Qt.PointingHandCursor)
-        self._btn_subtitles.setStyleSheet(theme.btn_accent("7px 14px", 9))
-        self._btn_subtitles.clicked.connect(lambda: self.subtitles_toggle_requested.emit(not self._subtitles_active))
-        subs_buttons = QHBoxLayout()
-        subs_buttons.addWidget(self._btn_subtitles)
-        subs_buttons.addStretch()
-        subs_layout.addLayout(subs_buttons)
-        self._subtitles_status = QLabel("")
-        self._subtitles_status.setWordWrap(True)
-        self._subtitles_status.setTextFormat(Qt.PlainText)
-        self._subtitles_status.setStyleSheet(self._status_css())
-        subs_layout.addWidget(self._subtitles_status)
-
-        self._subs_device_combo = QComboBox()
-        self._subs_device_combo.setStyleSheet(self._INPUT_CSS)
-        subs_layout.addLayout(self._field(tr("Источник звука:"), self._subs_device_combo))
-        self._subs_lang_combo = QComboBox()
-        self._subs_lang_combo.setStyleSheet(self._INPUT_CSS)
-        for code, name in _SOURCE_LANGUAGES:
-            self._subs_lang_combo.addItem(f"{tr(name)} ({code})", code)
-        subs_layout.addLayout(self._field(tr("Язык речи:"), self._subs_lang_combo))
         self._subs_model_combo = QComboBox()
         self._subs_model_combo.setStyleSheet(self._INPUT_CSS)
         for model, label in _SUBTITLE_MODELS:
@@ -991,35 +925,8 @@ class SettingsWidget(QWidget):
             self._on_subs_gpu_clicked
         )
         subs_layout.addWidget(self._subs_gpu_widget)
-        # Interim subtitles while a phrase is still being spoken (audio/worker.py).
-        self._chk_subs_streaming = SwitchRow(tr("Потоковые субтитры: показывать фразу по ходу речи"))
-        self._chk_subs_streaming.setToolTip(
-            tr(
-                "Перевод появляется примерно раз в секунду, пока человек ещё говорит, и уточняется "
-                "в конце фразы. Нагружает видеокарту сильнее, а платный перевод через API "
-                "вызывается в несколько раз чаще."
-            )
-        )
-        subs_layout.addWidget(self._chk_subs_streaming)
-        # Language filter for mixed-language voice chats (audio/stt.py, skip_foreign).
-        self._chk_subs_skip_foreign = SwitchRow(tr("Пропускать речь на других языках"))
-        self._chk_subs_skip_foreign.setToolTip(
-            tr(
-                "Для голосовых чатов, где говорят на разных языках: фразы не на выбранном языке "
-                "речи не показываются. Работает только с многоязычной моделью small."
-            )
-        )
-        subs_layout.addWidget(self._chk_subs_skip_foreign)
-        self._subs_filter_hint = QLabel("")
-        self._subs_filter_hint.setWordWrap(True)
-        self._subs_filter_hint.setStyleSheet(self._status_css("warn"))
-        subs_layout.addWidget(self._subs_filter_hint)
-        self._chk_subs_skip_foreign.toggled.connect(lambda _on: self._refresh_subs_filter_hint())
-        self._subs_model_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_filter_hint())
-        self._subs_lang_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_filter_hint())
         self._subs_stt_device_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_gpu_row())
         pages["subtitles"].addWidget(grp_subs)
-        self._update_subtitles_button()
 
         # ── Interface section ──
         grp_ui, ui_layout = self._group(tr("Интерфейс"))
@@ -1492,78 +1399,7 @@ class SettingsWidget(QWidget):
         self._nllb_status.setText(message)
         self._nllb_status.setStyleSheet(self._status_css(kind))
 
-    # ── Regions ──────────────────────────────────────────
-
-    def refresh_regions(self) -> None:
-        """List the saved regions: name, size and bind."""
-        try:
-            from settings.region_presets import load_presets
-
-            presets = load_presets()
-        except Exception:
-            presets = []
-        self._regions_list.clear()
-        for p in presets:
-            w, h = p.get("x2", 0) - p.get("x1", 0), p.get("y2", 0) - p.get("y1", 0)
-            hotkey = (p.get("hotkey") or "").upper() or tr("без бинда")
-            item = QListWidgetItem(f"{p.get('name', '')}   ·   {w}×{h}   ·   {hotkey}")
-            item.setData(Qt.UserRole, p)
-            self._regions_list.addItem(item)
-        if presets:
-            self._regions_list.setCurrentRow(0)
-        else:
-            placeholder = QListWidgetItem(tr("Регионов пока нет: нажмите «Добавить регион»."))
-            placeholder.setFlags(Qt.NoItemFlags)
-            self._regions_list.addItem(placeholder)
-        self._update_monitor_button()
-
-    def set_monitoring_active(self, active: bool) -> None:
-        """Main app: live monitoring started / stopped (also from the tray)."""
-        self._monitoring_active = active
-        self._update_monitor_button()
-
-    def _update_monitor_button(self) -> None:
-        item = self._regions_list.currentItem()
-        has_region = item is not None and item.data(Qt.UserRole) is not None
-        if self._monitoring_active:
-            self._btn_monitor_region.setText(tr("Остановить мониторинг"))
-            self._btn_monitor_region.setEnabled(True)
-        else:
-            self._btn_monitor_region.setText(tr("Мониторинг"))
-            self._btn_monitor_region.setEnabled(has_region)
-        interval = self._live_interval_spin.value() if hasattr(self, "_live_interval_spin") else 10
-        self._btn_monitor_region.setToolTip(
-            tr(
-                "Переводить выбранную область снова, когда в ней меняется текст (проверка каждые {seconds} сек).",
-                seconds=interval,
-            )
-        )
-
-    def _on_monitor_region_clicked(self) -> None:
-        if self._monitoring_active:
-            self.stop_monitoring_requested.emit()
-            return
-        item = self._regions_list.currentItem()
-        preset = item.data(Qt.UserRole) if item is not None else None
-        if preset:
-            self.monitor_region_requested.emit(
-                preset.get("x1", 0), preset.get("y1", 0), preset.get("x2", 0), preset.get("y2", 0)
-            )
-
     # ── Live subtitles ───────────────────────────────────
-
-    def set_subtitles_active(self, active: bool) -> None:
-        """Main app: live subtitles started / stopped (also from the tray)."""
-        self._subtitles_active = active
-        self._update_subtitles_button()
-
-    def set_subtitles_status(self, message: str, kind: str = "info") -> None:
-        """Main app: the session's last status line (model loading, device, errors)."""
-        self._subtitles_status.setText(message)
-        self._subtitles_status.setStyleSheet(self._status_css(kind if kind in ("ok", "warn", "error") else "muted"))
-
-    def _update_subtitles_button(self) -> None:
-        self._btn_subtitles.setText(tr("Остановить субтитры") if self._subtitles_active else tr("Запустить субтитры"))
 
     def _subs_download_row(self, on_click):
         """A status label with a download button on the right: ``(label, button, row widget)``."""
@@ -1585,24 +1421,6 @@ class SettingsWidget(QWidget):
     def _set_subs_row(self, label, message: str, kind: str = "muted") -> None:
         label.setText(message)
         label.setStyleSheet(self._status_css(kind))
-
-    def _refresh_subs_filter_hint(self) -> None:
-        """Warn when the chosen model is English-only but another language or the filter is wanted."""
-        from audio import stt
-
-        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
-        wants_more = self._chk_subs_skip_foreign.isChecked() or (self._subs_lang_combo.currentData() or "en") != "en"
-        useless = wants_more and not stt.is_multilingual(name)
-        self._subs_filter_hint.setText(
-            tr(
-                "Модель {name} понимает только английский: для других языков и фильтра языка "
-                "выберите многоязычную модель small.",
-                name=name,
-            )
-            if useless
-            else ""
-        )
-        self._subs_filter_hint.setVisible(useless)
 
     # Speech model download.
 
@@ -1731,20 +1549,6 @@ class SettingsWidget(QWidget):
                 else tr("Скачивание отменено."),
                 "warn" if result else "muted",
             )
-
-    def _load_subtitle_devices(self) -> None:
-        """Fill the audio source combo: the default output plus every capturable device."""
-        from audio.capture import DEFAULT_DEVICE, display_name, list_loopback_devices
-
-        saved = getattr(config, "SUBTITLES_DEVICE", "") or DEFAULT_DEVICE
-        names = list_loopback_devices()
-        if saved and saved not in names:
-            names.append(saved)  # unplugged right now: keep the choice
-        self._subs_device_combo.clear()
-        self._subs_device_combo.addItem(tr("Устройство вывода по умолчанию"), DEFAULT_DEVICE)
-        for name in names:
-            self._subs_device_combo.addItem(display_name(name), name)
-        self._subs_device_combo.setCurrentIndex(max(0, self._subs_device_combo.findData(saved)))
 
     # ── App hotkeys ──────────────────────────────────────
 
@@ -2172,23 +1976,16 @@ class SettingsWidget(QWidget):
 
         # Hotkeys, regions and live monitoring.
         self._show_saved_hotkeys()
-        self.refresh_regions()
         self._live_interval_spin.setValue(int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10))
         sensitivity = getattr(config, "LIVE_SENSITIVITY", "medium") or "medium"
         self._live_sensitivity_combo.setCurrentIndex(max(0, self._live_sensitivity_combo.findData(sensitivity)))
         self._chk_live_keep_open.setChecked(bool(getattr(config, "LIVE_POPUP_KEEP_OPEN", True)))
 
         # Live subtitles.
-        self._load_subtitle_devices()
         subs_model = getattr(config, "SUBTITLES_MODEL", "") or _SUBTITLE_MODELS[0][0]
         self._subs_model_combo.setCurrentIndex(max(0, self._subs_model_combo.findData(subs_model)))
         subs_device = getattr(config, "SUBTITLES_STT_DEVICE", "auto") or "auto"
         self._subs_stt_device_combo.setCurrentIndex(max(0, self._subs_stt_device_combo.findData(subs_device)))
-        subs_lang = getattr(config, "SUBTITLES_LANGUAGE", "en") or "en"
-        self._subs_lang_combo.setCurrentIndex(max(0, self._subs_lang_combo.findData(subs_lang)))
-        self._chk_subs_streaming.setChecked(bool(getattr(config, "SUBTITLES_STREAMING", False)))
-        self._chk_subs_skip_foreign.setChecked(bool(getattr(config, "SUBTITLES_SKIP_FOREIGN", False)))
-        self._refresh_subs_filter_hint()
         self._refresh_subs_model_row()
         self._refresh_subs_gpu_row()
 
@@ -2215,10 +2012,8 @@ class SettingsWidget(QWidget):
             self._nllb_version_combo,
             self._live_sensitivity_combo,
             self._nllb_device_combo,
-            self._subs_device_combo,
             self._subs_model_combo,
             self._subs_stt_device_combo,
-            self._subs_lang_combo,
         ):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
@@ -2231,8 +2026,6 @@ class SettingsWidget(QWidget):
             self._chk_live_keep_open,
             self._chk_popup_compact,
             self._chk_click_through,
-            self._chk_subs_skip_foreign,
-            self._chk_subs_streaming,
         ):
             switch.toggled.connect(self._schedule_autosave)
         self._opacity_slider.valueChanged.connect(self._schedule_autosave)
@@ -2342,12 +2135,8 @@ class SettingsWidget(QWidget):
         cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
         cfg["live_popup_keep_open"] = self._chk_live_keep_open.isChecked()
         cfg["nllb_device"] = self._nllb_device_combo.currentData() or "auto"
-        cfg["subtitles_device"] = self._subs_device_combo.currentData() or ""
         cfg["subtitles_model"] = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
         cfg["subtitles_stt_device"] = self._subs_stt_device_combo.currentData() or "auto"
-        cfg["subtitles_skip_foreign"] = self._chk_subs_skip_foreign.isChecked()
-        cfg["subtitles_streaming"] = self._chk_subs_streaming.isChecked()
-        cfg["subtitles_language"] = self._subs_lang_combo.currentData() or "en"
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
         cfg["primary_provider"] = primary_choice
