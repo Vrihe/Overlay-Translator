@@ -569,14 +569,21 @@ SpeechRecognizer(model_name="small.en", *, model_dir=None, device="auto",
     .ensure_loaded()                # raises SttModelUnavailable
     .transcribe(audio) -> str
     .active_device / .model_dir / .load_seconds / .take_notice() / .unload()
-    .filters_language / .skipped_foreign
+    .filters_language / .skipped_foreign / .dropped_unreliable
+    # low_vram (config.SUBTITLES_LOW_VRAM): the GPU model is created with compute_type
+    # "int8_float16" instead of "float16" (about half the video memory); VRAM_MB holds the
+    # per-model figures shown in Settings → Субтитры (_refresh_subs_vram_hint)
+    # invented text: temperature=0 (no fallback retries); segments below MIN_AVG_LOGPROB, above
+    # MAX_NO_SPEECH_PROB or MAX_COMPRESSION_RATIO are dropped; is_known_artifact() removes
+    # Whisper's training-data artefacts (subtitle credits, a lone "thanks for watching")
 is_multilingual(name)                          # "small" yes, "small.en" no
 resolve_model_dir(name) / model_dirs(name)     # models/whisper-<name>, project then user data
 find_cudnn_dir() / prepare_cudnn()             # cudnn_ops64_9.dll → PATH
 
 # audio/stt_download.py — the only code that fetches a speech model (button in Settings → Subtitles)
 download_model(name, *, dest=None, progress=None, cancel=None) -> Path
-    # Systran/faster-whisper-<name> on the HF Hub → %APPDATA%\…\models\whisper-<name>,
+    # tiny.en / base.en / small.en / small / large-v3 from Systran, large-v3-turbo from
+    # mobiuslabsgmbh (REPOS) on the HF Hub → %APPDATA%\…\models\whisper-<name>,
     # through a resumable .part directory; LFS files are checked against their SHA-256
 is_downloadable(name) / download_dir(name) / REPOS / APPROX_MB
 
@@ -816,7 +823,12 @@ SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None
   parameters used day to day — `subtitles_device` (default output +
   `audio.capture.list_loopback_devices()`; a saved device that is unplugged stays in the
   list), `subtitles_language`, `subtitles_streaming`, `subtitles_skip_foreign` — each saved
-  into `config` the moment it changes and read at the next start. `reload()` runs when the tab
+  into `config` the moment it changes; running subtitles are restarted `RESTART_DELAY_MS`
+  after the last change (stop + start through `toggle_requested`). `session._default_recognizer`
+  never runs an English-only model on another speech language (it would invent English text):
+  it swaps in `MULTILINGUAL_MODEL` when that is on disk (`start_notice` → the status line) and
+  otherwise raises `SttModelUnavailable`, which `SubtitleSession.start()` reports as
+  `running_changed(False)` + an error status. `reload()` runs when the tab
   opens. The page names the chosen model, warns when it is not on disk or is English-only
   while another language / the filter is wanted, and `open_settings_requested` leads to
   Settings → Субтитры (`MainWindow.show_settings_section("subtitles")`).
