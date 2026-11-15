@@ -36,7 +36,7 @@ run.bat              # starts the app without a console window
 
 | Script | What it does |
 |---|---|
-| `install.bat` | Creates `.venv` and installs `requirements.txt` into it; `install.bat --gpu` also installs `requirements-gpu.txt` (cuBLAS for the local model on an NVIDIA GPU) |
+| `install.bat` | Creates `.venv` and installs `requirements.txt` and `requirements-voice.txt` into it; `install.bat --gpu` also installs `requirements-gpu.txt` (cuBLAS for the local model on an NVIDIA GPU) |
 | `download_model.bat` | Downloads the local NLLB model into `models/nllb-200-ct2-int8` (optional; arguments go to `scripts/download_model.py`) |
 | `run.bat` | Starts the app from `.venv`; `--console` keeps a console with logs, `--admin` starts it as Administrator (see the [FAQ](faq.md#the-hotkey-does-nothing-in-some-games-or-programs)) |
 
@@ -45,6 +45,7 @@ The same by hand:
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\pip install --no-deps -r requirements-voice.txt
 .venv\Scripts\python main.py
 ```
 
@@ -54,6 +55,7 @@ python -m venv .venv
 |---|---|
 | `requirements.txt` | The app, with OCR on any DirectX 12 GPU through DirectML |
 | `requirements-cpu.txt` | The app with CPU-only OCR (do not install both: they share a module name) |
+| `requirements-voice.txt` | Live subtitles (faster-whisper, PyAudioWPatch); always installed with `--no-deps`, otherwise pip replaces the DirectML ONNX Runtime |
 | `requirements-gpu.txt` | Optional cuBLAS for the local NLLB model on an NVIDIA GPU |
 | `requirements-dev.txt` | Tests, lint, type checks, git hooks, model conversion |
 | `requirements-train.txt` | Fine-tuning, in a separate `.venv-train` (see [Training](training.md)) |

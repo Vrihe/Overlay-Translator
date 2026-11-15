@@ -45,6 +45,11 @@ echo [3/3] Installing dependencies from requirements.txt (first run takes a few 
 "%VENV_PY%" -m pip install -r requirements.txt
 if errorlevel 1 goto :fail
 
+echo.
+echo [+] Installing live-subtitle packages (requirements-voice.txt)...
+"%VENV_PY%" -m pip install --no-deps -r requirements-voice.txt
+if errorlevel 1 goto :fail
+
 if /i "%~1"=="--gpu" (
     echo.
     echo [+] Installing cuBLAS for GPU ^(requirements-gpu.txt, ~740 MB^)...

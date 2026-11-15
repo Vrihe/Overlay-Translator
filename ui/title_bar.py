@@ -79,6 +79,16 @@ def install_native_frame(window: QWidget) -> None:
         pass
 
 
+def refresh_frame(window: QWidget) -> None:
+    """Make Windows and Qt recalculate the frame (``WM_NCCALCSIZE``) without moving the window."""
+    if not ENABLED:
+        return
+    try:
+        _user32().SetWindowPos(int(window.winId()), None, 0, 0, 0, 0, _SWP_FRAMECHANGED)
+    except Exception:
+        pass
+
+
 def _frame_thickness(hwnd) -> int:
     """Width of the invisible resize frame Windows adds around a maximised window."""
     u = ctypes.windll.user32

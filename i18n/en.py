@@ -184,7 +184,6 @@ MESSAGES: dict[str, str] = {
     "Версия {tag} ещё не скачана. Нажмите «Скачать» (~600 МБ).": "Version {tag} is not downloaded yet. Click “Download” (~600 MB).",
     "⏳ Скачивание {tag}…": "⏳ Downloading {tag}…",
     "⏳ Скачивание {tag}: {done} / {total} МБ ({pct}%)": "⏳ Downloading {tag}: {done} / {total} MB ({pct}%)",
-    "⚠ Не удалось скачать модель: {error}": "⚠ Could not download the model: {error}",
     "Скачивание отменено.": "Download cancelled.",
     "Исходный язык:": "Source language:",
     "ID модели:": "Model ID:",
@@ -322,7 +321,6 @@ MESSAGES: dict[str, str] = {
     "Перевести область": "Translate region",
     "Мониторинг": "Monitor",
     "Остановить мониторинг": "Stop monitoring",
-    "Переводить выбранную область снова, когда в ней меняется текст (проверка каждые {seconds} сек).": "Translate the selected area again when its text changes (checked every {seconds} s).",
     "Новый профиль контекста": "New context profile",
     "+ Добавить пример": "+ Add example",
     "+ Новый профиль": "+ New profile",
@@ -359,17 +357,11 @@ MESSAGES: dict[str, str] = {
     # ── Settings → Regions (ui/settings_dialog.py, capture/live_monitor.py) ──
     "Регионы": "Regions",
     "Бинды регионов — в разделе «Регионы».": "Region binds are in the Regions section.",
-    "Сохранённые области экрана. Бинд переводит область сразу, без выделения. «Мониторинг» "
-    "следит за выбранной областью; в «Управлении» — переименовать, удалить или назначить бинд.": "Saved screen areas. A bind translates the area at once, without selecting it. Monitor "
-    "watches the selected area; Manage renames, deletes or sets a bind.",
     "Добавить регион": "Add region",
     "Управление…": "Manage…",
     "без бинда": "no bind",
     "Регионов пока нет: нажмите «Добавить регион».": "No regions yet: click Add region.",
     "Живой мониторинг": "Live monitoring",
-    "Мониторинг переводит область снова, когда в ней меняется текст. Запускается кнопкой выше "
-    "или из меню трея; новые значения действуют со следующего запуска.": "Monitoring translates an area again when its text changes. Start it with the button "
-    "above or from the tray menu; new values apply from the next start.",
     "Проверять каждые:": "Check every:",
     "Чувствительность к изменениям:": "Sensitivity to changes:",
     "Высокая — ловит даже мелкие изменения": "High — catches even small changes",
@@ -439,4 +431,134 @@ MESSAGES: dict[str, str] = {
     "1. Нажмите {hotkey} и выделите область экрана с текстом.": "1. Press {hotkey} and select an area of the screen with text.",
     "2. Перевод появится рядом с выделенной областью.": "2. The translation appears next to the selected area.",
     "3. Настройки — {hotkey} или значок приложения в трее рядом с часами.": "3. Settings: {hotkey} or the app icon in the tray next to the clock.",
+    # ── Speech recognition (audio/) ──
+    "Модель распознавания речи {name} не найдена. Искали в:\n": "The speech recognition model {name} was not found. Searched in:\n",
+    "Не установлен пакет faster-whisper для распознавания речи.": "The faster-whisper package for speech recognition is not installed.",
+    "CUDA недоступна, распознавание речи на CPU ({reason})": "CUDA unavailable, speech recognition runs on the CPU ({reason})",
+    "Не удалось загрузить модель распознавания речи из {path}: {error}": "Failed to load the speech recognition model from {path}: {error}",
+    # ── Live subtitles (audio/, ui/subtitle_window.py, settings) ──
+    "Не установлен пакет PyAudioWPatch для захвата звука.": "The PyAudioWPatch package for audio capture is not installed.",
+    "Не удалось начать захват звука: {error}": "Failed to start audio capture: {error}",
+    "Не найдено устройство вывода звука для захвата.": "No audio output device to capture was found.",
+    "Загрузка модели распознавания речи…": "Loading the speech recognition model…",
+    "Слушаю: {device}": "Listening to: {device}",
+    "Выбранное устройство не найдено, используется устройство по умолчанию.": "The chosen device was not found; the default device is used.",
+    "Ошибка перевода: {error}": "Translation error: {error}",
+    "Субтитры": "Subtitles",
+    "Живые субтитры": "Live subtitles",
+    "Запустить субтитры": "Start subtitles",
+    "Запустить мониторинг": "Start monitoring",
+    "Функции": "Features",
+    "Мониторинг региона": "Region monitoring",
+    "Перевод речи из звука компьютера полосой поверх окон.": "Translates speech in the computer's audio in a "
+    "strip over other windows.",
+    "Следить за регионом, выбранным на вкладке «Мониторинг», и переводить его при изменениях.": "Watch the region "
+    "selected on the Monitoring tab and translate it when it changes.",
+    "Мониторинг идёт.": "Monitoring is running.",
+    "Область проверяется каждые {seconds} сек.": "The region is checked every {seconds} s.",
+    "Интервал и чувствительность": "Interval and sensitivity",
+    "Переименовать, удалить регион или назначить ему бинд.": "Rename or delete a region, or give it a bind.",
+    "Сохранённые области экрана. Бинд переводит область сразу, без выделения. "
+    "Мониторинг следит за выбранной областью и переводит её снова, когда в ней "
+    "меняется текст.": "Saved screen regions. A bind translates the region at once, without selecting it. "
+    "Monitoring watches the selected region and translates it again when its text changes.",
+    "Мониторинг переводит область снова, когда в ней меняется текст. "
+    "Запускается на вкладке «Мониторинг» или из меню трея, там же — список регионов; "
+    "новые значения действуют со следующего запуска.": "Monitoring translates the region again when its text "
+    "changes. It is started on the Monitoring tab or from the tray menu, where the list of regions is too; "
+    "new values apply from the next start.",
+    "Параметры": "Parameters",
+    "Источник звука": "Audio source",
+    "Язык речи": "Speech language",
+    "Распознаёт речь из звука компьютера (стрим, видео, голосовой чат) и показывает "
+    "перевод полосой поверх окон. Перевод идёт способом, выбранным в настройках.": "Recognises speech in the "
+    "computer's audio (a stream, a video, voice chat) and shows the translation in a strip over other windows. "
+    "The translation uses the method chosen in the settings.",
+    "Изменения применяются сразу: работающие субтитры перезапускаются.": "Changes apply at once: running "
+    "subtitles are restarted.",
+    "Модель {name} понимает только английский. Для другого языка речи скачайте "
+    "в настройках многоязычную модель {model} или выберите английский.": "Model {name} understands English only. "
+    "For another speech language download the multilingual model {model} in the settings, or choose English.",
+    "Модель {name} понимает только английский: используется многоязычная {model}.": "Model {name} understands "
+    "English only: the multilingual {model} is used.",
+    "Модель и видеокарта": "Model and GPU",
+    "Модель {name} не скачана — без неё субтитры не запустятся. Скачайте её в настройках.": "Model {name} is not "
+    "downloaded — subtitles will not start without it. Download it in the settings.",
+    "Модель распознавания: {name}": "Recognition model: {name}",
+    "Модель распознавания речи и библиотеки для видеокарты: то, что настраивают один раз. "
+    "Распознавание идёт на этом компьютере. Запуск, источник звука, язык речи и режимы — "
+    "на вкладке «Субтитры». Новые значения действуют со следующего запуска субтитров.": "The speech recognition "
+    "model and the GPU libraries: what is set up once. Recognition runs on this computer. Starting, the audio "
+    "source, the speech language and the modes are on the Subtitles tab. New values apply the next time subtitles "
+    "are started.",
+    "Скачать модель": "Download the model",
+    "Экономить видеопамять (сжатие int8)": "Save video memory (int8 compression)",
+    "Модель загружается на видеокарту в сжатом виде: видеопамяти нужно примерно вдвое "
+    "меньше, а точность распознавания слегка падает. Файл модели на диске не меняется.": "The model is loaded onto "
+    "the GPU compressed: it needs about half the video memory, and recognition is slightly less accurate. The model "
+    "file on disk does not change.",
+    "Модель {name} займёт около {low} МБ видеопамяти вместо {normal} МБ. "
+    "Качество распознавания слегка упадёт.": "Model {name} will take about {low} MB of video memory instead of "
+    "{normal} MB. Recognition quality will drop slightly.",
+    "Модель {name} займёт около {normal} МБ видеопамяти; с экономией — около {low} МБ.": "Model {name} will take "
+    "about {normal} MB of video memory; with saving on — about {low} MB.",
+    "large-v3-turbo — многоязычная, заметно точнее и почти так же быстра; 1,5 ГБ": "large-v3-turbo — multilingual, "
+    "clearly more accurate and almost as fast; 1.5 GB",
+    "large-v3 — самая точная, медленнее; 3 ГБ, видеокарта от 6 ГБ памяти": "large-v3 — the most accurate, slower; "
+    "3 GB, a GPU with 6 GB of memory or more",
+    "small — многоязычная, для фильтра языка; нужна видеокарта NVIDIA": "small — multilingual, for the language "
+    "filter; needs an NVIDIA GPU",
+    "Пропускать речь на других языках": "Skip speech in other languages",
+    "Модель {name} понимает только английский: для других языков и фильтра языка "
+    "выберите многоязычную модель small.": "Model {name} understands English only: for other languages and the "
+    "language filter choose the multilingual model small.",
+    "Потоковые субтитры: показывать фразу по ходу речи": "Streaming subtitles: show the phrase as it is spoken",
+    "Перевод появляется примерно раз в секунду, пока человек ещё говорит, и уточняется "
+    "в конце фразы. Нагружает видеокарту сильнее, а платный перевод через API "
+    "вызывается в несколько раз чаще.": "The translation appears about once a second while the person is still "
+    "speaking and is refined when the phrase ends. It loads the GPU more, and a paid translation API is called "
+    "several times more often.",
+    "Для голосовых чатов, где говорят на разных языках: фразы не на выбранном языке "
+    "речи не показываются. Работает только с многоязычной моделью small.": "For voice chats where several languages "
+    "are spoken: phrases that are not in the chosen speech language are not shown. Works only with the multilingual "
+    "model small.",
+    "✓ Модель {name} установлена.": "✓ Model {name} is installed.",
+    "Модель {name} не скачана: ~{size} МБ. Без неё субтитры не запустятся.": "Model {name} is not downloaded: ~{size} MB. "
+    "Subtitles will not start without it.",
+    "⏳ Скачивание модели {name}…": "⏳ Downloading model {name}…",
+    "⏳ Скачивание модели: {done} / {total} МБ ({pct}%)": "⏳ Downloading the model: {done} / {total} MB ({pct}%)",
+    "⚠ Не удалось скачать модель: {error}": "⚠ Could not download the model: {error}",
+    "Библиотеки CUDA есть, но выбрано «Только процессор»: видеокарта не используется.": "The CUDA libraries are there, "
+    "but “CPU only” is selected: the GPU is not used.",
+    "✓ Библиотеки CUDA найдены: распознавание работает на видеокарте NVIDIA.": "✓ CUDA libraries found: "
+    "speech recognition runs on the NVIDIA GPU.",
+    "Драйвер NVIDIA слишком старый для CUDA 12. Обновите драйвер, чтобы распознавать на видеокарте.": "The NVIDIA driver "
+    "is too old for CUDA 12. Update the driver to recognise speech on the GPU.",
+    "На видеокарте NVIDIA распознавание намного быстрее. Нужны библиотеки CUDA "
+    "(cuDNN и cuBLAS): до ~1,2 ГБ загрузки, ~1,8 ГБ на диске. Без них — на процессоре.": "Speech recognition is much "
+    "faster on an NVIDIA GPU. It needs the CUDA libraries (cuDNN and cuBLAS): up to ~1.2 GB to download, ~1.8 GB on "
+    "disk. Without them it runs on the CPU.",
+    "⏳ Скачивание библиотек CUDA…": "⏳ Downloading the CUDA libraries…",
+    "⏳ Скачивание {name}: {done} / {total} МБ ({pct}%)": "⏳ Downloading {name}: {done} / {total} MB ({pct}%)",
+    "⚠ Не удалось скачать библиотеки CUDA: {error}": "⚠ Could not download the CUDA libraries: {error}",
+    "Остановить субтитры": "Stop subtitles",
+    "Устройство вывода по умолчанию": "Default output device",
+    "Модель распознавания:": "Recognition model:",
+    "Устройство распознавания:": "Recognition device:",
+    "small.en — точнее, нужна видеокарта NVIDIA": "small.en — more accurate, needs an NVIDIA GPU",
+    "base.en — быстрее, подходит для процессора": "base.en — faster, fine for a CPU",
+    "tiny.en — самая быстрая, больше ошибок": "tiny.en — the fastest, more mistakes",
+    # ── Unobtrusive popup (ui/overlay_behavior.py, settings) ──
+    "Ненавязчивость": "Unobtrusiveness",
+    "Попап не забирает фокус у игры и в покое показывает приглушённую рамку. "
+    "Под курсором он становится непрозрачным. Прозрачность и клики сквозь окно "
+    "действуют и на полосу живых субтитров.": "The popup never takes the focus from a game and shows a dim frame at rest. "
+    "Under the cursor it becomes opaque. Opacity and click-through "
+    "also apply to the live subtitle strip.",
+    "Непрозрачность в покое": "Opacity at rest",
+    "Компактный попап: заголовок и кнопки только под курсором": "Compact popup: title and buttons only under the cursor",
+    "Клики сквозь попап (зажмите Alt, чтобы двигать и нажимать)": "Click through the popup (hold Alt to move and click it)",
+    "Попап и полоса субтитров не перехватывают мышь: клики попадают в игру под ними. "
+    "Пока зажат Alt и курсор над окном, оно ведёт себя как обычно.": "The popup and the subtitle strip do not catch the mouse: clicks reach the game below them. "
+    "While Alt is held with the cursor over the window, it behaves as usual.",
 }

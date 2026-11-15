@@ -405,6 +405,7 @@ class TranslatorApp:
             self._tray.act_show_window.triggered.connect(self._toggle_main_window)
             self._tray.act_translate.triggered.connect(self._show_selector)
             self._tray.act_live_monitor.triggered.connect(self._toggle_live_monitoring)
+            self._tray.act_subtitles.triggered.connect(self._toggle_subtitles)
             self._tray.act_settings.triggered.connect(
                 lambda: self._main_window.show_and_switch(MainWindow.PAGE_SETTINGS)
             )
@@ -425,6 +426,9 @@ class TranslatorApp:
         self._main_window.manage_regions_requested.connect(self._show_presets_dialog)
         self._main_window.monitor_region_requested.connect(self._on_preset_monitor)
         self._main_window.stop_monitoring_requested.connect(self._stop_live_monitoring)
+        self._main_window.subtitles_toggle_requested.connect(self._toggle_subtitles)
+        self._subtitle_session = None  # audio.session.SubtitleSession, created on first use
+        self._subtitle_window = None  # ui.subtitle_window.SubtitleWindow
         self._main_window.show()
 
         # ── Hotkey bridges ───────────────────────────────
@@ -777,6 +781,51 @@ class TranslatorApp:
                     2000,
                 )
 
+    # ── Live subtitles ───────────────────────────────────
+
+    def _toggle_subtitles(self, checked: bool) -> None:
+        """Tray item / Settings → Subtitles button: start or stop live subtitles."""
+        try:
+            if not checked:
+                if self._subtitle_session is not None:
+                    self._subtitle_session.stop()
+                return
+            if self._subtitle_session is None:
+                # Lazy: PyAudio, faster-whisper and ctranslate2 load only when subtitles are used.
+                from audio.session import SubtitleSession
+                from ui.subtitle_window import SubtitleWindow
+
+                self._subtitle_window = SubtitleWindow()
+                self._subtitle_session = SubtitleSession()
+                self._subtitle_session.subtitle.connect(lambda _source, text: self._subtitle_window.add_line(text))
+                self._subtitle_session.subtitle_partial.connect(
+                    lambda _source, text: self._subtitle_window.set_partial(text)
+                )
+                self._subtitle_session.status.connect(self._on_subtitles_status)
+                self._subtitle_session.running_changed.connect(self._on_subtitles_running)
+            self._subtitle_session.start()
+        except Exception:
+            logging.exception("Error toggling live subtitles")
+            self._on_subtitles_running(False)
+
+    def _on_subtitles_status(self, message: str, kind: str) -> None:
+        self._main_window.set_subtitles_status(message, kind)
+        if self._subtitle_window is not None:
+            self._subtitle_window.set_status(message, kind)
+        # An error that stopped the subtitles (no model, no audio device) also goes to the
+        # tray; a failed translation of one phrase only shows in the strip.
+        stopped = self._subtitle_session is not None and not self._subtitle_session.is_running
+        if kind == "error" and stopped and self._tray is not None:
+            self._tray.showMessage(tr("Живые субтитры"), message, TrayIcon.Warning, 5000)
+
+    def _on_subtitles_running(self, running: bool) -> None:
+        self._main_window.set_subtitles_active(running)
+        if self._tray is not None:
+            self._tray.act_subtitles.setChecked(running)
+        if not running and self._subtitle_window is not None:
+            self._subtitle_window.clear_lines()
+            self._subtitle_window.set_status("")  # the reason for a stop arrives right after
+
     # ── Region Presets ─────────────────────────────────
 
     def _register_app_hotkeys(self) -> None:
@@ -1006,7 +1055,7 @@ class TranslatorApp:
                 # A translation error carries the recognised text: keep it out of the log.
                 logged = error_msg.replace(source, loggable(source)) if source else error_msg
                 logging.warning("Translation finished with error: %s", logged)
-                self._show_error(error_msg, anchor, activate=not live)
+                self._show_error(error_msg, anchor)
             else:
                 logging.info(
                     f"Translation finished successfully. Source length: {len(source)}, Translated length: {len(translated)}"
@@ -1017,7 +1066,7 @@ class TranslatorApp:
                 if feed is not None:
                     feed.add(datetime.now().strftime("%H:%M:%S"), translated)
                     blocks = feed.blocks
-                self._show_result(source, translated, anchor, notice=notice, activate=not live, blocks=blocks)
+                self._show_result(source, translated, anchor, notice=notice, blocks=blocks)
             if live and self._popup is not None and getattr(self, "_live_monitor", None) is not None:
                 self._popup.set_monitoring(True)  # its header offers "stop monitoring"
         except Exception:
@@ -1042,7 +1091,6 @@ class TranslatorApp:
         translated: str,
         anchor: QRect,
         notice: str = "",
-        activate: bool = True,
         blocks: list[tuple[str, str]] | None = None,
     ) -> None:
         try:
@@ -1056,7 +1104,6 @@ class TranslatorApp:
                 notice=notice,
                 tray_icon=self._tray,
                 existing_popup=self._popup,
-                activate=activate,
                 position=self._user_popup_pos.get(_anchor_key(anchor)),
                 blocks=blocks,
             )
@@ -1064,7 +1111,7 @@ class TranslatorApp:
         except Exception:
             logging.exception("Error showing result popup")
 
-    def _show_error(self, message: str, anchor: QRect, activate: bool = True) -> None:
+    def _show_error(self, message: str, anchor: QRect) -> None:
         try:
             from ui.result_popup import show_result
 
@@ -1075,7 +1122,6 @@ class TranslatorApp:
                 is_error=True,
                 tray_icon=self._tray,
                 existing_popup=self._popup,
-                activate=activate,
                 position=self._user_popup_pos.get(_anchor_key(anchor)),
             )
             self._set_popup(popup)
@@ -1116,6 +1162,8 @@ class TranslatorApp:
         try:
             logging.info("Shutting down application...")
             keyboard.unhook_all()
+            if self._subtitle_session is not None:
+                self._subtitle_session.stop()
             self._close_popup()
             self._main_window.closeEvent = lambda e: e.accept()
             self._main_window.close()

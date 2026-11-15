@@ -2,9 +2,12 @@
 ui/result_popup.py — lightweight floating popup and notification helper.
 
 Design goals:
-  • Non-intrusive — compact, near-opaque HUD card (1 px accent frame), instant appearance
+  • Non-intrusive — a HUD card that never takes the keyboard focus, is translucent
+    (Settings → Popup) with a dim frame until the cursor is over it, and can hide its header
+    ("compact") or let clicks through unless Alt is held (ui/overlay_behavior.py)
   • Resizable & Draggable — stretchable from the left, right and bottom edges and bottom corners
-    (the top edge is the drag handle; max 850x550, min 300x80);
+    (the top edge is the drag handle; max 850x550, min 300x44); without a saved size
+    the height fits the wrapped text exactly;
     a size set by hand is saved (``config.POPUP_SIZE``) and reused by later updates,
     popups and launches (text wraps to it)
   • Streaming — partial text goes to the body (``show_partial``), the header keeps
@@ -12,8 +15,8 @@ Design goals:
   • Clean header with icon buttons (speak / copy / close) — window remains open on focus
     loss or window body clicks
   • Strict screen bounds — wrapped in QScrollArea, never exceeds monitor bounds
-  • Dismissable — close button, Escape key, or the auto-hide timeout (Settings → Popup,
-    3 s – 10 min, read at every start)
+  • Dismissable — close button, Escape (once the popup was clicked: it has no focus
+    before that), or the auto-hide timeout (Settings → Popup, 3 s – 10 min, read at every start)
 """
 
 import ctypes
@@ -46,7 +49,7 @@ from PyQt5.QtWidgets import (
 
 import config
 from i18n import tr
-from ui import icons, theme
+from ui import icons, overlay_behavior, theme
 
 #: SetWindowDisplayAffinity: shown on screen, left out of every capture.
 _WDA_EXCLUDEFROMCAPTURE = 0x11
@@ -62,12 +65,13 @@ class ResultPopup(QWidget):
 
     _MIN_WIDTH = 300
     _MAX_WIDTH = 850
-    _MIN_HEIGHT = 80
+    _MIN_HEIGHT = 44  # one line of text without the header (compact mode)
     _MAX_HEIGHT = 550
     _RESIZE_MARGIN = 8
     _FADE_DURATION = 150  # ms for smooth fade-out on close
     _MARGIN = 10  # gap between popup and selection edge
     _ICON_SIZE = 14  # header icon buttons
+    _FRESH_MS = 1500  # a new result keeps the accent frame this long
 
     def __init__(
         self,
@@ -110,6 +114,15 @@ class ResultPopup(QWidget):
         self._resized = False
         self._moved_by_user = False
         self._monitoring = False  # updated by live monitoring: offer its stop button
+        # The cursor is over the popup (click-through: with Alt held): solid, header shown.
+        self._engaged = False
+        self._header: QWidget | None = None
+        # A result that just arrived: the accent frame for a moment, then the dim one.
+        self._fresh = not is_loading
+        self._fresh_timer = QTimer(self)
+        self._fresh_timer.setSingleShot(True)
+        self._fresh_timer.timeout.connect(self._on_fresh_expired)
+        self._watcher = overlay_behavior.EngageWatcher(self, self._on_engaged_changed)
 
         self._setup_window()
         self._build_ui()
@@ -120,13 +133,17 @@ class ResultPopup(QWidget):
 
     def _setup_window(self) -> None:
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        # Opaque on purpose: a translucent (UpdateLayeredWindow) window cannot be kept
-        # out of screen captures, see _exclude_from_capture().
+        # No WA_TranslucentBackground on purpose: such (UpdateLayeredWindow) windows cannot
+        # be kept out of screen captures, see _exclude_from_capture(). Whole-window opacity
+        # (setWindowOpacity) is fine.
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
+        # Never take the keyboard from the game or stream the user is in; a click on
+        # the popup still activates it (Esc, text selection).
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
-        self.setWindowOpacity(1.0)  # Instant show — no delay
+        self.setWindowOpacity(overlay_behavior.rest_opacity())
 
     # ── Show ─────────────────────────────────────────────
 
@@ -146,11 +163,47 @@ class ResultPopup(QWidget):
         super().show()
         self._exclude_from_capture()
         self.raise_()
-        self.activateWindow()
-        self.setFocus()
+        self._watcher.start()
 
         if not self._is_loading:
             self._start_auto_timer()
+            self._fresh_timer.start(self._FRESH_MS)
+
+    def hideEvent(self, event) -> None:
+        self._watcher.stop()
+        super().hideEvent(event)
+
+    # ── Unobtrusive behaviour (ui/overlay_behavior.py) ───
+
+    def _on_engaged_changed(self, engaged: bool) -> None:
+        self._engaged = engaged
+        self._sync_header()
+        self.update()  # the frame: accent while engaged, dim at rest
+
+    def _on_fresh_expired(self) -> None:
+        self._fresh = False
+        self.update()
+
+    def _header_wanted(self) -> bool:
+        """Compact mode hides the header (title and buttons) until the popup is engaged."""
+        return self._is_loading or self._engaged or not overlay_behavior.compact()
+
+    def _header_delta(self) -> int:
+        """Height the header adds to the card."""
+        if self._header is None:
+            return 0
+        return self._header.sizeHint().height() + self._card.layout().spacing()
+
+    def _sync_header(self) -> None:
+        """Show / hide the header; the window grows upwards so the text does not move."""
+        if self._header is None or self._closing or self._header.isHidden() != self._header_wanted():
+            return
+        show = self._header_wanted()
+        delta = self._header_delta()
+        g = self.geometry()
+        height = min(self._MAX_HEIGHT, g.height() + delta) if show else max(self._MIN_HEIGHT, g.height() - delta)
+        self._header.setVisible(show)
+        self.setGeometry(g.x(), g.y() - (height - g.height()), g.width(), height)
 
     def _exclude_from_capture(self) -> None:
         """Keep the popup out of screen captures (Windows 10 2004+).
@@ -201,6 +254,7 @@ class ResultPopup(QWidget):
 
         if hasattr(self, "_auto_timer") and self._auto_timer.isActive():
             self._auto_timer.stop()
+        self._watcher.stop()  # the fade owns the opacity from here
 
         self._fade_anim = QPropertyAnimation(self, b"windowOpacity")
         self._fade_anim.setDuration(self._FADE_DURATION)
@@ -241,8 +295,11 @@ class ResultPopup(QWidget):
         card_layout.setContentsMargins(12, 8, 12, 10)
         card_layout.setSpacing(6)
 
-        # Header bar: Title/loading status on left + Close button ("✕") on right
-        header_row = QHBoxLayout()
+        # Header bar: Title/loading status on left + Close button ("✕") on right.
+        # A widget of its own so that compact mode can hide it (_sync_header).
+        self._header = QWidget(self._card)
+        self._header.setStyleSheet("background: transparent;")
+        header_row = QHBoxLayout(self._header)
         header_row.setContentsMargins(0, 0, 0, 2)
         header_row.setSpacing(6)
 
@@ -294,7 +351,8 @@ class ResultPopup(QWidget):
         self._btn_close.clicked.connect(self._fade_out_and_close)
         header_row.addWidget(self._btn_close)
 
-        card_layout.addLayout(header_row)
+        card_layout.addWidget(self._header)
+        self._header.setVisible(self._header_wanted())
 
         # Scrollable container for text
         self._scroll_area = QScrollArea(self._card)
@@ -493,14 +551,13 @@ class ResultPopup(QWidget):
         *,
         is_error: bool = False,
         notice: str = "",
-        activate: bool = True,
         blocks: list[tuple[str, str]] | None = None,
     ) -> None:
         """Update popup content from loading state to final result in-place,
         fitting the window snugly to the translated content size.
 
-        ``activate=False`` (live monitoring updates) keeps it on top without taking
-        the keyboard focus from the game or browser being watched.
+        The popup stays on top but is never activated: the keyboard focus stays with
+        the game or browser the user is in.
         """
         if self._closing:
             return
@@ -532,11 +589,10 @@ class ResultPopup(QWidget):
             QTimer.singleShot(0, lambda: self._restore_scroll(scroll))
 
         self._start_auto_timer()
+        self._fresh = True
+        self._fresh_timer.start(self._FRESH_MS)
 
         self.raise_()
-        if activate:
-            self.activateWindow()
-            self.setFocus()
         self.update()
 
     def _scroll_state(self) -> tuple[int, bool] | None:
@@ -563,7 +619,10 @@ class ResultPopup(QWidget):
 
         remembered = self.saved_size()
         if remembered is not None:
-            self.resize(remembered)  # labels word-wrap to it; the scroll area takes the rest
+            # Labels word-wrap to it; the scroll area takes the rest. The saved size is
+            # the popup at rest: a compact popup showing its header is that much taller.
+            extra = self._header_delta() if self._compact_header_shown() else 0
+            self.resize(remembered.width(), min(self._MAX_HEIGHT, remembered.height() + extra))
             return
 
         self.layout().activate()
@@ -576,34 +635,27 @@ class ResultPopup(QWidget):
         h = max(self._MIN_HEIGHT, min(self._MAX_HEIGHT, hint.height()))
         self.resize(w, h)
 
-        # QScrollArea's size hint ignores word wrap: grow to the wrapped text height.
+        # QScrollArea's size hint ignores word wrap and never goes below its default
+        # (a short text left an empty half of the popup): size to the wrapped text
+        # exactly, growing and shrinking. Measured from the layout, not the viewport,
+        # whose geometry is stale before the first show.
         content = self._scroll_area.widget() if self._scroll_area is not None else None
         if content is not None:
-            self.layout().activate()
-            viewport = self._scroll_area.viewport()
+            card_layout = self._card.layout()
+            margins = card_layout.contentsMargins()
+            inner = w - margins.left() - margins.right()
             if self._fit_widgets:
-                # The scroll area's hint counts the whole history: size to the newest block
-                # exactly (shrinking too), the older blocks scroll below it. Measured from
-                # the layout, not the viewport, whose geometry is stale before the first show.
-                card_layout = self._card.layout()
-                margins = card_layout.contentsMargins()
-                needed = self._newest_block_height(w - margins.left() - margins.right())
-                # Header row + gaps, from the layout itself: the window's size hint is capped
-                # by the card's maximum height, which made this depend on the history length.
-                header = card_layout.itemAt(0).sizeHint().height()
-                chrome = margins.top() + margins.bottom() + card_layout.spacing() + header
-                h = max(self._MIN_HEIGHT, min(self._MAX_HEIGHT, chrome + needed))
-                self.resize(w, h)
-                return
+                # A region's history: fit the newest block, the older ones scroll below it.
+                needed = self._newest_block_height(inner)
+            elif content.hasHeightForWidth():
+                needed = content.heightForWidth(inner)
             else:
-                needed = (
-                    content.heightForWidth(viewport.width())
-                    if content.hasHeightForWidth()
-                    else content.sizeHint().height()
-                )
-            if needed > viewport.height():
-                h = min(self._MAX_HEIGHT, self.height() + needed - viewport.height())
-                self.resize(w, h)
+                needed = content.sizeHint().height()
+            # Header row + gaps, from the layout itself: the window's size hint is capped
+            # by the card's maximum height, which made this depend on the history length.
+            header = self._header_delta() if not self._header.isHidden() else 0
+            chrome = margins.top() + margins.bottom() + header
+            self.resize(w, max(self._MIN_HEIGHT, min(self._MAX_HEIGHT, chrome + needed)))
 
     def _newest_block_height(self, width: int) -> int:
         """Height of the content down to the end of the newest block (and its notice)."""
@@ -698,13 +750,24 @@ class ResultPopup(QWidget):
         h = max(cls._MIN_HEIGHT, min(cls._MAX_HEIGHT, h))
         return QSize(w, h)
 
+    def _compact_header_shown(self) -> bool:
+        """Compact mode, and the header is on screen only because the popup is engaged."""
+        return (
+            overlay_behavior.compact()
+            and not self._is_loading
+            and self._header is not None
+            and not self._header.isHidden()
+        )
+
     def _finish_resize(self) -> None:
         """Persist the size once a resize drag ends (not on every mouse move)."""
         if not self._resized:
             return
         self._resized = False
+        # Saved as the size at rest: without the header a compact popup shows only now.
+        extra = self._header_delta() if self._compact_header_shown() else 0
         try:
-            config.POPUP_SIZE = [self.width(), self.height()]
+            config.POPUP_SIZE = [self.width(), max(self._MIN_HEIGHT, self.height() - extra)]
         except Exception:
             pass  # settings file not writable: the size still applies to this popup
 
@@ -822,10 +885,10 @@ class ResultPopup(QWidget):
         r = self.rect().adjusted(0, 0, -1, -1)
         painter.fillRect(self.rect(), theme.qcolor("bg"))
 
-        if self._is_loading:
-            border = theme.qcolor("dim")
-        elif self._is_error:
+        if self._is_error:
             border = theme.qcolor("error")
+        elif self._is_loading or not (self._engaged or self._fresh):
+            border = theme.qcolor("dim")  # at rest the frame does not shout
         else:
             border = theme.qcolor("accent")
         painter.setPen(QPen(border, 1))
@@ -927,14 +990,12 @@ def show_result(
     notice: str = "",
     tray_icon=None,
     existing_popup: ResultPopup | None = None,
-    activate: bool = True,
     position: QPoint | None = None,
     blocks: list[tuple[str, str]] | None = None,
 ) -> ResultPopup | None:
     """Display translation result or error via popup or Windows toast according
-    to config.NOTIFICATION_TYPE. ``activate=False``: an open popup is updated
-    without taking the keyboard focus (live monitoring). ``position``: a new popup
-    opens there (where the user dragged the last popup of this region).
+    to config.NOTIFICATION_TYPE. An open popup is updated in place. ``position``: a new
+    popup opens there (where the user dragged the last popup of this region).
     """
     if config.NOTIFICATION_TYPE == "windows_toast":
         if existing_popup is not None and not existing_popup._closing:
@@ -958,9 +1019,7 @@ def show_result(
         return None
     else:
         if existing_popup is not None and not existing_popup._closing:
-            existing_popup.update_content(
-                source_text, translated_text, is_error=is_error, notice=notice, activate=activate, blocks=blocks
-            )
+            existing_popup.update_content(source_text, translated_text, is_error=is_error, notice=notice, blocks=blocks)
             return existing_popup
         else:
             popup = ResultPopup(source_text, translated_text, anchor, is_error=is_error, notice=notice, blocks=blocks)

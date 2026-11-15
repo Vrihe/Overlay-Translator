@@ -93,3 +93,57 @@ class NllbDownloadWorker(_ProgressMixin, QThread):
             self.finished_with_status.emit(False, "")
         except Exception as e:
             self.finished_with_status.emit(False, str(e))
+
+
+class SpeechModelDownloadWorker(_ProgressMixin, QThread):
+    """Download a Whisper model for live subtitles (``audio/stt_download.py``)."""
+
+    progress_changed = pyqtSignal(int, int, int)  # (percent, done MiB, total MiB)
+    finished_with_status = pyqtSignal(bool, str)  # (ok, model path | error | "" if cancelled)
+
+    def __init__(self, model_name: str, parent=None):
+        super().__init__(parent)
+        self.model_name = model_name
+        self.cancel = threading.Event()
+        self._last_percent = -1
+
+    def run(self) -> None:
+        from audio.stt_download import DownloadCancelled, download_model
+
+        try:
+            path = download_model(self.model_name, progress=self._on_progress, cancel=self.cancel)
+            self.finished_with_status.emit(True, str(path))
+        except DownloadCancelled:
+            self.finished_with_status.emit(False, "")
+        except Exception as e:
+            self.finished_with_status.emit(False, str(e))
+
+
+class SpeechCudaDownloadWorker(_ProgressMixin, QThread):
+    """Download what Whisper needs on an NVIDIA GPU: cuDNN, and cuBLAS when it is missing."""
+
+    progress_changed = pyqtSignal(int, int, int)  # (percent, done MiB, total MiB) of the current library
+    stage_changed = pyqtSignal(str)  # "cuBLAS" | "cuDNN"
+    finished_with_status = pyqtSignal(bool, str)  # (ok, directory | error | "" if cancelled)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.cancel = threading.Event()
+        self._last_percent = -1
+
+    def run(self) -> None:
+        from translate.cuda_download import DownloadCancelled, download_cublas, download_cudnn
+        from translate.cuda_support import find_cublas_dir
+
+        try:
+            if find_cublas_dir() is None:
+                self.stage_changed.emit("cuBLAS")
+                download_cublas(progress=self._on_progress, cancel=self.cancel)
+                self._last_percent = -1
+            self.stage_changed.emit("cuDNN")
+            path = download_cudnn(progress=self._on_progress, cancel=self.cancel)
+            self.finished_with_status.emit(True, str(path))
+        except DownloadCancelled:
+            self.finished_with_status.emit(False, "")
+        except Exception as e:
+            self.finished_with_status.emit(False, str(e))

@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSlider,
     QSpinBox,
     QStackedWidget,
     QTextEdit,
@@ -43,7 +44,14 @@ from translate.llm_client import reset_client
 from ui import icons, theme
 from ui.background_call import run_in_background
 from ui.hud_widgets import FieldLabel, Segmented, SwitchRow
-from ui.nllb_workers import CudaDownloadWorker, NllbDownloadWorker, NllbPreloadWorker, NllbVersionsWorker
+from ui.nllb_workers import (
+    CudaDownloadWorker,
+    NllbDownloadWorker,
+    NllbPreloadWorker,
+    NllbVersionsWorker,
+    SpeechCudaDownloadWorker,
+    SpeechModelDownloadWorker,
+)
 
 _SOURCE_LANGUAGES = [
     ("auto", N_("Автоопределение")),
@@ -93,6 +101,16 @@ _OCR_LANGUAGE_SETS = [
     ("en", N_("Только латиница"), ["en"]),
 ]
 _CYRILLIC_OCR_LANGS = {"ru", "uk", "be"}
+
+# Live subtitles: Whisper models (audio/stt.py looks for models/whisper-<name>).
+_SUBTITLE_MODELS = [
+    ("small.en", N_("small.en — точнее, нужна видеокарта NVIDIA")),
+    ("small", N_("small — многоязычная, для фильтра языка; нужна видеокарта NVIDIA")),
+    ("large-v3-turbo", N_("large-v3-turbo — многоязычная, заметно точнее и почти так же быстра; 1,5 ГБ")),
+    ("large-v3", N_("large-v3 — самая точная, медленнее; 3 ГБ, видеокарта от 6 ГБ памяти")),
+    ("base.en", N_("base.en — быстрее, подходит для процессора")),
+    ("tiny.en", N_("tiny.en — самая быстрая, больше ошибок")),
+]
 
 
 def _ocr_language_set(langs) -> str:
@@ -301,12 +319,6 @@ class SettingsWidget(QWidget):
     hotkeys_changed = pyqtSignal()
     #: A hotkey field gained (True) / lost (False) focus: pause / resume the global hooks.
     hotkey_capture = pyqtSignal(bool)
-    #: Regions page: select a new region / open the presets dialog (handled in main.py).
-    add_region_requested = pyqtSignal()
-    manage_regions_requested = pyqtSignal()
-    #: Regions page: live monitoring of the selected region (x1, y1, x2, y2) / stop it.
-    monitor_region_requested = pyqtSignal(int, int, int, int)
-    stop_monitoring_requested = pyqtSignal()
     # Restart-only settings were saved and the user chose to restart now.
     restart_requested = pyqtSignal()
 
@@ -358,8 +370,9 @@ class SettingsWidget(QWidget):
     _SECTIONS = (
         (N_("Перевод"), "translate"),
         (N_("Хоткеи"), "hotkeys"),
-        (N_("Регионы"), "regions"),
+        (N_("Мониторинг"), "regions"),
         (N_("Распознавание"), "ocr"),
+        (N_("Субтитры"), "subtitles"),
         (N_("Попап"), "popup"),
         (N_("Интерфейс"), "interface"),
     )
@@ -452,6 +465,12 @@ class SettingsWidget(QWidget):
         self._section_list.currentRowChanged.connect(self._section_stack.setCurrentIndex)
         self._section_list.setCurrentRow(0)
         return pages
+
+    def show_section(self, key: str) -> None:
+        """Select the section with page key *key* (see ``_SECTIONS``)."""
+        keys = [section_key for _title, section_key in self._SECTIONS]
+        if key in keys:
+            self._section_list.setCurrentRow(keys.index(key))
 
     # ── Build UI ─────────────────────────────────────────
 
@@ -840,46 +859,6 @@ class SettingsWidget(QWidget):
         hotkeys_layout.addWidget(lbl_hk_hint)
         pages["hotkeys"].addWidget(grp_hotkeys)
 
-        # ── Regions: saved screen regions with their binds ──
-        grp_regions, regions_layout = self._group(tr("Регионы"))
-        lbl_regions = QLabel(
-            tr(
-                "Сохранённые области экрана. Бинд переводит область сразу, без "
-                "выделения. «Мониторинг» следит за выбранной областью; в "
-                "«Управлении» — переименовать, удалить или назначить бинд."
-            )
-        )
-        lbl_regions.setWordWrap(True)
-        lbl_regions.setStyleSheet(theme.label_css("caption"))
-        regions_layout.addWidget(lbl_regions)
-        self._regions_list = QListWidget()
-        self._regions_list.setSelectionMode(QListWidget.SingleSelection)
-        self._regions_list.setStyleSheet(theme.list_css())
-        self._regions_list.setMinimumHeight(110)
-        self._regions_list.currentRowChanged.connect(lambda _row: self._update_monitor_button())
-        regions_layout.addWidget(self._regions_list)
-        regions_buttons = QHBoxLayout()
-        self._btn_add_region = QPushButton(tr("Добавить регион"))
-        self._btn_add_region.setCursor(Qt.PointingHandCursor)
-        self._btn_add_region.setStyleSheet(theme.btn_accent("7px 14px", 9))
-        self._btn_add_region.clicked.connect(self.add_region_requested)
-        # Live monitoring: start for the selected region; while it runs, stop it.
-        self._monitoring_active = False
-        self._btn_monitor_region = QPushButton()
-        self._btn_monitor_region.setCursor(Qt.PointingHandCursor)
-        self._btn_monitor_region.setStyleSheet(theme.btn_secondary("7px 14px", 9))
-        self._btn_monitor_region.clicked.connect(self._on_monitor_region_clicked)
-        self._btn_manage_regions = QPushButton(tr("Управление…"))
-        self._btn_manage_regions.setCursor(Qt.PointingHandCursor)
-        self._btn_manage_regions.setStyleSheet(theme.btn_secondary("7px 14px", 9))
-        self._btn_manage_regions.clicked.connect(self.manage_regions_requested)
-        regions_buttons.addWidget(self._btn_add_region)
-        regions_buttons.addWidget(self._btn_monitor_region)
-        regions_buttons.addWidget(self._btn_manage_regions)
-        regions_buttons.addStretch()
-        regions_layout.addLayout(regions_buttons)
-        pages["regions"].addWidget(grp_regions)
-
         # ── Live monitoring of a region ──
         from capture.live_monitor import MAX_INTERVAL_SEC, MIN_INTERVAL_SEC
 
@@ -887,8 +866,8 @@ class SettingsWidget(QWidget):
         lbl_live = QLabel(
             tr(
                 "Мониторинг переводит область снова, когда в ней меняется текст. "
-                "Запускается кнопкой выше или из меню трея; новые значения "
-                "действуют со следующего запуска."
+                "Запускается на вкладке «Мониторинг» или из меню трея, там же — список регионов; "
+                "новые значения действуют со следующего запуска."
             )
         )
         lbl_live.setWordWrap(True)
@@ -911,6 +890,60 @@ class SettingsWidget(QWidget):
         )
         live_layout.addWidget(self._chk_live_keep_open)
         pages["regions"].addWidget(grp_live)
+
+        # ── Live subtitles: speech from the speakers → translated strip ──
+        grp_subs, subs_layout = self._group(tr("Живые субтитры"))
+        lbl_subs = QLabel(
+            tr(
+                "Модель распознавания речи и библиотеки для видеокарты: то, что настраивают один раз. "
+                "Распознавание идёт на этом компьютере. Запуск, источник звука, язык речи и режимы — "
+                "на вкладке «Субтитры». Новые значения действуют со следующего запуска субтитров."
+            )
+        )
+        lbl_subs.setWordWrap(True)
+        lbl_subs.setStyleSheet(theme.label_css("caption"))
+        subs_layout.addWidget(lbl_subs)
+
+        self._subs_model_combo = QComboBox()
+        self._subs_model_combo.setStyleSheet(self._INPUT_CSS)
+        for model, label in _SUBTITLE_MODELS:
+            self._subs_model_combo.addItem(tr(label), model)
+        subs_layout.addLayout(self._field(tr("Модель распознавания:"), self._subs_model_combo))
+        # The speech model is downloaded only by this button (audio/stt_download.py).
+        self._subs_model_worker = None
+        self._subs_model_status, self._btn_subs_model, subs_model_row = self._subs_download_row(
+            self._on_subs_model_clicked
+        )
+        subs_layout.addWidget(subs_model_row)
+        self._subs_model_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_model_row())
+        self._subs_stt_device_combo = QComboBox()
+        self._subs_stt_device_combo.setStyleSheet(self._INPUT_CSS)
+        self._subs_stt_device_combo.addItem(tr("Авто (видеокарта NVIDIA, если доступна)"), "auto")
+        self._subs_stt_device_combo.addItem(tr("Только процессор (CPU)"), "cpu")
+        subs_layout.addLayout(self._field(tr("Устройство распознавания:"), self._subs_stt_device_combo))
+        # GPU libraries for Whisper (cuDNN, plus cuBLAS when missing): NVIDIA owners only.
+        self._subs_gpu_worker = None
+        self._subs_gpu_status, self._btn_subs_gpu, self._subs_gpu_widget = self._subs_download_row(
+            self._on_subs_gpu_clicked
+        )
+        subs_layout.addWidget(self._subs_gpu_widget)
+        # Video memory: what the chosen model takes, and the int8 switch that halves it.
+        self._chk_subs_low_vram = SwitchRow(tr("Экономить видеопамять (сжатие int8)"))
+        self._chk_subs_low_vram.setToolTip(
+            tr(
+                "Модель загружается на видеокарту в сжатом виде: видеопамяти нужно примерно вдвое "
+                "меньше, а точность распознавания слегка падает. Файл модели на диске не меняется."
+            )
+        )
+        subs_layout.addWidget(self._chk_subs_low_vram)
+        self._subs_vram_hint = QLabel("")
+        self._subs_vram_hint.setWordWrap(True)
+        self._subs_vram_hint.setStyleSheet(theme.label_css("caption"))
+        subs_layout.addWidget(self._subs_vram_hint)
+        self._chk_subs_low_vram.toggled.connect(lambda _on: self._refresh_subs_vram_hint())
+        self._subs_model_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_vram_hint())
+        self._subs_stt_device_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_gpu_row())
+        pages["subtitles"].addWidget(grp_subs)
 
         # ── Interface section ──
         grp_ui, ui_layout = self._group(tr("Интерфейс"))
@@ -982,6 +1015,46 @@ class SettingsWidget(QWidget):
         notify_layout.addLayout(self._field_row(tr("Размер попапа"), size_row))
 
         pages["popup"].addWidget(grp_notify)
+
+        # ── Unobtrusive popup: opacity, compact header, click-through ──
+        from ui import overlay_behavior
+
+        grp_calm, calm_layout = self._group(tr("Ненавязчивость"))
+        lbl_calm = QLabel(
+            tr(
+                "Попап не забирает фокус у игры и в покое показывает приглушённую рамку. "
+                "Под курсором он становится непрозрачным. Прозрачность и клики сквозь окно "
+                "действуют и на полосу живых субтитров."
+            )
+        )
+        lbl_calm.setWordWrap(True)
+        lbl_calm.setStyleSheet(theme.label_css("caption"))
+        calm_layout.addWidget(lbl_calm)
+        opacity_row = QHBoxLayout()
+        opacity_row.setSpacing(10)
+        self._opacity_slider = QSlider(Qt.Horizontal)
+        self._opacity_slider.setRange(overlay_behavior.MIN_OPACITY, overlay_behavior.MAX_OPACITY)
+        self._opacity_slider.setSingleStep(5)
+        self._opacity_slider.setPageStep(10)
+        self._opacity_slider.setStyleSheet(theme.slider_css())
+        self._opacity_value = QLabel("")
+        self._opacity_value.setMinimumWidth(44)
+        self._opacity_value.setStyleSheet(self._status_css())
+        self._opacity_slider.valueChanged.connect(lambda value: self._opacity_value.setText(f"{value} %"))
+        opacity_row.addWidget(self._opacity_slider, 1)
+        opacity_row.addWidget(self._opacity_value)
+        calm_layout.addLayout(self._field_row(tr("Непрозрачность в покое"), opacity_row))
+        self._chk_popup_compact = SwitchRow(tr("Компактный попап: заголовок и кнопки только под курсором"))
+        calm_layout.addWidget(self._chk_popup_compact)
+        self._chk_click_through = SwitchRow(tr("Клики сквозь попап (зажмите Alt, чтобы двигать и нажимать)"))
+        self._chk_click_through.setToolTip(
+            tr(
+                "Попап и полоса субтитров не перехватывают мышь: клики попадают в игру под ними. "
+                "Пока зажат Alt и курсор над окном, оно ведёт себя как обычно."
+            )
+        )
+        calm_layout.addWidget(self._chk_click_through)
+        pages["popup"].addWidget(grp_calm)
 
         # ── About & Updates section ──
         grp_about, about_layout = self._group(tr("О программе и обновления"), spacing=8)
@@ -1343,62 +1416,184 @@ class SettingsWidget(QWidget):
         self._nllb_status.setText(message)
         self._nllb_status.setStyleSheet(self._status_css(kind))
 
-    # ── Regions ──────────────────────────────────────────
+    # ── Live subtitles ───────────────────────────────────
 
-    def refresh_regions(self) -> None:
-        """List the saved regions: name, size and bind."""
-        try:
-            from settings.region_presets import load_presets
+    def _subs_download_row(self, on_click):
+        """A status label with a download button on the right: ``(label, button, row widget)``."""
+        row_widget = QWidget()
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(0, 0, 0, 0)
+        status = QLabel("")
+        status.setWordWrap(True)
+        status.setTextFormat(Qt.PlainText)
+        status.setStyleSheet(self._status_css())
+        row.addWidget(status, 1)
+        button = QPushButton()
+        button.setCursor(Qt.PointingHandCursor)
+        button.setStyleSheet(theme.btn_accent("6px 12px", 8.5))
+        button.clicked.connect(on_click)
+        row.addWidget(button, 0, Qt.AlignTop)
+        return status, button, row_widget
 
-            presets = load_presets()
-        except Exception:
-            presets = []
-        self._regions_list.clear()
-        for p in presets:
-            w, h = p.get("x2", 0) - p.get("x1", 0), p.get("y2", 0) - p.get("y1", 0)
-            hotkey = (p.get("hotkey") or "").upper() or tr("без бинда")
-            item = QListWidgetItem(f"{p.get('name', '')}   ·   {w}×{h}   ·   {hotkey}")
-            item.setData(Qt.UserRole, p)
-            self._regions_list.addItem(item)
-        if presets:
-            self._regions_list.setCurrentRow(0)
+    def _set_subs_row(self, label, message: str, kind: str = "muted") -> None:
+        label.setText(message)
+        label.setStyleSheet(self._status_css(kind))
+
+    def _refresh_subs_vram_hint(self) -> None:
+        """How much video memory the chosen model takes, with and without the int8 switch."""
+        from audio import stt
+
+        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
+        normal, low = stt.VRAM_MB.get(name, (0, 0))
+        if not normal:
+            self._subs_vram_hint.setText("")
+        elif self._chk_subs_low_vram.isChecked():
+            self._subs_vram_hint.setText(
+                tr(
+                    "Модель {name} займёт около {low} МБ видеопамяти вместо {normal} МБ. "
+                    "Качество распознавания слегка упадёт.",
+                    name=name,
+                    low=low,
+                    normal=normal,
+                )
+            )
         else:
-            placeholder = QListWidgetItem(tr("Регионов пока нет: нажмите «Добавить регион»."))
-            placeholder.setFlags(Qt.NoItemFlags)
-            self._regions_list.addItem(placeholder)
-        self._update_monitor_button()
+            self._subs_vram_hint.setText(
+                tr(
+                    "Модель {name} займёт около {normal} МБ видеопамяти; с экономией — около {low} МБ.",
+                    name=name,
+                    low=low,
+                    normal=normal,
+                )
+            )
+        self._subs_vram_hint.setVisible(bool(self._subs_vram_hint.text()))
 
-    def set_monitoring_active(self, active: bool) -> None:
-        """Main app: live monitoring started / stopped (also from the tray)."""
-        self._monitoring_active = active
-        self._update_monitor_button()
+    # Speech model download.
 
-    def _update_monitor_button(self) -> None:
-        item = self._regions_list.currentItem()
-        has_region = item is not None and item.data(Qt.UserRole) is not None
-        if self._monitoring_active:
-            self._btn_monitor_region.setText(tr("Остановить мониторинг"))
-            self._btn_monitor_region.setEnabled(True)
+    def _refresh_subs_model_row(self) -> None:
+        if self._subs_model_worker is not None:
+            return  # the download progress owns the row
+        from audio import stt, stt_download
+
+        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
+        installed = stt.resolve_model_dir(name) is not None
+        self._btn_subs_model.setText(tr("Скачать модель"))
+        self._btn_subs_model.setVisible(not installed and stt_download.is_downloadable(name))
+        if installed:
+            self._set_subs_row(self._subs_model_status, tr("✓ Модель {name} установлена.", name=name), "ok")
         else:
-            self._btn_monitor_region.setText(tr("Мониторинг"))
-            self._btn_monitor_region.setEnabled(has_region)
-        interval = self._live_interval_spin.value() if hasattr(self, "_live_interval_spin") else 10
-        self._btn_monitor_region.setToolTip(
-            tr(
-                "Переводить выбранную область снова, когда в ней меняется текст (проверка каждые {seconds} сек).",
-                seconds=interval,
+            self._set_subs_row(
+                self._subs_model_status,
+                tr(
+                    "Модель {name} не скачана: ~{size} МБ. Без неё субтитры не запустятся.",
+                    name=name,
+                    size=stt_download.APPROX_MB.get(name, "?"),
+                ),
+                "warn",
+            )
+
+    def _on_subs_model_clicked(self) -> None:
+        if self._subs_model_worker is not None:
+            self._subs_model_worker.cancel.set()
+            return
+        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
+        self._btn_subs_model.setText(tr("Отмена"))
+        self._subs_model_combo.setEnabled(False)
+        self._set_subs_row(self._subs_model_status, tr("⏳ Скачивание модели {name}…", name=name))
+        self._subs_model_worker = SpeechModelDownloadWorker(name, self)
+        self._subs_model_worker.progress_changed.connect(
+            lambda pct, done, total: self._set_subs_row(
+                self._subs_model_status,
+                tr("⏳ Скачивание модели: {done} / {total} МБ ({pct}%)", done=done, total=total, pct=pct),
             )
         )
+        self._subs_model_worker.finished_with_status.connect(self._on_subs_model_done)
+        self._subs_model_worker.start()
 
-    def _on_monitor_region_clicked(self) -> None:
-        if self._monitoring_active:
-            self.stop_monitoring_requested.emit()
+    def _on_subs_model_done(self, ok: bool, result: str) -> None:
+        self._subs_model_worker = None
+        self._subs_model_combo.setEnabled(True)
+        self._refresh_subs_model_row()
+        if not ok:
+            self._set_subs_row(
+                self._subs_model_status,
+                tr("⚠ Не удалось скачать модель: {error}", error=result) if result else tr("Скачивание отменено."),
+                "warn" if result else "muted",
+            )
+
+    # GPU libraries for speech recognition (cuDNN, cuBLAS).
+
+    def _refresh_subs_gpu_row(self) -> None:
+        if self._subs_gpu_worker is not None:
+            return  # the download progress owns the row
+        from audio import stt
+        from translate.cuda_download import driver_cuda_version, gpu_offer
+        from translate.cuda_support import find_cublas_dir
+
+        ready = stt.find_cudnn_dir() is not None and find_cublas_dir() is not None
+        offer = gpu_offer(driver_cuda_version(), ready)
+        self._subs_gpu_widget.setVisible(offer != "none")
+        self._btn_subs_gpu.setText(tr("Скачать для видеокарты"))
+        self._btn_subs_gpu.setVisible(offer == "download")
+        label = self._subs_gpu_status
+        if offer == "ready" and self._subs_stt_device_combo.currentData() == "cpu":
+            self._set_subs_row(
+                label, tr("Библиотеки CUDA есть, но выбрано «Только процессор»: видеокарта не используется.")
+            )
+        elif offer == "ready":
+            self._set_subs_row(
+                label, tr("✓ Библиотеки CUDA найдены: распознавание работает на видеокарте NVIDIA."), "ok"
+            )
+        elif offer == "old_driver":
+            self._set_subs_row(
+                label,
+                tr("Драйвер NVIDIA слишком старый для CUDA 12. Обновите драйвер, чтобы распознавать на видеокарте."),
+                "warn",
+            )
+        elif offer == "download":
+            self._set_subs_row(
+                label,
+                tr(
+                    "На видеокарте NVIDIA распознавание намного быстрее. Нужны библиотеки CUDA "
+                    "(cuDNN и cuBLAS): до ~1,2 ГБ загрузки, ~1,8 ГБ на диске. Без них — на процессоре."
+                ),
+            )
+
+    def _on_subs_gpu_clicked(self) -> None:
+        if self._subs_gpu_worker is not None:
+            self._subs_gpu_worker.cancel.set()
             return
-        item = self._regions_list.currentItem()
-        preset = item.data(Qt.UserRole) if item is not None else None
-        if preset:
-            self.monitor_region_requested.emit(
-                preset.get("x1", 0), preset.get("y1", 0), preset.get("x2", 0), preset.get("y2", 0)
+        self._btn_subs_gpu.setText(tr("Отмена"))
+        self._subs_gpu_stage = "cuDNN"
+        self._set_subs_row(self._subs_gpu_status, tr("⏳ Скачивание библиотек CUDA…"))
+        self._subs_gpu_worker = SpeechCudaDownloadWorker(self)
+        self._subs_gpu_worker.stage_changed.connect(lambda stage: setattr(self, "_subs_gpu_stage", stage))
+        self._subs_gpu_worker.progress_changed.connect(
+            lambda pct, done, total: self._set_subs_row(
+                self._subs_gpu_status,
+                tr(
+                    "⏳ Скачивание {name}: {done} / {total} МБ ({pct}%)",
+                    name=self._subs_gpu_stage,
+                    done=done,
+                    total=total,
+                    pct=pct,
+                ),
+            )
+        )
+        self._subs_gpu_worker.finished_with_status.connect(self._on_subs_gpu_done)
+        self._subs_gpu_worker.start()
+
+    def _on_subs_gpu_done(self, ok: bool, result: str) -> None:
+        self._subs_gpu_worker = None
+        self._refresh_subs_gpu_row()
+        self._refresh_cuda_row()  # cuBLAS may have arrived too
+        if not ok:
+            self._set_subs_row(
+                self._subs_gpu_status,
+                tr("⚠ Не удалось скачать библиотеки CUDA: {error}", error=result)
+                if result
+                else tr("Скачивание отменено."),
+                "warn" if result else "muted",
             )
 
     # ── App hotkeys ──────────────────────────────────────
@@ -1808,6 +2003,14 @@ class SettingsWidget(QWidget):
         # Popup timeout and saved size.
         self._timeout_spin.setValue(config.POPUP_TIMEOUT_SEC)
         self._refresh_popup_size()
+        try:
+            opacity = int(getattr(config, "POPUP_OPACITY", 100))
+        except (TypeError, ValueError):
+            opacity = 100
+        self._opacity_slider.setValue(opacity)
+        self._opacity_value.setText(f"{self._opacity_slider.value()} %")
+        self._chk_popup_compact.setChecked(bool(getattr(config, "POPUP_COMPACT", False)))
+        self._chk_click_through.setChecked(bool(getattr(config, "POPUP_CLICK_THROUGH", False)))
 
         # Interface language and colour scheme.
         idx_ui = self._ui_lang_combo.findData(config_manager.get("ui_language"))
@@ -1819,11 +2022,20 @@ class SettingsWidget(QWidget):
 
         # Hotkeys, regions and live monitoring.
         self._show_saved_hotkeys()
-        self.refresh_regions()
         self._live_interval_spin.setValue(int(getattr(config, "LIVE_INTERVAL_SEC", 10) or 10))
         sensitivity = getattr(config, "LIVE_SENSITIVITY", "medium") or "medium"
         self._live_sensitivity_combo.setCurrentIndex(max(0, self._live_sensitivity_combo.findData(sensitivity)))
         self._chk_live_keep_open.setChecked(bool(getattr(config, "LIVE_POPUP_KEEP_OPEN", True)))
+
+        # Live subtitles.
+        subs_model = getattr(config, "SUBTITLES_MODEL", "") or _SUBTITLE_MODELS[0][0]
+        self._subs_model_combo.setCurrentIndex(max(0, self._subs_model_combo.findData(subs_model)))
+        subs_device = getattr(config, "SUBTITLES_STT_DEVICE", "auto") or "auto"
+        self._subs_stt_device_combo.setCurrentIndex(max(0, self._subs_stt_device_combo.findData(subs_device)))
+        self._chk_subs_low_vram.setChecked(bool(getattr(config, "SUBTITLES_LOW_VRAM", False)))
+        self._refresh_subs_vram_hint()
+        self._refresh_subs_model_row()
+        self._refresh_subs_gpu_row()
 
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":
@@ -1848,6 +2060,8 @@ class SettingsWidget(QWidget):
             self._nllb_version_combo,
             self._live_sensitivity_combo,
             self._nllb_device_combo,
+            self._subs_model_combo,
+            self._subs_stt_device_combo,
         ):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
@@ -1858,8 +2072,12 @@ class SettingsWidget(QWidget):
             self._chk_compact_prompt,
             self._chk_ocr_preview,
             self._chk_live_keep_open,
+            self._chk_popup_compact,
+            self._chk_click_through,
+            self._chk_subs_low_vram,
         ):
             switch.toggled.connect(self._schedule_autosave)
+        self._opacity_slider.valueChanged.connect(self._schedule_autosave)
         for spin in (self._tokens_spin, self._timeout_spin, self._live_interval_spin):
             spin.valueChanged.connect(self._schedule_autosave)
         for edit in (self._nllb_path_edit, self._model_edit, self._azure_region_input):
@@ -1966,6 +2184,9 @@ class SettingsWidget(QWidget):
         cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
         cfg["live_popup_keep_open"] = self._chk_live_keep_open.isChecked()
         cfg["nllb_device"] = self._nllb_device_combo.currentData() or "auto"
+        cfg["subtitles_model"] = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
+        cfg["subtitles_stt_device"] = self._subs_stt_device_combo.currentData() or "auto"
+        cfg["subtitles_low_vram"] = self._chk_subs_low_vram.isChecked()
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
         cfg["primary_provider"] = primary_choice
@@ -1979,6 +2200,9 @@ class SettingsWidget(QWidget):
         cfg["target_language"] = self._lang_combo.currentData() or cfg["target_language"]
         cfg["llm_model"] = new_model
         cfg["popup_timeout_sec"] = self._timeout_spin.value()
+        cfg["popup_opacity"] = self._opacity_slider.value()
+        cfg["popup_compact"] = self._chk_popup_compact.isChecked()
+        cfg["popup_click_through"] = self._chk_click_through.isChecked()
         cfg["notification_type"] = "windows_toast" if self._radio_toast.isChecked() else "popup"
 
         changed = {k for k in cfg if cfg[k] != old.get(k)}

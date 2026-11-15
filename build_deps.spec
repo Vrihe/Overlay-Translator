@@ -57,6 +57,12 @@ rapidocr_datas = [
     and (not src.endswith('.onnx') or Path(src).name in _OCR_MODELS)
 ]
 
+# Live subtitles: the Silero VAD model the phrase segmenter runs (audio/segmenter.py loads
+# it through faster_whisper.vad, which looks for faster_whisper/assets/*.onnx).
+faster_whisper_datas = [
+    (src, dst) for src, dst in collect_data_files('faster_whisper') if src.endswith('.onnx')
+]
+
 # Only the onnxruntime inference engine is used; the paddle/pytorch/openvino/mnn/
 # tensorrt engine modules would drag in frameworks we do not ship.
 _UNUSED_ENGINES = ('.paddle', '.pytorch', '.openvino', '.mnn', '.tensorrt')
@@ -68,7 +74,7 @@ a = Analysis(
     [str(ROOT / '_deps_stub.py')],
     pathex=[str(ROOT)],
     binaries=onnxruntime_binaries + ctranslate2_binaries,
-    datas=rapidocr_datas,
+    datas=rapidocr_datas + faster_whisper_datas,
     hiddenimports=[
         'unittest', 'unittest.mock',
         'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets',
@@ -79,6 +85,8 @@ a = Analysis(
         'langid',
         # Native packages the app imports lazily (offline backend, API SDKs, cache).
         'ctranslate2', 'sentencepiece', 'pydantic_core', 'sqlite3',
+        # Live subtitles (audio/stt.py, audio/capture.py import them lazily).
+        'faster_whisper', 'av', 'tokenizers', 'pyaudiowpatch', '_portaudiowpatch',
     ] + rapidocr_hiddenimports,
     excludes=[
         # The OCR stack is torch-free; keep a leftover install out of the build.

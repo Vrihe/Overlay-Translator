@@ -41,6 +41,8 @@ class TestFinishResize(unittest.TestCase):
         popup._resized = resized
         popup.width.return_value = 450
         popup.height.return_value = 220
+        popup._MIN_HEIGHT = ResultPopup._MIN_HEIGHT
+        popup._compact_header_shown.return_value = False  # not in compact mode
         return popup
 
     def test_saves_once_after_a_resize(self):

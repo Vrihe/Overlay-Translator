@@ -1,13 +1,12 @@
 """
-tests/test_settings_regions.py — Settings → Regions: the list of saved regions with
-their binds, the add / manage buttons, and the live monitoring interval and
-sensitivity, plus how LiveMonitor applies them.
+tests/test_settings_regions.py — Settings → Monitoring: the live monitoring interval and
+sensitivity, plus how LiveMonitor applies them. (The list of regions and the start button
+are on the main window's Monitoring tab: tests/test_monitoring_page.py.)
 
 The settings page is built offscreen with everything mocked (settings_widget_case).
 """
 
 import unittest
-from unittest import mock
 
 from capture.live_monitor import (
     MAX_INTERVAL_SEC,
@@ -49,65 +48,7 @@ class TestLiveMonitorSettings(unittest.TestCase):
         self.assertEqual(monitor.threshold, 0.6)
 
 
-class TestRegionsPage(SettingsWidgetCase):
-    presets = [
-        {"name": "Чат", "x1": 10, "y1": 20, "x2": 610, "y2": 220, "hotkey": "ctrl+alt+1"},
-        {"name": "Квесты", "x1": 0, "y1": 0, "x2": 300, "y2": 100, "hotkey": None},
-    ]
-
-    def _rows(self):
-        lst = self.widget._regions_list
-        return [lst.item(i).text() for i in range(lst.count())]
-
-    def test_lists_regions_with_size_and_bind(self):
-        rows = self._rows()
-        self.assertEqual(len(rows), 2)
-        self.assertIn("Чат", rows[0])
-        self.assertIn("600×200", rows[0])
-        self.assertIn("CTRL+ALT+1", rows[0])
-        self.assertIn("без бинда", rows[1])
-
-    def test_empty_state(self):
-        self.presets = []
-        self.widget.refresh_regions()
-        rows = self._rows()
-        self.assertEqual(len(rows), 1)
-        self.assertIn("Добавить регион", rows[0])
-
-    def test_buttons_ask_main_to_act(self):
-        add, manage = mock.Mock(), mock.Mock()
-        self.widget.add_region_requested.connect(add)
-        self.widget.manage_regions_requested.connect(manage)
-        self.widget._btn_add_region.click()
-        self.widget._btn_manage_regions.click()
-        add.assert_called_once()
-        manage.assert_called_once()
-
-    def test_monitor_button_starts_the_selected_region(self):
-        start = mock.Mock()
-        self.widget.monitor_region_requested.connect(start)
-        self.widget._regions_list.setCurrentRow(1)
-        self.assertEqual(self.widget._btn_monitor_region.text(), "Мониторинг")
-        self.widget._btn_monitor_region.click()
-        start.assert_called_once_with(0, 0, 300, 100)
-
-    def test_while_monitoring_the_button_stops_it(self):
-        stop, start = mock.Mock(), mock.Mock()
-        self.widget.stop_monitoring_requested.connect(stop)
-        self.widget.monitor_region_requested.connect(start)
-        self.widget.set_monitoring_active(True)
-        self.assertEqual(self.widget._btn_monitor_region.text(), "Остановить мониторинг")
-        self.widget._btn_monitor_region.click()
-        stop.assert_called_once()
-        start.assert_not_called()
-        self.widget.set_monitoring_active(False)
-        self.assertEqual(self.widget._btn_monitor_region.text(), "Мониторинг")
-
-    def test_no_regions_no_monitoring(self):
-        self.presets = []
-        self.widget.refresh_regions()
-        self.assertFalse(self.widget._btn_monitor_region.isEnabled())
-
+class TestMonitoringSettings(SettingsWidgetCase):
     def test_live_settings_load_and_autosave(self):
         self.assertEqual(self.widget._live_interval_spin.value(), 10)
         self.assertEqual(self.widget._live_sensitivity_combo.currentData(), "medium")
