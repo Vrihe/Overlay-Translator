@@ -98,10 +98,10 @@
 - [x] Страница «Приватность»: что уходит в API, что остаётся локально, как работает логирование
 - [x] Обработка типовых проблем в FAQ: нет GPU, антивирус, нет прав на хоткеи
 - [ ] Интерфейс: вынести функции из настроек в отдельные вкладки главного окна — сейчас, чтобы что-то включить, нужно идти в настройки
-  - [ ] Вкладка «Субтитры»: запуск / остановка, статус, источник звука, язык речи, потоковый режим и фильтр языка на одном экране
-  - [ ] Вкладка «Мониторинг»: регионы и запуск live-режима
+  - [x] Вкладка «Субтитры»: запуск / остановка, статус, источник звука, язык речи, потоковый режим и фильтр языка на одном экране
+  - [x] Вкладка «Мониторинг»: регионы и запуск live-режима
   - [ ] В настройках остаётся только то, что задают один раз: модели и их загрузка, библиотеки CUDA, ключи API, хоткеи, внешний вид
-  - [ ] Включение и выключение функций — с главного экрана и из трея, без захода в настройки
+  - [x] Включение и выключение функций — с главного экрана и из трея, без захода в настройки
 
 **Критерий готовности:** новый пользователь и новый разработчик находят всё нужное в README и docs без вопросов вам.
 
@@ -117,15 +117,15 @@
 
 **Зачем:** переводить не только текст на экране, но и речь (Discord, игры, видео) — живыми субтитрами, а при желании и озвучкой. Подробный план прототипа — [docs/VOICE_TRANSLATION_PROTOTYPE.md](docs/VOICE_TRANSLATION_PROTOTYPE.md).
 
-- [ ] Прототип в `scratch/voice/` (вне приложения): тестовый набор из 20–30 фраз, синтезированных через SAPI, плюс тишина, музыка и шум для проверки галлюцинаций
-- [ ] Офлайн-бенчмарк `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; модели `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, латентность от конца фразы до перевода
-- [ ] Живой захват через WASAPI loopback и микрофон (`live.py`); проверка эха озвучки и нагрузки на CPU / GPU / RAM
-- [ ] Решение go / no-go по результатам: модель и устройство по умолчанию, начинать ли только с субтитров
-- [ ] Зависимости без конфликтов: `faster-whisper` ставится с `--no-deps` (иначе он тянет обычный `onnxruntime` поверх `onnxruntime-directml` и OCR теряет DirectML), `av` и `tokenizers` — явно в `requirements.txt`; для GPU `translate/cuda_download.py` докачивает cuDNN 9 вместе с cuBLAS
-- [ ] Живые субтитры: пакет `audio/` (захват, VAD, STT-воркер на `QThread`, результаты через сигналы) и окно-полоса субтитров
-- [ ] Настройки: источник, модель, устройство, язык (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); по умолчанию выключено; модель Whisper скачивается только по явному действию пользователя, как NLLB
+- [x] Прототип в `scratch/voice/` (вне приложения): тестовый набор из 20–30 фраз, синтезированных через SAPI, плюс тишина, музыка и шум для проверки галлюцинаций
+- [x] Офлайн-бенчмарк `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; модели `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, латентность от конца фразы до перевода
+- [x] Живой захват через WASAPI loopback и микрофон (`live.py`); проверка эха озвучки и нагрузки на CPU / GPU / RAM
+- [ ] Решение go / no-go по результатам: модель и устройство по умолчанию, начинать ли только с субтитров — *частично: на деле выбраны `small.en` и сначала только субтитры, но результаты и решение не записаны в раздел 5 `docs/VOICE_TRANSLATION_PROTOTYPE.md`*
+- [x] Зависимости без конфликтов: `faster-whisper` ставится с `--no-deps` (иначе он тянет обычный `onnxruntime` поверх `onnxruntime-directml` и OCR теряет DirectML), `av` и `tokenizers` — явно в `requirements-voice.txt`; для GPU `translate/cuda_download.py` докачивает cuDNN 9 вместе с cuBLAS
+- [x] Живые субтитры: пакет `audio/` (захват, VAD, STT-воркер на `QThread`, результаты через сигналы) и окно-полоса субтитров
+- [x] Настройки: источник, модель, устройство, язык (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); по умолчанию выключено; модель Whisper скачивается только по явному действию пользователя, как NLLB
 - [ ] Опциональная озвучка перевода (TTS) с выбором устройства вывода и защитой от эха
-- [ ] Приватность: аудио и транскрипты не логируются целиком, облачный STT — только по явному выбору; обновить `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt`
+- [ ] Приватность: аудио и транскрипты не логируются целиком, облачный STT — только по явному выбору; обновить `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt` — *частично: `ARCHITECTURE.md` и `requirements-voice.txt` обновлены, `docs/privacy.md` нет*
 
 **Критерий готовности:** перевод фразы появляется в субтитрах не позже ~3 с после её окончания; функция выключена по умолчанию и не ходит в сеть без явного действия пользователя.
 
@@ -171,11 +171,11 @@
 | 9 | A | Мониторинг модели | 2–3 | |
 | 10 | A | Сервис инференса | 3–5 | |
 | 11 | B | Релиз приложения (сделано) | 4–6 | |
-| 12 | B | Продукт и документация (сделано) | 3–5 | |
+| 12 | B | Продукт и документация | 3–5 | |
 | 13 | B | Голосовой перевод | 8–12 | |
 | 14 | B | Резюме, диплом, публикация | 3–4 | |
 
-**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 и 12 уже сделаны).
+**Рекомендуемый порядок:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 уже сделан; 12 — кроме переделки интерфейса).
 Части A и B можно вести параллельно; этап 13 (голосовой перевод) не зависит от работ над моделью. Минимальный набор для сильного резюме: этапы 0–4, 6–8 и 14. Этапы 5, 9, 10 и 13 усиливают проект, но их можно отложить.
 
 **Зависимости:** этап 4 нужен до 5 и 7; этап 6 нужен до 7 и 8; этап 2 нужен до 3 и 5; этап 8 (cuBLAS) желателен до 13 — Whisper на GPU использует cuBLAS, но дополнительно требует cuDNN 9.
@@ -283,10 +283,10 @@ The app, product and documentation, publication. It depends on the model work on
 - [x] A "Privacy" page: what goes to the API, what stays local, how logging works
 - [x] Common problems in the FAQ: no GPU, antivirus, no rights for hotkeys
 - [ ] Interface: move features out of the settings into their own tabs of the main window — today turning anything on means going to the settings
-  - [ ] A "Subtitles" tab: start / stop, status, audio source, speech language, streaming mode and the language filter on one screen
-  - [ ] A "Monitoring" tab: regions and starting live mode
+  - [x] A "Subtitles" tab: start / stop, status, audio source, speech language, streaming mode and the language filter on one screen
+  - [x] A "Monitoring" tab: regions and starting live mode
   - [ ] The settings keep only what is set once: models and their downloads, CUDA libraries, API keys, hotkeys, appearance
-  - [ ] Features are switched on and off from the home screen and the tray, without opening the settings
+  - [x] Features are switched on and off from the home screen and the tray, without opening the settings
 
 **Done when:** a new user and a new developer find everything they need in the README and docs without asking you.
 
@@ -302,15 +302,15 @@ The app, product and documentation, publication. It depends on the model work on
 
 **Why:** translate speech too (Discord, games, videos), not only on-screen text — as live subtitles and optionally as voice-over. The detailed prototype plan is [docs/VOICE_TRANSLATION_PROTOTYPE.md](docs/VOICE_TRANSLATION_PROTOTYPE.md).
 
-- [ ] Prototype in `scratch/voice/` (outside the app): a test set of 20–30 phrases synthesised with SAPI, plus silence, music and noise for the hallucination check
-- [ ] Offline benchmark `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; models `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, end-of-phrase → translation latency
-- [ ] Live capture via WASAPI loopback and the microphone (`live.py`); check the voice-over echo and the CPU / GPU / RAM load
-- [ ] Go / no-go decision from the results: default model and device, whether to start with subtitles only
-- [ ] Conflict-free dependencies: `faster-whisper` is installed with `--no-deps` (otherwise it pulls the plain `onnxruntime` over `onnxruntime-directml` and the OCR loses DirectML), `av` and `tokenizers` go into `requirements.txt` explicitly; for the GPU `translate/cuda_download.py` fetches cuDNN 9 next to cuBLAS
-- [ ] Live subtitles: an `audio/` package (capture, VAD, an STT worker on a `QThread`, results via signals) and a subtitle strip window
-- [ ] Settings: source, model, device, language (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); off by default; the Whisper model is downloaded only by an explicit user action, like NLLB
+- [x] Prototype in `scratch/voice/` (outside the app): a test set of 20–30 phrases synthesised with SAPI, plus silence, music and noise for the hallucination check
+- [x] Offline benchmark `bench_stt.py`: VAD (Silero) → `faster-whisper` → `translate.backend`; models `tiny.en` / `base.en` / `small.en` / `small` × CPU / CUDA — real-time factor, WER, end-of-phrase → translation latency
+- [x] Live capture via WASAPI loopback and the microphone (`live.py`); check the voice-over echo and the CPU / GPU / RAM load
+- [ ] Go / no-go decision from the results: default model and device, whether to start with subtitles only — *partly: in practice `small.en` and subtitles first were chosen, but the results and the decision are not written into section 5 of `docs/VOICE_TRANSLATION_PROTOTYPE.md`*
+- [x] Conflict-free dependencies: `faster-whisper` is installed with `--no-deps` (otherwise it pulls the plain `onnxruntime` over `onnxruntime-directml` and the OCR loses DirectML), `av` and `tokenizers` go into `requirements-voice.txt` explicitly; for the GPU `translate/cuda_download.py` fetches cuDNN 9 next to cuBLAS
+- [x] Live subtitles: an `audio/` package (capture, VAD, an STT worker on a `QThread`, results via signals) and a subtitle strip window
+- [x] Settings: source, model, device, language (`DEFAULTS` + `_LiveConfig` + `SettingsWidget`); off by default; the Whisper model is downloaded only by an explicit user action, like NLLB
 - [ ] Optional translation voice-over (TTS) with an output-device choice and echo protection
-- [ ] Privacy: audio and transcripts are never logged in full, cloud STT only by explicit choice; update `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt`
+- [ ] Privacy: audio and transcripts are never logged in full, cloud STT only by explicit choice; update `ARCHITECTURE.md`, `docs/privacy.md`, `requirements*.txt` — *partly: `ARCHITECTURE.md` and `requirements-voice.txt` are updated, `docs/privacy.md` is not*
 
 **Done when:** a phrase's translation shows up in the subtitles within ~3 s of its end; the feature is off by default and never goes to the network without an explicit user action.
 
@@ -356,11 +356,11 @@ The app, product and documentation, publication. It depends on the model work on
 | 9 | A | Model monitoring | 2–3 | |
 | 10 | A | Inference service | 3–5 | |
 | 11 | B | App release (done) | 4–6 | |
-| 12 | B | Product and documentation (done) | 3–5 | |
+| 12 | B | Product and documentation | 3–5 | |
 | 13 | B | Voice translation | 8–12 | |
 | 14 | B | CV, thesis, publication | 3–4 | |
 
-**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 and 12 are done).
+**Recommended order:** 0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 5 → 9 → 10 → 14 (11 is done; 12 except the interface rework).
 Parts A and B can run in parallel; stage 13 (voice translation) does not depend on the model work. The minimum for a strong CV: stages 0–4, 6–8 and 14. Stages 5, 9, 10 and 13 strengthen the project but can wait.
 
 **Dependencies:** stage 4 is needed before 5 and 7; stage 6 before 7 and 8; stage 2 before 3 and 5; stage 8 (cuBLAS) is useful before 13 — Whisper on the GPU uses cuBLAS but also needs cuDNN 9.

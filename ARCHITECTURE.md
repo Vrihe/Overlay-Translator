@@ -105,6 +105,8 @@ Overlay-Translator/
 ├── ui/                     # PyQt5 widgets
 │   ├── main_window.py      #   MainWindow with a nav rail (Home/Settings/History)
 │   ├── settings_dialog.py  #   * SettingsWidget — all settings; ProfileEditorDialog
+│   ├── subtitles_page.py   #   * SubtitlesPage — the main window's Subtitles tab
+│   ├── monitoring_page.py  #   * MonitoringPage — the main window's Monitoring tab (regions, live monitoring)
 │   ├── result_popup.py     #   ResultPopup — result window (TTS, copy, resize, region history blocks)
 │   ├── setup_wizard.py     #   First-run wizard: online (Google) / API key / offline NLLB + download
 │   ├── first_run_dialog.py #   LLM API key entry (when the LLM backend has no key)
@@ -241,7 +243,7 @@ Overlay-Translator/
   `_on_ocr_preview_requested`, `_toggle_live_monitoring`, `_register_preset_hotkeys`,
   `_on_partial_translation`, `_on_translation_finished`, `_show_result`, `_show_error`,
   `_quit`, `run`.
-- Live subtitles: `_toggle_subtitles(checked)` (tray `act_subtitles`, Settings → Субтитры)
+- Live subtitles: `_toggle_subtitles(checked)` (tray `act_subtitles`, the main window's Subtitles tab)
   lazily creates `audio.session.SubtitleSession` + `ui.subtitle_window.SubtitleWindow`
   and starts / stops the session. `_on_subtitles_status` forwards the status to the
   settings page and the strip (an error that stopped the session also to a tray balloon);
@@ -534,7 +536,7 @@ interleaved lines of neighbouring strips and merged them into one row.
 ### `audio/` — live speech pipeline
 Live subtitles: what the computer plays → English speech → translated strip
 (`ui/subtitle_window.py`). Started and stopped from the tray ("Живые субтитры") or
-Settings → Субтитры; `main.py` creates the session and the window on first use.
+the main window's Subtitles tab; `main.py` creates the session and the window on first use.
 `faster-whisper` and `PyAudioWPatch` are **not in `requirements.txt` yet** and no Whisper
 model ships or downloads: all three are imported / looked up lazily, the app starts
 without them and starting subtitles then reports what is missing. Background and
@@ -674,6 +676,10 @@ SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None
   `SwitchRow` (switch + label with the QCheckBox API used by the settings), `page_title()`.
 - **Title bars** — `ui/title_bar.py`: the main window is `FramelessWindowHint` but gets its
   native `WS_CAPTION | WS_THICKFRAME | …` styles back (`install_native_frame`);
+  when the window crosses to another monitor (`QWindow.screenChanged` →
+  `MainWindow._on_screen_changed` → `title_bar.refresh_frame`, `SWP_FRAMECHANGED`) the frame
+  is recalculated — without it Qt took the added caption style for a native caption and each
+  crossing grew the window by 16×39 px, leaving stale content on the right and at the bottom;
   `MainWindow.nativeEvent` → `title_bar.native_event` answers `WM_NCCALCSIZE` (whole window
   is client area; a maximised window is inset by the frame thickness) and `WM_NCHITTEST`
   (resize edges, `HTCAPTION` for the `TitleBar` strip outside its buttons). `WM_MOUSEACTIVATE`
@@ -702,26 +708,17 @@ SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None
   translation, custom profiles), "Хоткеи" (`QKeySequenceEdit` per app hotkey + "По умолчанию";
   `_apply_hotkey` → `settings/hotkeys.validate_app_hotkey` → `set_value` →
   `hotkeys_changed`; a rejected one is shown and the saved one restored; focus in/out emits
-  `hotkey_capture`), "Регионы" (`refresh_regions()` lists `region_presets.load_presets()` as
-  name · size · bind; "Добавить регион" / "Управление…" emit `add_region_requested` /
-  `manage_regions_requested`, forwarded by `MainWindow` to `TranslatorApp._add_region`
-  (selector → name prompt → `save_preset`) / `_show_presets_dialog`;
-  `TranslatorApp._on_presets_updated` → `MainWindow.refresh_regions()` keeps the list current;
-  "Мониторинг" emits `monitor_region_requested(x1, y1, x2, y2)` for the selected region, or
-  `stop_monitoring_requested` while monitoring runs (`set_monitoring_active()`, fed by
-  `TranslatorApp._start/_stop_live_monitoring` through `MainWindow.set_monitoring_active`,
-  which also keeps the tray toggle in step; the presets dialog has no monitoring button);
+  `hotkey_capture`), "Мониторинг" (page key `regions`; the list of regions and
+  the start button are on the main window's Monitoring tab, `ui/monitoring_page.py`;
   live monitoring `live_interval_sec` spin 1–120 s and `live_sensitivity` combo, autosaved,
   read by `_start_live_monitoring` at the next start; `live_popup_keep_open` switch (default
   on): the popup a monitor updates skips the auto-hide timer while monitoring runs and gets
   it back when monitoring stops. Starting a monitor drops the region's `RegionFeed`, so the
-  first check shows the region's whole text again), "Субтитры" (live subtitles: a start /
-  stop button emitting `subtitles_toggle_requested(bool)` → `MainWindow` →
-  `TranslatorApp._toggle_subtitles`, a status line fed by `set_subtitles_status`, and the
-  autosaved `subtitles_device` (default output + `audio.capture.list_loopback_devices()`;
-  a saved device that is unplugged stays in the list), `subtitles_model`
-  (`small.en` / `base.en` / `tiny.en`) and `subtitles_stt_device` (`auto` / `cpu`) combos,
-  read at the next start), "Распознавание" (OCR
+  first check shows the region's whole text again), "Субтитры" (only what is set up once for live subtitles: the
+  autosaved `subtitles_model` (`small.en` / `small` / `base.en` / `tiny.en`) with its download
+  row and `subtitles_stt_device` (`auto` / `cpu`) with the CUDA-library row, read at the next
+  start; starting subtitles and the day-to-day parameters are on the main window's Subtitles
+  tab, `ui/subtitles_page.py`; `show_section(key)` opens a section by its page key), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout, saved size; group
   "Ненавязчивость": `popup_opacity` slider 40–100 % styled by `theme.slider_css()`,
   `popup_compact` and `popup_click_through` switches, all autosaved), "Интерфейс"
@@ -793,6 +790,41 @@ SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None
   as tall as its wrapped text (margins + header + `heightForWidth`, 44–550 px), growing
   and shrinking; it used to keep `QScrollArea`'s default hint, which left a short
   translation in a half-empty window.
+- Home page feature switches (`_HomePage` in `ui/main_window.py`, panel "Функции"): "Живые
+  субтитры" emits `subtitles_toggle_requested(bool)` like the tab's button; "Мониторинг региона"
+  goes through `MainWindow._on_home_monitoring_toggled` — on: `MonitoringPage.start_selected()`
+  (the region selected on the Monitoring tab; with no saved region the switch goes back off
+  and the Monitoring tab opens), off: `stop_monitoring_requested`. Both switches follow the
+  real state through `MainWindow.set_subtitles_active` / `set_monitoring_active`, so a start
+  from the tray, a bind or a tab shows here too, and a failed start flips the switch back.
+- `MonitoringPage` (`ui/monitoring_page.py`) — the main window's "Monitoring" tab
+  (`MainWindow.PAGE_MONITORING`, third on the rail): `refresh_regions()` lists
+  `region_presets.load_presets()` as name · size · bind; "Добавить регион" / "Управление…"
+  emit `add_region_requested` / `manage_regions_requested`, forwarded by `MainWindow` to
+  `TranslatorApp._add_region` (selector → name prompt → `save_preset`) /
+  `_show_presets_dialog`; `TranslatorApp._on_presets_updated` → `MainWindow.refresh_regions()`
+  keeps the list current. The start button emits `monitor_region_requested(x1, y1, x2, y2)`
+  for the selected region, or `stop_monitoring_requested` while monitoring runs
+  (`set_monitoring_active()`, fed by `TranslatorApp._start/_stop_live_monitoring` through
+  `MainWindow.set_monitoring_active`, which also keeps the tray toggle in step; the presets
+  dialog has no monitoring button). `open_settings_requested` leads to Settings → Мониторинг
+  (`show_settings_section("regions")`) for the interval, sensitivity and popup behaviour.
+- `SubtitlesPage` (`ui/subtitles_page.py`) — the main window's "Subtitles" tab
+  (`MainWindow.PAGE_SUBTITLES`, second on the rail): the start / stop button
+  (`toggle_requested(bool)` → `MainWindow.subtitles_toggle_requested` →
+  `TranslatorApp._toggle_subtitles`), the session status (`set_active`, `set_status`), and the
+  parameters used day to day — `subtitles_device` (default output +
+  `audio.capture.list_loopback_devices()`; a saved device that is unplugged stays in the
+  list), `subtitles_language`, `subtitles_streaming`, `subtitles_skip_foreign` — each saved
+  into `config` the moment it changes and read at the next start. `reload()` runs when the tab
+  opens. The page names the chosen model, warns when it is not on disk or is English-only
+  while another language / the filter is wanted, and `open_settings_requested` leads to
+  Settings → Субтитры (`MainWindow.show_settings_section("subtitles")`).
+- Subtitle reading pace (`ui/subtitle_window.py`): `add_line()` queues a line while the
+  newest one on screen is still inside its reading time (length / `READ_CHARS_PER_S`, clamped
+  to `MIN_HOLD_MS`…`MAX_HOLD_MS`); `_hold_timer` shows it afterwards. More than `MAX_WAITING`
+  waiting lines are shown at once so the strip does not fall behind; interim text
+  (`set_partial`) is skipped during a hold; `MAX_LINES` = 3 lines stay visible.
 - `SubtitleWindow` (`ui/subtitle_window.py`) — the live-subtitle strip: frameless, always
   on top, `WindowDoesNotAcceptFocus` + `WA_ShowWithoutActivating` (a game keeps the
   keyboard), excluded from screen captures like the popup, with the same opacity and
@@ -1085,7 +1117,9 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_popup_live.py` | popup excluded from screen capture and without a translucent background, show and update never taking the focus, regions dialog rows and monitoring button |
 | `tests/test_overlay_behavior.py` | `ui/overlay_behavior.py`: opacity clamping, engaged under the cursor / with Alt in click-through mode / while a button is held, settings applied to an open overlay; the popup: translucent at rest, frame colour, height fitted to the text (short, long, shrinking, capped, loading), compact header growing upwards, saved size at rest; the subtitle strip following the same settings |
 | `tests/test_settings_popup_behavior.py` | Settings → Попап → "Ненавязчивость": slider and switches shown and autosaved, broken saved value, wheel over the slider swallowed |
-| `tests/test_settings_regions.py` | Settings → Regions list (size, bind, empty state), add / manage signals, live monitoring settings autosave, sensitivity thresholds and interval clamping |
+| `tests/test_settings_regions.py` | Settings → Мониторинг: live monitoring settings autosave, sensitivity thresholds and interval clamping |
+| `tests/test_main_window_tabs.py` | Main window: rail order and page switching, the Home feature switches (requests, following the real state without echo, monitoring with and without a saved region), links from the tabs to their settings sections |
+| `tests/test_monitoring_page.py` | `ui/monitoring_page.py`: regions list (size, bind, empty state, reload), add / manage / settings signals, start and stop of monitoring, stop available without regions |
 | `tests/settings_widget_case.py` | helper: SettingsWidget built offscreen with settings.json, keyring, presets and backends mocked |
 | `tests/test_install_update.py` | one-click update: installer + SHA-256 from a release (digest / notes, none → no update), version check, verified download with cleanup, waiter script and its process flags, self-update only for an installed app, the setup's relaunch hook; app-only update: zip + manifest assets, manifest parsing (unsafe paths refused), `choose_update_path`, swap plan, fallback to the installer (bad zip, deps changed, read-only dir, earlier rollback), swap script with rollback, `-File` launch with a BOM |
 | `tests/test_app_hotkeys.py` | app hotkeys: Qt sequence → keyboard name, validation (single key, clashes with the other hotkey / presets), `SETTINGS_HOTKEY` env override, the settings page saving / rejecting an edit and pausing the hooks on focus |
@@ -1123,7 +1157,8 @@ Location: `tests/`. Style: `unittest.TestCase`; they also run under pytest.
 | `tests/test_audio_phrase_translator.py` | `audio/phrase_translator.py`: sentence splitting, NLLB translated sentence by sentence and cloud backends in one request, nothing written to the history, English target shown as is; the thread: order, a failed phrase not stopping it, backlog dropping the oldest, stop |
 | `tests/test_audio_session.py` | `audio/session.py` with fake recognizer / capture / translate: speech → subtitle, stop and restart, results of a stopped run ignored, missing model and capture failure stopping with the reason, fallback warnings, translation error keeping it running |
 | `tests/test_subtitle_window.py` | `ui/subtitle_window.py`: hidden when empty, last two lines, expiry, status time-outs, plain text, no focus, bottom-centre anchoring while it grows, drag saving the place, saved place used / ignored off-screen |
-| `tests/test_settings_subtitles.py` | Settings → Субтитры: defaults, device list with the saved-but-unplugged device kept, autosave of the three choices without resetting the translation backends, start / stop button and status line |
+| `tests/test_settings_subtitles.py` | Settings → Субтитры: defaults, autosave of the model and device without resetting the translation backends or touching what the Subtitles tab owns, opening a section by key, the model / CUDA download rows |
+| `tests/test_subtitles_page.py` | `ui/subtitles_page.py`: start / stop button and status line, parameters saved at once and nothing saved on opening, reload, saved-but-unplugged device kept, page without the sound packages, model hints |
 | `tests/test_audio_worker.py` | `audio/worker.py`: phrases in order with times on the worker thread, stop flushing the phrase in progress, missing model reported, one failed phrase not stopping the worker, phrases too far behind dropped |
 | `tests/test_stt_download.py` | Whisper model download (only model files, checksum, resume after cancel, incomplete folder replaced) and the cuDNN wheel download, all with a faked network |
 
