@@ -89,7 +89,7 @@ class _SttCase(unittest.TestCase):
                     self.root / "user" / "models" / stt.model_dirname(name),
                 ],
             ),
-            patch.object(stt.os, "name", "nt"),
+            patch.object(stt, "_ON_WINDOWS", True),
             patch("translate.cuda_support.prepare_cuda_libraries", return_value=self.root / "cublas"),
             patch.object(stt, "prepare_cudnn", return_value=self.root / "cudnn"),
         ]
@@ -367,7 +367,7 @@ class TestCudnnDiscovery(unittest.TestCase):
                 patch("translate.cuda_download.cudnn_dir", return_value=root / "app-cudnn"),
                 patch("translate.cuda_support._toolkit_env_dirs", return_value=[]),
                 patch("translate.cuda_support._toolkit_default_dirs", return_value=[]),
-                patch.object(stt.os, "name", "nt"),
+                patch.object(stt, "_ON_WINDOWS", True),
                 patch.dict(os.environ, {"PATH": "base"}),
                 patch.object(stt, "_cudnn_registered", set()),
             ):
@@ -384,7 +384,7 @@ class TestCudnnDiscovery(unittest.TestCase):
                 patch("translate.cuda_download.cudnn_dir", return_value=Path(tmp) / "app-cudnn"),
                 patch("translate.cuda_support._toolkit_env_dirs", return_value=[]),
                 patch("translate.cuda_support._toolkit_default_dirs", return_value=[]),
-                patch.object(stt.os, "name", "nt"),
+                patch.object(stt, "_ON_WINDOWS", True),
             ):
                 self.assertIsNone(stt.prepare_cudnn())
 

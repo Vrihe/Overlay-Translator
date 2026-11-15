@@ -110,6 +110,9 @@ _REQUIRED_FILES = ("model.bin", "config.json", "tokenizer.json")
 CUDNN_DLL = "cudnn_ops64_9.dll"
 
 _cudnn_registered: set[str] = set()
+#: Tests switch this instead of ``os.name``: patching ``os.name`` itself changes the class
+#: ``pathlib.Path`` creates and breaks every path made meanwhile on another system.
+_ON_WINDOWS = os.name == "nt"
 
 
 class SttModelUnavailable(Exception):
@@ -202,7 +205,7 @@ def find_cudnn_dir() -> Path | None:
 
 def prepare_cudnn() -> Path | None:
     """Put cuDNN on PATH (CTranslate2 loads it with plain LoadLibrary). Windows only."""
-    if os.name != "nt":
+    if not _ON_WINDOWS:
         return None
     found = find_cudnn_dir()
     if found is None:
@@ -373,7 +376,7 @@ class SpeechRecognizer:
         if gpu_count == 0:
             raise _CudaUnavailable("no CUDA-capable GPU detected", notify=explicit)
 
-        if os.name == "nt":
+        if _ON_WINDOWS:
             # Checked before the model is created: with cuDNN missing, CTranslate2 does
             # not raise on the first convolution, it aborts the whole process.
             if prepare_cuda_libraries() is None:
