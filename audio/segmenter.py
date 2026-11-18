@@ -6,7 +6,9 @@ Feed 16 kHz mono float32 audio in chunks of any size; get back finished phrases:
     segmenter = Segmenter()
     for phrase in segmenter.feed(chunk): ...
 
-A phrase closes after ``min_silence_ms`` of silence. Speech without pauses (a video,
+A phrase closes after ``min_silence_ms`` of silence; once it is longer than ``long_phrase_s``
+the wait shrinks to ``long_min_silence_ms``: a long phrase has surely been spoken in full by
+the first natural pause, and every extra 100 ms is latency for the whole of it. Speech without pauses (a video,
 a stream) is cut by force at ``max_phrase_s``, at the least speech-like frame of the
 last two seconds, so words are split less often.
 
@@ -72,6 +74,8 @@ class Segmenter:
         vad=None,
         *,
         min_silence_ms: int = 400,
+        long_phrase_s: float = 5.0,
+        long_min_silence_ms: int = 250,
         max_phrase_s: float = 10.0,
         threshold: float = 0.5,
         min_speech_ms: int = 200,
@@ -82,6 +86,8 @@ class Segmenter:
         # Hysteresis: a phrase that started keeps going down to a lower probability.
         self._neg_threshold = max(threshold - 0.15, 0.01)
         self._min_silence = max(1, int(min_silence_ms * SAMPLE_RATE / 1000 / FRAME))
+        self._long_frames = int(long_phrase_s * SAMPLE_RATE / FRAME)
+        self._long_min_silence = max(1, min(self._min_silence, int(long_min_silence_ms * SAMPLE_RATE / 1000 / FRAME)))
         self._max_frames = max(2, int(max_phrase_s * SAMPLE_RATE / FRAME))
         self._min_speech = max(1, int(min_speech_ms * SAMPLE_RATE / 1000 / FRAME))
         self._pad = int(pad_ms * SAMPLE_RATE / 1000 / FRAME)
@@ -150,7 +156,8 @@ class Segmenter:
         else:
             self._silence += 1
 
-        if self._silence >= self._min_silence:
+        needed = self._long_min_silence if len(self._frames) >= self._long_frames else self._min_silence
+        if self._silence >= needed:
             if self._speech_frames < self._min_speech:
                 self._reset_phrase()  # a click or a cough, not a phrase
                 return None

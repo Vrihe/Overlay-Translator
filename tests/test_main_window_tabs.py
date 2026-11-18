@@ -142,11 +142,18 @@ class TestScreenChange(_WindowCase):
 
 
 class TestLinksToSettings(_WindowCase):
-    def test_tabs_lead_to_their_settings_sections(self):
+    def test_monitoring_tab_leads_to_its_settings_section(self):
         with mock.patch.object(self.window, "show_settings_section") as show:
-            self.window._subtitles_page._btn_settings.click()
             self.window._monitoring_page._btn_settings.click()
-        self.assertEqual([call.args[0] for call in show.call_args_list], ["subtitles", "regions"])
+        self.assertEqual([call.args[0] for call in show.call_args_list], ["regions"])
+
+
+class TestSubtitlesProblem(_WindowCase):
+    def test_a_failed_start_opens_the_subtitles_tab(self):
+        with mock.patch.object(self.window._subtitles_page, "on_start_failed") as failed:
+            self.window.show_subtitles_problem("no model")
+        self.assertEqual(self.window._stack.currentIndex(), MainWindow.PAGE_SUBTITLES)
+        failed.assert_called_once_with("no model")
 
 
 if __name__ == "__main__":

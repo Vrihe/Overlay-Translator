@@ -49,8 +49,6 @@ from ui.nllb_workers import (
     NllbDownloadWorker,
     NllbPreloadWorker,
     NllbVersionsWorker,
-    SpeechCudaDownloadWorker,
-    SpeechModelDownloadWorker,
 )
 
 _SOURCE_LANGUAGES = [
@@ -101,16 +99,6 @@ _OCR_LANGUAGE_SETS = [
     ("en", N_("Только латиница"), ["en"]),
 ]
 _CYRILLIC_OCR_LANGS = {"ru", "uk", "be"}
-
-# Live subtitles: Whisper models (audio/stt.py looks for models/whisper-<name>).
-_SUBTITLE_MODELS = [
-    ("small.en", N_("small.en — точнее, нужна видеокарта NVIDIA")),
-    ("small", N_("small — многоязычная, для фильтра языка; нужна видеокарта NVIDIA")),
-    ("large-v3-turbo", N_("large-v3-turbo — многоязычная, заметно точнее и почти так же быстра; 1,5 ГБ")),
-    ("large-v3", N_("large-v3 — самая точная, медленнее; 3 ГБ, видеокарта от 6 ГБ памяти")),
-    ("base.en", N_("base.en — быстрее, подходит для процессора")),
-    ("tiny.en", N_("tiny.en — самая быстрая, больше ошибок")),
-]
 
 
 def _ocr_language_set(langs) -> str:
@@ -372,7 +360,6 @@ class SettingsWidget(QWidget):
         (N_("Хоткеи"), "hotkeys"),
         (N_("Мониторинг"), "regions"),
         (N_("Распознавание"), "ocr"),
-        (N_("Субтитры"), "subtitles"),
         (N_("Попап"), "popup"),
         (N_("Интерфейс"), "interface"),
     )
@@ -891,60 +878,6 @@ class SettingsWidget(QWidget):
         live_layout.addWidget(self._chk_live_keep_open)
         pages["regions"].addWidget(grp_live)
 
-        # ── Live subtitles: speech from the speakers → translated strip ──
-        grp_subs, subs_layout = self._group(tr("Живые субтитры"))
-        lbl_subs = QLabel(
-            tr(
-                "Модель распознавания речи и библиотеки для видеокарты: то, что настраивают один раз. "
-                "Распознавание идёт на этом компьютере. Запуск, источник звука, язык речи и режимы — "
-                "на вкладке «Субтитры». Новые значения действуют со следующего запуска субтитров."
-            )
-        )
-        lbl_subs.setWordWrap(True)
-        lbl_subs.setStyleSheet(theme.label_css("caption"))
-        subs_layout.addWidget(lbl_subs)
-
-        self._subs_model_combo = QComboBox()
-        self._subs_model_combo.setStyleSheet(self._INPUT_CSS)
-        for model, label in _SUBTITLE_MODELS:
-            self._subs_model_combo.addItem(tr(label), model)
-        subs_layout.addLayout(self._field(tr("Модель распознавания:"), self._subs_model_combo))
-        # The speech model is downloaded only by this button (audio/stt_download.py).
-        self._subs_model_worker = None
-        self._subs_model_status, self._btn_subs_model, subs_model_row = self._subs_download_row(
-            self._on_subs_model_clicked
-        )
-        subs_layout.addWidget(subs_model_row)
-        self._subs_model_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_model_row())
-        self._subs_stt_device_combo = QComboBox()
-        self._subs_stt_device_combo.setStyleSheet(self._INPUT_CSS)
-        self._subs_stt_device_combo.addItem(tr("Авто (видеокарта NVIDIA, если доступна)"), "auto")
-        self._subs_stt_device_combo.addItem(tr("Только процессор (CPU)"), "cpu")
-        subs_layout.addLayout(self._field(tr("Устройство распознавания:"), self._subs_stt_device_combo))
-        # GPU libraries for Whisper (cuDNN, plus cuBLAS when missing): NVIDIA owners only.
-        self._subs_gpu_worker = None
-        self._subs_gpu_status, self._btn_subs_gpu, self._subs_gpu_widget = self._subs_download_row(
-            self._on_subs_gpu_clicked
-        )
-        subs_layout.addWidget(self._subs_gpu_widget)
-        # Video memory: what the chosen model takes, and the int8 switch that halves it.
-        self._chk_subs_low_vram = SwitchRow(tr("Экономить видеопамять (сжатие int8)"))
-        self._chk_subs_low_vram.setToolTip(
-            tr(
-                "Модель загружается на видеокарту в сжатом виде: видеопамяти нужно примерно вдвое "
-                "меньше, а точность распознавания слегка падает. Файл модели на диске не меняется."
-            )
-        )
-        subs_layout.addWidget(self._chk_subs_low_vram)
-        self._subs_vram_hint = QLabel("")
-        self._subs_vram_hint.setWordWrap(True)
-        self._subs_vram_hint.setStyleSheet(theme.label_css("caption"))
-        subs_layout.addWidget(self._subs_vram_hint)
-        self._chk_subs_low_vram.toggled.connect(lambda _on: self._refresh_subs_vram_hint())
-        self._subs_model_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_vram_hint())
-        self._subs_stt_device_combo.currentIndexChanged.connect(lambda _i: self._refresh_subs_gpu_row())
-        pages["subtitles"].addWidget(grp_subs)
-
         # ── Interface section ──
         grp_ui, ui_layout = self._group(tr("Интерфейс"))
 
@@ -1416,186 +1349,6 @@ class SettingsWidget(QWidget):
         self._nllb_status.setText(message)
         self._nllb_status.setStyleSheet(self._status_css(kind))
 
-    # ── Live subtitles ───────────────────────────────────
-
-    def _subs_download_row(self, on_click):
-        """A status label with a download button on the right: ``(label, button, row widget)``."""
-        row_widget = QWidget()
-        row = QHBoxLayout(row_widget)
-        row.setContentsMargins(0, 0, 0, 0)
-        status = QLabel("")
-        status.setWordWrap(True)
-        status.setTextFormat(Qt.PlainText)
-        status.setStyleSheet(self._status_css())
-        row.addWidget(status, 1)
-        button = QPushButton()
-        button.setCursor(Qt.PointingHandCursor)
-        button.setStyleSheet(theme.btn_accent("6px 12px", 8.5))
-        button.clicked.connect(on_click)
-        row.addWidget(button, 0, Qt.AlignTop)
-        return status, button, row_widget
-
-    def _set_subs_row(self, label, message: str, kind: str = "muted") -> None:
-        label.setText(message)
-        label.setStyleSheet(self._status_css(kind))
-
-    def _refresh_subs_vram_hint(self) -> None:
-        """How much video memory the chosen model takes, with and without the int8 switch."""
-        from audio import stt
-
-        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
-        normal, low = stt.VRAM_MB.get(name, (0, 0))
-        if not normal:
-            self._subs_vram_hint.setText("")
-        elif self._chk_subs_low_vram.isChecked():
-            self._subs_vram_hint.setText(
-                tr(
-                    "Модель {name} займёт около {low} МБ видеопамяти вместо {normal} МБ. "
-                    "Качество распознавания слегка упадёт.",
-                    name=name,
-                    low=low,
-                    normal=normal,
-                )
-            )
-        else:
-            self._subs_vram_hint.setText(
-                tr(
-                    "Модель {name} займёт около {normal} МБ видеопамяти; с экономией — около {low} МБ.",
-                    name=name,
-                    low=low,
-                    normal=normal,
-                )
-            )
-        self._subs_vram_hint.setVisible(bool(self._subs_vram_hint.text()))
-
-    # Speech model download.
-
-    def _refresh_subs_model_row(self) -> None:
-        if self._subs_model_worker is not None:
-            return  # the download progress owns the row
-        from audio import stt, stt_download
-
-        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
-        installed = stt.resolve_model_dir(name) is not None
-        self._btn_subs_model.setText(tr("Скачать модель"))
-        self._btn_subs_model.setVisible(not installed and stt_download.is_downloadable(name))
-        if installed:
-            self._set_subs_row(self._subs_model_status, tr("✓ Модель {name} установлена.", name=name), "ok")
-        else:
-            self._set_subs_row(
-                self._subs_model_status,
-                tr(
-                    "Модель {name} не скачана: ~{size} МБ. Без неё субтитры не запустятся.",
-                    name=name,
-                    size=stt_download.APPROX_MB.get(name, "?"),
-                ),
-                "warn",
-            )
-
-    def _on_subs_model_clicked(self) -> None:
-        if self._subs_model_worker is not None:
-            self._subs_model_worker.cancel.set()
-            return
-        name = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
-        self._btn_subs_model.setText(tr("Отмена"))
-        self._subs_model_combo.setEnabled(False)
-        self._set_subs_row(self._subs_model_status, tr("⏳ Скачивание модели {name}…", name=name))
-        self._subs_model_worker = SpeechModelDownloadWorker(name, self)
-        self._subs_model_worker.progress_changed.connect(
-            lambda pct, done, total: self._set_subs_row(
-                self._subs_model_status,
-                tr("⏳ Скачивание модели: {done} / {total} МБ ({pct}%)", done=done, total=total, pct=pct),
-            )
-        )
-        self._subs_model_worker.finished_with_status.connect(self._on_subs_model_done)
-        self._subs_model_worker.start()
-
-    def _on_subs_model_done(self, ok: bool, result: str) -> None:
-        self._subs_model_worker = None
-        self._subs_model_combo.setEnabled(True)
-        self._refresh_subs_model_row()
-        if not ok:
-            self._set_subs_row(
-                self._subs_model_status,
-                tr("⚠ Не удалось скачать модель: {error}", error=result) if result else tr("Скачивание отменено."),
-                "warn" if result else "muted",
-            )
-
-    # GPU libraries for speech recognition (cuDNN, cuBLAS).
-
-    def _refresh_subs_gpu_row(self) -> None:
-        if self._subs_gpu_worker is not None:
-            return  # the download progress owns the row
-        from audio import stt
-        from translate.cuda_download import driver_cuda_version, gpu_offer
-        from translate.cuda_support import find_cublas_dir
-
-        ready = stt.find_cudnn_dir() is not None and find_cublas_dir() is not None
-        offer = gpu_offer(driver_cuda_version(), ready)
-        self._subs_gpu_widget.setVisible(offer != "none")
-        self._btn_subs_gpu.setText(tr("Скачать для видеокарты"))
-        self._btn_subs_gpu.setVisible(offer == "download")
-        label = self._subs_gpu_status
-        if offer == "ready" and self._subs_stt_device_combo.currentData() == "cpu":
-            self._set_subs_row(
-                label, tr("Библиотеки CUDA есть, но выбрано «Только процессор»: видеокарта не используется.")
-            )
-        elif offer == "ready":
-            self._set_subs_row(
-                label, tr("✓ Библиотеки CUDA найдены: распознавание работает на видеокарте NVIDIA."), "ok"
-            )
-        elif offer == "old_driver":
-            self._set_subs_row(
-                label,
-                tr("Драйвер NVIDIA слишком старый для CUDA 12. Обновите драйвер, чтобы распознавать на видеокарте."),
-                "warn",
-            )
-        elif offer == "download":
-            self._set_subs_row(
-                label,
-                tr(
-                    "На видеокарте NVIDIA распознавание намного быстрее. Нужны библиотеки CUDA "
-                    "(cuDNN и cuBLAS): до ~1,2 ГБ загрузки, ~1,8 ГБ на диске. Без них — на процессоре."
-                ),
-            )
-
-    def _on_subs_gpu_clicked(self) -> None:
-        if self._subs_gpu_worker is not None:
-            self._subs_gpu_worker.cancel.set()
-            return
-        self._btn_subs_gpu.setText(tr("Отмена"))
-        self._subs_gpu_stage = "cuDNN"
-        self._set_subs_row(self._subs_gpu_status, tr("⏳ Скачивание библиотек CUDA…"))
-        self._subs_gpu_worker = SpeechCudaDownloadWorker(self)
-        self._subs_gpu_worker.stage_changed.connect(lambda stage: setattr(self, "_subs_gpu_stage", stage))
-        self._subs_gpu_worker.progress_changed.connect(
-            lambda pct, done, total: self._set_subs_row(
-                self._subs_gpu_status,
-                tr(
-                    "⏳ Скачивание {name}: {done} / {total} МБ ({pct}%)",
-                    name=self._subs_gpu_stage,
-                    done=done,
-                    total=total,
-                    pct=pct,
-                ),
-            )
-        )
-        self._subs_gpu_worker.finished_with_status.connect(self._on_subs_gpu_done)
-        self._subs_gpu_worker.start()
-
-    def _on_subs_gpu_done(self, ok: bool, result: str) -> None:
-        self._subs_gpu_worker = None
-        self._refresh_subs_gpu_row()
-        self._refresh_cuda_row()  # cuBLAS may have arrived too
-        if not ok:
-            self._set_subs_row(
-                self._subs_gpu_status,
-                tr("⚠ Не удалось скачать библиотеки CUDA: {error}", error=result)
-                if result
-                else tr("Скачивание отменено."),
-                "warn" if result else "muted",
-            )
-
     # ── App hotkeys ──────────────────────────────────────
 
     def _show_saved_hotkeys(self) -> None:
@@ -2027,16 +1780,6 @@ class SettingsWidget(QWidget):
         self._live_sensitivity_combo.setCurrentIndex(max(0, self._live_sensitivity_combo.findData(sensitivity)))
         self._chk_live_keep_open.setChecked(bool(getattr(config, "LIVE_POPUP_KEEP_OPEN", True)))
 
-        # Live subtitles.
-        subs_model = getattr(config, "SUBTITLES_MODEL", "") or _SUBTITLE_MODELS[0][0]
-        self._subs_model_combo.setCurrentIndex(max(0, self._subs_model_combo.findData(subs_model)))
-        subs_device = getattr(config, "SUBTITLES_STT_DEVICE", "auto") or "auto"
-        self._subs_stt_device_combo.setCurrentIndex(max(0, self._subs_stt_device_combo.findData(subs_device)))
-        self._chk_subs_low_vram.setChecked(bool(getattr(config, "SUBTITLES_LOW_VRAM", False)))
-        self._refresh_subs_vram_hint()
-        self._refresh_subs_model_row()
-        self._refresh_subs_gpu_row()
-
         # Notification type.
         if config.NOTIFICATION_TYPE == "windows_toast":
             self._radio_toast.setChecked(True)
@@ -2060,8 +1803,6 @@ class SettingsWidget(QWidget):
             self._nllb_version_combo,
             self._live_sensitivity_combo,
             self._nllb_device_combo,
-            self._subs_model_combo,
-            self._subs_stt_device_combo,
         ):
             combo.currentIndexChanged.connect(self._schedule_autosave)
         for button in (self._radio_or, self._radio_ant, self._radio_popup, self._radio_toast):
@@ -2074,7 +1815,6 @@ class SettingsWidget(QWidget):
             self._chk_live_keep_open,
             self._chk_popup_compact,
             self._chk_click_through,
-            self._chk_subs_low_vram,
         ):
             switch.toggled.connect(self._schedule_autosave)
         self._opacity_slider.valueChanged.connect(self._schedule_autosave)
@@ -2184,9 +1924,6 @@ class SettingsWidget(QWidget):
         cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
         cfg["live_popup_keep_open"] = self._chk_live_keep_open.isChecked()
         cfg["nllb_device"] = self._nllb_device_combo.currentData() or "auto"
-        cfg["subtitles_model"] = self._subs_model_combo.currentData() or _SUBTITLE_MODELS[0][0]
-        cfg["subtitles_stt_device"] = self._subs_stt_device_combo.currentData() or "auto"
-        cfg["subtitles_low_vram"] = self._chk_subs_low_vram.isChecked()
         cfg["azure_region"] = self._azure_region_input.text().strip() or "global"
         cfg["ocr_gpu_mode"] = self._ocr_gpu_combo.currentData() or "auto"
         cfg["primary_provider"] = primary_choice

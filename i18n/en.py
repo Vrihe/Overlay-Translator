@@ -444,6 +444,21 @@ MESSAGES: dict[str, str] = {
     "Слушаю: {device}": "Listening to: {device}",
     "Выбранное устройство не найдено, используется устройство по умолчанию.": "The chosen device was not found; the default device is used.",
     "Ошибка перевода: {error}": "Translation error: {error}",
+    "Распознавание не успевает за речью, пропущено фраз: {count}. Выберите модель поменьше или выключите потоковый режим.": "Recognition cannot keep up with the speech, phrases skipped: {count}. Choose a smaller model or turn streaming off.",
+    "Модель распознавания": "Recognition model",
+    "Модель": "Model",
+    "Компоненты": "Components",
+    "Установить пакеты": "Install packages",
+    "Не установлены пакеты: {names}. Без них субтитры не работают — нажмите «Установить пакеты».": "Packages not installed: {names}. Subtitles do not work without them — press “Install packages”.",
+    "Не установлены пакеты: {names}. Переустановите приложение или запустите install.bat.": "Packages not installed: {names}. Reinstall the app or run install.bat.",
+    "⏳ Установка пакетов (pip)… Это может занять несколько минут, нужен интернет.": "⏳ Installing packages (pip)… It may take a few minutes, an internet connection is needed.",
+    "Пакеты установлены. Осталось скачать модель и запустить субтитры.": "Packages installed. Download the model and start the subtitles.",
+    "⚠ Не удалось установить пакеты: {error}": "⚠ Could not install the packages: {error}",
+    "Установка отменена.": "Installation cancelled.",
+    "Устройство распознавания": "Recognition device",
+    "Для запуска нужна модель {name}. Скачайте её кнопкой ниже.": "The model {name} is needed to start. Download it with the button below.",
+    "Модель ещё скачивается. Дождитесь окончания загрузки.": "The model is still downloading. Wait for the download to finish.",
+    "Модель скачана. Можно запускать субтитры.": "The model is downloaded. You can start the subtitles.",
     "Субтитры": "Subtitles",
     "Живые субтитры": "Live subtitles",
     "Запустить субтитры": "Start subtitles",
@@ -481,16 +496,6 @@ MESSAGES: dict[str, str] = {
     "For another speech language download the multilingual model {model} in the settings, or choose English.",
     "Модель {name} понимает только английский: используется многоязычная {model}.": "Model {name} understands "
     "English only: the multilingual {model} is used.",
-    "Модель и видеокарта": "Model and GPU",
-    "Модель {name} не скачана — без неё субтитры не запустятся. Скачайте её в настройках.": "Model {name} is not "
-    "downloaded — subtitles will not start without it. Download it in the settings.",
-    "Модель распознавания: {name}": "Recognition model: {name}",
-    "Модель распознавания речи и библиотеки для видеокарты: то, что настраивают один раз. "
-    "Распознавание идёт на этом компьютере. Запуск, источник звука, язык речи и режимы — "
-    "на вкладке «Субтитры». Новые значения действуют со следующего запуска субтитров.": "The speech recognition "
-    "model and the GPU libraries: what is set up once. Recognition runs on this computer. Starting, the audio "
-    "source, the speech language and the modes are on the Subtitles tab. New values apply the next time subtitles "
-    "are started.",
     "Скачать модель": "Download the model",
     "Экономить видеопамять (сжатие int8)": "Save video memory (int8 compression)",
     "Модель загружается на видеокарту в сжатом виде: видеопамяти нужно примерно вдвое "
@@ -543,8 +548,6 @@ MESSAGES: dict[str, str] = {
     "⚠ Не удалось скачать библиотеки CUDA: {error}": "⚠ Could not download the CUDA libraries: {error}",
     "Остановить субтитры": "Stop subtitles",
     "Устройство вывода по умолчанию": "Default output device",
-    "Модель распознавания:": "Recognition model:",
-    "Устройство распознавания:": "Recognition device:",
     "small.en — точнее, нужна видеокарта NVIDIA": "small.en — more accurate, needs an NVIDIA GPU",
     "base.en — быстрее, подходит для процессора": "base.en — faster, fine for a CPU",
     "tiny.en — самая быстрая, больше ошибок": "tiny.en — the fastest, more mistakes",

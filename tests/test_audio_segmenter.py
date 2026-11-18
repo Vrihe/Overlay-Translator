@@ -58,6 +58,15 @@ class TestSegmenter(unittest.TestCase):
         self.assertLess(phrase.start, 1.0)
         self.assertGreater(len(phrase.audio) / SAMPLE_RATE, 2.0)
 
+    def test_a_long_phrase_closes_after_a_shorter_pause(self):
+        audio = np.concatenate([_speech(6), _silence(0.3), _speech(1), _silence(1)])
+        # Defaults: 400 ms closes a short phrase, but 250 ms is enough once it is 5 s long.
+        long_phrase = _run(self.make(), audio)
+        self.assertEqual(len(long_phrase), 2)
+        self.assertLess(long_phrase[0].closed_at - long_phrase[0].end, 0.3)
+        short = np.concatenate([_speech(2), _silence(0.3), _speech(1), _silence(1)])
+        self.assertEqual(len(_run(self.make(), short)), 1)  # 300 ms is below the normal 400 ms
+
     def test_short_pause_does_not_split(self):
         seg = self.make(min_silence_ms=400)
         audio = np.concatenate([_speech(1), _silence(0.2), _speech(1), _silence(1)])

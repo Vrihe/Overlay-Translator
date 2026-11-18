@@ -203,6 +203,23 @@ class TestInventedText(_SttCase):
         self.assertFalse(stt.is_known_artifact("Спасибо за просмотр, увидимся в следующем ролике"))
         self.assertFalse(stt.is_known_artifact("Thank you for the help with this boss"))
 
+    def test_a_sure_short_common_phrase_is_real_speech(self):
+        sure = _Segment(" Thank you.", avg_logprob=-0.2, no_speech_prob=0.01)
+        self.assertEqual(self._text(sure), "Thank you.")
+
+    def test_an_unsure_short_common_phrase_is_invented(self):
+        unsure = _Segment(" Thank you.", avg_logprob=-0.7, no_speech_prob=0.05)
+        self.assertEqual(self._text(unsure), "")
+        self.assertEqual(self.recognizer.dropped_unreliable, 1)
+
+    def test_a_short_common_phrase_that_may_be_silence_is_invented(self):
+        self.assertEqual(self._text(_Segment(" Bye.", avg_logprob=-0.2, no_speech_prob=0.4)), "")
+
+    def test_confidence_changes_only_short_common_phrases(self):
+        self.assertTrue(stt.is_known_artifact("You"))
+        self.assertFalse(stt.is_known_artifact("You", confident=True))
+        self.assertTrue(stt.is_known_artifact("Thanks for watching", confident=True))
+
 
 class TestLanguageFilter(_SttCase):
     """skip_foreign: a multilingual model drops phrases confidently in another language."""

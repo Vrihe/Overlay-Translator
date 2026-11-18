@@ -87,11 +87,15 @@ _WHOLE_PHRASE_ARTIFACTS = frozenset(
         "спасибо за внимание",
         "thanks for watching",
         "thank you for watching",
-        "thank you",
-        "you",
-        "bye",
     }
 )
+#: Short phrases Whisper invents on silence but people also really say in a voice chat. They
+#: are an artefact only when the model was not sure of them (see ``is_known_artifact``).
+_SHORT_COMMON_ARTIFACTS = frozenset({"thank you", "thanks", "you", "bye"})
+#: A segment at least this sure (average log-probability) and with at most this chance of
+#: "no speech" counts as really spoken, even when it is a short common phrase.
+CONFIDENT_AVG_LOGPROB = -0.4
+CONFIDENT_NO_SPEECH_PROB = 0.2
 
 #: Video memory a model takes on the GPU, MB: (float16, int8 — ``low_vram``). Measured on an
 #: RTX 3060 with scratch/measure_vram.py for small.en, small and large-v3-turbo; the other
@@ -128,12 +132,26 @@ class _CudaUnavailable(Exception):
 # ── Model discovery ──────────────────────────────────────
 
 
-def is_known_artifact(text: str) -> bool:
-    """True for text Whisper produces from its training data rather than from the audio."""
+def is_known_artifact(text: str, *, confident: bool = False) -> bool:
+    """True for text Whisper produces from its training data rather than from the audio.
+
+    *confident*: the model was sure of what it heard. Then a short common phrase ("thank
+    you", "bye") is taken as real speech; without it such a phrase is dropped as invented.
+    """
     lowered = text.lower()
     if any(marker in lowered for marker in _CREDIT_MARKERS):
         return True
-    return lowered.strip(" .!?…,-—\"'") in _WHOLE_PHRASE_ARTIFACTS
+    whole = lowered.strip(" .!?…,-—\"'")
+    if whole in _WHOLE_PHRASE_ARTIFACTS:
+        return True
+    return whole in _SHORT_COMMON_ARTIFACTS and not confident
+
+
+def _is_confident(segment) -> bool:
+    return (
+        getattr(segment, "avg_logprob", 0.0) >= CONFIDENT_AVG_LOGPROB
+        and getattr(segment, "no_speech_prob", 0.0) <= CONFIDENT_NO_SPEECH_PROB
+    )
 
 
 def _is_reliable(segment) -> bool:
@@ -438,15 +456,16 @@ class SpeechRecognizer:
             without_timestamps=True,
             temperature=0.0,  # no fallback retries: see "Invented text" above
         )
-        kept, dropped = [], 0
+        kept, dropped, confident = [], 0, True
         for segment in segments:
             if _is_reliable(segment):
                 kept.append(segment.text.strip())
+                confident = confident and _is_confident(segment)
             else:
                 dropped += 1
         text = " ".join(part for part in kept if part).strip()
         self.last_language = self._language or getattr(info, "language", "") or ""
-        if text and is_known_artifact(text):
+        if text and is_known_artifact(text, confident=confident):
             dropped, text = dropped + 1, ""
         if dropped:
             self.dropped_unreliable += dropped

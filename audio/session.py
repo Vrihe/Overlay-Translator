@@ -73,6 +73,8 @@ def _default_recognizer():
 
 #: Seconds of new speech between two interim subtitles (the "streaming" setting).
 PARTIAL_INTERVAL_S = 1.0
+#: After the first "recognition is behind" warning, repeat it every this many dropped phrases.
+DROPPED_REPORT_EVERY = 10
 
 
 def _default_capture(on_audio):
@@ -97,6 +99,7 @@ class SubtitleSession(QObject):
         self._capture_factory = capture_factory or _default_capture
         self._translate = translate
         self._stt = None
+        self._last_stt = None  # kept after stop() so stats() still answers
         self._translator = None
         self._capture = None
         self._run_id = 0  # results of an earlier run are ignored
@@ -131,6 +134,7 @@ class SubtitleSession(QObject):
         translator = self._translator
         self._stt.ready.connect(lambda device, notice: self._on_ready(run, device, notice))
         self._stt.failed.connect(lambda message: self._on_failed(run, message))
+        self._stt.phrase_dropped.connect(lambda total: self._on_dropped(run, total))
         self._stt.phrase_recognized.connect(
             lambda text, _start, _end, lang: translator.submit(text, lang) if run == self._run_id else None
         )
@@ -157,6 +161,7 @@ class SubtitleSession(QObject):
         for thread in (self._stt, self._translator):
             thread.stop()
             self._retire(thread)
+        self._last_stt = self._stt
         self._stt = self._translator = None
         self.running_changed.emit(False)
 
@@ -195,6 +200,32 @@ class SubtitleSession(QObject):
             lines.append(notice)
         self.status.emit("\n".join(lines), "ok" if len(lines) == 1 else "warn")
         _logger.info("Subtitles started (speech recognition on %s)", device)
+
+    def stats(self) -> dict:
+        """Numbers of the running (or just stopped) session; empty when never started."""
+        stt = self._stt or self._last_stt
+        if stt is None:
+            return {}
+        done = stt.recognized_phrases
+        return {
+            "recognized": done,
+            "dropped": stt.dropped_phrases,
+            "avg_decode_s": stt.decode_seconds / done if done else 0.0,
+            "max_behind_s": stt.max_behind_s,
+        }
+
+    def _on_dropped(self, run: int, total: int) -> None:
+        """Say once, then every ``DROPPED_REPORT_EVERY`` phrases, that recognition falls behind."""
+        if run != self._run_id or (total != 1 and total % DROPPED_REPORT_EVERY):
+            return
+        self.status.emit(
+            tr(
+                "Распознавание не успевает за речью, пропущено фраз: {count}. "
+                "Выберите модель поменьше или выключите потоковый режим.",
+                count=total,
+            ),
+            "warn",
+        )
 
     def _on_failed(self, run: int, message: str) -> None:
         if run != self._run_id:
