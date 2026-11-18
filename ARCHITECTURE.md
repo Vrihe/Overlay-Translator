@@ -57,6 +57,7 @@ Overlay-Translator/
 │   ├── segmenter.py        #   Segmenter — cuts a 16 kHz stream into phrases (streaming Silero VAD)
 │   ├── stt.py              #   SpeechRecognizer — Whisper via faster-whisper, CPU or optional CUDA
 │   ├── stt_download.py     #   Whisper model download (HF Hub, by explicit action only)
+│   ├── packages.py         #   missing_packages() / install() — pip install --no-deps -r requirements-voice.txt
 │   ├── worker.py           #   SttWorker(QThread) — audio in, recognised phrases out via signals
 │   ├── phrase_translator.py #  PhraseTranslator(QThread) — phrases → translate.backend, by sentence for NLLB
 │   └── session.py          #   SubtitleSession — owns capture + both workers; start / stop / status

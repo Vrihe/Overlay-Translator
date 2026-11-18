@@ -147,3 +147,24 @@ class SpeechCudaDownloadWorker(_ProgressMixin, QThread):
             self.finished_with_status.emit(False, "")
         except Exception as e:
             self.finished_with_status.emit(False, str(e))
+
+
+class SpeechPackagesInstallWorker(QThread):
+    """``pip install --no-deps -r requirements-voice.txt`` for live subtitles (``audio/packages.py``)."""
+
+    finished_with_status = pyqtSignal(bool, str)  # (ok, error | "" if ok or cancelled)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.cancel = threading.Event()
+
+    def run(self) -> None:
+        from audio.packages import InstallCancelled, install
+
+        try:
+            install(cancel=self.cancel)
+            self.finished_with_status.emit(True, "")
+        except InstallCancelled:
+            self.finished_with_status.emit(False, "")
+        except Exception as e:
+            self.finished_with_status.emit(False, str(e))
