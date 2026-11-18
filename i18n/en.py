@@ -444,6 +444,7 @@ MESSAGES: dict[str, str] = {
     "Слушаю: {device}": "Listening to: {device}",
     "Выбранное устройство не найдено, используется устройство по умолчанию.": "The chosen device was not found; the default device is used.",
     "Ошибка перевода: {error}": "Translation error: {error}",
+    "Распознавание не успевает за речью, пропущено фраз: {count}. Выберите модель поменьше или выключите потоковый режим.": "Recognition cannot keep up with the speech, phrases skipped: {count}. Choose a smaller model or turn streaming off.",
     "Субтитры": "Subtitles",
     "Живые субтитры": "Live subtitles",
     "Запустить субтитры": "Start subtitles",

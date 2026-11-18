@@ -54,6 +54,8 @@ class SttWorker(QThread):
     #: (text, language) of the phrase in progress so far; replaced by the next one or by the
     #: phrase itself.
     partial_recognized = pyqtSignal(str, str)
+    #: A phrase was dropped because recognition is too far behind the speech: total so far.
+    phrase_dropped = pyqtSignal(int)
     #: The model cannot be loaded; the worker stops. The message is ready to display.
     failed = pyqtSignal(str)
 
@@ -175,6 +177,7 @@ class SttWorker(QThread):
             behind = self._lag(phrase)
             if check_lag and behind > self._max_lag_s:
                 self.dropped_phrases += 1
+                self.phrase_dropped.emit(self.dropped_phrases)
                 _logger.warning("STT is %.1fs behind, phrase dropped", behind)
                 continue
             self.max_behind_s = max(self.max_behind_s, behind)

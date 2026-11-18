@@ -155,6 +155,30 @@ class TestSubtitleSession(_SessionCase):
         self.captures[0].on_audio(np.zeros(16000, dtype="float32"))
         self.assertTrue(_pump(lambda: len(self.subtitles) == 1))
 
+    def test_stats_count_recognised_phrases(self):
+        session = self.make()
+        self.assertEqual(session.stats(), {})
+        session.start()
+        self.assertTrue(_pump(lambda: bool(self.captures)))
+        self.captures[0].say()
+        self.assertTrue(_pump(lambda: len(self.subtitles) == 1))
+        stats = session.stats()
+        self.assertEqual((stats["recognized"], stats["dropped"]), (1, 0))
+        self.assertGreaterEqual(stats["avg_decode_s"], 0.0)
+        session.stop()
+        self.assertEqual(session.stats()["recognized"], 1)  # still answers after stop
+
+    def test_falling_behind_is_reported_once_and_then_every_few_phrases(self):
+        session = self.make()
+        session.start()
+        run = session._run_id
+        for total in range(1, 22):
+            session._on_dropped(run, total)
+        warnings = [m for m, kind in self.statuses if kind == "warn" and "пропущено фраз" in m]
+        self.assertEqual([m.rsplit(": ", 1)[1].split(".")[0] for m in warnings], ["1", "10", "20"])
+        session._on_dropped(run + 1, 30)  # a stale run says nothing
+        self.assertEqual(len([m for m, kind in self.statuses if "пропущено фраз" in m]), 3)
+
     def test_a_refused_start_reports_why_and_leaves_nothing_running(self):
         def factory():
             raise SttModelUnavailable("only English")
