@@ -817,6 +817,9 @@ class TranslatorApp:
         stopped = self._subtitle_session is not None and not self._subtitle_session.is_running
         if kind == "error" and stopped and self._tray is not None:
             self._tray.showMessage(tr("Живые субтитры"), message, TrayIcon.Warning, 5000)
+        # ...and the Subtitles tab is where the cause is fixed (model, device, packages).
+        if kind == "error" and stopped:
+            self._main_window.show_subtitles_problem(message)
 
     def _on_subtitles_running(self, running: bool) -> None:
         self._main_window.set_subtitles_active(running)

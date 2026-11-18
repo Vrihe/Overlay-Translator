@@ -448,7 +448,7 @@ up again, now on the GPU. Standard library only (no pip in the frozen app).
 
 `download_cudnn(...)` does the same for cuDNN 9 (`nvidia-cudnn-cu12`, `CUDNN_VERSION`,
 ~1 GB on disk) into `cudnn_dir()` (`%APPDATA%\translator-overlay\cudnn`); only live
-subtitles need it. Settings → Subtitles (`_refresh_subs_gpu_row`) offers it to NVIDIA
+subtitles need it. The Subtitles tab (`SubtitlesPage._refresh_gpu_row`) offers it to NVIDIA
 owners; `SpeechCudaDownloadWorker` fetches cuBLAS first when that is missing too.
 
 ### `translate/domain_manager.py`
@@ -573,7 +573,7 @@ SpeechRecognizer(model_name="small.en", *, model_dir=None, device="auto",
     .filters_language / .skipped_foreign / .dropped_unreliable
     # low_vram (config.SUBTITLES_LOW_VRAM): the GPU model is created with compute_type
     # "int8_float16" instead of "float16" (about half the video memory); VRAM_MB holds the
-    # per-model figures shown in Settings → Субтитры (_refresh_subs_vram_hint)
+    # per-model figures shown on the Subtitles tab (_refresh_vram_hint)
     # invented text: temperature=0 (no fallback retries); segments below MIN_AVG_LOGPROB, above
     # MAX_NO_SPEECH_PROB or MAX_COMPRESSION_RATIO are dropped; is_known_artifact() removes
     # Whisper's training-data artefacts (subtitle credits, a lone "thanks for watching")
@@ -581,7 +581,7 @@ is_multilingual(name)                          # "small" yes, "small.en" no
 resolve_model_dir(name) / model_dirs(name)     # models/whisper-<name>, project then user data
 find_cudnn_dir() / prepare_cudnn()             # cudnn_ops64_9.dll → PATH
 
-# audio/stt_download.py — the only code that fetches a speech model (button in Settings → Subtitles)
+# audio/stt_download.py — the only code that fetches a speech model (button on the Subtitles tab)
 download_model(name, *, dest=None, progress=None, cancel=None) -> Path
     # tiny.en / base.en / small.en / small / large-v3 from Systran, large-v3-turbo from
     # mobiuslabsgmbh (REPOS) on the HF Hub → %APPDATA%\…\models\whisper-<name>,
@@ -727,11 +727,7 @@ SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None
   read by `_start_live_monitoring` at the next start; `live_popup_keep_open` switch (default
   on): the popup a monitor updates skips the auto-hide timer while monitoring runs and gets
   it back when monitoring stops. Starting a monitor drops the region's `RegionFeed`, so the
-  first check shows the region's whole text again), "Субтитры" (only what is set up once for live subtitles: the
-  autosaved `subtitles_model` (`small.en` / `small` / `base.en` / `tiny.en`) with its download
-  row and `subtitles_stt_device` (`auto` / `cpu`) with the CUDA-library row, read at the next
-  start; starting subtitles and the day-to-day parameters are on the main window's Subtitles
-  tab, `ui/subtitles_page.py`; `show_section(key)` opens a section by its page key), "Распознавание" (OCR
+  first check shows the region's whole text again), "Распознавание" (OCR
   acceleration, OCR preview), "Попап" (notifications, popup timeout, saved size; group
   "Ненавязчивость": `popup_opacity` slider 40–100 % styled by `theme.slider_css()`,
   `popup_compact` and `popup_click_through` switches, all autosaved), "Интерфейс"
@@ -835,9 +831,23 @@ SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None
   it swaps in `MULTILINGUAL_MODEL` when that is on disk (`start_notice` → the status line) and
   otherwise raises `SttModelUnavailable`, which `SubtitleSession.start()` reports as
   `running_changed(False)` + an error status. `reload()` runs when the tab
-  opens. The page names the chosen model, warns when it is not on disk or is English-only
-  while another language / the filter is wanted, and `open_settings_requested` leads to
-  Settings → Субтитры (`MainWindow.show_settings_section("subtitles")`).
+  opens. The tab holds everything for live subtitles, Settings has no Subtitles section:
+  a "Компоненты" panel shown only while `audio.packages.missing_packages()` is not empty (a source
+  run without `install.bat`): the "Установить пакеты" button runs `audio.packages.install()` in
+  `SpeechPackagesInstallWorker` — `pip install --no-deps -r requirements-voice.txt`, never
+  without the click; a packaged build has no pip and only gets advice; the start button and
+  `on_start_failed` check the packages before the model; a "Модель распознавания" panel (`subtitles_model` from `SUBTITLE_MODELS`, its status row
+  with the download button — `SpeechModelDownloadWorker`, only on click —,
+  `subtitles_stt_device`, the CUDA-library row with `SpeechCudaDownloadWorker`,
+  `subtitles_low_vram` and the memory hint), all saved at once like the other controls, in a
+  scroll area. The start button refuses to start when the model that will be loaded
+  (`_needed_model()`: the chosen one, or `MULTILINGUAL_MODEL` for a non-English speech
+  language, which is then selected) is not on disk: it shows a warning and focuses the
+  download button (`show_model_problem`). When a start from the tray/home fails,
+  `TranslatorApp._on_subtitles_status` calls `MainWindow.show_subtitles_problem(message)`,
+  which opens the tab and calls `SubtitlesPage.on_start_failed()` (a missing model leads to the
+  download, any other error is shown as it is). The page also warns when the model is
+  English-only while another language / the filter is wanted.
 - Subtitle reading pace (`ui/subtitle_window.py`): `add_line()` queues a line while the
   newest one on screen is still inside its reading time (length / `READ_CHARS_PER_S`, clamped
   to `MIN_HOLD_MS`…`MAX_HOLD_MS`); `_hold_timer` shows it afterwards. More than `MAX_WAITING`

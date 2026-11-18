@@ -781,6 +781,11 @@ class MainWindow(QMainWindow):
         """The subtitle session's last status line, shown on the Subtitles tab."""
         self._subtitles_page.set_status(message, kind)
 
+    def show_subtitles_problem(self, message: str):
+        """Subtitles failed to start (e.g. from the tray): open their tab where it can be fixed."""
+        self.show_and_switch(self.PAGE_SUBTITLES)
+        self._subtitles_page.on_start_failed(message)
+
     def _on_update_install_clicked(self):
         """Download the new installer (or cancel that download) from the update banner."""
         worker = getattr(self, "_update_install_worker", None)
@@ -1034,7 +1039,6 @@ class MainWindow(QMainWindow):
         self._btn_history.clicked.connect(lambda: self.switch_to_page(self.PAGE_HISTORY))
         self._btn_subtitles.clicked.connect(lambda: self.switch_to_page(self.PAGE_SUBTITLES))
         self._subtitles_page.toggle_requested.connect(self.subtitles_toggle_requested)
-        self._subtitles_page.open_settings_requested.connect(lambda: self.show_settings_section("subtitles"))
         self._btn_monitoring.clicked.connect(lambda: self.switch_to_page(self.PAGE_MONITORING))
         self._home_page.subtitles_toggle_requested.connect(self.subtitles_toggle_requested)
         self._home_page.monitoring_toggle_requested.connect(self._on_home_monitoring_toggled)
