@@ -181,6 +181,22 @@ class TestSttWorker(unittest.TestCase):
         self.assertEqual([p[0] for p in self.phrases], ["phrase 1", "phrase 2"])
         self.assertGreater(self.phrases[1][1], 13.0)  # the second result is the fresh phrase
 
+    def test_segmenting_goes_on_while_a_phrase_is_being_decoded(self):
+        recognizer = _FakeRecognizer()
+        recognizer.gate = threading.Event()
+        worker = self.start(recognizer, max_lag_s=60.0)
+        phrase = np.concatenate([_speech(1), _silence(1)])
+        worker.feed(phrase)
+        self.assertTrue(_pump(lambda: recognizer.calls == 1))  # decoder is now blocked
+        worker.feed(phrase)
+        worker.feed(phrase)
+        # The segmenter thread has already consumed the audio queued behind the blocked decode.
+        self.assertTrue(_pump(lambda: worker._chunks.empty() and worker._jobs.qsize() == 2))
+        recognizer.gate.set()
+        self.assertTrue(_pump(lambda: len(self.phrases) == 3))
+        self.assertEqual(worker.recognized_phrases, 3)
+        self.assertGreaterEqual(worker.decode_seconds, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

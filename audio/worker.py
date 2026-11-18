@@ -17,6 +17,10 @@ still being spoken, the audio collected so far is recognised again every
 ``partial_interval_s`` seconds of new speech and leaves through ``partial_recognized``.
 It is only done when no audio is waiting, so it never delays the final phrases.
 
+Two threads: the QThread recognises phrases, a helper thread (``stt-segmenter``) runs the
+VAD and cuts the stream into phrases. A long decode therefore never stops the VAD from
+reading the audio, and the lag of a phrase is measured against the real stream position.
+
 When recognition is slower than speech (a CPU under load), phrases pile up. A phrase
 that is already more than ``max_lag_s`` behind the stream is dropped instead of being
 recognised: a subtitle that late is useless, and skipping it lets the worker catch up.
@@ -27,6 +31,7 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+import time
 
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -67,7 +72,12 @@ class SttWorker(QThread):
         self._max_lag_s = max_lag_s
         self._partial_step = int(partial_interval_s * SAMPLE_RATE)  # 0 = no interim results
         self._partial_len = 0  # samples of the phrase in progress already shown
-        self._chunks: queue.Queue = queue.Queue()
+        self._chunks: queue.Queue = queue.Queue()  # audio → segmenter thread
+        self._jobs: queue.Queue = queue.Queue()  # phrases → recognition (this QThread)
+        self._busy = False  # recognition in progress (interim text waits for it)
+        self.recognized_phrases = 0
+        self.decode_seconds = 0.0  # total time spent recognising final phrases
+        self.max_behind_s = 0.0  # worst "audio that arrived after the phrase closed" seen
         self._fed_samples = 0
         self._fed_lock = threading.Lock()
         self.dropped_phrases = 0
@@ -98,19 +108,48 @@ class SttWorker(QThread):
             return
         self.ready.emit(self._recognizer.active_device, self._recognizer.take_notice())
 
+        segmenter_thread = threading.Thread(target=self._segment_loop, name="stt-segmenter", daemon=True)
+        segmenter_thread.start()
         while True:
-            chunk = self._chunks.get()
-            if chunk is _STOP:
-                self._recognize(self._segmenter.flush(), check_lag=False)
-                return
-            phrases = self._segmenter.feed(chunk)
-            if phrases:
-                self._partial_len = 0
-            self._recognize(phrases, check_lag=True)
-            if self._partial_step and self._chunks.empty():
-                self._recognize_partial()
+            job = self._jobs.get()
+            if job is _STOP:
+                break
+            kind, payload, check_lag = job
+            self._busy = True
+            try:
+                if kind == "partial":
+                    self._recognize_partial(payload)
+                else:
+                    self._recognize([payload], check_lag)
+            finally:
+                self._busy = False
+        segmenter_thread.join(2.0)
 
-    def _recognize_partial(self) -> None:
+    # ── Segmenter thread ─────────────────────────────────
+
+    def _segment_loop(self) -> None:
+        try:
+            while True:
+                chunk = self._chunks.get()
+                if chunk is _STOP:
+                    for phrase in self._segmenter.flush():
+                        self._jobs.put(("phrase", phrase, False))
+                    return
+                try:
+                    phrases = self._segmenter.feed(chunk)
+                except Exception:
+                    _logger.exception("Segmenting audio failed")
+                    continue
+                if phrases:
+                    self._partial_len = 0
+                for phrase in phrases:
+                    self._jobs.put(("phrase", phrase, True))
+                if self._partial_step and self._chunks.empty() and self._jobs.empty() and not self._busy:
+                    self._queue_partial()
+        finally:
+            self._jobs.put(_STOP)
+
+    def _queue_partial(self) -> None:
         audio = self._segmenter.partial()
         if audio is None:
             self._partial_len = 0
@@ -118,6 +157,11 @@ class SttWorker(QThread):
         if len(audio) - self._partial_len < self._partial_step:
             return
         self._partial_len = len(audio)
+        self._jobs.put(("partial", audio, False))
+
+    # ── Recognition ──────────────────────────────────────
+
+    def _recognize_partial(self, audio) -> None:
         try:
             text = self._recognizer.transcribe(audio)
         except Exception:
@@ -128,15 +172,27 @@ class SttWorker(QThread):
 
     def _recognize(self, phrases, check_lag: bool) -> None:
         for phrase in phrases:
-            if check_lag and self._lag(phrase) > self._max_lag_s:
+            behind = self._lag(phrase)
+            if check_lag and behind > self._max_lag_s:
                 self.dropped_phrases += 1
-                _logger.warning("STT is %.1fs behind, phrase dropped", self._lag(phrase))
+                _logger.warning("STT is %.1fs behind, phrase dropped", behind)
                 continue
+            self.max_behind_s = max(self.max_behind_s, behind)
+            t0 = time.perf_counter()
             try:
                 text = self._recognizer.transcribe(phrase.audio)
             except Exception:
                 _logger.exception("Speech recognition failed for one phrase")
                 continue
+            decode = time.perf_counter() - t0
+            self.recognized_phrases += 1
+            self.decode_seconds += decode
+            _logger.info(
+                "STT | phrase %.1fs | %.1fs behind the stream | decoded in %.2fs",
+                len(phrase.audio) / SAMPLE_RATE,
+                behind,
+                decode,
+            )
             if text:
                 self.phrase_recognized.emit(text, phrase.start, phrase.end, self._language())
 

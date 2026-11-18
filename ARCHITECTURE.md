@@ -591,7 +591,7 @@ is_downloadable(name) / download_dir(name) / REPOS / APPROX_MB
 SttWorker(recognizer=None, segmenter=None, *, max_lag_s=6.0, partial_interval_s=0.0)   # QThread
     # partial_interval_s > 0 (config.SUBTITLES_STREAMING, session.PARTIAL_INTERVAL_S): the phrase
     # in progress (Segmenter.partial()) is recognised again per that many seconds of new speech,
-    # only while no audio is waiting → partial_recognized(text) → PhraseTranslator.submit_partial()
+    # only while no audio or job is waiting → partial_recognized(text) → PhraseTranslator.submit_partial()
     # (newest only, after waiting phrases) → SubtitleSession.subtitle_partial →
     # SubtitleWindow.set_partial(); the finished phrase replaces the interim line
     .feed(chunk) / .stop()                      # thread-safe
@@ -631,9 +631,14 @@ SubtitleSession(*, recognizer_factory=None, capture_factory=None, translate=None
   aborts the process instead of raising. Decoding parameters are fixed (beam 1, fixed
   language, no conditioning on previous text, no timestamps). Recognised text is logged
   through `translate.privacy.loggable`.
-- **SttWorker** owns the segmenter and the recognizer on its thread. A phrase that is more
-  than `max_lag_s` of audio behind the stream when its turn comes is dropped
-  (`dropped_phrases`), so a slow CPU catches up instead of showing subtitles 10+ s late.
+- **SttWorker** runs two threads: the QThread recognises phrases from a job queue, and a
+  helper thread (`stt-segmenter`) runs the VAD and queues finished phrases, so a long decode
+  never stops the audio from being read. A phrase that is more than `max_lag_s` of audio
+  behind the stream when its turn comes is dropped (`dropped_phrases`), so a slow CPU
+  catches up instead of showing subtitles 10+ s late. Interim recognition is queued only
+  when no audio and no job is waiting and the recognizer is idle. Each decoded phrase logs
+  its length, how far behind the stream it was and the decode time; `recognized_phrases`,
+  `decode_seconds` and `max_behind_s` accumulate the same numbers.
 - Like every native extension, CTranslate2 must load after `onnxruntime` (see
   `main.py` / `pyi_rth_onnxruntime.py`): with PyQt5's old `msvcp140.dll` loaded first,
   creating the Whisper model crashes with an access violation.
