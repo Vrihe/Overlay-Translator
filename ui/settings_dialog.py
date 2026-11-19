@@ -1940,9 +1940,7 @@ class SettingsWidget(QWidget):
             probe.write_text("", encoding="utf-8")
             probe.unlink()
         except OSError as e:
-            QMessageBox.warning(
-                self, tr("Папка недоступна"), tr("В эту папку нельзя записывать:\n{error}", error=e)
-            )
+            QMessageBox.warning(self, tr("Папка недоступна"), tr("В эту папку нельзя записывать:\n{error}", error=e))
             return
         self._data_dir_edit.setText(str(folder))
         self._schedule_autosave()
