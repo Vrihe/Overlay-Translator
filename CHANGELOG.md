@@ -9,6 +9,13 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-19
+
+### Added
+- Settings → Interface → Storage: choose the folder for downloaded models and other large
+  files (speech and translation models, NVIDIA libraries), e.g. a drive with free space.
+  Files already downloaded stay where they are and are still found.
+
 ## [1.6.0] - 2026-11-19
 
 ### Added
@@ -246,7 +253,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.2...v1.4.3

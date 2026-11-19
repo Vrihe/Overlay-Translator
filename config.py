@@ -50,7 +50,7 @@ def _get_user_data_dir() -> Path:
 
 # A module-level literal so pyproject.toml (setuptools) and build.py can read
 # the version without importing config.
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.6.1"
 
 
 class _LiveConfig:
@@ -241,6 +241,34 @@ class _LiveConfig:
         from settings.config_manager import set_value
 
         set_value("translation_backend", value)
+
+    @property
+    def DATA_DIR(self):
+        """Folder for downloaded models and other large files: Settings → Storage, else ``USER_DATA_DIR``.
+
+        ``settings.json`` itself always stays in ``USER_DATA_DIR``.
+        """
+        custom = str(_cfg("data_dir") or "").strip()
+        if custom:
+            return Path(os.path.expandvars(custom)).expanduser()
+        return Path(self.USER_DATA_DIR)
+
+    @DATA_DIR.setter
+    def DATA_DIR(self, value):
+        from settings.config_manager import set_value
+
+        set_value("data_dir", str(value or ""))
+
+    def data_path(self, name: str) -> Path:
+        """``DATA_DIR / name``, or the same folder in ``USER_DATA_DIR`` when only that one exists.
+
+        Keeps files downloaded before the storage folder was changed in use.
+        """
+        path = self.DATA_DIR / name
+        old = Path(self.USER_DATA_DIR) / name
+        if not path.exists() and old != path and old.exists():
+            return old
+        return path
 
     @property
     def NLLB_MODEL_PATH(self):
