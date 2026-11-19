@@ -9,6 +9,28 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-19
+
+### Added
+- Subtitles tab: a Components panel shows which speech packages are missing and installs
+  them with one button (never in the installed app, only when you press it).
+- A warning when speech recognition falls behind the speech, with a hint to pick a smaller
+  model or turn streaming off.
+
+### Changed
+- Everything about live subtitles is on the Subtitles tab: the model and its download, the
+  recognition device with the CUDA libraries, the video memory switch and the other
+  parameters. Settings has no Subtitles section any more.
+- Starting subtitles without the needed packages or model leads to the matching button;
+  a failed start from the tray opens the tab.
+- Long phrases are closed after a shorter pause, which lowers the subtitle delay.
+
+### Fixed
+- Short replies such as "thank you" and "bye" were always dropped as invented text; they
+  are kept now when the recognition is confident.
+- A long recognition no longer stops the audio from being read, so the delay of a phrase
+  no longer grows.
+
 ## [1.5.0] - 2026-11-15
 
 ### Added
@@ -224,7 +246,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.1...v1.4.2
