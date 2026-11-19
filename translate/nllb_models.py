@@ -91,8 +91,9 @@ def list_remote_versions(repo_id: str | None = None) -> list[RemoteVersion]:
 def download_root() -> Path:
     """Where new builds go: the project ``models`` dir in a dev checkout, the
     per-user one in the frozen app (its install dir may be read-only)."""
-    roots = _models_roots()
-    return roots[1] if getattr(sys, "frozen", False) else roots[0]
+    if getattr(sys, "frozen", False) or str(config.DATA_DIR) != str(config.USER_DATA_DIR):
+        return Path(config.DATA_DIR) / "models"
+    return _models_roots()[0]
 
 
 def _read_marker(path: Path) -> dict:

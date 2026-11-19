@@ -564,4 +564,18 @@ MESSAGES: dict[str, str] = {
     "Попап и полоса субтитров не перехватывают мышь: клики попадают в игру под ними. "
     "Пока зажат Alt и курсор над окном, оно ведёт себя как обычно.": "The popup and the subtitle strip do not catch the mouse: clicks reach the game below them. "
     "While Alt is held with the cursor over the window, it behaves as usual.",
+    # ── Storage folder ──
+    "Хранилище": "Storage",
+    "Выбрать…": "Choose…",
+    "Папка для моделей и загрузок:": "Folder for models and downloads:",
+    "Папка для моделей и загрузок": "Folder for models and downloads",
+    "Папка недоступна": "Folder unavailable",
+    "В эту папку нельзя записывать:\n{error}": "Cannot write to this folder:\n{error}",
+    "Модели распознавания и перевода, библиотеки NVIDIA и другие загрузки: {path}": "Recognition and translation models, NVIDIA libraries and other downloads: {path}",
+    "Свободно на диске: {free} ГБ.": "Free space on the disk: {free} GB.",
+    "Уже скачанное остаётся в прежней папке и находится там же; "
+    "чтобы освободить место, перенесите папки models, cuda и cudnn вручную. "
+    "Новые загрузки идут в выбранную папку; библиотеки NVIDIA подхватываются после перезапуска.": "Files downloaded earlier stay in the old folder and are still found there; "
+    "to free space, move the models, cuda and cudnn folders by hand. "
+    "New downloads go to the chosen folder; NVIDIA libraries are picked up after a restart.",
 }

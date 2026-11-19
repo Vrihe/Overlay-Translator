@@ -9,6 +9,7 @@ Stored keys:
   • translation_engine    — "llm_text" | "llm_vision" | "api"
   • translation_backend   — "google" (default, no key needed) | "api" | "deepl" | "azure" | "nllb"
   • azure_region           — Azure Translator region (default "global")
+  • data_dir              — where models and other large downloads go ("" = per-user data folder)
   • nllb_model_path       — explicit path to the local NLLB model ("" = auto-discover)
   • llm_model             — model identifier for OpenRouter / Anthropic
   • hotkey                — keyboard combo string
@@ -64,6 +65,7 @@ DEFAULTS: dict[str, Any] = {
     "translation_engine": "llm_text",  # "llm_text" | "llm_vision" | "api"
     "translation_backend": "google",  # "google" (keyless by default) | "api" | "deepl" | "azure" | "nllb"
     "nllb_model_path": "",  # optional explicit path to the CTranslate2 NLLB dir
+    "data_dir": "",  # folder for downloaded models and other large files ("" = the per-user folder)
     "nllb_device": "auto",  # "auto" (NVIDIA GPU when cuBLAS is there) | "cpu"
     "ocr_gpu_mode": "auto",  # "auto" | "cpu" — OCR on the GPU via DirectML ("gpu" = "auto")
     "azure_region": "global",  # Azure Translator region (default "global")

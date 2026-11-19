@@ -149,10 +149,21 @@ def _is_complete(path: Path) -> bool:
 
 
 def _models_roots() -> list[Path]:
-    return [
+    """``models`` folders searched, in order: the project, the storage folder, the per-user one.
+
+    The storage folder (Settings → Storage) is where new downloads go; the per-user
+    one is still searched so models downloaded before it was changed are found.
+    """
+    roots = [
         Path(config._PROJECT_DIR) / "models",
+        Path(config.DATA_DIR) / "models",
         Path(config.USER_DATA_DIR) / "models",
     ]
+    unique: list[Path] = []
+    for root in roots:
+        if root not in unique:
+            unique.append(root)
+    return unique
 
 
 def _auto_model_dirs() -> list[Path]:

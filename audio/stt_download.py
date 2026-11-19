@@ -59,8 +59,8 @@ def is_downloadable(name: str) -> bool:
 
 
 def download_dir(name: str) -> Path:
-    """Where ``download_model`` puts *name* (per user, survives app updates)."""
-    return Path(config.USER_DATA_DIR) / "models" / stt.model_dirname(name)
+    """Where ``download_model`` puts *name* (the storage folder, survives app updates)."""
+    return Path(config.DATA_DIR) / "models" / stt.model_dirname(name)
 
 
 def download_model(

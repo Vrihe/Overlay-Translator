@@ -131,7 +131,7 @@ def _should_use_gpu() -> bool:
 
 def _model_dir() -> Path:
     """Writable model directory, seeded from the models shipped with rapidocr."""
-    target = Path(config.USER_DATA_DIR) / "ocr_models"
+    target = config.data_path("ocr_models")
     target.mkdir(parents=True, exist_ok=True)
     try:
         import rapidocr
