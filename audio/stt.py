@@ -173,11 +173,17 @@ def model_dirname(name: str) -> str:
 
 
 def model_dirs(name: str = DEFAULT_MODEL) -> list[Path]:
-    """Where a Whisper model is looked for, in order: the project, then user data."""
-    return [
-        Path(config._PROJECT_DIR) / "models" / model_dirname(name),
-        Path(config.USER_DATA_DIR) / "models" / model_dirname(name),
+    """Where a Whisper model is looked for, in order: the project, the storage folder, user data."""
+    roots = [
+        Path(config._PROJECT_DIR) / "models",
+        Path(config.DATA_DIR) / "models",
+        Path(config.USER_DATA_DIR) / "models",
     ]
+    dirs: list[Path] = []
+    for root in roots:
+        if root / model_dirname(name) not in dirs:
+            dirs.append(root / model_dirname(name))
+    return dirs
 
 
 def missing_files(path: Path) -> list[str]:

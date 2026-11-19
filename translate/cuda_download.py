@@ -57,12 +57,12 @@ class DownloadCancelled(Exception):
 
 def cuda_dir() -> Path:
     """Where the downloaded cuBLAS DLLs live (per user, survives app updates)."""
-    return Path(config.USER_DATA_DIR) / "cuda"
+    return config.data_path("cuda")
 
 
 def cudnn_dir() -> Path:
     """Where the downloaded cuDNN DLLs live (next to ``cuda_dir()``)."""
-    return Path(config.USER_DATA_DIR) / "cudnn"
+    return config.data_path("cudnn")
 
 
 def driver_cuda_version() -> int | None:

@@ -164,6 +164,7 @@ Overlay-Translator/
 `models/`, `*.ct2/`, `.hf-cache/`, `data/`.
 
 **Artifacts outside the repository**:
+- Storage folder (`settings.json` → `data_dir`, Settings → Interface → Storage; `config.DATA_DIR`, "" = the user data folder): `models/`, `cuda/`, `cudnn/`, `ocr_models/` and other large downloads. `settings.json` and the small per-user files always stay in the user data folder. Search paths also include the user data folder, so downloads made before the folder was changed are still found (`config.data_path(name)` returns the old folder when only that one exists).
 - User data: `%APPDATA%\translator-overlay\`
   (`settings.json`, `region_presets.json`, `cache/translations.db`,
   `logs/translator.log`, `app.log`, `crash.log`, custom domain profiles).
@@ -404,7 +405,7 @@ How it differs from the API path:
   plus a one-shot notice via `take_notice()` → `translate.backend.take_notice()` → result popup.
 
 Model search order: explicit path from settings → `NLLB_MODEL_DIR` →
-`<project>/models/nllb-200-ct2-int8` → `%APPDATA%/translator-overlay/models/…`.
+`<project>/models/nllb-200-ct2-int8` → `<storage folder>/models/…` → `%APPDATA%/translator-overlay/models/…`.
 An explicitly set path is authoritative:
 if it is wrong, the backend reports that instead of picking up another copy.
 

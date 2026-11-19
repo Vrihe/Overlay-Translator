@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -904,6 +905,31 @@ class SettingsWidget(QWidget):
 
         pages["interface"].addWidget(grp_ui)
 
+        # ── Storage section ──
+        grp_storage, storage_layout = self._group(tr("Хранилище"), spacing=8)
+        self._data_dir_edit = QLineEdit()
+        self._data_dir_edit.setReadOnly(True)
+        self._data_dir_edit.setStyleSheet(self._INPUT_CSS)
+        self._data_dir_edit.setPlaceholderText(str(config.USER_DATA_DIR))
+        self._btn_data_dir_pick = QPushButton(tr("Выбрать…"))
+        self._btn_data_dir_pick.setStyleSheet(theme.btn_accent("6px 14px", 8.5))
+        self._btn_data_dir_pick.clicked.connect(self._on_pick_data_dir)
+        self._btn_data_dir_reset = QPushButton(tr("По умолчанию"))
+        self._btn_data_dir_reset.setStyleSheet(theme.btn_accent("6px 14px", 8.5))
+        self._btn_data_dir_reset.clicked.connect(self._on_reset_data_dir)
+        data_dir_row = QHBoxLayout()
+        data_dir_row.setSpacing(8)
+        data_dir_row.addWidget(self._data_dir_edit, 1)
+        data_dir_row.addWidget(self._btn_data_dir_pick)
+        data_dir_row.addWidget(self._btn_data_dir_reset)
+        storage_layout.addLayout(self._field(tr("Папка для моделей и загрузок:"), self._data_dir_edit))
+        storage_layout.addLayout(data_dir_row)
+        self._data_dir_hint = QLabel()
+        self._data_dir_hint.setWordWrap(True)
+        self._data_dir_hint.setStyleSheet(theme.text_css(p.muted, 8.5, italic=True))
+        storage_layout.addWidget(self._data_dir_hint)
+        pages["interface"].addWidget(grp_storage)
+
         # ── Notifications section ──
         grp_notify, notify_layout = self._group(tr("Уведомления"), spacing=8)
 
@@ -1765,6 +1791,10 @@ class SettingsWidget(QWidget):
         self._chk_popup_compact.setChecked(bool(getattr(config, "POPUP_COMPACT", False)))
         self._chk_click_through.setChecked(bool(getattr(config, "POPUP_CLICK_THROUGH", False)))
 
+        # Storage folder.
+        self._data_dir_edit.setText(str(config_manager.get("data_dir") or ""))
+        self._update_data_dir_hint()
+
         # Interface language and colour scheme.
         idx_ui = self._ui_lang_combo.findData(config_manager.get("ui_language"))
         self._ui_lang_combo.setCurrentIndex(max(idx_ui, 0))
@@ -1872,6 +1902,55 @@ class SettingsWidget(QWidget):
             self._update_status_lbl.setText(tr("✓ У вас установлена актуальная версия (v{version}).", version=current))
             self._update_status_lbl.setStyleSheet(self._status_css())
 
+    # ── Storage folder ───────────────────────────────────
+
+    def _update_data_dir_hint(self) -> None:
+        import shutil
+        from pathlib import Path
+
+        folder = Path(config.DATA_DIR)
+        probe = folder
+        while not probe.exists() and probe != probe.parent:
+            probe = probe.parent
+        try:
+            free = f"{shutil.disk_usage(probe).free / 1024**3:.1f}"
+        except OSError:
+            free = None
+        text = tr("Модели распознавания и перевода, библиотеки NVIDIA и другие загрузки: {path}", path=folder)
+        if free is not None:
+            text += "\n" + tr("Свободно на диске: {free} ГБ.", free=free)
+        text += "\n" + tr(
+            "Уже скачанное остаётся в прежней папке и находится там же; "
+            "чтобы освободить место, перенесите папки models, cuda и cudnn вручную. "
+            "Новые загрузки идут в выбранную папку; библиотеки NVIDIA подхватываются после перезапуска."
+        )
+        self._data_dir_hint.setText(text)
+
+    def _on_pick_data_dir(self) -> None:
+        from pathlib import Path
+
+        start = str(config.DATA_DIR) if Path(config.DATA_DIR).exists() else str(Path.home())
+        chosen = QFileDialog.getExistingDirectory(self, tr("Папка для моделей и загрузок"), start)
+        if not chosen:
+            return
+        folder = Path(chosen)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            probe = folder / ".write-test"
+            probe.write_text("", encoding="utf-8")
+            probe.unlink()
+        except OSError as e:
+            QMessageBox.warning(
+                self, tr("Папка недоступна"), tr("В эту папку нельзя записывать:\n{error}", error=e)
+            )
+            return
+        self._data_dir_edit.setText(str(folder))
+        self._schedule_autosave()
+
+    def _on_reset_data_dir(self) -> None:
+        self._data_dir_edit.clear()
+        self._schedule_autosave()
+
     # ── Save ─────────────────────────────────────────────
 
     def _schedule_autosave(self, *_args) -> None:
@@ -1892,6 +1971,9 @@ class SettingsWidget(QWidget):
             return
         if not changed:
             return
+        if "data_dir" in changed:
+            self._update_data_dir_hint()
+            self._populate_nllb_versions(self._nllb_path_edit.text().strip())
 
         from translate.backend import BACKEND_NLLB
 
@@ -1920,6 +2002,7 @@ class SettingsWidget(QWidget):
         old = dict(cfg)
         cfg["translation_backend"] = self._backend_combo.currentData() or DEFAULT_BACKEND
         cfg["nllb_model_path"] = self._nllb_path_edit.text().strip()
+        cfg["data_dir"] = self._data_dir_edit.text().strip()
         cfg["live_interval_sec"] = self._live_interval_spin.value()
         cfg["live_sensitivity"] = self._live_sensitivity_combo.currentData() or "medium"
         cfg["live_popup_keep_open"] = self._chk_live_keep_open.isChecked()
