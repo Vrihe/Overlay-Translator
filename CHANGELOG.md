@@ -9,7 +9,7 @@ the section for that version becomes the GitHub release notes.
 
 ## [Unreleased]
 
-## [1.6.0] - 2026-11-19
+## [1.5.1] - 2026-11-19
 
 ### Added
 - Subtitles tab: a Components panel shows which speech packages are missing and installs
@@ -246,8 +246,8 @@ First public release.
 - The text you translate is not written to the logs (only its length) unless
   `OVERLAY_LOG_TEXT` is set.
 
-[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.6.0...HEAD
-[1.6.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.5.0...v1.6.0
+[Unreleased]: https://github.com/Vrihe/Overlay-Translator/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/Vrihe/Overlay-Translator/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/Vrihe/Overlay-Translator/compare/v1.4.1...v1.4.2
